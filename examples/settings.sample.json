@@ -17,7 +17,16 @@
     "dotSpacing": 1,
     "brightness": 1.0,
     "gamma": 1.0,
-    "instantTrigger": true
+    "instantTrigger": true,
+    "visual": {
+      "offStateTintR": 150,
+      "offStateTintG": 155,
+      "offStateTintB": 170,
+      "offStateAlpha": 0.22,
+      "lensFalloff": 0.45,
+      "specularHotspot": 0.28,
+      "rimHighlight": 0.22
+    }
   },
   "window": {
     "alwaysOnTop": true,

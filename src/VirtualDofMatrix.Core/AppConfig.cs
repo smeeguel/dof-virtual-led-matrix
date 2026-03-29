@@ -47,6 +47,25 @@ public sealed class MatrixConfig
     public double Gamma { get; set; } = 1.0;
 
     public bool InstantTrigger { get; set; } = true;
+
+    public MatrixVisualConfig Visual { get; set; } = new();
+}
+
+public sealed class MatrixVisualConfig
+{
+    public byte OffStateTintR { get; set; } = 150;
+
+    public byte OffStateTintG { get; set; } = 155;
+
+    public byte OffStateTintB { get; set; } = 170;
+
+    public double OffStateAlpha { get; set; } = 0.22;
+
+    public double LensFalloff { get; set; } = 0.45;
+
+    public double SpecularHotspot { get; set; } = 0.28;
+
+    public double RimHighlight { get; set; } = 0.22;
 }
 
 public sealed class WindowConfig

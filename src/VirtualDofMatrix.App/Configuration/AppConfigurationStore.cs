@@ -44,6 +44,11 @@ public sealed class AppConfigurationStore
             config.Matrix.DotSpacing = 1;
         }
 
+        if (config.Matrix.Visual is null)
+        {
+            config.Matrix.Visual = new MatrixVisualConfig();
+        }
+
         return config;
     }
 }

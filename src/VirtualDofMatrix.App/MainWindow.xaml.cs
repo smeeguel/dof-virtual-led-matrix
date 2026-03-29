@@ -171,6 +171,16 @@ public partial class MainWindow : Window
             Brightness = _config.Matrix.Brightness,
             Gamma = _config.Matrix.Gamma,
             InstantTrigger = _config.Matrix.InstantTrigger,
+            Visual = new MatrixVisualConfig
+            {
+                OffStateTintR = _config.Matrix.Visual.OffStateTintR,
+                OffStateTintG = _config.Matrix.Visual.OffStateTintG,
+                OffStateTintB = _config.Matrix.Visual.OffStateTintB,
+                OffStateAlpha = _config.Matrix.Visual.OffStateAlpha,
+                LensFalloff = _config.Matrix.Visual.LensFalloff,
+                SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
+                RimHighlight = _config.Matrix.Visual.RimHighlight,
+            },
         };
     }
 
