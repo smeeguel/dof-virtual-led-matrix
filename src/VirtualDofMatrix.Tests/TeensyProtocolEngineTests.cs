@@ -13,6 +13,7 @@ public sealed class TeensyProtocolEngineTests
         var result = engine.ProcessIncoming([0x00]);
 
         Assert.Equal([(byte)'A'], result.ResponseBytes);
+        Assert.Empty(result.PresentedFrames);
     }
 
     [Fact]
@@ -82,6 +83,8 @@ public sealed class TeensyProtocolEngineTests
         Assert.Equal(new byte[] { (byte)'A', 0x04, 0x4C, (byte)'A', (byte)'A', (byte)'A', (byte)'A' }, result.ResponseBytes);
         Assert.Equal(payload, frame.RgbBytes.Slice(0, 6).ToArray());
         Assert.Equal((ulong)1, frame.OutputSequence);
+        Assert.Single(result.PresentedFrames);
+        Assert.Equal((ulong)1, result.PresentedFrames[0].OutputSequence);
     }
 
     [Fact]
@@ -116,13 +119,17 @@ public sealed class TeensyProtocolEngineTests
         Assert.Equal(new byte[] { 0x04, 0x4C, (byte)'A' }, engine.ProcessIncoming([(byte)'M']).ResponseBytes);
         Assert.Equal([(byte)'A'], engine.ProcessIncoming([(byte)'L', 0x01, 0x00]).ResponseBytes);
         Assert.Equal([(byte)'A'], engine.ProcessIncoming([(byte)'C']).ResponseBytes);
-        Assert.Equal([(byte)'A'], engine.ProcessIncoming([(byte)'O']).ResponseBytes);
+        var firstOutput = engine.ProcessIncoming([(byte)'O']);
+        Assert.Equal([(byte)'A'], firstOutput.ResponseBytes);
+        Assert.Single(firstOutput.PresentedFrames);
 
         var r = new List<byte> { (byte)'R', 0x00, 0x00, 0x01, 0x00 };
         r.AddRange(payload);
         Assert.Equal([(byte)'A'], engine.ProcessIncoming(r.ToArray()).ResponseBytes);
 
-        Assert.Equal([(byte)'A'], engine.ProcessIncoming([(byte)'O']).ResponseBytes);
+        var secondOutput = engine.ProcessIncoming([(byte)'O']);
+        Assert.Equal([(byte)'A'], secondOutput.ResponseBytes);
+        Assert.Single(secondOutput.PresentedFrames);
         Assert.Equal((ulong)2, frame.OutputSequence);
         Assert.Equal(768, frame.RgbBytes.Length);
     }

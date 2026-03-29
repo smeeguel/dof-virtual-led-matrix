@@ -28,6 +28,7 @@ public sealed class TeensyProtocolEngine
         var logs = new List<ProtocolLogEntry>();
         var tx = new List<byte>();
         var consumed = 0;
+        var presentedFrames = new List<FramePresentation>();
 
         while (consumed < _rxBuffer.Count)
         {
@@ -78,9 +79,10 @@ public sealed class TeensyProtocolEngine
 
             if (cmd == (byte)'O')
             {
-                _frameBuffer.MarkOutput();
+                var presentation = _frameBuffer.MarkOutputAndCreatePresentation();
+                presentedFrames.Add(presentation);
                 tx.Add(Ack);
-                logs.Add(Log($"RX O (output) -> TX A [outputSequence={_frameBuffer.OutputSequence}]"));
+                logs.Add(Log($"RX O (output) -> TX A [outputSequence={presentation.OutputSequence}]"));
                 consumed += 1;
                 continue;
             }
@@ -135,6 +137,7 @@ public sealed class TeensyProtocolEngine
         {
             ResponseBytes = tx.ToArray(),
             Logs = logs,
+            PresentedFrames = presentedFrames,
         };
     }
 

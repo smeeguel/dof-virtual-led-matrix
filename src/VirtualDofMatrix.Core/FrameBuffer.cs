@@ -2,6 +2,7 @@ namespace VirtualDofMatrix.Core;
 
 public sealed class FrameBuffer
 {
+    private readonly object _sync = new();
     private byte[] _rgbBytes = Array.Empty<byte>();
 
     public int LedsPerChannel { get; private set; }
@@ -12,7 +13,16 @@ public sealed class FrameBuffer
 
     public DateTimeOffset? LastOutputUtc { get; private set; }
 
-    public ReadOnlyMemory<byte> RgbBytes => _rgbBytes;
+    public ReadOnlyMemory<byte> RgbBytes
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _rgbBytes.ToArray();
+            }
+        }
+    }
 
     public void SetLedsPerChannel(int ledsPerChannel)
     {
@@ -21,18 +31,24 @@ public sealed class FrameBuffer
             throw new ArgumentOutOfRangeException(nameof(ledsPerChannel));
         }
 
-        LedsPerChannel = ledsPerChannel;
-        EnsureCapacity(ledsPerChannel * 3);
+        lock (_sync)
+        {
+            LedsPerChannel = ledsPerChannel;
+            EnsureCapacity(ledsPerChannel * 3);
+        }
     }
 
     public void Clear()
     {
-        if (_rgbBytes.Length > 0)
+        lock (_sync)
         {
-            Array.Clear(_rgbBytes, 0, _rgbBytes.Length);
-        }
+            if (_rgbBytes.Length > 0)
+            {
+                Array.Clear(_rgbBytes, 0, _rgbBytes.Length);
+            }
 
-        HighestLedWritten = 0;
+            HighestLedWritten = 0;
+        }
     }
 
     public void ApplySegment(int targetPosition, ReadOnlySpan<byte> payload, int ledCount)
@@ -53,17 +69,30 @@ public sealed class FrameBuffer
             throw new ArgumentException($"Expected payload length {bytesToWrite} but received {payload.Length}.", nameof(payload));
         }
 
-        var targetByteOffset = targetPosition * 3;
-        var endOffset = targetByteOffset + bytesToWrite;
-        EnsureCapacity(endOffset);
-        payload.CopyTo(_rgbBytes.AsSpan(targetByteOffset, bytesToWrite));
-        HighestLedWritten = Math.Max(HighestLedWritten, targetPosition + ledCount);
+        lock (_sync)
+        {
+            var targetByteOffset = targetPosition * 3;
+            var endOffset = targetByteOffset + bytesToWrite;
+            EnsureCapacity(endOffset);
+            payload.CopyTo(_rgbBytes.AsSpan(targetByteOffset, bytesToWrite));
+            HighestLedWritten = Math.Max(HighestLedWritten, targetPosition + ledCount);
+        }
     }
 
-    public void MarkOutput()
+    public FramePresentation MarkOutputAndCreatePresentation()
     {
-        OutputSequence++;
-        LastOutputUtc = DateTimeOffset.UtcNow;
+        lock (_sync)
+        {
+            OutputSequence++;
+            LastOutputUtc = DateTimeOffset.UtcNow;
+
+            return new FramePresentation(
+                RgbBytes: _rgbBytes.ToArray(),
+                HighestLedWritten: HighestLedWritten,
+                LedsPerChannel: LedsPerChannel,
+                OutputSequence: OutputSequence,
+                PresentedAtUtc: LastOutputUtc.Value);
+        }
     }
 
     private void EnsureCapacity(int requiredBytes)

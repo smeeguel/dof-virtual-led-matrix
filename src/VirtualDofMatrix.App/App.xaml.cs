@@ -1,7 +1,7 @@
 using System.Windows;
 using VirtualDofMatrix.App.Configuration;
+using VirtualDofMatrix.App.Presentation;
 using VirtualDofMatrix.App.Serial;
-using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
 
@@ -11,6 +11,7 @@ public partial class App : Application
 
     private readonly AppConfigurationStore _configurationStore = new();
     private SerialEmulatorHost? _serialHost;
+    private FramePresentationDispatcher? _presentationDispatcher;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -19,13 +20,17 @@ public partial class App : Application
         var config = _configurationStore.Load(ConfigFilePath);
         _configurationStore.Save(ConfigFilePath, config);
 
-        _serialHost = new SerialEmulatorHost(config);
-        await _serialHost.StartAsync();
-
         var window = new MainWindow(config)
         {
             DataContext = config,
         };
+
+        _serialHost = new SerialEmulatorHost(config);
+        _presentationDispatcher = new FramePresentationDispatcher(Dispatcher);
+        _presentationDispatcher.Attach(_serialHost);
+        _presentationDispatcher.FramePresentedOnUiThread += (_, frame) => window.ApplyPresentation(frame);
+
+        await _serialHost.StartAsync();
 
         MainWindow = window;
         window.Show();
@@ -33,6 +38,12 @@ public partial class App : Application
 
     protected override async void OnExit(ExitEventArgs e)
     {
+        if (_presentationDispatcher is not null)
+        {
+            _presentationDispatcher.Dispose();
+            _presentationDispatcher = null;
+        }
+
         if (_serialHost is not null)
         {
             await _serialHost.StopAsync();

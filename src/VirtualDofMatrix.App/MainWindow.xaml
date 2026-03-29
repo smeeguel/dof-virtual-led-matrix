@@ -18,6 +18,11 @@
             <TextBlock Foreground="White" Text="{Binding Matrix.InstantTrigger, StringFormat=InstantTrigger: {0}}" />
             <TextBlock Foreground="White" Text="{Binding Matrix.Width, StringFormat=Matrix Width: {0}}" />
             <TextBlock Foreground="White" Text="{Binding Matrix.Height, StringFormat=Matrix Height: {0}}" />
+
+            <TextBlock Margin="0,12,0,0" Foreground="White" Text="Last presentation:" />
+            <TextBlock x:Name="OutputSequenceText" Foreground="White" Text="Output sequence: (none)" />
+            <TextBlock x:Name="PresentedAtText" Foreground="White" Text="Presented at UTC: (none)" />
+            <TextBlock x:Name="PayloadLengthText" Foreground="White" Text="Payload bytes: (none)" />
         </StackPanel>
     </Grid>
 </Window>

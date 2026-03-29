@@ -7,7 +7,6 @@ public sealed class SerialEmulatorHost
 {
     private readonly AppConfig _config;
     private readonly TeensyProtocolEngine _engine;
-    private readonly FrameBuffer _frameBuffer;
 
     private CancellationTokenSource? _cts;
     private Task? _runTask;
@@ -15,15 +14,16 @@ public sealed class SerialEmulatorHost
     public SerialEmulatorHost(AppConfig config)
     {
         _config = config;
-        _frameBuffer = new FrameBuffer();
         _engine = new TeensyProtocolEngine(
             new SerialEmulatorSettings
             {
                 MaxLedsPerChannel = config.Serial.MaxLedsPerChannel,
                 MaxStrips = config.Serial.MaxStrips,
             },
-            _frameBuffer);
+            new FrameBuffer());
     }
+
+    public event EventHandler<FramePresentation>? FramePresented;
 
     public Task StartAsync()
     {
@@ -99,10 +99,12 @@ public sealed class SerialEmulatorHost
                     serialPort.Write(result.ResponseBytes, 0, result.ResponseBytes.Length);
                 }
 
-                if (_config.Matrix.InstantTrigger && result.ResponseBytes.Length > 0)
+                foreach (var frame in result.PresentedFrames)
                 {
-                    // MS2 planning decision: trigger immediate UI refresh path once renderer is hooked.
-                    // Keeping this branch here documents behavior and keeps config contract active.
+                    if (_config.Matrix.InstantTrigger)
+                    {
+                        OnFramePresented(frame);
+                    }
                 }
             }
             catch (TimeoutException)
@@ -110,5 +112,10 @@ public sealed class SerialEmulatorHost
                 // Normal idle behavior.
             }
         }
+    }
+
+    private void OnFramePresented(FramePresentation frame)
+    {
+        FramePresented?.Invoke(this, frame);
     }
 }
