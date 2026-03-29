@@ -182,6 +182,17 @@ public partial class MainWindow : Window
                 SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
                 RimHighlight = _config.Matrix.Visual.RimHighlight,
             },
+            Bloom = new BloomConfig
+            {
+                Enabled = _config.Matrix.Bloom.Enabled,
+                QualityPreset = _config.Matrix.Bloom.QualityPreset,
+                Threshold = _config.Matrix.Bloom.Threshold,
+                SmallRadius = _config.Matrix.Bloom.SmallRadius,
+                WideRadius = _config.Matrix.Bloom.WideRadius,
+                SmallStrength = _config.Matrix.Bloom.SmallStrength,
+                WideStrength = _config.Matrix.Bloom.WideStrength,
+                BufferScaleDivisor = _config.Matrix.Bloom.BufferScaleDivisor,
+            },
         };
     }
 

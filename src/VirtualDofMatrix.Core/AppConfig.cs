@@ -49,6 +49,8 @@ public sealed class MatrixConfig
     public bool InstantTrigger { get; set; } = true;
 
     public MatrixVisualConfig Visual { get; set; } = new();
+
+    public BloomConfig Bloom { get; set; } = new();
 }
 
 public sealed class MatrixVisualConfig
@@ -66,6 +68,25 @@ public sealed class MatrixVisualConfig
     public double SpecularHotspot { get; set; } = 0.28;
 
     public double RimHighlight { get; set; } = 0.22;
+}
+
+public sealed class BloomConfig
+{
+    public bool Enabled { get; set; } = false;
+
+    public string QualityPreset { get; set; } = "off";
+
+    public double Threshold { get; set; } = 0.55;
+
+    public int SmallRadius { get; set; } = 2;
+
+    public int WideRadius { get; set; } = 5;
+
+    public double SmallStrength { get; set; } = 0.6;
+
+    public double WideStrength { get; set; } = 0.25;
+
+    public int BufferScaleDivisor { get; set; } = 2;
 }
 
 public sealed class WindowConfig

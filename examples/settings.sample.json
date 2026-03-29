@@ -18,6 +18,16 @@
     "brightness": 1.0,
     "gamma": 1.0,
     "instantTrigger": true,
+    "bloom": {
+      "enabled": true,
+      "qualityPreset": "medium",
+      "threshold": 0.55,
+      "smallRadius": 2,
+      "wideRadius": 5,
+      "smallStrength": 0.6,
+      "wideStrength": 0.25,
+      "bufferScaleDivisor": 2
+    },
     "visual": {
       "offStateTintR": 150,
       "offStateTintG": 155,

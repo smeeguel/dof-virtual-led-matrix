@@ -15,6 +15,12 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private bool[] _touchedShapes = Array.Empty<bool>();
     private Brush? _sharedBodyBrush;
     private Brush? _sharedCoreOpacityMask;
+    private float[] _workingRgb = Array.Empty<float>();
+    private float[] _thresholdRgb = Array.Empty<float>();
+    private float[] _smallBlurRgb = Array.Empty<float>();
+    private float[] _wideBlurRgb = Array.Empty<float>();
+    private int _downsampleWidth;
+    private int _downsampleHeight;
 
     public void Initialize(Canvas targetCanvas, MatrixConfig config)
     {
@@ -82,6 +88,9 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         var requestedLedCount = Math.Max(framePresentation.HighestLedWritten, framePresentation.LedsPerChannel);
         var ledCount = Math.Min(Math.Min(requestedLedCount, rgb.Length / 3), matrixCapacity);
 
+        EnsureWorkingBuffers(matrixCapacity);
+        Array.Clear(_workingRgb, 0, _workingRgb.Length);
+
         for (var logicalIndex = 0; logicalIndex < ledCount; logicalIndex++)
         {
             var rgbOffset = logicalIndex * 3;
@@ -97,6 +106,23 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             var g = ApplyBrightnessAndGamma(rgb[rgbOffset + 1], _config.Brightness, _config.Gamma);
             var b = ApplyBrightnessAndGamma(rgb[rgbOffset + 2], _config.Brightness, _config.Gamma);
 
+            var colorOffset = shapeIndex * 3;
+            _workingRgb[colorOffset] = r;
+            _workingRgb[colorOffset + 1] = g;
+            _workingRgb[colorOffset + 2] = b;
+
+            _touchedShapes[shapeIndex] = true;
+        }
+
+        ApplyBloomIfEnabled(matrixCapacity);
+
+        for (var shapeIndex = 0; shapeIndex < _dots.Count; shapeIndex++)
+        {
+            var colorOffset = shapeIndex * 3;
+            var r = ToByte(_workingRgb[colorOffset] / 255.0);
+            var g = ToByte(_workingRgb[colorOffset + 1] / 255.0);
+            var b = ToByte(_workingRgb[colorOffset + 2] / 255.0);
+
             var intensity = Math.Max(r, Math.Max(g, b)) / 255.0;
             var dot = _dots[shapeIndex];
 
@@ -109,15 +135,187 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             {
                 dot.Core.Opacity = 0.0;
             }
+        }
+    }
 
-            _touchedShapes[shapeIndex] = true;
+    private void ApplyBloomIfEnabled(int matrixCapacity)
+    {
+        if (_config is null)
+        {
+            return;
         }
 
-        for (var shapeIndex = 0; shapeIndex < _dots.Count; shapeIndex++)
+        var bloomProfile = ResolveBloomProfile(_config.Bloom);
+        if (!bloomProfile.Enabled)
         {
-            if (!_touchedShapes[shapeIndex])
+            return;
+        }
+
+        Array.Copy(_workingRgb, _thresholdRgb, matrixCapacity * 3);
+        ThresholdEmissive(_thresholdRgb, matrixCapacity, bloomProfile.Threshold);
+
+        Downsample(_thresholdRgb, _config.Width, _config.Height, bloomProfile.ScaleDivisor);
+        Array.Copy(_smallBlurRgb, _wideBlurRgb, _smallBlurRgb.Length);
+
+        BoxBlurRgb(_smallBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.SmallRadius);
+        BoxBlurRgb(_wideBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.WideRadius);
+
+        CompositeBloom(_workingRgb, _smallBlurRgb, _wideBlurRgb, _config.Width, _config.Height, _downsampleWidth, _downsampleHeight, bloomProfile);
+    }
+
+    private static BloomProfile ResolveBloomProfile(BloomConfig bloom)
+    {
+        if (!bloom.Enabled)
+        {
+            return BloomProfile.Disabled;
+        }
+
+        var preset = bloom.QualityPreset.Trim().ToLowerInvariant();
+        if (preset is "" or "off")
+        {
+            return BloomProfile.Disabled;
+        }
+
+        var profile = preset switch
+        {
+            "low" => new BloomProfile(true, 2, 1, 2, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
+            "medium" => new BloomProfile(true, 2, 2, 4, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
+            "high" => new BloomProfile(true, 1, 3, 6, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
+            _ => new BloomProfile(true, bloom.BufferScaleDivisor, bloom.SmallRadius, bloom.WideRadius, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
+        };
+
+        return profile with
+        {
+            ScaleDivisor = Math.Clamp(profile.ScaleDivisor, 1, 4),
+            SmallRadius = Math.Clamp(profile.SmallRadius, 1, 8),
+            WideRadius = Math.Clamp(profile.WideRadius, Math.Max(1, profile.SmallRadius), 16),
+            Threshold = Clamp01(profile.Threshold),
+            SmallStrength = Math.Clamp(profile.SmallStrength, 0.0, 2.0),
+            WideStrength = Math.Clamp(profile.WideStrength, 0.0, 2.0),
+        };
+    }
+
+    private void EnsureWorkingBuffers(int matrixCapacity)
+    {
+        var channelCapacity = matrixCapacity * 3;
+        if (_workingRgb.Length != channelCapacity)
+        {
+            _workingRgb = new float[channelCapacity];
+            _thresholdRgb = new float[channelCapacity];
+        }
+    }
+
+    private void Downsample(float[] source, int width, int height, int scaleDivisor)
+    {
+        _downsampleWidth = Math.Max(1, width / scaleDivisor);
+        _downsampleHeight = Math.Max(1, height / scaleDivisor);
+        var downsamplePixels = _downsampleWidth * _downsampleHeight * 3;
+
+        if (_smallBlurRgb.Length != downsamplePixels)
+        {
+            _smallBlurRgb = new float[downsamplePixels];
+            _wideBlurRgb = new float[downsamplePixels];
+        }
+
+        Array.Clear(_smallBlurRgb, 0, _smallBlurRgb.Length);
+
+        for (var y = 0; y < _downsampleHeight; y++)
+        {
+            for (var x = 0; x < _downsampleWidth; x++)
             {
-                _dots[shapeIndex].Core.Opacity = 0.0;
+                var srcX = Math.Min(width - 1, x * scaleDivisor);
+                var srcY = Math.Min(height - 1, y * scaleDivisor);
+                var srcOffset = ((srcY * width) + srcX) * 3;
+                var dstOffset = ((y * _downsampleWidth) + x) * 3;
+
+                _smallBlurRgb[dstOffset] = source[srcOffset];
+                _smallBlurRgb[dstOffset + 1] = source[srcOffset + 1];
+                _smallBlurRgb[dstOffset + 2] = source[srcOffset + 2];
+            }
+        }
+    }
+
+    private static void ThresholdEmissive(float[] source, int matrixCapacity, double threshold)
+    {
+        var cutoff = (float)(Math.Clamp(threshold, 0.0, 1.0) * 255.0);
+        for (var i = 0; i < matrixCapacity; i++)
+        {
+            var offset = i * 3;
+            var peak = Math.Max(source[offset], Math.Max(source[offset + 1], source[offset + 2]));
+            if (peak < cutoff)
+            {
+                source[offset] = 0f;
+                source[offset + 1] = 0f;
+                source[offset + 2] = 0f;
+            }
+        }
+    }
+
+    private static void BoxBlurRgb(float[] rgb, int width, int height, int radius)
+    {
+        if (radius <= 0)
+        {
+            return;
+        }
+
+        var copy = new float[rgb.Length];
+        Array.Copy(rgb, copy, rgb.Length);
+
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                float sumR = 0;
+                float sumG = 0;
+                float sumB = 0;
+                var samples = 0;
+
+                for (var ky = -radius; ky <= radius; ky++)
+                {
+                    var sy = y + ky;
+                    if (sy < 0 || sy >= height)
+                    {
+                        continue;
+                    }
+
+                    for (var kx = -radius; kx <= radius; kx++)
+                    {
+                        var sx = x + kx;
+                        if (sx < 0 || sx >= width)
+                        {
+                            continue;
+                        }
+
+                        var sampleOffset = ((sy * width) + sx) * 3;
+                        sumR += copy[sampleOffset];
+                        sumG += copy[sampleOffset + 1];
+                        sumB += copy[sampleOffset + 2];
+                        samples++;
+                    }
+                }
+
+                var dstOffset = ((y * width) + x) * 3;
+                rgb[dstOffset] = sumR / Math.Max(1, samples);
+                rgb[dstOffset + 1] = sumG / Math.Max(1, samples);
+                rgb[dstOffset + 2] = sumB / Math.Max(1, samples);
+            }
+        }
+    }
+
+    private static void CompositeBloom(float[] target, float[] smallBlur, float[] wideBlur, int width, int height, int bloomWidth, int bloomHeight, BloomProfile profile)
+    {
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var targetOffset = ((y * width) + x) * 3;
+                var bloomX = Math.Min(bloomWidth - 1, x / profile.ScaleDivisor);
+                var bloomY = Math.Min(bloomHeight - 1, y / profile.ScaleDivisor);
+                var bloomOffset = ((bloomY * bloomWidth) + bloomX) * 3;
+
+                target[targetOffset] = Math.Clamp(target[targetOffset] + (smallBlur[bloomOffset] * (float)profile.SmallStrength) + (wideBlur[bloomOffset] * (float)profile.WideStrength), 0f, 255f);
+                target[targetOffset + 1] = Math.Clamp(target[targetOffset + 1] + (smallBlur[bloomOffset + 1] * (float)profile.SmallStrength) + (wideBlur[bloomOffset + 1] * (float)profile.WideStrength), 0f, 255f);
+                target[targetOffset + 2] = Math.Clamp(target[targetOffset + 2] + (smallBlur[bloomOffset + 2] * (float)profile.SmallStrength) + (wideBlur[bloomOffset + 2] * (float)profile.WideStrength), 0f, 255f);
             }
         }
     }
@@ -236,4 +434,16 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     }
 
     private sealed record DotVisual(Shape Body, Shape Core, SolidColorBrush CoreBrush);
+
+    private sealed record BloomProfile(
+        bool Enabled,
+        int ScaleDivisor,
+        int SmallRadius,
+        int WideRadius,
+        double Threshold,
+        double SmallStrength,
+        double WideStrength)
+    {
+        public static BloomProfile Disabled => new(false, 1, 0, 0, 1.0, 0.0, 0.0);
+    }
 }
