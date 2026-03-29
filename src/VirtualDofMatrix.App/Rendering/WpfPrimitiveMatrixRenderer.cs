@@ -217,15 +217,16 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         _visualDomeProfile = domeProfile;
         _visualEdgeSoftness = edgeSoftness;
 
-        var (specFloor, specRange, intensityGamma) = domeProfile switch
+        var (coreFloor, specFloor, specRange, intensityGamma) = domeProfile switch
         {
-            "smd-like" => (0.02, 0.20, 1.35),
-            "strong-bulb" => (0.10, 0.56, 0.82),
-            _ => (0.06, 0.34, 1.0),
+            "smd-like" => (0.06, 0.02, 0.20, 1.35),
+            "strong-bulb" => (0.24, 0.10, 0.56, 0.82),
+            _ => (0.14, 0.06, 0.34, 1.0),
         };
 
         if (shapeMode == "flat")
         {
+            coreFloor = 0.0;
             specFloor = 0.0;
             specRange = 0.0;
             intensityGamma = 1.0;
@@ -236,7 +237,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         {
             var normalized = i / 255.0;
             var toned = Math.Pow(normalized, intensityGamma * softnessExponent);
-            _coreOpacityLut[i] = i == 0 ? (byte)0 : (byte)255;
+            var core = coreFloor + (toned * (1.0 - coreFloor));
+            _coreOpacityLut[i] = ToByte(core);
             _specularOpacityLut[i] = ToByte(specFloor + (toned * specRange));
         }
     }
@@ -608,7 +610,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         };
 
         var softness = Math.Clamp(edgeSoftness, 0.05, 1.0);
-        var falloffBlend = 0.9 + (0.2 * lensFalloff);
+        var falloffBlend = 0.6 + (0.5 * lensFalloff);
 
         for (var sample = 0; sample <= samples; sample++)
         {
