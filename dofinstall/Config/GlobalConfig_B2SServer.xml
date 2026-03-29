@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<GlobalConfig>
+  <LedWizDefaultMinCommandIntervalMs>1</LedWizDefaultMinCommandIntervalMs>
+  <LedControlMinimumEffectDurationMs>60</LedControlMinimumEffectDurationMs>
+  <LedControlMinimumRGBEffectDurationMs>120</LedControlMinimumRGBEffectDurationMs>
+
+  <IniFilesPath>{InstallDir}\Config</IniFilesPath>
+
+  <EnableLogging>true</EnableLogging>
+  <ClearLogOnSessionStart>true</ClearLogOnSessionStart>
+  <LogFilePattern>{InstallDir}\Log\DirectOutput.log</LogFilePattern>
+
+  <CabinetConfigFilePattern>{InstallDir}\Config\Cabinet.xml</CabinetConfigFilePattern>
+
+  <TableConfigFilePatterns>
+    <TableConfigFilePattern>{InstallDir}\Config\directoutputconfig30.ini</TableConfigFilePattern>
+  </TableConfigFilePatterns>
+</GlobalConfig>

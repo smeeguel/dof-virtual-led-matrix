@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<Cabinet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Name>AddressableLEDSetup</Name>
+  <OutputControllers>
+    <TeensyStripController>
+      <Name>LED Strips 0</Name>
+      <NumberOfLedsStrip1>256</NumberOfLedsStrip1>
+      <ComPortName>COM1</ComPortName>
+      <TestOnConnect>true</TestOnConnect>
+    </TeensyStripController>
+  </OutputControllers>
+  <Toys>
+    <LedStrip>
+      <Name>Matrix</Name>
+      <Width>32</Width>
+      <Height>8</Height>
+      <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
+      <ColorOrder>RGB</ColorOrder>
+      <FirstLedNumber>1</FirstLedNumber>
+      <FadingCurveName>SwissLizardsLedCurve</FadingCurveName>
+      <Brightness>100</Brightness>
+      <OutputControllerName>LED Strips 0</OutputControllerName>
+    </LedStrip>
+    <LedWizEquivalent>
+      <Name>LedWizEquivalent 30</Name>
+      <LedWizNumber>30</LedWizNumber>
+      <Outputs>
+        <LedWizEquivalentOutput>
+          <OutputName>Matrix</OutputName>
+          <LedWizEquivalentOutputNumber>1</LedWizEquivalentOutputNumber>
+        </LedWizEquivalentOutput>
+      </Outputs>
+    </LedWizEquivalent>
+  </Toys>
+</Cabinet>
