@@ -60,6 +60,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         var matrixCapacity = _config.Width * _config.Height;
         var ledCount = Math.Min(Math.Min(framePresentation.HighestLedWritten, rgb.Length / 3), matrixCapacity);
 
+        var touchedShapes = new bool[_dots.Count];
+
         for (var logicalIndex = 0; logicalIndex < ledCount; logicalIndex++)
         {
             var rgbOffset = logicalIndex * 3;
@@ -76,11 +78,15 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             var b = ApplyBrightnessAndGamma(rgb[rgbOffset + 2], _config.Brightness, _config.Gamma);
 
             UpdateDotVisual(_dots[shapeIndex], Color.FromRgb(r, g, b));
+            touchedShapes[shapeIndex] = true;
         }
 
-        for (var logicalIndex = ledCount; logicalIndex < _dots.Count; logicalIndex++)
+        for (var shapeIndex = 0; shapeIndex < _dots.Count; shapeIndex++)
         {
-            UpdateDotVisual(_dots[logicalIndex], Colors.Black);
+            if (!touchedShapes[shapeIndex])
+            {
+                UpdateDotVisual(_dots[shapeIndex], Colors.Black);
+            }
         }
     }
 
