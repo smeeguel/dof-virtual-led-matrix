@@ -44,6 +44,7 @@
             <TextBlock x:Name="OutputSequenceText" Foreground="White" Text="Output sequence: (none)" />
             <TextBlock x:Name="PresentedAtText" Foreground="White" Text="Presented at UTC: (none)" />
             <TextBlock x:Name="PayloadLengthText" Foreground="White" Text="Payload bytes: (none)" />
+            <TextBlock x:Name="LedRangeText" Foreground="White" Text="LED range: (none)" />
         </StackPanel>
     </Grid>
 </Window>
