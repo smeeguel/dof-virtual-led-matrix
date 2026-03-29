@@ -38,9 +38,9 @@ public sealed class MatrixConfig
 
     public string DotShape { get; set; } = "circle";
 
-    public int DotSize { get; set; } = 3;
+    public int DotSize { get; set; } = 2;
 
-    public int DotSpacing { get; set; } = 1;
+    public int DotSpacing { get; set; } = 2;
 
     public double Brightness { get; set; } = 1.0;
 

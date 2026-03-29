@@ -40,8 +40,13 @@ public sealed class AppConfigurationStore
 
         if (config.Matrix.DotSize == 18 && config.Matrix.DotSpacing == 4)
         {
-            config.Matrix.DotSize = 3;
-            config.Matrix.DotSpacing = 1;
+            config.Matrix.DotSize = 2;
+            config.Matrix.DotSpacing = 2;
+        }
+
+        if (config.Matrix.DotSpacing < 2)
+        {
+            config.Matrix.DotSpacing = 2;
         }
 
         if (config.Matrix.Visual is null)

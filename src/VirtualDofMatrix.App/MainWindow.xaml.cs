@@ -9,6 +9,7 @@ namespace VirtualDofMatrix.App;
 
 public partial class MainWindow : Window
 {
+    private const int MinimumDotSpacing = 2;
     private readonly AppConfig _config;
     private readonly IMatrixRenderer _matrixRenderer;
     private bool _isApplyingAspectLock;
@@ -157,7 +158,7 @@ public partial class MainWindow : Window
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
         var stride = Math.Max(1, Math.Min(strideFromWidth, strideFromHeight));
-        var spacing = stride >= 4 ? 1 : 0;
+        var spacing = MinimumDotSpacing;
         var dotSize = Math.Max(1, stride - spacing);
 
         return new MatrixConfig

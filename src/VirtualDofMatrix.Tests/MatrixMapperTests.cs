@@ -27,8 +27,8 @@ public sealed class MatrixMapperTests
         Assert.Equal(32, config.Matrix.Height);
         Assert.Equal("TopDownAlternateRightLeft", config.Matrix.Mapping);
         Assert.Equal("circle", config.Matrix.DotShape);
-        Assert.Equal(3, config.Matrix.DotSize);
-        Assert.Equal(1, config.Matrix.DotSpacing);
+        Assert.Equal(2, config.Matrix.DotSize);
+        Assert.Equal(2, config.Matrix.DotSpacing);
         Assert.Equal(1.0, config.Matrix.Brightness);
         Assert.Equal(1.0, config.Matrix.Gamma);
 

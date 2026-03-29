@@ -7,6 +7,7 @@ namespace VirtualDofMatrix.App.Rendering;
 
 public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 {
+    private const int MinimumDotSpacing = 2;
     private readonly List<DotVisual> _dots = new();
 
     private Canvas? _targetCanvas;
@@ -29,12 +30,13 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         TryFreeze(_sharedBodyBrush);
         TryFreeze(_sharedCoreOpacityMask);
 
-        var dotStride = _config.DotSize + _config.DotSpacing;
+        var dotSpacing = Math.Max(MinimumDotSpacing, _config.DotSpacing);
+        var dotStride = _config.DotSize + dotSpacing;
         var width = _config.Width;
         var height = _config.Height;
 
-        _targetCanvas.Width = (width * dotStride) + _config.DotSpacing;
-        _targetCanvas.Height = (height * dotStride) + _config.DotSpacing;
+        _targetCanvas.Width = (width * dotStride) + dotSpacing;
+        _targetCanvas.Height = (height * dotStride) + dotSpacing;
         _targetCanvas.UseLayoutRounding = true;
 
         for (var y = 0; y < height; y++)
@@ -42,8 +44,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             for (var x = 0; x < width; x++)
             {
                 var dot = CreateDotVisual();
-                var left = _config.DotSpacing + (x * dotStride);
-                var top = _config.DotSpacing + (y * dotStride);
+                var left = dotSpacing + (x * dotStride);
+                var top = dotSpacing + (y * dotStride);
 
                 Canvas.SetLeft(dot.Body, left);
                 Canvas.SetTop(dot.Body, top);
