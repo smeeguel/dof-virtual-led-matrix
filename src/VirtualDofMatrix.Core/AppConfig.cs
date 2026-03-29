@@ -19,6 +19,16 @@ public sealed class SerialConfig
 
     public string? VirtualListenerPortName { get; set; }
 
+    public bool AutoProvisionVirtualPair { get; set; } = true;
+
+    public string? VirtualPairActivateCommand { get; set; }
+
+    public string? VirtualPairDeactivateCommand { get; set; }
+
+    public int VirtualPairCommandTimeoutMs { get; set; } = 15000;
+
+    public int VirtualPairMaxAllocationAttempts { get; set; } = 64;
+
     public int BaudRate { get; set; } = 9600;
 
     public int MaxLedsPerChannel { get; set; } = 1100;

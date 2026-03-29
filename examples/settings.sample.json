@@ -1,6 +1,13 @@
 {
   "serial": {
     "portName": "COM2",
+    "virtualTransmitterPortName": null,
+    "virtualListenerPortName": null,
+    "autoProvisionVirtualPair": true,
+    "virtualPairActivateCommand": "powershell -ExecutionPolicy Bypass -File \"C:\\Tools\\vspe-create-pair.ps1\" -Transmitter {tx} -Listener {rx}",
+    "virtualPairDeactivateCommand": "powershell -ExecutionPolicy Bypass -File \"C:\\Tools\\vspe-remove-pair.ps1\" -Transmitter {tx} -Listener {rx}",
+    "virtualPairCommandTimeoutMs": 15000,
+    "virtualPairMaxAllocationAttempts": 64,
     "baudRate": 9600,
     "maxLedsPerChannel": 1100,
     "maxStrips": 8,

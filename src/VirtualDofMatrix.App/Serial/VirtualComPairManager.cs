@@ -43,7 +43,7 @@ public sealed class VirtualComPairManager : IVirtualComPairManager
             _log($"[VirtualCom] Persisted pair conflict for {persistedTx}/{persistedRx}. Falling back to next available pair.");
         }
 
-        var (transmitterPort, listenerPort) = await ReserveFallbackPairAsync(cancellationToken);
+        var (transmitterPort, listenerPort) = await ReserveFallbackPairAsync(_config.Serial.VirtualPairMaxAllocationAttempts, cancellationToken);
 
         _config.Serial.VirtualTransmitterPortName = transmitterPort;
         _config.Serial.VirtualListenerPortName = listenerPort;
@@ -63,13 +63,13 @@ public sealed class VirtualComPairManager : IVirtualComPairManager
         _log($"[VirtualCom] Deactivation complete for {reservation.TransmitterPortName}/{reservation.ListenerPortName}.");
     }
 
-    private async Task<(string transmitterPort, string listenerPort)> ReserveFallbackPairAsync(CancellationToken cancellationToken)
+    private async Task<(string transmitterPort, string listenerPort)> ReserveFallbackPairAsync(int maxAttempts, CancellationToken cancellationToken)
     {
         var highestActivePort = GetHighestActiveComPortNumber();
         var candidateTx = highestActivePort + 1;
         var candidateRx = highestActivePort + 2;
 
-        while (true)
+        for (var attempt = 1; attempt <= Math.Max(1, maxAttempts); attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -85,10 +85,12 @@ public sealed class VirtualComPairManager : IVirtualComPairManager
                 return (transmitterPort, listenerPort);
             }
 
-            _log($"[VirtualCom] Pair conflict for {transmitterPort}/{listenerPort}. Advancing to next pair.");
+            _log($"[VirtualCom] Pair conflict for {transmitterPort}/{listenerPort} on attempt {attempt}/{Math.Max(1, maxAttempts)}. Advancing to next pair.");
             candidateTx += 2;
             candidateRx += 2;
         }
+
+        throw new InvalidOperationException($"[VirtualCom] Failed to activate a virtual COM pair after {Math.Max(1, maxAttempts)} attempts.");
     }
 
     private static int GetHighestActiveComPortNumber()
