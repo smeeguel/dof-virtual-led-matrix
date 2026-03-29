@@ -50,7 +50,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         }
 
         var rgb = framePresentation.RgbMemory.Span;
-        var ledCount = Math.Min(framePresentation.HighestLedWritten, rgb.Length / 3);
+        var matrixCapacity = _config.Width * _config.Height;
+        var ledCount = Math.Min(Math.Min(framePresentation.HighestLedWritten, rgb.Length / 3), matrixCapacity);
 
         for (var logicalIndex = 0; logicalIndex < ledCount; logicalIndex++)
         {
