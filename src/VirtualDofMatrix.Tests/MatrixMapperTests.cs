@@ -18,11 +18,10 @@ public sealed class MatrixMapperTests
     }
 
     [Fact]
-    public void AppConfig_Defaults_InstantTriggerAndMapping()
+    public void AppConfig_Defaults_MatrixRenderingSettings()
     {
         var config = new AppConfig();
 
-        Assert.True(config.Matrix.InstantTrigger);
         Assert.Equal(256, config.Matrix.Width);
         Assert.Equal(32, config.Matrix.Height);
         Assert.Equal("TopDownAlternateRightLeft", config.Matrix.Mapping);

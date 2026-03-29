@@ -49,7 +49,6 @@ public sealed class MatrixConfig
 
     public double Gamma { get; set; } = 1.0;
 
-    public bool InstantTrigger { get; set; } = true;
 
     public ToneMappingConfig ToneMapping { get; set; } = new();
 
@@ -59,7 +58,6 @@ public sealed class MatrixConfig
 
     public BloomConfig Bloom { get; set; } = new();
 }
-
 
 public sealed class ToneMappingConfig
 {
@@ -78,6 +76,7 @@ public sealed class TemporalSmoothingConfig
 
     public double FallAlpha { get; set; } = 1.0;
 }
+
 public sealed class MatrixVisualConfig
 {
     public byte OffStateTintR { get; set; } = 150;

@@ -101,10 +101,7 @@ public sealed class SerialEmulatorHost
 
                 foreach (var frame in result.PresentedFrames)
                 {
-                    if (_config.Matrix.InstantTrigger)
-                    {
-                        OnFramePresented(frame);
-                    }
+                    OnFramePresented(frame);
                 }
             }
             catch (TimeoutException)

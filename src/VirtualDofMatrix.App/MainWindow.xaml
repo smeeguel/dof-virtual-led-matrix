@@ -31,7 +31,6 @@
             <TextBlock Margin="0,12,0,0" Foreground="White" Text="Config summary:" />
             <TextBlock Foreground="White" Text="{Binding Serial.PortName, StringFormat=Port: {0}}" />
             <TextBlock Foreground="White" Text="{Binding Matrix.Mapping, StringFormat=Mapping: {0}}" />
-            <TextBlock Foreground="White" Text="{Binding Matrix.InstantTrigger, StringFormat=InstantTrigger: {0}}" />
             <TextBlock Foreground="White" Text="{Binding Matrix.Width, StringFormat=Matrix Width: {0}}" />
             <TextBlock Foreground="White" Text="{Binding Matrix.Height, StringFormat=Matrix Height: {0}}" />
 

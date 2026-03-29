@@ -171,7 +171,6 @@ public partial class MainWindow : Window
             MinDotSpacing = spacing,
             Brightness = _config.Matrix.Brightness,
             Gamma = _config.Matrix.Gamma,
-            InstantTrigger = _config.Matrix.InstantTrigger,
             Visual = new MatrixVisualConfig
             {
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,
