@@ -57,37 +57,7 @@ public sealed class AppConfigurationStore
         {
             config.Matrix.Visual = new MatrixVisualConfig();
         }
-        else
-        {
-            config.Matrix.Visual.ShapeMode = NormalizeShapeMode(config.Matrix.Visual.ShapeMode);
-            config.Matrix.Visual.DomeProfile = NormalizeDomeProfile(config.Matrix.Visual.DomeProfile);
-            config.Matrix.Visual.EdgeSoftness = Math.Clamp(config.Matrix.Visual.EdgeSoftness, 0.05, 1.0);
-        }
-
-        if (config.Matrix.Bloom is null)
-        {
-            config.Matrix.Bloom = new BloomConfig();
-        }
 
         return config;
-    }
-
-    private static string NormalizeShapeMode(string? value)
-    {
-        return value?.Trim().ToLowerInvariant() switch
-        {
-            "flat" => "flat",
-            _ => "dome",
-        };
-    }
-
-    private static string NormalizeDomeProfile(string? value)
-    {
-        return value?.Trim().ToLowerInvariant() switch
-        {
-            "smd-like" => "smd-like",
-            "strong-bulb" => "strong-bulb",
-            _ => "diffused-dome",
-        };
     }
 }
