@@ -58,7 +58,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
         var rgb = framePresentation.RgbMemory.Span;
         var matrixCapacity = _config.Width * _config.Height;
-        var ledCount = Math.Min(Math.Min(framePresentation.HighestLedWritten, rgb.Length / 3), matrixCapacity);
+        var ledCount = ResolveRenderableLedCount(framePresentation, rgb, matrixCapacity);
 
         var touchedShapes = new bool[_dots.Count];
 
@@ -73,11 +73,16 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
                 continue;
             }
 
-            var r = ApplyBrightnessAndGamma(rgb[rgbOffset], _config.Brightness, _config.Gamma);
-            var g = ApplyBrightnessAndGamma(rgb[rgbOffset + 1], _config.Brightness, _config.Gamma);
-            var b = ApplyBrightnessAndGamma(rgb[rgbOffset + 2], _config.Brightness, _config.Gamma);
+            var rawR = rgb[rgbOffset];
+            var rawG = rgb[rgbOffset + 1];
+            var rawB = rgb[rgbOffset + 2];
 
-            UpdateDotVisual(_dots[shapeIndex], Color.FromRgb(r, g, b));
+            var r = ApplyBrightnessAndGamma(rawR, _config.Brightness, _config.Gamma);
+            var g = ApplyBrightnessAndGamma(rawG, _config.Brightness, _config.Gamma);
+            var b = ApplyBrightnessAndGamma(rawB, _config.Brightness, _config.Gamma);
+
+            var rawIsOn = rawR > 0 || rawG > 0 || rawB > 0;
+            UpdateDotVisual(_dots[shapeIndex], Color.FromRgb(r, g, b), rawIsOn);
             touchedShapes[shapeIndex] = true;
         }
 
@@ -85,7 +90,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         {
             if (!touchedShapes[shapeIndex])
             {
-                UpdateDotVisual(_dots[shapeIndex], Colors.Black);
+                UpdateDotVisual(_dots[shapeIndex], Colors.Black, false);
             }
         }
     }
@@ -116,12 +121,12 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         core.SnapsToDevicePixels = true;
 
         var dot = new DotVisual(body, core);
-        UpdateDotVisual(dot, Colors.Black);
+        UpdateDotVisual(dot, Colors.Black, false);
 
         return dot;
     }
 
-    private void UpdateDotVisual(DotVisual dot, Color emissiveColor)
+    private void UpdateDotVisual(DotVisual dot, Color emissiveColor, bool isOn)
     {
         if (_config is null)
         {
@@ -129,7 +134,6 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         }
 
         var visual = _config.Visual;
-        var isOn = emissiveColor.R > 0 || emissiveColor.G > 0 || emissiveColor.B > 0;
 
         var offColor = Color.FromArgb(ToByte(visual.OffStateAlpha), visual.OffStateTintR, visual.OffStateTintG, visual.OffStateTintB);
         var rimOpacity = Clamp01(visual.RimHighlight);
@@ -138,7 +142,32 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         dot.Body.Fill = CreateBodyBrush(offColor, rimColor, visual.LensFalloff, visual.SpecularHotspot);
 
         dot.Core.Fill = CreateCoreBrush(emissiveColor, visual.LensFalloff);
-        dot.Core.Opacity = isOn ? 1.0 : 0.0;
+        dot.Core.Opacity = isOn ? Math.Max(0.35, Math.Max(emissiveColor.R, Math.Max(emissiveColor.G, emissiveColor.B)) / 255.0) : 0.0;
+    }
+
+    private static int ResolveRenderableLedCount(FramePresentation framePresentation, ReadOnlySpan<byte> rgb, int matrixCapacity)
+    {
+        var rgbLedCapacity = rgb.Length / 3;
+        var count = framePresentation.HighestLedWritten;
+
+        if (count <= 0)
+        {
+            count = framePresentation.LedsPerChannel;
+        }
+
+        if (count <= 0 && rgbLedCapacity > 0)
+        {
+            for (var offset = 0; offset < rgb.Length; offset += 3)
+            {
+                if (rgb[offset] != 0 || rgb[offset + 1] != 0 || rgb[offset + 2] != 0)
+                {
+                    count = rgbLedCapacity;
+                    break;
+                }
+            }
+        }
+
+        return Math.Min(Math.Min(count, rgbLedCapacity), matrixCapacity);
     }
 
     private static Brush CreateBodyBrush(Color offColor, Color rimColor, double lensFalloff, double specularHotspot)
