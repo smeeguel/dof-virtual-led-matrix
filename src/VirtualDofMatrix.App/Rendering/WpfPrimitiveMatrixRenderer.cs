@@ -9,18 +9,26 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 {
     private const int HardMinimumDotSpacing = 2;
     private readonly List<DotVisual> _dots = new();
+    private readonly byte[] _colorLut = new byte[256];
 
     private Canvas? _targetCanvas;
     private MatrixConfig? _config;
     private Brush? _sharedBodyBrush;
     private Brush? _sharedCoreOpacityMask;
+    private float[] _mappedRgb = Array.Empty<float>();
     private float[] _workingRgb = Array.Empty<float>();
+    private float[] _smoothedRgb = Array.Empty<float>();
     private float[] _thresholdRgb = Array.Empty<float>();
     private float[] _smallBlurRgb = Array.Empty<float>();
     private float[] _wideBlurRgb = Array.Empty<float>();
     private float[] _blurScratchRgb = Array.Empty<float>();
     private int _downsampleWidth;
     private int _downsampleHeight;
+    private double _lutBrightness = double.NaN;
+    private double _lutGamma = double.NaN;
+    private bool _lutSoftKneeEnabled;
+    private double _lutSoftKneeStart = double.NaN;
+    private double _lutSoftKneeStrength = double.NaN;
 
     public void Initialize(Canvas targetCanvas, MatrixConfig config)
     {
@@ -63,7 +71,6 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
                 _dots.Add(dot);
             }
         }
-
     }
 
     public void Render(FramePresentation framePresentation)
@@ -79,7 +86,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         var ledCount = Math.Min(Math.Min(requestedLedCount, rgb.Length / 3), matrixCapacity);
 
         EnsureWorkingBuffers(matrixCapacity);
-        Array.Clear(_workingRgb, 0, _workingRgb.Length);
+        Array.Clear(_mappedRgb, 0, _mappedRgb.Length);
 
         for (var logicalIndex = 0; logicalIndex < ledCount; logicalIndex++)
         {
@@ -87,22 +94,19 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             var mapped = MatrixMapper.MapLinearIndex(logicalIndex, _config.Width, _config.Height, _config.Mapping);
             var shapeIndex = mapped.Y * _config.Width + mapped.X;
 
-            if (shapeIndex < 0 || shapeIndex >= _dots.Count)
+            if ((uint)shapeIndex >= (uint)_dots.Count)
             {
                 continue;
             }
 
-            var r = ApplyBrightnessAndGamma(rgb[rgbOffset], _config.Brightness, _config.Gamma);
-            var g = ApplyBrightnessAndGamma(rgb[rgbOffset + 1], _config.Brightness, _config.Gamma);
-            var b = ApplyBrightnessAndGamma(rgb[rgbOffset + 2], _config.Brightness, _config.Gamma);
-
             var colorOffset = shapeIndex * 3;
-            _workingRgb[colorOffset] = r;
-            _workingRgb[colorOffset + 1] = g;
-            _workingRgb[colorOffset + 2] = b;
-
+            _mappedRgb[colorOffset] = rgb[rgbOffset];
+            _mappedRgb[colorOffset + 1] = rgb[rgbOffset + 1];
+            _mappedRgb[colorOffset + 2] = rgb[rgbOffset + 2];
         }
 
+        BuildColorLutIfNeeded(_config);
+        ApplyColorTransforms(_config, matrixCapacity);
         ApplyBloomIfEnabled(matrixCapacity);
 
         for (var shapeIndex = 0; shapeIndex < _dots.Count; shapeIndex++)
@@ -124,6 +128,64 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             {
                 dot.Core.Opacity = 0.0;
             }
+        }
+    }
+
+    private void ApplyColorTransforms(MatrixConfig config, int matrixCapacity)
+    {
+        var smoothing = config.TemporalSmoothing;
+        var smoothingEnabled = smoothing.Enabled;
+        var riseAlpha = Clamp01(smoothing.RiseAlpha);
+        var fallAlpha = Clamp01(smoothing.FallAlpha);
+
+        for (var i = 0; i < matrixCapacity; i++)
+        {
+            var offset = i * 3;
+            ApplyChannelTransform(offset, riseAlpha, fallAlpha, smoothingEnabled);
+            ApplyChannelTransform(offset + 1, riseAlpha, fallAlpha, smoothingEnabled);
+            ApplyChannelTransform(offset + 2, riseAlpha, fallAlpha, smoothingEnabled);
+        }
+    }
+
+    private void ApplyChannelTransform(int channelOffset, double riseAlpha, double fallAlpha, bool smoothingEnabled)
+    {
+        var target = _colorLut[(byte)_mappedRgb[channelOffset]];
+        if (!smoothingEnabled)
+        {
+            _smoothedRgb[channelOffset] = target;
+            _workingRgb[channelOffset] = target;
+            return;
+        }
+
+        var current = _smoothedRgb[channelOffset];
+        var delta = target - current;
+        var alpha = delta >= 0 ? riseAlpha : fallAlpha;
+        var next = current + ((float)alpha * delta);
+        _smoothedRgb[channelOffset] = next;
+        _workingRgb[channelOffset] = next;
+    }
+
+    private void BuildColorLutIfNeeded(MatrixConfig config)
+    {
+        var softKnee = config.ToneMapping;
+        if (_lutBrightness.Equals(config.Brightness) &&
+            _lutGamma.Equals(config.Gamma) &&
+            _lutSoftKneeEnabled == softKnee.Enabled &&
+            _lutSoftKneeStart.Equals(softKnee.KneeStart) &&
+            _lutSoftKneeStrength.Equals(softKnee.Strength))
+        {
+            return;
+        }
+
+        _lutBrightness = config.Brightness;
+        _lutGamma = config.Gamma;
+        _lutSoftKneeEnabled = softKnee.Enabled;
+        _lutSoftKneeStart = softKnee.KneeStart;
+        _lutSoftKneeStrength = softKnee.Strength;
+
+        for (var channel = 0; channel < 256; channel++)
+        {
+            _colorLut[channel] = ApplyToneMap((byte)channel, config.Brightness, config.Gamma, softKnee);
         }
     }
 
@@ -197,7 +259,9 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         var channelCapacity = matrixCapacity * 3;
         if (_workingRgb.Length != channelCapacity)
         {
+            _mappedRgb = new float[channelCapacity];
             _workingRgb = new float[channelCapacity];
+            _smoothedRgb = new float[channelCapacity];
             _thresholdRgb = new float[channelCapacity];
         }
     }
@@ -277,66 +341,94 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     {
         for (var y = 0; y < height; y++)
         {
+            float sumR = 0;
+            float sumG = 0;
+            float sumB = 0;
+            var samples = 0;
+
+            for (var sx = 0; sx <= Math.Min(width - 1, radius); sx++)
+            {
+                var sampleOffset = ((y * width) + sx) * 3;
+                sumR += source[sampleOffset];
+                sumG += source[sampleOffset + 1];
+                sumB += source[sampleOffset + 2];
+                samples++;
+            }
+
             for (var x = 0; x < width; x++)
             {
-                float sumR = 0;
-                float sumG = 0;
-                float sumB = 0;
-                var samples = 0;
-
-                for (var kx = -radius; kx <= radius; kx++)
-                {
-                    var sx = x + kx;
-                    if (sx < 0 || sx >= width)
-                    {
-                        continue;
-                    }
-
-                    var sampleOffset = ((y * width) + sx) * 3;
-                    sumR += source[sampleOffset];
-                    sumG += source[sampleOffset + 1];
-                    sumB += source[sampleOffset + 2];
-                    samples++;
-                }
-
                 var dstOffset = ((y * width) + x) * 3;
                 destination[dstOffset] = sumR / Math.Max(1, samples);
                 destination[dstOffset + 1] = sumG / Math.Max(1, samples);
                 destination[dstOffset + 2] = sumB / Math.Max(1, samples);
+
+                var removeX = x - radius;
+                if (removeX >= 0)
+                {
+                    var removeOffset = ((y * width) + removeX) * 3;
+                    sumR -= source[removeOffset];
+                    sumG -= source[removeOffset + 1];
+                    sumB -= source[removeOffset + 2];
+                    samples--;
+                }
+
+                var addX = x + radius + 1;
+                if (addX < width)
+                {
+                    var addOffset = ((y * width) + addX) * 3;
+                    sumR += source[addOffset];
+                    sumG += source[addOffset + 1];
+                    sumB += source[addOffset + 2];
+                    samples++;
+                }
             }
         }
     }
 
     private static void VerticalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
     {
-        for (var y = 0; y < height; y++)
+        for (var x = 0; x < width; x++)
         {
-            for (var x = 0; x < width; x++)
+            float sumR = 0;
+            float sumG = 0;
+            float sumB = 0;
+            var samples = 0;
+
+            for (var sy = 0; sy <= Math.Min(height - 1, radius); sy++)
             {
-                float sumR = 0;
-                float sumG = 0;
-                float sumB = 0;
-                var samples = 0;
+                var sampleOffset = ((sy * width) + x) * 3;
+                sumR += source[sampleOffset];
+                sumG += source[sampleOffset + 1];
+                sumB += source[sampleOffset + 2];
+                samples++;
+            }
 
-                for (var ky = -radius; ky <= radius; ky++)
-                {
-                    var sy = y + ky;
-                    if (sy < 0 || sy >= height)
-                    {
-                        continue;
-                    }
-
-                    var sampleOffset = ((sy * width) + x) * 3;
-                    sumR += source[sampleOffset];
-                    sumG += source[sampleOffset + 1];
-                    sumB += source[sampleOffset + 2];
-                    samples++;
-                }
-
+            for (var y = 0; y < height; y++)
+            {
                 var dstOffset = ((y * width) + x) * 3;
                 destination[dstOffset] = sumR / Math.Max(1, samples);
                 destination[dstOffset + 1] = sumG / Math.Max(1, samples);
                 destination[dstOffset + 2] = sumB / Math.Max(1, samples);
+
+                var removeY = y - radius;
+                if (removeY >= 0)
+                {
+                    var removeOffset = ((removeY * width) + x) * 3;
+                    sumR -= source[removeOffset];
+                    sumG -= source[removeOffset + 1];
+                    sumB -= source[removeOffset + 2];
+                    samples--;
+                }
+
+                var addY = y + radius + 1;
+                if (addY < height)
+                {
+                    var addOffset = ((addY * width) + x) * 3;
+                    sumR += source[addOffset];
+                    sumG += source[addOffset + 1];
+                    sumB += source[addOffset + 2];
+                    samples++;
+                }
             }
         }
     }
@@ -463,13 +555,24 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
     private static byte ToByte(double value) => (byte)Math.Round(Math.Clamp(value, 0.0, 1.0) * 255.0);
 
-    private static byte ApplyBrightnessAndGamma(byte channel, double brightness, double gamma)
+    private static byte ApplyToneMap(byte channel, double brightness, double gamma, ToneMappingConfig toneMapping)
     {
         var normalized = channel / 255.0;
-        var adjusted = Math.Pow(Math.Clamp(normalized, 0.0, 1.0), gamma);
+        var adjusted = Math.Pow(Math.Clamp(normalized, 0.0, 1.0), Math.Clamp(gamma, 0.1, 5.0));
         var scaled = adjusted * Math.Clamp(brightness, 0.0, 4.0);
-        var final = (int)Math.Round(Math.Clamp(scaled, 0.0, 1.0) * 255.0);
-        return (byte)final;
+
+        if (toneMapping.Enabled)
+        {
+            var kneeStart = Math.Clamp(toneMapping.KneeStart, 0.5, 0.99);
+            var strength = Math.Clamp(toneMapping.Strength, 0.0, 8.0);
+            if (scaled > kneeStart)
+            {
+                var excess = scaled - kneeStart;
+                scaled = kneeStart + (excess / (1.0 + (strength * excess)));
+            }
+        }
+
+        return ToByte(Math.Clamp(scaled, 0.0, 1.0));
     }
 
     private sealed record DotVisual(Shape Body, Shape Core, SolidColorBrush CoreBrush);

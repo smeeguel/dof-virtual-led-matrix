@@ -43,6 +43,16 @@ public sealed class AppConfigurationStore
             config.Matrix.MinDotSpacing = 2;
         }
 
+        if (config.Matrix.ToneMapping is null)
+        {
+            config.Matrix.ToneMapping = new ToneMappingConfig();
+        }
+
+        if (config.Matrix.TemporalSmoothing is null)
+        {
+            config.Matrix.TemporalSmoothing = new TemporalSmoothingConfig();
+        }
+
         if (config.Matrix.Visual is null)
         {
             config.Matrix.Visual = new MatrixVisualConfig();

@@ -51,11 +51,33 @@ public sealed class MatrixConfig
 
     public bool InstantTrigger { get; set; } = true;
 
+    public ToneMappingConfig ToneMapping { get; set; } = new();
+
+    public TemporalSmoothingConfig TemporalSmoothing { get; set; } = new();
+
     public MatrixVisualConfig Visual { get; set; } = new();
 
     public BloomConfig Bloom { get; set; } = new();
 }
 
+
+public sealed class ToneMappingConfig
+{
+    public bool Enabled { get; set; } = false;
+
+    public double KneeStart { get; set; } = 0.85;
+
+    public double Strength { get; set; } = 0.35;
+}
+
+public sealed class TemporalSmoothingConfig
+{
+    public bool Enabled { get; set; } = false;
+
+    public double RiseAlpha { get; set; } = 1.0;
+
+    public double FallAlpha { get; set; } = 1.0;
+}
 public sealed class MatrixVisualConfig
 {
     public byte OffStateTintR { get; set; } = 150;

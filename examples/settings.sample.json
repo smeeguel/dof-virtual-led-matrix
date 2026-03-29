@@ -17,6 +17,16 @@
     "brightness": 1.0,
     "gamma": 1.0,
     "instantTrigger": true,
+    "toneMapping": {
+      "enabled": false,
+      "kneeStart": 0.85,
+      "strength": 0.35
+    },
+    "temporalSmoothing": {
+      "enabled": false,
+      "riseAlpha": 1.0,
+      "fallAlpha": 1.0
+    },
     "bloom": {
       "enabled": true,
       "qualityPreset": "medium",
