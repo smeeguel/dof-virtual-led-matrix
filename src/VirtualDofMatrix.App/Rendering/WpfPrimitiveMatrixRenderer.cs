@@ -58,7 +58,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
         var rgb = framePresentation.RgbMemory.Span;
         var matrixCapacity = _config.Width * _config.Height;
-        var ledCount = ResolveRenderableLedCount(framePresentation, rgb, matrixCapacity);
+        var requestedLedCount = Math.Max(framePresentation.HighestLedWritten, framePresentation.LedsPerChannel);
+        var ledCount = Math.Min(Math.Min(requestedLedCount, rgb.Length / 3), matrixCapacity);
 
         var touchedShapes = new bool[_dots.Count];
 
@@ -73,16 +74,19 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
                 continue;
             }
 
-            var rawR = rgb[rgbOffset];
-            var rawG = rgb[rgbOffset + 1];
-            var rawB = rgb[rgbOffset + 2];
+            var r = ApplyBrightnessAndGamma(rgb[rgbOffset], _config.Brightness, _config.Gamma);
+            var g = ApplyBrightnessAndGamma(rgb[rgbOffset + 1], _config.Brightness, _config.Gamma);
+            var b = ApplyBrightnessAndGamma(rgb[rgbOffset + 2], _config.Brightness, _config.Gamma);
 
-            var r = ApplyBrightnessAndGamma(rawR, _config.Brightness, _config.Gamma);
-            var g = ApplyBrightnessAndGamma(rawG, _config.Brightness, _config.Gamma);
-            var b = ApplyBrightnessAndGamma(rawB, _config.Brightness, _config.Gamma);
+            var isOn = r > 0 || g > 0 || b > 0;
+            var dot = _dots[shapeIndex];
+            dot.Core.Opacity = isOn ? 1.0 : 0.0;
 
-            var rawIsOn = rawR > 0 || rawG > 0 || rawB > 0;
-            UpdateDotVisual(_dots[shapeIndex], Color.FromRgb(r, g, b), rawIsOn);
+            if (isOn)
+            {
+                dot.Core.Fill = CreateCoreBrush(Color.FromRgb(r, g, b), _config.Visual.LensFalloff);
+            }
+
             touchedShapes[shapeIndex] = true;
         }
 
@@ -90,7 +94,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         {
             if (!touchedShapes[shapeIndex])
             {
-                UpdateDotVisual(_dots[shapeIndex], Colors.Black, false);
+                _dots[shapeIndex].Core.Opacity = 0.0;
             }
         }
     }
@@ -102,82 +106,42 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             throw new InvalidOperationException("Renderer config unavailable.");
         }
 
-        Shape body = _config.DotShape.Equals("square", StringComparison.OrdinalIgnoreCase)
-            ? new Rectangle()
-            : new Ellipse();
-
-        Shape core = _config.DotShape.Equals("square", StringComparison.OrdinalIgnoreCase)
-            ? new Rectangle()
-            : new Ellipse();
+        Shape body = CreateShape(_config.DotShape);
+        Shape core = CreateShape(_config.DotShape);
 
         body.Width = _config.DotSize;
         body.Height = _config.DotSize;
         body.Stretch = Stretch.Fill;
         body.SnapsToDevicePixels = true;
+        body.Fill = CreateBodyBrush(_config.Visual);
 
         core.Width = _config.DotSize;
         core.Height = _config.DotSize;
         core.Stretch = Stretch.Fill;
         core.SnapsToDevicePixels = true;
+        core.Opacity = 0.0;
+        core.Fill = Brushes.Black;
 
-        var dot = new DotVisual(body, core);
-        UpdateDotVisual(dot, Colors.Black, false);
-
-        return dot;
+        return new DotVisual(body, core);
     }
 
-    private void UpdateDotVisual(DotVisual dot, Color emissiveColor, bool isOn)
+    private static Shape CreateShape(string dotShape)
     {
-        if (_config is null)
-        {
-            return;
-        }
+        return dotShape.Equals("square", StringComparison.OrdinalIgnoreCase)
+            ? new Rectangle()
+            : new Ellipse();
+    }
 
-        var visual = _config.Visual;
-
+    private static Brush CreateBodyBrush(MatrixVisualConfig visual)
+    {
         var offColor = Color.FromArgb(ToByte(visual.OffStateAlpha), visual.OffStateTintR, visual.OffStateTintG, visual.OffStateTintB);
-        var rimOpacity = Clamp01(visual.RimHighlight);
-        var rimColor = Color.FromArgb(ToByte(0.12 + (rimOpacity * 0.28)), 255, 255, 255);
+        var lensFalloff = Clamp01(visual.LensFalloff);
+        var specular = Clamp01(visual.SpecularHotspot);
+        var rim = Clamp01(visual.RimHighlight);
 
-        dot.Body.Fill = CreateBodyBrush(offColor, rimColor, visual.LensFalloff, visual.SpecularHotspot);
-
-        dot.Core.Fill = CreateCoreBrush(emissiveColor, visual.LensFalloff);
-        dot.Core.Opacity = isOn ? Math.Max(0.35, Math.Max(emissiveColor.R, Math.Max(emissiveColor.G, emissiveColor.B)) / 255.0) : 0.0;
-    }
-
-    private static int ResolveRenderableLedCount(FramePresentation framePresentation, ReadOnlySpan<byte> rgb, int matrixCapacity)
-    {
-        var rgbLedCapacity = rgb.Length / 3;
-        var count = framePresentation.HighestLedWritten;
-
-        if (count <= 0)
-        {
-            count = framePresentation.LedsPerChannel;
-        }
-
-        if (count <= 0 && rgbLedCapacity > 0)
-        {
-            for (var offset = 0; offset < rgb.Length; offset += 3)
-            {
-                if (rgb[offset] != 0 || rgb[offset + 1] != 0 || rgb[offset + 2] != 0)
-                {
-                    count = rgbLedCapacity;
-                    break;
-                }
-            }
-        }
-
-        return Math.Min(Math.Min(count, rgbLedCapacity), matrixCapacity);
-    }
-
-    private static Brush CreateBodyBrush(Color offColor, Color rimColor, double lensFalloff, double specularHotspot)
-    {
-        var adjustedFalloff = Clamp01(lensFalloff);
-        var hotspot = Clamp01(specularHotspot);
-
-        var centerMix = 0.35 + (0.35 * (1.0 - adjustedFalloff));
-        var centerColor = Lerp(offColor, Colors.White, centerMix * hotspot * 0.8);
-        var midColor = Lerp(offColor, Colors.Black, adjustedFalloff * 0.3);
+        var centerColor = Lerp(offColor, Colors.White, 0.20 * specular);
+        var midColor = Lerp(offColor, Colors.Black, 0.20 + (0.35 * lensFalloff));
+        var rimColor = Color.FromArgb(ToByte(0.05 + (0.30 * rim)), 255, 255, 255);
 
         return new RadialGradientBrush
         {
@@ -188,8 +152,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             GradientStops = new GradientStopCollection
             {
                 new(centerColor, 0.0),
-                new(midColor, 0.55),
-                new(rimColor, 0.95),
+                new(midColor, 0.58),
+                new(rimColor, 0.94),
                 new(Lerp(rimColor, Colors.Black, 0.6), 1.0),
             },
         };
@@ -197,20 +161,20 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
     private static Brush CreateCoreBrush(Color emissiveColor, double lensFalloff)
     {
-        var adjustedFalloff = Clamp01(lensFalloff);
-        var softCore = Lerp(emissiveColor, Colors.White, 0.22);
-        var edge = Lerp(emissiveColor, Colors.Black, 0.45 + (adjustedFalloff * 0.2));
+        var falloff = Clamp01(lensFalloff);
+        var coreCenter = Lerp(emissiveColor, Colors.White, 0.22);
+        var edge = Lerp(emissiveColor, Colors.Black, 0.30 + (0.35 * falloff));
 
         return new RadialGradientBrush
         {
             GradientOrigin = new System.Windows.Point(0.48, 0.46),
             Center = new System.Windows.Point(0.5, 0.5),
-            RadiusX = 0.5,
-            RadiusY = 0.5,
+            RadiusX = 0.52,
+            RadiusY = 0.52,
             GradientStops = new GradientStopCollection
             {
-                new(softCore, 0.0),
-                new(emissiveColor, 0.35),
+                new(coreCenter, 0.0),
+                new(emissiveColor, 0.40),
                 new(edge, 1.0),
             },
         };
