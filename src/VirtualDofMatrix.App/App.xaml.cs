@@ -16,12 +16,33 @@ public partial class App : Application
     private MainWindow? _window;
     private SerialEmulatorHost? _serialHost;
     private FramePresentationDispatcher? _presentationDispatcher;
+    private IVirtualComPairManager? _virtualComPairManager;
+    private ComPairReservation? _activeComPairReservation;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         _config = _configurationStore.Load(ConfigFilePath);
+
+        if (_config.Serial.AutoProvisionVirtualPair)
+        {
+            _virtualComPairManager = new VirtualComPairManager(
+                _config,
+                new ProcessCommandVirtualComPairBackend(_config.Serial),
+                Console.WriteLine);
+
+            try
+            {
+                _activeComPairReservation = await _virtualComPairManager.EnsureActivePairAsync(CancellationToken.None);
+                _configurationStore.Save(ConfigFilePath, _config);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[VirtualCom] Failed to provision virtual COM pair: {ex.Message}");
+            }
+        }
+
         _configurationStore.Save(ConfigFilePath, _config);
 
         _window = new MainWindow(_config)
@@ -57,6 +78,18 @@ public partial class App : Application
         if (_serialHost is not null)
         {
             await _serialHost.StopAsync();
+        }
+
+        if (_virtualComPairManager is not null && _activeComPairReservation is not null)
+        {
+            try
+            {
+                await _virtualComPairManager.DeactivateAsync(_activeComPairReservation, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[VirtualCom] Failed to deactivate virtual COM pair: {ex.Message}");
+            }
         }
 
         base.OnExit(e);
