@@ -1,13 +1,9 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace VirtualDofMatrix.Core;
 
 public sealed class AppConfig
 {
-    [JsonExtensionData]
-    public Dictionary<string, JsonElement>? ExtraProperties { get; set; }
-
     public SerialConfig Serial { get; set; } = new();
 
     public MatrixConfig Matrix { get; set; } = new();
@@ -19,9 +15,6 @@ public sealed class AppConfig
 
 public sealed class SerialConfig
 {
-    [JsonExtensionData]
-    public Dictionary<string, JsonElement>? ExtraProperties { get; set; }
-
     public string PortName { get; set; } = "COM2";
 
     public int BaudRate { get; set; } = 9600;
@@ -39,9 +32,6 @@ public sealed class SerialConfig
 
 public sealed class MatrixConfig
 {
-    [JsonExtensionData]
-    public Dictionary<string, JsonElement>? ExtraProperties { get; set; }
-
     public int Width { get; set; } = 256;
 
     public int Height { get; set; } = 32;
@@ -71,9 +61,6 @@ public sealed class MatrixConfig
 
 public sealed class ToneMappingConfig
 {
-    [JsonExtensionData]
-    public Dictionary<string, JsonElement>? ExtraProperties { get; set; }
-
     public bool Enabled { get; set; } = false;
 
     public double KneeStart { get; set; } = 0.85;
@@ -83,9 +70,6 @@ public sealed class ToneMappingConfig
 
 public sealed class TemporalSmoothingConfig
 {
-    [JsonExtensionData]
-    public Dictionary<string, JsonElement>? ExtraProperties { get; set; }
-
     public bool Enabled { get; set; } = false;
 
     public double RiseAlpha { get; set; } = 1.0;
@@ -95,9 +79,6 @@ public sealed class TemporalSmoothingConfig
 
 public sealed class MatrixVisualConfig
 {
-    [JsonExtensionData]
-    public Dictionary<string, JsonElement>? ExtraProperties { get; set; }
-
     public string ShapeMode { get; set; } = "dome";
 
     public string DomeProfile { get; set; } = "diffused-dome";
@@ -121,9 +102,6 @@ public sealed class MatrixVisualConfig
 
 public sealed class BloomConfig
 {
-    [JsonExtensionData]
-    public Dictionary<string, JsonElement>? ExtraProperties { get; set; }
-
     public bool Enabled { get; set; } = false;
 
     public string QualityPreset { get; set; } = "off";
@@ -143,9 +121,6 @@ public sealed class BloomConfig
 
 public sealed class WindowConfig
 {
-    [JsonExtensionData]
-    public Dictionary<string, JsonElement>? ExtraProperties { get; set; }
-
     public bool AlwaysOnTop { get; set; } = true;
 
     public bool Borderless { get; set; } = true;
@@ -161,9 +136,6 @@ public sealed class WindowConfig
 
 public sealed class DebugConfig
 {
-    [JsonExtensionData]
-    public Dictionary<string, JsonElement>? ExtraProperties { get; set; }
-
     public bool ShowDebug { get; set; } = false;
 
     public bool LogProtocol { get; set; } = true;
