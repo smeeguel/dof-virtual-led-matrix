@@ -217,28 +217,28 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         _visualDomeProfile = domeProfile;
         _visualEdgeSoftness = edgeSoftness;
 
-        var (coreFloor, specFloor, specRange, intensityGamma) = domeProfile switch
+        var (coreFloor, coreRange, specFloor, specRange, intensityGamma) = domeProfile switch
         {
-            "smd-like" => (0.06, 0.02, 0.20, 1.35),
-            "strong-bulb" => (0.24, 0.10, 0.56, 0.82),
-            _ => (0.14, 0.06, 0.34, 1.0),
+            "smd-like" => (0.06, 0.64, 0.02, 0.20, 1.35),
+            "strong-bulb" => (0.24, 0.70, 0.10, 0.56, 0.82),
+            _ => (0.14, 0.66, 0.06, 0.34, 1.0),
         };
 
         if (shapeMode == "flat")
         {
             coreFloor = 0.0;
+            coreRange = 1.0;
             specFloor = 0.0;
             specRange = 0.0;
             intensityGamma = 1.0;
         }
 
-        var softnessExponent = 1.35 - (0.65 * edgeSoftness);
+        var softenedRange = coreRange * (0.75 + (edgeSoftness * 0.25));
         for (var i = 0; i < 256; i++)
         {
             var normalized = i / 255.0;
-            var toned = Math.Pow(normalized, intensityGamma * softnessExponent);
-            var core = coreFloor + (toned * (1.0 - coreFloor));
-            _coreOpacityLut[i] = ToByte(core);
+            var toned = Math.Pow(normalized, intensityGamma);
+            _coreOpacityLut[i] = ToByte(coreFloor + (toned * softenedRange));
             _specularOpacityLut[i] = ToByte(specFloor + (toned * specRange));
         }
     }
