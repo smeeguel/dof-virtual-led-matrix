@@ -4,16 +4,23 @@
   <OutputControllers>
     <TeensyStripController>
       <Name>LED Strips 0</Name>
-      <NumberOfLedsStrip1>256</NumberOfLedsStrip1>
+      <NumberOfLedsStrip1>1024</NumberOfLedsStrip1>
+      <NumberOfLedsStrip2>1024</NumberOfLedsStrip2>
+      <NumberOfLedsStrip3>1024</NumberOfLedsStrip3>
+      <NumberOfLedsStrip4>1024</NumberOfLedsStrip4>
+      <NumberOfLedsStrip5>1024</NumberOfLedsStrip5>
+      <NumberOfLedsStrip6>1024</NumberOfLedsStrip6>
+      <NumberOfLedsStrip7>1024</NumberOfLedsStrip7>
+      <NumberOfLedsStrip8>1024</NumberOfLedsStrip8>
       <ComPortName>COM1</ComPortName>
       <TestOnConnect>true</TestOnConnect>
     </TeensyStripController>
   </OutputControllers>
   <Toys>
-    <LedStrip>
+      <LedStrip>
       <Name>Matrix</Name>
-      <Width>32</Width>
-      <Height>8</Height>
+      <Width>256</Width>
+      <Height>32</Height>
       <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
       <ColorOrder>RGB</ColorOrder>
       <FirstLedNumber>1</FirstLedNumber>

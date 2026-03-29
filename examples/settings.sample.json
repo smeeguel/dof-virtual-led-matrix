@@ -9,12 +9,12 @@
     "dtrEnable": true
   },
   "matrix": {
-    "width": 32,
-    "height": 8,
+    "width": 256,
+    "height": 32,
     "mapping": "TopDownAlternateRightLeft",
     "dotShape": "circle",
-    "dotSize": 18,
-    "dotSpacing": 4,
+    "dotSize": 3,
+    "dotSpacing": 1,
     "brightness": 1.0,
     "gamma": 1.0,
     "instantTrigger": true

@@ -30,17 +30,17 @@ public sealed class SerialConfig
 
 public sealed class MatrixConfig
 {
-    public int Width { get; set; } = 32;
+    public int Width { get; set; } = 256;
 
-    public int Height { get; set; } = 8;
+    public int Height { get; set; } = 32;
 
     public string Mapping { get; set; } = "TopDownAlternateRightLeft";
 
     public string DotShape { get; set; } = "circle";
 
-    public int DotSize { get; set; } = 18;
+    public int DotSize { get; set; } = 3;
 
-    public int DotSpacing { get; set; } = 4;
+    public int DotSpacing { get; set; } = 1;
 
     public double Brightness { get; set; } = 1.0;
 
