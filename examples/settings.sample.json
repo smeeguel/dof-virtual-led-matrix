@@ -1,0 +1,29 @@
+{
+  "serial": {
+    "portName": "COM2",
+    "baudRate": 9600,
+    "maxLedsPerChannel": 1100,
+    "maxStrips": 8,
+    "readTimeoutMs": 200,
+    "writeTimeoutMs": 1000,
+    "dtrEnable": true
+  },
+  "matrix": {
+    "width": 32,
+    "height": 8,
+    "mapping": "TopDownAlternateRightLeft",
+    "instantTrigger": true
+  },
+  "window": {
+    "alwaysOnTop": true,
+    "borderless": true,
+    "left": 100,
+    "top": 100,
+    "width": 1280,
+    "height": 320
+  },
+  "debug": {
+    "logProtocol": true,
+    "logFrames": false
+  }
+}
