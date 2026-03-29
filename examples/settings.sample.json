@@ -12,6 +12,11 @@
     "width": 32,
     "height": 8,
     "mapping": "TopDownAlternateRightLeft",
+    "dotShape": "circle",
+    "dotSize": 18,
+    "dotSpacing": 4,
+    "brightness": 1.0,
+    "gamma": 1.0,
     "instantTrigger": true
   },
   "window": {

@@ -2,6 +2,7 @@ using System.Windows;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Presentation;
 using VirtualDofMatrix.App.Serial;
+using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
 
@@ -10,6 +11,9 @@ public partial class App : Application
     private const string ConfigFilePath = "settings.json";
 
     private readonly AppConfigurationStore _configurationStore = new();
+
+    private AppConfig? _config;
+    private MainWindow? _window;
     private SerialEmulatorHost? _serialHost;
     private FramePresentationDispatcher? _presentationDispatcher;
 
@@ -17,27 +21,33 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        var config = _configurationStore.Load(ConfigFilePath);
-        _configurationStore.Save(ConfigFilePath, config);
+        _config = _configurationStore.Load(ConfigFilePath);
+        _configurationStore.Save(ConfigFilePath, _config);
 
-        var window = new MainWindow(config)
+        _window = new MainWindow(_config)
         {
-            DataContext = config,
+            DataContext = _config,
         };
 
-        _serialHost = new SerialEmulatorHost(config);
+        _window.LocationChanged += (_, _) => PersistWindowSettings();
+        _window.SizeChanged += (_, _) => PersistWindowSettings();
+        _window.Closing += (_, _) => PersistWindowSettings();
+
+        _serialHost = new SerialEmulatorHost(_config);
         _presentationDispatcher = new FramePresentationDispatcher(Dispatcher);
         _presentationDispatcher.Attach(_serialHost);
-        _presentationDispatcher.FramePresentedOnUiThread += (_, frame) => window.ApplyPresentation(frame);
+        _presentationDispatcher.FramePresentedOnUiThread += (_, frame) => _window.ApplyPresentation(frame);
 
         await _serialHost.StartAsync();
 
-        MainWindow = window;
-        window.Show();
+        MainWindow = _window;
+        _window.Show();
     }
 
     protected override async void OnExit(ExitEventArgs e)
     {
+        PersistWindowSettings();
+
         if (_presentationDispatcher is not null)
         {
             _presentationDispatcher.Dispose();
@@ -50,5 +60,16 @@ public partial class App : Application
         }
 
         base.OnExit(e);
+    }
+
+    private void PersistWindowSettings()
+    {
+        if (_window is null || _config is null)
+        {
+            return;
+        }
+
+        _window.SyncWindowSettingsToConfig();
+        _configurationStore.Save(ConfigFilePath, _config);
     }
 }

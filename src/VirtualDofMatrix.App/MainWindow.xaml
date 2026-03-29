@@ -19,6 +19,13 @@
             <TextBlock Foreground="White" Text="{Binding Matrix.Width, StringFormat=Matrix Width: {0}}" />
             <TextBlock Foreground="White" Text="{Binding Matrix.Height, StringFormat=Matrix Height: {0}}" />
 
+            <TextBlock Margin="0,12,0,0" Foreground="White" Text="Visual options:" />
+            <TextBlock x:Name="DotShapeText" Foreground="White" Text="Dot shape: (none)" />
+            <TextBlock x:Name="DotSizeText" Foreground="White" Text="Dot size: (none)" />
+            <TextBlock x:Name="DotSpacingText" Foreground="White" Text="Dot spacing: (none)" />
+            <TextBlock x:Name="BrightnessText" Foreground="White" Text="Brightness: (none)" />
+            <TextBlock x:Name="GammaText" Foreground="White" Text="Gamma: (none)" />
+
             <TextBlock Margin="0,12,0,0" Foreground="White" Text="Last presentation:" />
             <TextBlock x:Name="OutputSequenceText" Foreground="White" Text="Output sequence: (none)" />
             <TextBlock x:Name="PresentedAtText" Foreground="White" Text="Presented at UTC: (none)" />
