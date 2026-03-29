@@ -1,3 +1,4 @@
+using Xunit;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.Tests;
