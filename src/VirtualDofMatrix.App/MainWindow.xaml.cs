@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
@@ -8,16 +9,26 @@ namespace VirtualDofMatrix.App;
 public partial class MainWindow : Window
 {
     private readonly AppConfig _config;
+    private readonly IMatrixRenderer _matrixRenderer;
+
     private FramePresentation? _latestPresentation;
 
     public MainWindow(AppConfig config)
+        : this(config, new WpfPrimitiveMatrixRenderer())
+    {
+    }
+
+    internal MainWindow(AppConfig config, IMatrixRenderer matrixRenderer)
     {
         _config = config;
+        _matrixRenderer = matrixRenderer;
 
         InitializeComponent();
 
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
+
+        _matrixRenderer.Initialize(MatrixCanvas, _config.Matrix);
     }
 
     public void ApplyPresentation(FramePresentation presentation)
@@ -27,6 +38,8 @@ public partial class MainWindow : Window
         OutputSequenceText.Text = $"Output sequence: {presentation.OutputSequence}";
         PresentedAtText.Text = $"Presented at UTC: {presentation.PresentedAtUtc:O}";
         PayloadLengthText.Text = $"Payload bytes: {presentation.RgbBytes.Length}";
+
+        _matrixRenderer.Render(presentation);
     }
 
     public void SyncWindowSettingsToConfig()

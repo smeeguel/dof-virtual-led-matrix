@@ -6,11 +6,25 @@
         WindowStyle="None"
         ResizeMode="CanResizeWithGrip"
         AllowsTransparency="False"
-        MouseLeftButtonDown="OnMouseLeftButtonDown">
+        MouseLeftButtonDown="OnMouseLeftButtonDown"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        RenderOptions.BitmapScalingMode="NearestNeighbor"
+        RenderOptions.EdgeMode="Aliased">
     <Grid Margin="16">
-        <StackPanel>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="24" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="Black" BorderBrush="#222" BorderThickness="1" Padding="8">
+            <Canvas x:Name="MatrixCanvas" Background="Black" />
+        </Border>
+
+        <StackPanel Grid.Column="2">
             <TextBlock Foreground="Lime" FontSize="20" FontWeight="Bold" Text="Virtual DOF Matrix (Milestone 2 bootstrap)" />
-            <TextBlock Margin="0,12,0,0" Foreground="White" Text="Rendering pipeline hookup in progress." />
+            <TextBlock Margin="0,12,0,0" Foreground="White" Text="CPU/WPF primitive renderer enabled." />
             <TextBlock Foreground="White" Text="Protocol engine remains in VirtualDofMatrix.Core." />
             <TextBlock Margin="0,12,0,0" Foreground="White" Text="Config summary:" />
             <TextBlock Foreground="White" Text="{Binding Serial.PortName, StringFormat=Port: {0}}" />
