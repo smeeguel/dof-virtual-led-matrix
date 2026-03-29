@@ -1,32 +1,45 @@
 {
+  "_comment": "Sample config reference. Keys prefixed with _comment are notes for humans and can be removed in real settings.json files.",
   "serial": {
+    "_comment": "COM endpoint used by the emulator side of your virtual COM pair (for example COM2 when DOF writes to COM1).",
     "portName": "COM2",
+    "_commentBaudRate": "TeensyStripController-compatible baud rate used in current MVP path.",
     "baudRate": 9600,
+    "_commentMaxLedsPerChannel": "Safe hardware-compatible ceiling reported to DOF via the M command.",
     "maxLedsPerChannel": 1100,
+    "_commentMaxStrips": "Safe compatibility target from TeensyStripController path.",
     "maxStrips": 8,
     "readTimeoutMs": 200,
     "writeTimeoutMs": 1000,
     "dtrEnable": true
   },
   "matrix": {
-    "width": 256,
-    "height": 32,
+    "_comment": "Matrix geometry and visual shaping. Width x height should match your DOF cabinet mapping output target.",
+    "width": 64,
+    "height": 16,
+    "_commentMapping": "Linear DOF LED order -> 2D screen mapping mode.",
     "mapping": "TopDownAlternateRightLeft",
+    "_commentDotShape": "Physical pixel silhouette: circle or square.",
     "dotShape": "circle",
-    "minDotSpacing": 2,
+    "minDotSpacing": 4,
+    "_commentBrightness": "Global intensity multiplier (0.0-4.0 practical range).",
     "brightness": 1.0,
+    "_commentGamma": "Channel gamma adjustment before optional tone mapping.",
     "gamma": 1.0,
     "toneMapping": {
-      "enabled": false,
+      "_comment": "Optional highlight compression to avoid clipping at high brightness.",
+      "enabled": true,
       "kneeStart": 0.85,
       "strength": 0.35
     },
     "temporalSmoothing": {
-      "enabled": false,
+      "_comment": "Optional motion smoothing. Lower fallAlpha keeps pixels lit longer.",
+      "enabled": true,
       "riseAlpha": 1.0,
       "fallAlpha": 1.0
     },
     "bloom": {
+      "_comment": "Screen-space glow around bright pixels. Disabled for strict/raw output.",
       "enabled": true,
       "qualityPreset": "medium",
       "threshold": 0.55,
@@ -37,24 +50,38 @@
       "bufferScaleDivisor": 2
     },
     "visual": {
-      "offStateTintR": 150,
-      "offStateTintG": 155,
-      "offStateTintB": 170,
+      "_comment": "Dot lens/body rendering controls for flat vs bulb-like aesthetics.",
+      "_commentShapeMode": "dome = lens attenuation + highlight behavior, flat = flatter emitter style.",
+      "shapeMode": "dome",
+      "_commentDomeProfile": "Preset curve family: smd-like, diffused-dome, or strong-bulb.",
+      "domeProfile": "diffused-dome",
+      "_commentEdgeSoftness": "0.05-1.0; higher softens edge transition, lower keeps a crisp edge.",
+      "edgeSoftness": 0.58,
+      "_commentOffStateTint": "Base tint for unlit lens/body shell.",
+      "offStateTintR": 20,
+      "offStateTintG": 25,
+      "offStateTintB": 40,
+      "_commentOffStateAlpha": "Opacity of unlit lens/body shell.",
       "offStateAlpha": 0.22,
+      "_commentLensFalloff": "Controls radial falloff concentration for dome masks.",
       "lensFalloff": 0.45,
-      "specularHotspot": 0.28,
-      "rimHighlight": 0.22
+      "_commentSpecularHotspot": "Controls hotspot brightness in the static lens body brush.",
+      "specularHotspot": 0.98,
+      "_commentRimHighlight": "Controls edge ring visibility in the static lens body brush.",
+      "rimHighlight": 0.0
     }
   },
   "window": {
+    "_comment": "Viewer window placement/state persistence.",
     "alwaysOnTop": true,
     "borderless": true,
-    "left": 100,
-    "top": 100,
-    "width": 1280,
-    "height": 320
+    "left": -2,
+    "top": 80,
+    "width": 1476,
+    "height": 369
   },
   "debug": {
+    "_comment": "Protocol/frame logging toggles.",
     "showDebug": false,
     "logProtocol": true,
     "logFrames": false

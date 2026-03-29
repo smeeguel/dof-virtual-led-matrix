@@ -79,6 +79,12 @@ public sealed class TemporalSmoothingConfig
 
 public sealed class MatrixVisualConfig
 {
+    public string ShapeMode { get; set; } = "dome";
+
+    public string DomeProfile { get; set; } = "diffused-dome";
+
+    public double EdgeSoftness { get; set; } = 0.58;
+
     public byte OffStateTintR { get; set; } = 150;
 
     public byte OffStateTintG { get; set; } = 155;
