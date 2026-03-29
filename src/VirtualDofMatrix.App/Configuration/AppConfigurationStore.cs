@@ -38,15 +38,9 @@ public sealed class AppConfigurationStore
             config.Matrix.Height = 32;
         }
 
-        if (config.Matrix.DotSize == 18 && config.Matrix.DotSpacing == 4)
+        if (config.Matrix.MinDotSpacing < 2)
         {
-            config.Matrix.DotSize = 2;
-            config.Matrix.DotSpacing = 2;
-        }
-
-        if (config.Matrix.DotSpacing < 2)
-        {
-            config.Matrix.DotSpacing = 2;
+            config.Matrix.MinDotSpacing = 2;
         }
 
         if (config.Matrix.Visual is null)

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace VirtualDofMatrix.Core;
 
 public sealed class AppConfig
@@ -38,9 +40,10 @@ public sealed class MatrixConfig
 
     public string DotShape { get; set; } = "circle";
 
+    [JsonIgnore]
     public int DotSize { get; set; } = 2;
 
-    public int DotSpacing { get; set; } = 2;
+    public int MinDotSpacing { get; set; } = 2;
 
     public double Brightness { get; set; } = 1.0;
 

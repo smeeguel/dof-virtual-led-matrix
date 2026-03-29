@@ -9,7 +9,7 @@ namespace VirtualDofMatrix.App;
 
 public partial class MainWindow : Window
 {
-    private const int MinimumDotSpacing = 2;
+    private const int HardMinimumDotSpacing = 2;
     private readonly AppConfig _config;
     private readonly IMatrixRenderer _matrixRenderer;
     private bool _isApplyingAspectLock;
@@ -75,7 +75,7 @@ public partial class MainWindow : Window
         Background = Brushes.Black;
         DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape}";
         DotSizeText.Text = "Dot size: auto";
-        DotSpacingText.Text = "Dot spacing: auto";
+        DotSpacingText.Text = "Min dot spacing: auto";
         BrightnessText.Text = $"Brightness: {_config.Matrix.Brightness:0.###}";
         GammaText.Text = $"Gamma: {_config.Matrix.Gamma:0.###}";
     }
@@ -141,7 +141,7 @@ public partial class MainWindow : Window
 
         DotShapeText.Text = $"Dot shape: {effectiveMatrixConfig.DotShape}";
         DotSizeText.Text = $"Dot size: auto ({effectiveMatrixConfig.DotSize})";
-        DotSpacingText.Text = $"Dot spacing: auto ({effectiveMatrixConfig.DotSpacing})";
+        DotSpacingText.Text = $"Min dot spacing: auto ({effectiveMatrixConfig.MinDotSpacing})";
 
         if (_latestPresentation is not null)
         {
@@ -158,7 +158,7 @@ public partial class MainWindow : Window
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
         var stride = Math.Max(1, Math.Min(strideFromWidth, strideFromHeight));
-        var spacing = MinimumDotSpacing;
+        var spacing = Math.Max(HardMinimumDotSpacing, _config.Matrix.MinDotSpacing);
         var dotSize = Math.Max(1, stride - spacing);
 
         return new MatrixConfig
@@ -168,7 +168,7 @@ public partial class MainWindow : Window
             Mapping = _config.Matrix.Mapping,
             DotShape = _config.Matrix.DotShape,
             DotSize = dotSize,
-            DotSpacing = spacing,
+            MinDotSpacing = spacing,
             Brightness = _config.Matrix.Brightness,
             Gamma = _config.Matrix.Gamma,
             InstantTrigger = _config.Matrix.InstantTrigger,

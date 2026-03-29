@@ -27,16 +27,10 @@ public sealed class MatrixMapperTests
         Assert.Equal(32, config.Matrix.Height);
         Assert.Equal("TopDownAlternateRightLeft", config.Matrix.Mapping);
         Assert.Equal("circle", config.Matrix.DotShape);
-        Assert.Equal(2, config.Matrix.DotSize);
-        Assert.Equal(2, config.Matrix.DotSpacing);
+        Assert.Equal(2, config.Matrix.MinDotSpacing);
         Assert.Equal(1.0, config.Matrix.Brightness);
         Assert.Equal(1.0, config.Matrix.Gamma);
 
-        var dotStride = config.Matrix.DotSize + config.Matrix.DotSpacing;
-        var renderedWidth = (config.Matrix.Width * dotStride) + config.Matrix.DotSpacing;
-        var renderedHeight = (config.Matrix.Height * dotStride) + config.Matrix.DotSpacing;
-
-        Assert.True(renderedWidth <= config.Window.Width);
-        Assert.True(renderedHeight <= config.Window.Height);
+        Assert.True(config.Matrix.MinDotSpacing >= 2);
     }
 }
