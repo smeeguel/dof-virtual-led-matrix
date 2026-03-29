@@ -1,4 +1,5 @@
 using System.Windows.Controls;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using VirtualDofMatrix.Core;
@@ -15,6 +16,14 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private MatrixConfig? _config;
     private Brush? _sharedBodyBrush;
     private Brush? _sharedCoreOpacityMask;
+    private Brush? _sharedGlowOpacityMask;
+    private Brush? _sharedSpecularOpacityMask;
+    private byte[] _lastRenderedR = Array.Empty<byte>();
+    private byte[] _lastRenderedG = Array.Empty<byte>();
+    private byte[] _lastRenderedB = Array.Empty<byte>();
+    private double[] _lastGlowOpacity = Array.Empty<double>();
+    private double[] _lastCoreOpacity = Array.Empty<double>();
+    private double[] _lastSpecularOpacity = Array.Empty<double>();
     private float[] _mappedRgb = Array.Empty<float>();
     private float[] _workingRgb = Array.Empty<float>();
     private float[] _smoothedRgb = Array.Empty<float>();
@@ -41,8 +50,12 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
         _sharedBodyBrush = CreateBodyBrush(_config.Visual);
         _sharedCoreOpacityMask = CreateCoreOpacityMask(_config.Visual.LensFalloff);
+        _sharedGlowOpacityMask = CreateGlowOpacityMask(_config.Visual.LensFalloff);
+        _sharedSpecularOpacityMask = CreateSpecularOpacityMask(_config.Visual.SpecularHotspot);
         TryFreeze(_sharedBodyBrush);
         TryFreeze(_sharedCoreOpacityMask);
+        TryFreeze(_sharedGlowOpacityMask);
+        TryFreeze(_sharedSpecularOpacityMask);
 
         var dotSpacing = Math.Max(HardMinimumDotSpacing, _config.MinDotSpacing);
         var dotStride = _config.DotSize + dotSpacing;
@@ -52,6 +65,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         _targetCanvas.Width = (width * dotStride) + dotSpacing;
         _targetCanvas.Height = (height * dotStride) + dotSpacing;
         _targetCanvas.UseLayoutRounding = true;
+        EnsureRenderStateBuffers(width * height);
 
         for (var y = 0; y < height; y++)
         {
@@ -63,11 +77,17 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
                 Canvas.SetLeft(dot.Body, left);
                 Canvas.SetTop(dot.Body, top);
+                Canvas.SetLeft(dot.Glow, left - (dot.Glow.Width - dot.Body.Width) * 0.5);
+                Canvas.SetTop(dot.Glow, top - (dot.Glow.Height - dot.Body.Height) * 0.5);
                 Canvas.SetLeft(dot.Core, left);
                 Canvas.SetTop(dot.Core, top);
+                Canvas.SetLeft(dot.Specular, left);
+                Canvas.SetTop(dot.Specular, top);
 
+                _targetCanvas.Children.Add(dot.Glow);
                 _targetCanvas.Children.Add(dot.Body);
                 _targetCanvas.Children.Add(dot.Core);
+                _targetCanvas.Children.Add(dot.Specular);
                 _dots.Add(dot);
             }
         }
@@ -112,23 +132,85 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         for (var shapeIndex = 0; shapeIndex < _dots.Count; shapeIndex++)
         {
             var colorOffset = shapeIndex * 3;
-            var r = ToByte(_workingRgb[colorOffset] / 255.0);
-            var g = ToByte(_workingRgb[colorOffset + 1] / 255.0);
-            var b = ToByte(_workingRgb[colorOffset + 2] / 255.0);
+            var rf = _workingRgb[colorOffset];
+            var gf = _workingRgb[colorOffset + 1];
+            var bf = _workingRgb[colorOffset + 2];
+            var r = (byte)Math.Clamp(Math.Round(rf), 0, 255);
+            var g = (byte)Math.Clamp(Math.Round(gf), 0, 255);
+            var b = (byte)Math.Clamp(Math.Round(bf), 0, 255);
 
-            var intensity = Math.Max(r, Math.Max(g, b)) / 255.0;
+            var intensity = Math.Max(rf, Math.Max(gf, bf)) / 255.0;
             var dot = _dots[shapeIndex];
 
             if (intensity > 0.0)
             {
-                dot.CoreBrush.Color = Color.FromRgb(r, g, b);
-                dot.Core.Opacity = Math.Clamp(Math.Sqrt(intensity), 0.0, 1.0);
+                UpdateDotColorIfChanged(shapeIndex, dot.GlowBrush, dot.CoreBrush, r, g, b);
+
+                var glowOpacity = Math.Clamp(Math.Pow(intensity, 1.25) * 0.70, 0.0, 1.0);
+                var coreOpacity = Math.Clamp(Math.Sqrt(intensity), 0.0, 1.0);
+                var specularOpacity = Math.Clamp((0.25 + (0.75 * intensity)) * _config.Visual.SpecularHotspot, 0.0, 0.95);
+
+                UpdateOpacityIfChanged(dot.Glow, _lastGlowOpacity, shapeIndex, glowOpacity);
+                UpdateOpacityIfChanged(dot.Core, _lastCoreOpacity, shapeIndex, coreOpacity);
+                UpdateOpacityIfChanged(dot.Specular, _lastSpecularOpacity, shapeIndex, specularOpacity);
             }
             else
             {
-                dot.Core.Opacity = 0.0;
+                UpdateOpacityIfChanged(dot.Glow, _lastGlowOpacity, shapeIndex, 0.0);
+                UpdateOpacityIfChanged(dot.Core, _lastCoreOpacity, shapeIndex, 0.0);
+                UpdateOpacityIfChanged(dot.Specular, _lastSpecularOpacity, shapeIndex, 0.0);
             }
         }
+    }
+
+    private void EnsureRenderStateBuffers(int capacity)
+    {
+        if (_lastRenderedR.Length == capacity)
+        {
+            return;
+        }
+
+        _lastRenderedR = new byte[capacity];
+        _lastRenderedG = new byte[capacity];
+        _lastRenderedB = new byte[capacity];
+        _lastGlowOpacity = CreateInitializedArray(capacity, double.NaN);
+        _lastCoreOpacity = CreateInitializedArray(capacity, double.NaN);
+        _lastSpecularOpacity = CreateInitializedArray(capacity, double.NaN);
+    }
+
+    private void UpdateDotColorIfChanged(int dotIndex, SolidColorBrush glowBrush, SolidColorBrush coreBrush, byte r, byte g, byte b)
+    {
+        if (_lastRenderedR[dotIndex] == r &&
+            _lastRenderedG[dotIndex] == g &&
+            _lastRenderedB[dotIndex] == b)
+        {
+            return;
+        }
+
+        var updatedColor = Color.FromRgb(r, g, b);
+        glowBrush.Color = updatedColor;
+        coreBrush.Color = updatedColor;
+        _lastRenderedR[dotIndex] = r;
+        _lastRenderedG[dotIndex] = g;
+        _lastRenderedB[dotIndex] = b;
+    }
+
+    private static void UpdateOpacityIfChanged(UIElement element, double[] state, int index, double value)
+    {
+        if (Math.Abs(state[index] - value) < 0.001)
+        {
+            return;
+        }
+
+        element.Opacity = value;
+        state[index] = value;
+    }
+
+    private static double[] CreateInitializedArray(int size, double value)
+    {
+        var array = new double[size];
+        Array.Fill(array, value);
+        return array;
     }
 
     private void ApplyColorTransforms(MatrixConfig config, int matrixCapacity)
@@ -453,13 +535,15 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
     private DotVisual CreateDotVisual()
     {
-        if (_config is null || _sharedBodyBrush is null || _sharedCoreOpacityMask is null)
+        if (_config is null || _sharedBodyBrush is null || _sharedCoreOpacityMask is null || _sharedGlowOpacityMask is null || _sharedSpecularOpacityMask is null)
         {
             throw new InvalidOperationException("Renderer config unavailable.");
         }
 
         Shape body = CreateShape(_config.DotShape);
+        Shape glow = CreateShape(_config.DotShape);
         Shape core = CreateShape(_config.DotShape);
+        Shape specular = CreateShape(_config.DotShape);
 
         body.Width = _config.DotSize;
         body.Height = _config.DotSize;
@@ -467,6 +551,15 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         body.SnapsToDevicePixels = true;
         body.Fill = _sharedBodyBrush;
 
+        var glowSize = _config.DotSize * 1.65;
+        glow.Width = glowSize;
+        glow.Height = glowSize;
+        glow.Stretch = Stretch.Fill;
+        glow.SnapsToDevicePixels = true;
+        glow.Opacity = 0.0;
+        var glowBrush = new SolidColorBrush(Colors.Black);
+        glow.Fill = glowBrush;
+        glow.OpacityMask = _sharedGlowOpacityMask;
         core.Width = _config.DotSize;
         core.Height = _config.DotSize;
         core.Stretch = Stretch.Fill;
@@ -476,7 +569,15 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         core.Fill = coreBrush;
         core.OpacityMask = _sharedCoreOpacityMask;
 
-        return new DotVisual(body, core, coreBrush);
+        specular.Width = _config.DotSize;
+        specular.Height = _config.DotSize;
+        specular.Stretch = Stretch.Fill;
+        specular.SnapsToDevicePixels = true;
+        specular.Opacity = 0.0;
+        specular.Fill = new SolidColorBrush(Colors.White);
+        specular.OpacityMask = _sharedSpecularOpacityMask;
+
+        return new DotVisual(body, glow, core, specular, glowBrush, coreBrush);
     }
 
     private static Shape CreateShape(string dotShape)
@@ -533,6 +634,49 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         };
     }
 
+    private static Brush CreateGlowOpacityMask(double lensFalloff)
+    {
+        var falloff = Clamp01(lensFalloff);
+        var innerStop = 0.20 + (0.08 * falloff);
+        var midStop = 0.62 + (0.12 * falloff);
+
+        return new RadialGradientBrush
+        {
+            GradientOrigin = new System.Windows.Point(0.5, 0.5),
+            Center = new System.Windows.Point(0.5, 0.5),
+            RadiusX = 0.62,
+            RadiusY = 0.62,
+            GradientStops = new GradientStopCollection
+            {
+                new(Color.FromArgb(200, 255, 255, 255), 0.0),
+                new(Color.FromArgb(120, 255, 255, 255), innerStop),
+                new(Color.FromArgb(30, 255, 255, 255), midStop),
+                new(Colors.Transparent, 1.0),
+            },
+        };
+    }
+
+    private static Brush CreateSpecularOpacityMask(double specularHotspot)
+    {
+        var hotspot = Clamp01(specularHotspot);
+        var endStop = 0.30 + (0.24 * hotspot);
+
+        return new RadialGradientBrush
+        {
+            GradientOrigin = new System.Windows.Point(0.30, 0.28),
+            Center = new System.Windows.Point(0.34, 0.32),
+            RadiusX = 0.40,
+            RadiusY = 0.40,
+            GradientStops = new GradientStopCollection
+            {
+                new(Color.FromArgb(220, 255, 255, 255), 0.0),
+                new(Color.FromArgb(160, 255, 255, 255), Math.Clamp(endStop * 0.45, 0.1, 0.4)),
+                new(Color.FromArgb(55, 255, 255, 255), Math.Clamp(endStop, 0.2, 0.65)),
+                new(Colors.Transparent, 1.0),
+            },
+        };
+    }
+
     private static void TryFreeze(Brush brush)
     {
         if (brush.CanFreeze)
@@ -575,7 +719,13 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         return ToByte(Math.Clamp(scaled, 0.0, 1.0));
     }
 
-    private sealed record DotVisual(Shape Body, Shape Core, SolidColorBrush CoreBrush);
+    private sealed record DotVisual(
+        Shape Body,
+        Shape Glow,
+        Shape Core,
+        Shape Specular,
+        SolidColorBrush GlowBrush,
+        SolidColorBrush CoreBrush);
 
     private sealed record BloomProfile(
         bool Enabled,
