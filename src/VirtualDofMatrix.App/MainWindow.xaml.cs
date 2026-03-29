@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Controls;
 using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.Core;
 
@@ -29,6 +30,7 @@ public partial class MainWindow : Window
 
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
+        ApplyDebugVisibility();
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
 
         Loaded += (_, _) => ReinitializeRendererForViewport();
@@ -75,6 +77,21 @@ public partial class MainWindow : Window
         DotSpacingText.Text = "Dot spacing: auto";
         BrightnessText.Text = $"Brightness: {_config.Matrix.Brightness:0.###}";
         GammaText.Text = $"Gamma: {_config.Matrix.Gamma:0.###}";
+    }
+
+    private void ApplyDebugVisibility()
+    {
+        if (_config.Debug.ShowDebug)
+        {
+            return;
+        }
+
+        RootGrid.Margin = new Thickness(0);
+        DebugPanel.Visibility = Visibility.Collapsed;
+        DebugSpacerColumn.Width = new GridLength(0);
+        DebugPanelColumn.Width = new GridLength(0);
+        MatrixViewportBorder.Padding = new Thickness(0);
+        MatrixViewportBorder.BorderThickness = new Thickness(0);
     }
 
     private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)

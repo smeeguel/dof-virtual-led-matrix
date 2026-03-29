@@ -28,6 +28,7 @@
     "height": 320
   },
   "debug": {
+    "showDebug": false,
     "logProtocol": true,
     "logFrames": false
   }

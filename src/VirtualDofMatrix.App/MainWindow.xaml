@@ -11,11 +11,11 @@
         SnapsToDevicePixels="True"
         RenderOptions.BitmapScalingMode="NearestNeighbor"
         RenderOptions.EdgeMode="Aliased">
-    <Grid Margin="16">
+    <Grid x:Name="RootGrid" Margin="16">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="24" />
-            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition x:Name="DebugSpacerColumn" Width="24" />
+            <ColumnDefinition x:Name="DebugPanelColumn" Width="Auto" />
         </Grid.ColumnDefinitions>
 
         <Border x:Name="MatrixViewportBorder" Grid.Column="0" Background="Black" BorderBrush="#222" BorderThickness="1" Padding="8">
@@ -24,7 +24,7 @@
             </Viewbox>
         </Border>
 
-        <StackPanel Grid.Column="2">
+        <StackPanel x:Name="DebugPanel" Grid.Column="2">
             <TextBlock Foreground="Lime" FontSize="20" FontWeight="Bold" Text="Virtual DOF Matrix (Milestone 2 bootstrap)" />
             <TextBlock Margin="0,12,0,0" Foreground="White" Text="CPU/WPF primitive renderer enabled." />
             <TextBlock Foreground="White" Text="Protocol engine remains in VirtualDofMatrix.Core." />

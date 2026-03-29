@@ -66,6 +66,8 @@ public sealed class WindowConfig
 
 public sealed class DebugConfig
 {
+    public bool ShowDebug { get; set; } = false;
+
     public bool LogProtocol { get; set; } = true;
 
     public bool LogFrames { get; set; } = false;
