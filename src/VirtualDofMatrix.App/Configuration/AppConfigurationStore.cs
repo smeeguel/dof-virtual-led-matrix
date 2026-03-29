@@ -21,12 +21,29 @@ public sealed class AppConfigurationStore
 
         var json = File.ReadAllText(filePath);
         var loaded = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions);
-        return loaded ?? new AppConfig();
+        return ApplyLegacyDefaults(loaded ?? new AppConfig());
     }
 
     public void Save(string filePath, AppConfig config)
     {
         var json = JsonSerializer.Serialize(config, SerializerOptions);
         File.WriteAllText(filePath, json);
+    }
+
+    private static AppConfig ApplyLegacyDefaults(AppConfig config)
+    {
+        if (config.Matrix.Width == 32 && config.Matrix.Height == 8)
+        {
+            config.Matrix.Width = 256;
+            config.Matrix.Height = 32;
+        }
+
+        if (config.Matrix.DotSize == 18 && config.Matrix.DotSpacing == 4)
+        {
+            config.Matrix.DotSize = 3;
+            config.Matrix.DotSpacing = 1;
+        }
+
+        return config;
     }
 }

@@ -10,6 +10,8 @@ public partial class MainWindow : Window
 {
     private readonly AppConfig _config;
     private readonly IMatrixRenderer _matrixRenderer;
+    private bool _isApplyingAspectLock;
+    private double _lockedAspectRatio;
 
     private FramePresentation? _latestPresentation;
 
@@ -27,8 +29,10 @@ public partial class MainWindow : Window
 
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
+        _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
 
-        _matrixRenderer.Initialize(MatrixCanvas, _config.Matrix);
+        Loaded += (_, _) => ReinitializeRendererForViewport();
+        SizeChanged += OnWindowSizeChanged;
     }
 
     public void ApplyPresentation(FramePresentation presentation)
@@ -67,10 +71,90 @@ public partial class MainWindow : Window
     {
         Background = Brushes.Black;
         DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape}";
-        DotSizeText.Text = $"Dot size: {_config.Matrix.DotSize}";
-        DotSpacingText.Text = $"Dot spacing: {_config.Matrix.DotSpacing}";
+        DotSizeText.Text = "Dot size: auto";
+        DotSpacingText.Text = "Dot spacing: auto";
         BrightnessText.Text = $"Brightness: {_config.Matrix.Brightness:0.###}";
         GammaText.Text = $"Gamma: {_config.Matrix.Gamma:0.###}";
+    }
+
+    private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_isApplyingAspectLock || !IsLoaded)
+        {
+            return;
+        }
+
+        var widthDelta = Math.Abs(e.NewSize.Width - e.PreviousSize.Width);
+        var heightDelta = Math.Abs(e.NewSize.Height - e.PreviousSize.Height);
+
+        if (widthDelta > 0.01 || heightDelta > 0.01)
+        {
+            try
+            {
+                _isApplyingAspectLock = true;
+
+                if (widthDelta >= heightDelta)
+                {
+                    Height = Math.Max(MinHeight, Width / _lockedAspectRatio);
+                }
+                else
+                {
+                    Width = Math.Max(MinWidth, Height * _lockedAspectRatio);
+                }
+            }
+            finally
+            {
+                _isApplyingAspectLock = false;
+            }
+        }
+
+        ReinitializeRendererForViewport();
+    }
+
+    private void ReinitializeRendererForViewport()
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        var effectiveMatrixConfig = BuildViewportAdaptiveMatrixConfig();
+        _matrixRenderer.Initialize(MatrixCanvas, effectiveMatrixConfig);
+
+        DotShapeText.Text = $"Dot shape: {effectiveMatrixConfig.DotShape}";
+        DotSizeText.Text = $"Dot size: auto ({effectiveMatrixConfig.DotSize})";
+        DotSpacingText.Text = $"Dot spacing: auto ({effectiveMatrixConfig.DotSpacing})";
+
+        if (_latestPresentation is not null)
+        {
+            _matrixRenderer.Render(_latestPresentation);
+        }
+    }
+
+    private MatrixConfig BuildViewportAdaptiveMatrixConfig()
+    {
+        const double borderPadding = 16.0;
+        var viewportWidth = Math.Max(1.0, MatrixViewportBorder.ActualWidth - borderPadding);
+        var viewportHeight = Math.Max(1.0, MatrixViewportBorder.ActualHeight - borderPadding);
+
+        var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
+        var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
+        var stride = Math.Max(1, Math.Min(strideFromWidth, strideFromHeight));
+        var spacing = stride >= 4 ? 1 : 0;
+        var dotSize = Math.Max(1, stride - spacing);
+
+        return new MatrixConfig
+        {
+            Width = _config.Matrix.Width,
+            Height = _config.Matrix.Height,
+            Mapping = _config.Matrix.Mapping,
+            DotShape = _config.Matrix.DotShape,
+            DotSize = dotSize,
+            DotSpacing = spacing,
+            Brightness = _config.Matrix.Brightness,
+            Gamma = _config.Matrix.Gamma,
+            InstantTrigger = _config.Matrix.InstantTrigger,
+        };
     }
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
