@@ -15,6 +15,10 @@ public sealed class SerialConfig
 {
     public string PortName { get; set; } = "COM2";
 
+    public string? VirtualTransmitterPortName { get; set; }
+
+    public string? VirtualListenerPortName { get; set; }
+
     public int BaudRate { get; set; } = 9600;
 
     public int MaxLedsPerChannel { get; set; } = 1100;
