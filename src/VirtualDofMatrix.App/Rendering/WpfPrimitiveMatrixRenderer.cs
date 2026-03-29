@@ -50,12 +50,17 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         }
 
         var rgb = framePresentation.RgbMemory.Span;
-        var ledCount = Math.Min(framePresentation.HighestLedWritten, rgb.Length / 3);
+        var matrixCapacity = _config.Width * _config.Height;
+        var startLed = CalculateRenderStart(framePresentation, matrixCapacity);
+        var availableFromStart = Math.Max(0, framePresentation.HighestLedWritten - startLed);
+        var maxByPayload = Math.Max(0, (rgb.Length / 3) - startLed);
+        var ledCount = Math.Min(matrixCapacity, Math.Min(availableFromStart, maxByPayload));
 
-        for (var logicalIndex = 0; logicalIndex < ledCount; logicalIndex++)
+        for (var displayIndex = 0; displayIndex < ledCount; displayIndex++)
         {
-            var rgbOffset = logicalIndex * 3;
-            var mapped = MatrixMapper.MapLinearIndex(logicalIndex, _config.Width, _config.Height, _config.Mapping);
+            var sourceLedIndex = startLed + displayIndex;
+            var rgbOffset = sourceLedIndex * 3;
+            var mapped = MatrixMapper.MapLinearIndex(displayIndex, _config.Width, _config.Height, _config.Mapping);
             var shapeIndex = mapped.Y * _config.Width + mapped.X;
 
             if (shapeIndex < 0 || shapeIndex >= _dots.Count)
@@ -72,8 +77,25 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
         for (var logicalIndex = ledCount; logicalIndex < _dots.Count; logicalIndex++)
         {
-            _dots[logicalIndex].Fill = Brushes.Black;
+            var mapped = MatrixMapper.MapLinearIndex(logicalIndex, _config.Width, _config.Height, _config.Mapping);
+            var shapeIndex = mapped.Y * _config.Width + mapped.X;
+            _dots[shapeIndex].Fill = Brushes.Black;
         }
+    }
+
+    private static int CalculateRenderStart(FramePresentation framePresentation, int matrixCapacity)
+    {
+        if (matrixCapacity <= 0)
+        {
+            return 0;
+        }
+
+        if (framePresentation.LowestLedWritten >= matrixCapacity)
+        {
+            return framePresentation.LowestLedWritten;
+        }
+
+        return 0;
     }
 
     private Shape CreateDot()

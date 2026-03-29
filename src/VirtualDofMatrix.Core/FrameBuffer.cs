@@ -9,6 +9,8 @@ public sealed class FrameBuffer
 
     public int HighestLedWritten { get; private set; }
 
+    public int LowestLedWritten { get; private set; }
+
     public ulong OutputSequence { get; private set; }
 
     public DateTimeOffset? LastOutputUtc { get; private set; }
@@ -47,6 +49,7 @@ public sealed class FrameBuffer
                 Array.Clear(_rgbBytes, 0, _rgbBytes.Length);
             }
 
+            LowestLedWritten = 0;
             HighestLedWritten = 0;
         }
     }
@@ -75,6 +78,7 @@ public sealed class FrameBuffer
             var endOffset = targetByteOffset + bytesToWrite;
             EnsureCapacity(endOffset);
             payload.CopyTo(_rgbBytes.AsSpan(targetByteOffset, bytesToWrite));
+            LowestLedWritten = HighestLedWritten == 0 ? targetPosition : Math.Min(LowestLedWritten, targetPosition);
             HighestLedWritten = Math.Max(HighestLedWritten, targetPosition + ledCount);
         }
     }
@@ -88,6 +92,7 @@ public sealed class FrameBuffer
 
             return new FramePresentation(
                 RgbBytes: _rgbBytes.ToArray(),
+                LowestLedWritten: LowestLedWritten,
                 HighestLedWritten: HighestLedWritten,
                 LedsPerChannel: LedsPerChannel,
                 OutputSequence: OutputSequence,

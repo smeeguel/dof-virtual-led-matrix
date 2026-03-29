@@ -76,3 +76,20 @@ App presentation and rendering path:
 - `src/VirtualDofMatrix.App/MainWindow.xaml.cs`
 
 These locations define the current Milestone 2 boundaries and extension points.
+
+---
+
+## March 29, 2026 investigation note (black matrix with active debug text)
+
+The `dofinstall/Config` folder now includes a user-provided DOF configuration snapshot used for black-screen triage.
+
+Observed behavior to account for in the viewer:
+
+- DOF can legally send strip updates (`R`) with non-zero target LED offsets.
+- If rendering assumes LED 0 always maps to the top-left/top-right of the on-screen matrix, a valid payload can be received while the visible window remains black.
+
+Mitigation added in Milestone 2 code:
+
+- Renderer now computes a safe source LED start index based on the written LED range in each presented frame.
+- Rendering is clamped to matrix capacity to avoid out-of-range index mapping when payload buffers are larger than the configured matrix.
+- Viewer debug panel now shows the incoming LED range (`lowest..highest`) to make offset mismatches obvious during live testing.

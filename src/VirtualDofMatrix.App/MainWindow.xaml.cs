@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         OutputSequenceText.Text = $"Output sequence: {presentation.OutputSequence}";
         PresentedAtText.Text = $"Presented at UTC: {presentation.PresentedAtUtc:O}";
         PayloadLengthText.Text = $"Payload bytes: {presentation.RgbBytes.Length}";
+        LedRangeText.Text = $"LED range: {presentation.LowestLedWritten}..{Math.Max(presentation.LowestLedWritten, presentation.HighestLedWritten - 1)}";
 
         _matrixRenderer.Render(presentation);
     }

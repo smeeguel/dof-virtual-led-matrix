@@ -18,4 +18,17 @@ public sealed class FramePresentationTests
 
         Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6 }, snapshot.RgbBytes.Take(6).ToArray());
     }
+
+    [Fact]
+    public void Presentation_ShouldCaptureLowestAndHighestWrittenLeds()
+    {
+        var frameBuffer = new FrameBuffer();
+        frameBuffer.SetLedsPerChannel(1024);
+        frameBuffer.ApplySegment(512, new byte[] { 10, 20, 30, 40, 50, 60 }, ledCount: 2);
+
+        var snapshot = frameBuffer.MarkOutputAndCreatePresentation();
+
+        Assert.Equal(512, snapshot.LowestLedWritten);
+        Assert.Equal(514, snapshot.HighestLedWritten);
+    }
 }

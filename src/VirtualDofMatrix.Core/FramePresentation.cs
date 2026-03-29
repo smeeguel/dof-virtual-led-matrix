@@ -2,6 +2,7 @@ namespace VirtualDofMatrix.Core;
 
 public sealed record FramePresentation(
     byte[] RgbBytes,
+    int LowestLedWritten,
     int HighestLedWritten,
     int LedsPerChannel,
     ulong OutputSequence,
