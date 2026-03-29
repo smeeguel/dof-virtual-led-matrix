@@ -29,6 +29,11 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private bool _lutSoftKneeEnabled;
     private double _lutSoftKneeStart = double.NaN;
     private double _lutSoftKneeStrength = double.NaN;
+    private readonly byte[] _coreOpacityLut = new byte[256];
+    private readonly byte[] _specularOpacityLut = new byte[256];
+    private string _visualShapeMode = string.Empty;
+    private string _visualDomeProfile = string.Empty;
+    private double _visualEdgeSoftness = double.NaN;
 
     public void Initialize(Canvas targetCanvas, MatrixConfig config)
     {
@@ -40,7 +45,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         _targetCanvas.Background = Brushes.Black;
 
         _sharedBodyBrush = CreateBodyBrush(_config.Visual);
-        _sharedCoreOpacityMask = CreateCoreOpacityMask(_config.Visual.LensFalloff);
+        _sharedCoreOpacityMask = CreateCoreOpacityMask(_config.Visual);
+        BuildVisualLutsIfNeeded(_config.Visual);
         TryFreeze(_sharedBodyBrush);
         TryFreeze(_sharedCoreOpacityMask);
 
@@ -125,8 +131,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             if (intensity > 0.0)
             {
                 dot.CoreBrush.Color = Color.FromRgb(r, g, b);
-                dot.Core.Opacity = Math.Clamp(0.2 + (Math.Sqrt(intensity) * 0.72), 0.0, 1.0);
-                dot.Specular.Opacity = Math.Clamp((Math.Sqrt(intensity) * 0.45) + 0.08, 0.0, 0.65);
+                dot.Core.Opacity = _coreOpacityLut[(int)Math.Round(intensity * 255.0)] / 255.0;
+                dot.Specular.Opacity = _specularOpacityLut[(int)Math.Round(intensity * 255.0)] / 255.0;
             }
             else
             {
@@ -191,6 +197,49 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         for (var channel = 0; channel < 256; channel++)
         {
             _colorLut[channel] = ApplyToneMap((byte)channel, config.Brightness, config.Gamma, softKnee);
+        }
+    }
+
+    private void BuildVisualLutsIfNeeded(MatrixVisualConfig visual)
+    {
+        var shapeMode = NormalizeShapeMode(visual.ShapeMode);
+        var domeProfile = NormalizeDomeProfile(visual.DomeProfile);
+        var edgeSoftness = Math.Clamp(visual.EdgeSoftness, 0.05, 1.0);
+
+        if (string.Equals(_visualShapeMode, shapeMode, StringComparison.Ordinal) &&
+            string.Equals(_visualDomeProfile, domeProfile, StringComparison.Ordinal) &&
+            _visualEdgeSoftness.Equals(edgeSoftness))
+        {
+            return;
+        }
+
+        _visualShapeMode = shapeMode;
+        _visualDomeProfile = domeProfile;
+        _visualEdgeSoftness = edgeSoftness;
+
+        var (coreFloor, coreRange, specFloor, specRange, intensityGamma) = domeProfile switch
+        {
+            "smd-like" => (0.06, 0.64, 0.02, 0.20, 1.35),
+            "strong-bulb" => (0.24, 0.70, 0.10, 0.56, 0.82),
+            _ => (0.14, 0.66, 0.06, 0.34, 1.0),
+        };
+
+        if (shapeMode == "flat")
+        {
+            coreFloor = 0.0;
+            coreRange = 1.0;
+            specFloor = 0.0;
+            specRange = 0.0;
+            intensityGamma = 1.0;
+        }
+
+        var softenedRange = coreRange * (0.75 + (edgeSoftness * 0.25));
+        for (var i = 0; i < 256; i++)
+        {
+            var normalized = i / 255.0;
+            var toned = Math.Pow(normalized, intensityGamma);
+            _coreOpacityLut[i] = ToByte(coreFloor + (toned * softenedRange));
+            _specularOpacityLut[i] = ToByte(specFloor + (toned * specRange));
         }
     }
 
@@ -526,10 +575,18 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         };
     }
 
-    private static Brush CreateCoreOpacityMask(double lensFalloff)
+    private static Brush CreateCoreOpacityMask(MatrixVisualConfig visual)
     {
-        var falloff = Clamp01(lensFalloff);
-        var mid = 0.78 - (0.24 * falloff);
+        var shapeMode = NormalizeShapeMode(visual.ShapeMode);
+        if (shapeMode == "flat")
+        {
+            return Brushes.White;
+        }
+
+        var falloff = Clamp01(visual.LensFalloff);
+        var profile = NormalizeDomeProfile(visual.DomeProfile);
+        var edgeSoftness = Math.Clamp(visual.EdgeSoftness, 0.05, 1.0);
+        var stops = BuildDomeProfileStops(profile, edgeSoftness, falloff);
 
         return new RadialGradientBrush
         {
@@ -537,12 +594,54 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             Center = new System.Windows.Point(0.5, 0.5),
             RadiusX = 0.54,
             RadiusY = 0.54,
-            GradientStops = new GradientStopCollection
-            {
-                new(Colors.White, 0.0),
-                new(Colors.White, Math.Clamp(mid, 0.35, 0.85)),
-                new(Colors.Transparent, 1.0),
-            },
+            GradientStops = stops,
+        };
+    }
+
+    private static GradientStopCollection BuildDomeProfileStops(string profile, double edgeSoftness, double lensFalloff)
+    {
+        var samples = 10;
+        var stops = new GradientStopCollection(samples + 1);
+        var (distanceExponent, centerLift, edgeDropScale) = profile switch
+        {
+            "smd-like" => (3.0, 0.04, 1.35),
+            "strong-bulb" => (1.15, 0.24, 0.82),
+            _ => (1.75, 0.12, 1.0),
+        };
+
+        var softness = Math.Clamp(edgeSoftness, 0.05, 1.0);
+        var falloffBlend = 0.6 + (0.5 * lensFalloff);
+
+        for (var sample = 0; sample <= samples; sample++)
+        {
+            var distance = sample / (double)samples;
+            var normalized = Math.Clamp(1.0 - distance, 0.0, 1.0);
+            var dome = Math.Pow(normalized, distanceExponent);
+            var softened = Math.Pow(dome, 0.55 + ((1.0 - softness) * edgeDropScale));
+            var lifted = Math.Clamp(softened + (centerLift * normalized * normalized), 0.0, 1.0);
+            var alpha = Math.Clamp(lifted * falloffBlend, 0.0, 1.0);
+            stops.Add(new GradientStop(Color.FromArgb(ToByte(alpha), 255, 255, 255), distance));
+        }
+
+        return stops;
+    }
+
+    private static string NormalizeShapeMode(string? shapeMode)
+    {
+        return shapeMode?.Trim().ToLowerInvariant() switch
+        {
+            "flat" => "flat",
+            _ => "dome",
+        };
+    }
+
+    private static string NormalizeDomeProfile(string? profile)
+    {
+        return profile?.Trim().ToLowerInvariant() switch
+        {
+            "smd-like" => "smd-like",
+            "strong-bulb" => "strong-bulb",
+            _ => "diffused-dome",
         };
     }
 
