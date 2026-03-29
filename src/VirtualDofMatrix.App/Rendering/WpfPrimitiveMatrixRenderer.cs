@@ -12,13 +12,13 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
     private Canvas? _targetCanvas;
     private MatrixConfig? _config;
-    private bool[] _touchedShapes = Array.Empty<bool>();
     private Brush? _sharedBodyBrush;
     private Brush? _sharedCoreOpacityMask;
     private float[] _workingRgb = Array.Empty<float>();
     private float[] _thresholdRgb = Array.Empty<float>();
     private float[] _smallBlurRgb = Array.Empty<float>();
     private float[] _wideBlurRgb = Array.Empty<float>();
+    private float[] _blurScratchRgb = Array.Empty<float>();
     private int _downsampleWidth;
     private int _downsampleHeight;
 
@@ -64,7 +64,6 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             }
         }
 
-        _touchedShapes = new bool[_dots.Count];
     }
 
     public void Render(FramePresentation framePresentation)
@@ -72,15 +71,6 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         if (_targetCanvas is null || _config is null)
         {
             throw new InvalidOperationException("Renderer must be initialized before rendering.");
-        }
-
-        if (_touchedShapes.Length != _dots.Count)
-        {
-            _touchedShapes = new bool[_dots.Count];
-        }
-        else
-        {
-            Array.Clear(_touchedShapes, 0, _touchedShapes.Length);
         }
 
         var rgb = framePresentation.RgbMemory.Span;
@@ -111,7 +101,6 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             _workingRgb[colorOffset + 1] = g;
             _workingRgb[colorOffset + 2] = b;
 
-            _touchedShapes[shapeIndex] = true;
         }
 
         ApplyBloomIfEnabled(matrixCapacity);
@@ -151,14 +140,22 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        if (bloomProfile.SmallStrength <= 0.0 && bloomProfile.WideStrength <= 0.0)
+        {
+            return;
+        }
+
         Array.Copy(_workingRgb, _thresholdRgb, matrixCapacity * 3);
-        ThresholdEmissive(_thresholdRgb, matrixCapacity, bloomProfile.Threshold);
+        if (!ThresholdEmissive(_thresholdRgb, matrixCapacity, bloomProfile.Threshold))
+        {
+            return;
+        }
 
         Downsample(_thresholdRgb, _config.Width, _config.Height, bloomProfile.ScaleDivisor);
         Array.Copy(_smallBlurRgb, _wideBlurRgb, _smallBlurRgb.Length);
 
-        BoxBlurRgb(_smallBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.SmallRadius);
-        BoxBlurRgb(_wideBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.WideRadius);
+        BoxBlurRgbSeparable(_smallBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.SmallRadius);
+        BoxBlurRgbSeparable(_wideBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.WideRadius);
 
         CompositeBloom(_workingRgb, _smallBlurRgb, _wideBlurRgb, _config.Width, _config.Height, _downsampleWidth, _downsampleHeight, bloomProfile);
     }
@@ -215,6 +212,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         {
             _smallBlurRgb = new float[downsamplePixels];
             _wideBlurRgb = new float[downsamplePixels];
+            _blurScratchRgb = new float[downsamplePixels];
         }
 
         Array.Clear(_smallBlurRgb, 0, _smallBlurRgb.Length);
@@ -235,9 +233,11 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private static void ThresholdEmissive(float[] source, int matrixCapacity, double threshold)
+    private static bool ThresholdEmissive(float[] source, int matrixCapacity, double threshold)
     {
         var cutoff = (float)(Math.Clamp(threshold, 0.0, 1.0) * 255.0);
+        var anyActive = false;
+
         for (var i = 0; i < matrixCapacity; i++)
         {
             var offset = i * 3;
@@ -248,19 +248,67 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
                 source[offset + 1] = 0f;
                 source[offset + 2] = 0f;
             }
+            else
+            {
+                anyActive = true;
+            }
         }
+
+        return anyActive;
     }
 
-    private static void BoxBlurRgb(float[] rgb, int width, int height, int radius)
+    private void BoxBlurRgbSeparable(float[] rgb, int width, int height, int radius)
     {
         if (radius <= 0)
         {
             return;
         }
 
-        var copy = new float[rgb.Length];
-        Array.Copy(rgb, copy, rgb.Length);
+        if (_blurScratchRgb.Length != rgb.Length)
+        {
+            _blurScratchRgb = new float[rgb.Length];
+        }
 
+        HorizontalBlurRgb(rgb, _blurScratchRgb, width, height, radius);
+        VerticalBlurRgb(_blurScratchRgb, rgb, width, height, radius);
+    }
+
+    private static void HorizontalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
+    {
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                float sumR = 0;
+                float sumG = 0;
+                float sumB = 0;
+                var samples = 0;
+
+                for (var kx = -radius; kx <= radius; kx++)
+                {
+                    var sx = x + kx;
+                    if (sx < 0 || sx >= width)
+                    {
+                        continue;
+                    }
+
+                    var sampleOffset = ((y * width) + sx) * 3;
+                    sumR += source[sampleOffset];
+                    sumG += source[sampleOffset + 1];
+                    sumB += source[sampleOffset + 2];
+                    samples++;
+                }
+
+                var dstOffset = ((y * width) + x) * 3;
+                destination[dstOffset] = sumR / Math.Max(1, samples);
+                destination[dstOffset + 1] = sumG / Math.Max(1, samples);
+                destination[dstOffset + 2] = sumB / Math.Max(1, samples);
+            }
+        }
+    }
+
+    private static void VerticalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
+    {
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
@@ -278,26 +326,17 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
                         continue;
                     }
 
-                    for (var kx = -radius; kx <= radius; kx++)
-                    {
-                        var sx = x + kx;
-                        if (sx < 0 || sx >= width)
-                        {
-                            continue;
-                        }
-
-                        var sampleOffset = ((sy * width) + sx) * 3;
-                        sumR += copy[sampleOffset];
-                        sumG += copy[sampleOffset + 1];
-                        sumB += copy[sampleOffset + 2];
-                        samples++;
-                    }
+                    var sampleOffset = ((sy * width) + x) * 3;
+                    sumR += source[sampleOffset];
+                    sumG += source[sampleOffset + 1];
+                    sumB += source[sampleOffset + 2];
+                    samples++;
                 }
 
                 var dstOffset = ((y * width) + x) * 3;
-                rgb[dstOffset] = sumR / Math.Max(1, samples);
-                rgb[dstOffset + 1] = sumG / Math.Max(1, samples);
-                rgb[dstOffset + 2] = sumB / Math.Max(1, samples);
+                destination[dstOffset] = sumR / Math.Max(1, samples);
+                destination[dstOffset + 1] = sumG / Math.Max(1, samples);
+                destination[dstOffset + 2] = sumB / Math.Max(1, samples);
             }
         }
     }
