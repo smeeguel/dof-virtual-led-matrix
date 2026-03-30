@@ -4,13 +4,22 @@ namespace VirtualDofMatrix.Core;
 
 public sealed class AppConfig
 {
+    public TransportConfig Transport { get; set; } = new();
+
     public SerialConfig Serial { get; set; } = new();
+
+    public PinOnePipeConfig PinOnePipe { get; set; } = new();
 
     public MatrixConfig Matrix { get; set; } = new();
 
     public WindowConfig Window { get; set; } = new();
 
     public DebugConfig Debug { get; set; } = new();
+}
+
+public sealed class TransportConfig
+{
+    public string Mode { get; set; } = "serial";
 }
 
 public sealed class SerialConfig
@@ -28,6 +37,15 @@ public sealed class SerialConfig
     public int WriteTimeoutMs { get; set; } = 1000;
 
     public bool DtrEnable { get; set; } = true;
+}
+
+public sealed class PinOnePipeConfig
+{
+    public string PipeName { get; set; } = "ComPortServerPipe";
+
+    public string ComPortLabel { get; set; } = "PINONE-VIRTUAL";
+
+    public int OutputCount { get; set; } = 63;
 }
 
 public sealed class MatrixConfig

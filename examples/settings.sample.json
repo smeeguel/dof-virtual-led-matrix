@@ -1,4 +1,7 @@
 {
+  "transport": {
+    "mode": "serial"
+  },
   "serial": {
     "portName": "COM2",
     "baudRate": 9600,
@@ -7,6 +10,11 @@
     "readTimeoutMs": 200,
     "writeTimeoutMs": 1000,
     "dtrEnable": true
+  },
+  "pinOnePipe": {
+    "pipeName": "ComPortServerPipe",
+    "comPortLabel": "PINONE-VIRTUAL",
+    "outputCount": 63
   },
   "matrix": {
     "width": 256,
