@@ -244,6 +244,7 @@
     <Compile Include="Cab\Out\AdressableLedStrip\AdressableLedStrip.cs" />
     <Compile Include="Cab\Out\AdressableLedStrip\LedStripOutput.cs" />
     <Compile Include="Cab\Out\AdressableLedStrip\DirectStripController.cs" />
+    <Compile Include="Cab\Out\AdressableLedStrip\NamedPipeMatrixController.cs" />
     <Compile Include="Cab\Out\AdressableLedStrip\TeensyStripController.cs" />
     <Compile Include="Cab\Out\AdressableLedStrip\UMXController\UMXController.cs" />
     <Compile Include="Cab\Out\AdressableLedStrip\UMXController\UMXControllerAutoConfigurator.cs" />

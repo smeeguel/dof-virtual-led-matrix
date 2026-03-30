@@ -1,4 +1,8 @@
 {
+  "transport": {
+    "mode": "namedPipe",
+    "pipeName": "VirtualDofMatrix"
+  },
   "serial": {
     "portName": "COM2",
     "baudRate": 9600,

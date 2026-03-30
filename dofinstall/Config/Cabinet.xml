@@ -2,7 +2,7 @@
 <Cabinet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Name>AddressableLEDSetup</Name>
   <OutputControllers>
-    <TeensyStripController>
+    <NamedPipeMatrixController>
       <Name>LED Strips 0</Name>
       <NumberOfLedsStrip1>1024</NumberOfLedsStrip1>
       <NumberOfLedsStrip2>1024</NumberOfLedsStrip2>
@@ -12,9 +12,10 @@
       <NumberOfLedsStrip6>1024</NumberOfLedsStrip6>
       <NumberOfLedsStrip7>1024</NumberOfLedsStrip7>
       <NumberOfLedsStrip8>1024</NumberOfLedsStrip8>
-      <ComPortName>COM1</ComPortName>
-      <TestOnConnect>true</TestOnConnect>
-    </TeensyStripController>
+      <PipeName>VirtualDofMatrix</PipeName>
+      <ConnectTimeoutMs>2000</ConnectTimeoutMs>
+      <ReconnectDelayMs>250</ReconnectDelayMs>
+    </NamedPipeMatrixController>
   </OutputControllers>
   <Toys>
       <LedStrip>

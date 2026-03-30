@@ -4,6 +4,8 @@ namespace VirtualDofMatrix.Core;
 
 public sealed class AppConfig
 {
+    public TransportConfig Transport { get; set; } = new();
+
     public SerialConfig Serial { get; set; } = new();
 
     public MatrixConfig Matrix { get; set; } = new();
@@ -11,6 +13,13 @@ public sealed class AppConfig
     public WindowConfig Window { get; set; } = new();
 
     public DebugConfig Debug { get; set; } = new();
+}
+
+public sealed class TransportConfig
+{
+    public string Mode { get; set; } = "serial";
+
+    public string PipeName { get; set; } = "VirtualDofMatrix";
 }
 
 public sealed class SerialConfig
