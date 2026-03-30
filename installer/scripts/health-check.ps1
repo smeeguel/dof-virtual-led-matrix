@@ -32,6 +32,6 @@ if (-not $response.success) {
 
 Write-Host "Health check OK: $responseLine"
 
-$reader.Dispose()
-$writer.Dispose()
-$client.Dispose()
+try { if ($writer) { $writer.Dispose() } } catch {}
+try { if ($reader) { $reader.Dispose() } } catch {}
+try { if ($client) { $client.Dispose() } } catch {}

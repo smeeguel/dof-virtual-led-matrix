@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.4.11620.152 stable
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualDofMatrixVirtualSerial", "VirtualDofMatrixVirtualSerial.vcxproj", "{5E1C4F1D-A47D-49D2-B445-4673D0F40919}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5E1C4F1D-A47D-49D2-B445-4673D0F40919}.Debug|x64.ActiveCfg = Debug|x64
+		{5E1C4F1D-A47D-49D2-B445-4673D0F40919}.Debug|x64.Build.0 = Debug|x64
+		{5E1C4F1D-A47D-49D2-B445-4673D0F40919}.Debug|x64.Deploy.0 = Debug|x64
+		{5E1C4F1D-A47D-49D2-B445-4673D0F40919}.Release|x64.ActiveCfg = Release|x64
+		{5E1C4F1D-A47D-49D2-B445-4673D0F40919}.Release|x64.Build.0 = Release|x64
+		{5E1C4F1D-A47D-49D2-B445-4673D0F40919}.Release|x64.Deploy.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {68BAEB1C-EC60-4B19-A0D5-C4EC2852B269}
+	EndGlobalSection
+EndGlobal

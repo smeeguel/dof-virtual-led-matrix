@@ -9,16 +9,13 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5E1C4F1D-A47D-49D2-B445-4673D0F40919}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>VirtualDofMatrixVirtualSerial</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
-
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
@@ -26,7 +23,6 @@
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
-
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
@@ -34,23 +30,25 @@
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
-
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <PreprocessorDefinitions>_KMDF_DRIVER_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
+    <DriverSign>
+      <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
+    </DriverSign>
   </ItemDefinitionGroup>
-
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <PreprocessorDefinitions>_KMDF_DRIVER_;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
+    <DriverSign>
+      <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
+    </DriverSign>
   </ItemDefinitionGroup>
-
   <ItemGroup>
     <ClInclude Include="src\device.h" />
     <ClInclude Include="src\queue.h" />
@@ -59,6 +57,5 @@
     <ClCompile Include="src\device.c" />
     <ClCompile Include="src\queue.c" />
   </ItemGroup>
-
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
