@@ -3,6 +3,7 @@ using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Presentation;
 using VirtualDofMatrix.App.Serial;
 using VirtualDofMatrix.Core;
+using VirtualDofMatrix.Core.Diagnostics;
 
 namespace VirtualDofMatrix.App;
 
@@ -26,6 +27,12 @@ public partial class App : Application
         _configurationStore.Save(ConfigFilePath, _config);
 
         var providerMode = (_config.Serial.VirtualProviderMode ?? "service").Trim().ToLowerInvariant();
+        await StructuredLogWriter.WriteAsync("app", "virtual-provider-mode-selected", new
+        {
+            Mode = providerMode,
+            _config.VirtualCom.TxPortName,
+            _config.VirtualCom.RxPortName,
+        });
         if (_config.VirtualCom.Enabled && providerMode != "disabled")
         {
             _serviceVirtualComBackend = providerMode switch
@@ -36,22 +43,28 @@ public partial class App : Application
 
             try
             {
+                await StructuredLogWriter.WriteAsync("app", "service-connection-attempt", new { Mode = providerMode });
                 var health = await _serviceVirtualComBackend.GetHealthAsync();
                 if (!health.IsHealthy)
                 {
+                    await StructuredLogWriter.WriteAsync("app", "service-connection-failed", new { health.Message });
                     throw new InvalidOperationException($"Virtual COM provider health check failed: {health.Message}");
                 }
 
                 await _serviceVirtualComBackend.CreatePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName);
+                await StructuredLogWriter.WriteAsync("app", "pair-provisioned", new { _config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName });
             }
             catch (Exception ex) when (providerMode == "service" && !_config.VirtualCom.DisableFallbackToProcessCommand)
             {
                 Console.Error.WriteLine($"[WARN] Service provisioning failed, trying processCommand fallback: {ex.Message}");
+                await StructuredLogWriter.WriteAsync("app", "fallback-to-processcommand", new { Reason = ex.Message });
                 _serviceVirtualComBackend = new LegacyProcessVirtualComPairBackend(_config.VirtualCom);
                 await _serviceVirtualComBackend.CreatePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName);
+                await StructuredLogWriter.WriteAsync("app", "pair-provisioned", new { _config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName });
             }
 
             _config.Serial.PortName = _config.VirtualCom.RxPortName;
+            await StructuredLogWriter.WriteAsync("app", "serial-listener-port-selected", new { _config.Serial.PortName });
             _configurationStore.Save(ConfigFilePath, _config);
 
             if (_config.VirtualCom.VerboseProvisioningLogs)
@@ -100,10 +113,12 @@ public partial class App : Application
             try
             {
                 await _serviceVirtualComBackend.DeletePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName);
+                await StructuredLogWriter.WriteAsync("app", "pair-deactivated", new { _config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName });
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[WARN] Non-fatal virtual COM cleanup failure: {ex.Message}");
+                await StructuredLogWriter.WriteAsync("app", "pair-cleanup-failure", new { ex.Message });
             }
         }
 

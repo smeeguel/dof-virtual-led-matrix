@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls;
+using System.Text;
+using VirtualDofMatrix.Core.Diagnostics;
 using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.Core;
 
@@ -193,6 +195,46 @@ public partial class MainWindow : Window
                 BufferScaleDivisor = _config.Matrix.Bloom.BufferScaleDivisor,
             },
         };
+    }
+
+
+    private void OnCopyDiagnosticsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var logDirectory = StructuredLogWriter.GetLogDirectory();
+            var diagnostics = new StringBuilder();
+            diagnostics.AppendLine("Virtual DOF Matrix diagnostics");
+            diagnostics.AppendLine($"UTC: {DateTimeOffset.UtcNow:O}");
+            diagnostics.AppendLine($"Port: {_config.Serial.PortName}");
+            diagnostics.AppendLine($"Virtual provider mode: {_config.Serial.VirtualProviderMode}");
+            diagnostics.AppendLine($"Logs: {logDirectory}");
+
+            if (Directory.Exists(logDirectory))
+            {
+                var files = Directory.GetFiles(logDirectory, "*.log")
+                    .OrderByDescending(f => f)
+                    .Take(3)
+                    .ToList();
+
+                foreach (var file in files)
+                {
+                    diagnostics.AppendLine();
+                    diagnostics.AppendLine($"--- {Path.GetFileName(file)} ---");
+                    foreach (var line in File.ReadLines(file).TakeLast(200))
+                    {
+                        diagnostics.AppendLine(line);
+                    }
+                }
+            }
+
+            Clipboard.SetText(diagnostics.ToString());
+            MessageBox.Show(this, "Diagnostics copied to clipboard.", "Virtual DOF Matrix", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Failed to copy diagnostics: {ex.Message}", "Virtual DOF Matrix", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

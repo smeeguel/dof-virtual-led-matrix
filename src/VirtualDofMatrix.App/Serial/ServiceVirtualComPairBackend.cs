@@ -3,6 +3,7 @@ using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
 using VirtualDofMatrix.Core;
+using VirtualDofMatrix.Core.Diagnostics;
 
 namespace VirtualDofMatrix.App.Serial;
 
@@ -58,6 +59,8 @@ public sealed class ServiceVirtualComPairBackend : IVirtualComPairBackend
 
     private async Task<ServiceResultEnvelope> SendRequestAsync(PipeRequest request, CancellationToken cancellationToken)
     {
+        await StructuredLogWriter.WriteAsync("app", "service-connection-attempt", new { Pipe = _config.ServicePipeName });
+
         using var client = new NamedPipeClientStream(
             serverName: ".",
             pipeName: _config.ServicePipeName,
@@ -65,6 +68,7 @@ public sealed class ServiceVirtualComPairBackend : IVirtualComPairBackend
             options: PipeOptions.Asynchronous);
 
         await client.ConnectAsync(_config.ServiceConnectTimeoutMs, cancellationToken);
+        await StructuredLogWriter.WriteAsync("app", "service-connection-established", new { Pipe = _config.ServicePipeName });
 
         using var writer = new StreamWriter(client, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
         using var reader = new StreamReader(client, Encoding.UTF8, leaveOpen: true);
@@ -78,8 +82,15 @@ public sealed class ServiceVirtualComPairBackend : IVirtualComPairBackend
             throw new InvalidOperationException("Service returned an empty response.");
         }
 
-        return JsonSerializer.Deserialize<ServiceResultEnvelope>(line, JsonOptions)
+        var envelope = JsonSerializer.Deserialize<ServiceResultEnvelope>(line, JsonOptions)
                ?? throw new InvalidOperationException("Service returned an invalid response payload.");
+
+        if (!envelope.Success)
+        {
+            await StructuredLogWriter.WriteAsync("app", "service-operation-failure", new { envelope.ErrorCode, envelope.Message, request.Command });
+        }
+
+        return envelope;
     }
 
     private static void EnsureSuccess(ServiceResultEnvelope response, string operation)
