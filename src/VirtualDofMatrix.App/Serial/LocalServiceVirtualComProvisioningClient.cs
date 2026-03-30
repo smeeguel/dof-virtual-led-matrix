@@ -29,7 +29,7 @@ public sealed class LocalServiceVirtualComProvisioningClient : IVirtualComProvis
     public async Task<IReadOnlyList<VirtualComPairInfo>> ListPairsAsync(CancellationToken cancellationToken = default)
     {
         var pairs = await _httpClient.GetFromJsonAsync<List<VirtualComPairInfo>>("pairs", cancellationToken);
-        return pairs ?? [];
+        return pairs ?? Array.Empty<VirtualComPairInfo>();
     }
 
     public async Task<VirtualComHealth> GetHealthAsync(CancellationToken cancellationToken = default)
