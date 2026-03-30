@@ -31,6 +31,16 @@ If health checks or provisioning return signing-related failures:
 5. If testing with test-signed packages, use an isolated lab machine and explicitly configure test mode.
 6. Reinstall using installer tooling and rerun post-install health check.
 
+If installer output includes:
+
+- `Failed to enable testsigning mode via bcdedit`
+- and BCDEdit mentions `Secure Boot`
+
+then testsigning is blocked by firmware policy. In that case either:
+
+- disable Secure Boot on a lab machine (test-only workflow), or
+- keep Secure Boot enabled and use a production-attested signed driver package with `-DisableAutoLabSigning`.
+
 ### `pnputil` reports missing digital signature metadata
 
 If installer output shows:

@@ -91,9 +91,9 @@ function Resolve-ToolPath {
 }
 
 function Ensure-TestSigningMode {
-    $bcdOutput = bcdedit /enum
+    $bcdOutput = bcdedit /enum 2>&1
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to query boot configuration using bcdedit."
+        throw "Failed to query boot configuration using bcdedit. Output: $bcdOutput"
     }
 
     if ($bcdOutput -match '(?im)^\s*testsigning\s+Yes\s*$') {
@@ -102,9 +102,24 @@ function Ensure-TestSigningMode {
     }
 
     Write-Warning "BCDEdit testsigning is OFF. Enabling it for lab test-signed driver installs."
-    bcdedit /set testsigning on
+    $setOutput = bcdedit /set testsigning on 2>&1
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to enable testsigning mode via bcdedit."
+        if ($setOutput -match '(?i)Secure Boot') {
+            throw @"
+Failed to enable testsigning mode via bcdedit.
+
+Windows reported a Secure Boot policy block while setting testsigning.
+Actions:
+  1) For lab test-signing only: disable Secure Boot in firmware/UEFI, reboot, and run install again.
+  2) For normal systems: keep Secure Boot enabled and install a production-attested signed driver package.
+  3) If you already have a production-signed package, run install.ps1 with -DisableAutoLabSigning.
+
+BCDEdit output:
+$setOutput
+"@
+        }
+
+        throw "Failed to enable testsigning mode via bcdedit. Output: $setOutput"
     }
 
     Write-Warning "Testsigning was enabled. A reboot is required before Windows accepts test-signed kernel drivers."
