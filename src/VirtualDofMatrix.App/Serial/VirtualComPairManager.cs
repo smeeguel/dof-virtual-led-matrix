@@ -1,4 +1,3 @@
-using System.Net.Http;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Serial;
@@ -12,19 +11,9 @@ public sealed class VirtualComPairManager
     {
         _config = config;
 
-        if (_config.UseLegacyProcessBackend)
-        {
-            _backend = new LegacyProcessVirtualComPairBackend(_config);
-        }
-        else
-        {
-            var httpClient = new HttpClient
-            {
-                BaseAddress = new Uri(_config.ServiceBaseUrl, UriKind.Absolute),
-            };
-
-            _backend = new ServiceManagedVirtualComPairBackend(new LocalServiceVirtualComProvisioningClient(httpClient));
-        }
+        _backend = _config.UseLegacyProcessBackend
+            ? new LegacyProcessVirtualComPairBackend(_config)
+            : new ServiceVirtualComPairBackend(_config);
     }
 
     public Task<VirtualComHealth> GetHealthAsync(CancellationToken cancellationToken = default)

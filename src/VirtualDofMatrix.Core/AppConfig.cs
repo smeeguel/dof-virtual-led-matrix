@@ -46,6 +46,9 @@ public sealed class VirtualComProvisioningConfig
     public bool UseLegacyProcessBackend { get; set; } = false;
 
     public string ServiceBaseUrl { get; set; } = "http://127.0.0.1:17341/";
+    public string ServicePipeName { get; set; } = "VirtualDofMatrix.Provisioning.v1";
+
+    public int ServiceConnectTimeoutMs { get; set; } = 3000;
 
     public LegacyVirtualComCommandConfig LegacyCommands { get; set; } = new();
 }

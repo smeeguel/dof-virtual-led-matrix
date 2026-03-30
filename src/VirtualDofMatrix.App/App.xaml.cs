@@ -16,6 +16,7 @@ public partial class App : Application
     private MainWindow? _window;
     private SerialEmulatorHost? _serialHost;
     private FramePresentationDispatcher? _presentationDispatcher;
+    private IVirtualComPairBackend? _serviceVirtualComBackend;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -23,6 +24,22 @@ public partial class App : Application
 
         _config = _configurationStore.Load(ConfigFilePath);
         _configurationStore.Save(ConfigFilePath, _config);
+
+        if (_config.VirtualCom.Enabled)
+        {
+            _serviceVirtualComBackend = new ServiceVirtualComPairBackend(_config.VirtualCom);
+
+            var health = await _serviceVirtualComBackend.GetHealthAsync();
+            if (!health.IsHealthy)
+            {
+                throw new InvalidOperationException($"Virtual COM service health check failed: {health.Message}");
+            }
+
+            await _serviceVirtualComBackend.CreatePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName);
+
+            _config.Serial.PortName = _config.VirtualCom.RxPortName;
+            _configurationStore.Save(ConfigFilePath, _config);
+        }
 
         _window = new MainWindow(_config)
         {
@@ -57,6 +74,18 @@ public partial class App : Application
         if (_serialHost is not null)
         {
             await _serialHost.StopAsync();
+        }
+
+        if (_serviceVirtualComBackend is not null && _config?.VirtualCom.Enabled == true)
+        {
+            try
+            {
+                await _serviceVirtualComBackend.DeletePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[WARN] Non-fatal virtual COM cleanup failure: {ex.Message}");
+            }
         }
 
         base.OnExit(e);
