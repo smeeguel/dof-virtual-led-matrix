@@ -5,8 +5,27 @@
     "maxLedsPerChannel": 1100,
     "maxStrips": 8,
     "readTimeoutMs": 200,
+    "virtualProviderMode": "service",
     "writeTimeoutMs": 1000,
     "dtrEnable": true
+  },
+  "virtualCom": {
+    "enabled": true,
+    "txPortName": "COM1",
+    "rxPortName": "COM2",
+    "autoDeletePairOnShutdown": false,
+    "servicePipeName": "VirtualDofMatrix.Provisioning.v1",
+    "serviceConnectTimeoutMs": 3000,
+    "verboseProvisioningLogs": true,
+    "disableFallbackToProcessCommand": true,
+    "legacyCommands": {
+      "shellExecutable": "cmd.exe",
+      "shellArgumentFormat": "/C {0}",
+      "createPairCommand": "",
+      "deletePairCommand": "",
+      "listPairsCommand": "",
+      "healthCommand": ""
+    }
   },
   "matrix": {
     "width": 256,

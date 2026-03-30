@@ -25,20 +25,39 @@ public partial class App : Application
         _config = _configurationStore.Load(ConfigFilePath);
         _configurationStore.Save(ConfigFilePath, _config);
 
-        if (_config.VirtualCom.Enabled)
+        var providerMode = (_config.Serial.VirtualProviderMode ?? "service").Trim().ToLowerInvariant();
+        if (_config.VirtualCom.Enabled && providerMode != "disabled")
         {
-            _serviceVirtualComBackend = new ServiceVirtualComPairBackend(_config.VirtualCom);
-
-            var health = await _serviceVirtualComBackend.GetHealthAsync();
-            if (!health.IsHealthy)
+            _serviceVirtualComBackend = providerMode switch
             {
-                throw new InvalidOperationException($"Virtual COM service health check failed: {health.Message}");
-            }
+                "processcommand" => new LegacyProcessVirtualComPairBackend(_config.VirtualCom),
+                _ => new ServiceVirtualComPairBackend(_config.VirtualCom),
+            };
 
-            await _serviceVirtualComBackend.CreatePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName);
+            try
+            {
+                var health = await _serviceVirtualComBackend.GetHealthAsync();
+                if (!health.IsHealthy)
+                {
+                    throw new InvalidOperationException($"Virtual COM provider health check failed: {health.Message}");
+                }
+
+                await _serviceVirtualComBackend.CreatePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName);
+            }
+            catch (Exception ex) when (providerMode == "service" && !_config.VirtualCom.DisableFallbackToProcessCommand)
+            {
+                Console.Error.WriteLine($"[WARN] Service provisioning failed, trying processCommand fallback: {ex.Message}");
+                _serviceVirtualComBackend = new LegacyProcessVirtualComPairBackend(_config.VirtualCom);
+                await _serviceVirtualComBackend.CreatePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName);
+            }
 
             _config.Serial.PortName = _config.VirtualCom.RxPortName;
             _configurationStore.Save(ConfigFilePath, _config);
+
+            if (_config.VirtualCom.VerboseProvisioningLogs)
+            {
+                Console.WriteLine($"[VirtualCom] Mode={providerMode}, Listener={_config.Serial.PortName}, Pair={_config.VirtualCom.TxPortName}<->{_config.VirtualCom.RxPortName}");
+            }
         }
 
         _window = new MainWindow(_config)

@@ -27,6 +27,8 @@ public sealed class SerialConfig
 
     public int ReadTimeoutMs { get; set; } = 200;
 
+    public string VirtualProviderMode { get; set; } = "service";
+
     public int WriteTimeoutMs { get; set; } = 1000;
 
     public bool DtrEnable { get; set; } = true;
@@ -50,6 +52,11 @@ public sealed class VirtualComProvisioningConfig
 
     public int ServiceConnectTimeoutMs { get; set; } = 3000;
 
+    public bool VerboseProvisioningLogs { get; set; } = false;
+
+    public bool DisableFallbackToProcessCommand { get; set; } = true;
+
+    // Deprecated for default provisioning path. Use serial.virtualProviderMode = "service" by default.
     public LegacyVirtualComCommandConfig LegacyCommands { get; set; } = new();
 }
 
