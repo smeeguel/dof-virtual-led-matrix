@@ -5,55 +5,87 @@ namespace VirtualDofMatrix.App.Serial;
 public sealed class VirtualComPairManager
 {
     private readonly AppConfig _config;
-    private readonly IVirtualComPairBackend _backend;
+    private readonly IVirtualComPairBackend _serviceBackend;
+    private readonly IVirtualComPairBackend _processBackend;
 
     public VirtualComPairManager(AppConfig config)
+        : this(config, serviceBackend: null, processBackend: null)
     {
-        _config = config;
-
-        var mode = (_config.Serial.VirtualProviderMode ?? "service").Trim().ToLowerInvariant();
-        _backend = mode switch
-        {
-            "processcommand" => new LegacyProcessVirtualComPairBackend(_config.VirtualCom),
-            "disabled" => new DisabledVirtualComPairBackend(),
-            _ => new ServiceVirtualComPairBackend(_config.VirtualCom),
-        };
     }
 
-    public Task<VirtualComHealth> GetHealthAsync(CancellationToken cancellationToken = default)
-        => _backend.GetHealthAsync(cancellationToken);
+    public VirtualComPairManager(
+        AppConfig config,
+        IVirtualComPairBackend? serviceBackend,
+        IVirtualComPairBackend? processBackend)
+    {
+        _config = config;
+        _serviceBackend = serviceBackend ?? new ServiceVirtualComPairBackend(_config.VirtualCom);
+        _processBackend = processBackend ?? new LegacyProcessVirtualComPairBackend(_config.VirtualCom);
+    }
 
-    public Task<IReadOnlyList<VirtualComPairInfo>> ListPairsAsync(CancellationToken cancellationToken = default)
-        => _backend.ListPairsAsync(cancellationToken);
+    public async Task<VirtualComHealth> GetHealthAsync(CancellationToken cancellationToken = default)
+        => await SelectPrimaryBackend().GetHealthAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<VirtualComPairInfo>> ListPairsAsync(CancellationToken cancellationToken = default)
+        => await SelectPrimaryBackend().ListPairsAsync(cancellationToken);
 
     public async Task EnsureConfiguredPairAsync(CancellationToken cancellationToken = default)
     {
-        if (!_config.VirtualCom.Enabled)
+        if (!_config.VirtualCom.Enabled || IsMode("disabled"))
         {
             return;
         }
 
-        await _backend.CreatePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName, cancellationToken);
+        var primary = SelectPrimaryBackend();
+        var health = await primary.GetHealthAsync(cancellationToken);
+        if (!health.IsHealthy)
+        {
+            throw new InvalidOperationException($"Virtual COM backend is unhealthy: {health.Message}");
+        }
+
+        var txPort = _config.VirtualCom.TxPortName;
+        var rxPort = _config.VirtualCom.RxPortName;
+
+        var existing = await primary.ListPairsAsync(cancellationToken);
+        if (existing.Any(p => SamePair(p, txPort, rxPort)))
+        {
+            return;
+        }
+
+        try
+        {
+            await primary.CreatePairAsync(txPort, rxPort, cancellationToken);
+        }
+        catch when (IsMode("service") && !_config.VirtualCom.DisableFallbackToProcessCommand)
+        {
+            await _processBackend.CreatePairAsync(txPort, rxPort, cancellationToken);
+        }
     }
 
     public async Task CleanupConfiguredPairAsync(CancellationToken cancellationToken = default)
     {
-        if (!_config.VirtualCom.Enabled || !_config.VirtualCom.AutoDeletePairOnShutdown)
+        if (!_config.VirtualCom.Enabled || !_config.VirtualCom.AutoDeletePairOnShutdown || IsMode("disabled"))
         {
             return;
         }
 
-        await _backend.DeletePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName, cancellationToken);
+        try
+        {
+            await SelectPrimaryBackend().DeletePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName, cancellationToken);
+        }
+        catch when (IsMode("service") && !_config.VirtualCom.DisableFallbackToProcessCommand)
+        {
+            await _processBackend.DeletePairAsync(_config.VirtualCom.TxPortName, _config.VirtualCom.RxPortName, cancellationToken);
+        }
     }
 
-    private sealed class DisabledVirtualComPairBackend : IVirtualComPairBackend
-    {
-        public Task CreatePairAsync(string txPort, string rxPort, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task DeletePairAsync(string txPort, string rxPort, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<IReadOnlyList<VirtualComPairInfo>> ListPairsAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<VirtualComPairInfo>>(new List<VirtualComPairInfo>());
+    private IVirtualComPairBackend SelectPrimaryBackend()
+        => IsMode("processcommand") ? _processBackend : _serviceBackend;
 
-        public Task<VirtualComHealth> GetHealthAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(new VirtualComHealth(true, "virtual provider mode disabled"));
-    }
+    private bool IsMode(string mode)
+        => string.Equals(_config.Serial.VirtualProviderMode, mode, StringComparison.OrdinalIgnoreCase);
+
+    private static bool SamePair(VirtualComPairInfo pair, string txPort, string rxPort)
+        => string.Equals(pair.TxPort, txPort, StringComparison.OrdinalIgnoreCase)
+           && string.Equals(pair.RxPort, rxPort, StringComparison.OrdinalIgnoreCase);
 }
