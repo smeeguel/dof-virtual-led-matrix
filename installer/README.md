@@ -21,4 +21,5 @@ This folder contains deployment scaffolding for production packaging with WiX/MS
 
 - Driver package and service MSI artifacts referenced here are placeholders and should be replaced with signed build outputs.
 - Service account is set to `LocalSystem` by default.
-- `install.ps1` stages `INF` + `SYS` and now also attempts to locate a matching `CAT` next to either file. If no trusted catalog is found, `pnputil` typically fails with `The third-party INF does not contain digital signature information` (exit code `-536870353`).
+- `install.ps1` now auto-handles lab signing by default: it can enable testsigning mode, create/trust a local test certificate, generate a missing `CAT` via `Inf2Cat`, sign `SYS` + `CAT` via `signtool`, then install the staged package.
+- Use `-DisableAutoLabSigning` if you want to install only pre-signed production packages and avoid any local test-signing steps.

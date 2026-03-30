@@ -43,8 +43,9 @@ then Windows did not find a trusted signed catalog for the staged INF package.
 Recommended fixes:
 1. Ensure build output includes matching `INF + SYS + CAT` for the same version.
 2. Ensure the `CAT` is signed and trusted for the target machine policy (attestation/production for normal installs).
-3. Re-run `installer/scripts/install.ps1`; it now stages a `.cat` found next to the INF or SYS and prints the staged CAT path.
-4. For lab-only testing, use test-signing mode on non-production machines.
+3. Re-run `installer/scripts/install.ps1`; it now attempts lab automation before install (enable testsigning, create/trust test cert, generate/sign CAT/SYS) unless `-DisableAutoLabSigning` is set.
+4. If testsigning was just enabled, reboot Windows before retrying install.
+5. For production installs, disable auto-lab-signing and provide a properly signed package.
 
 ## Service unavailable
 
