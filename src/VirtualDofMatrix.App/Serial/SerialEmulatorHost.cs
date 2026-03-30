@@ -41,7 +41,7 @@ public sealed class SerialEmulatorHost
     {
         if (_cts is null || _runTask is null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         _cts.Cancel();
