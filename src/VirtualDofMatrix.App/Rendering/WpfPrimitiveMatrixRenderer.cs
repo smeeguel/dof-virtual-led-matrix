@@ -15,6 +15,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private MatrixConfig? _config;
     private Brush? _sharedBodyBrush;
     private Brush? _sharedCoreOpacityMask;
+    private Brush? _sharedSpecularBrush;
     private float[] _mappedRgb = Array.Empty<float>();
     private float[] _workingRgb = Array.Empty<float>();
     private float[] _smoothedRgb = Array.Empty<float>();
@@ -41,8 +42,10 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
         _sharedBodyBrush = CreateBodyBrush(_config.Visual);
         _sharedCoreOpacityMask = CreateCoreOpacityMask(_config.Visual.LensFalloff);
+        _sharedSpecularBrush = CreateSpecularBrush();
         TryFreeze(_sharedBodyBrush);
         TryFreeze(_sharedCoreOpacityMask);
+        TryFreeze(_sharedSpecularBrush);
 
         var dotSpacing = Math.Max(HardMinimumDotSpacing, _config.MinDotSpacing);
         var dotStride = _config.DotSize + dotSpacing;
@@ -125,8 +128,9 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             if (intensity > 0.0)
             {
                 dot.CoreBrush.Color = Color.FromRgb(r, g, b);
-                dot.Core.Opacity = Math.Clamp(0.2 + (Math.Sqrt(intensity) * 0.72), 0.0, 1.0);
-                dot.Specular.Opacity = Math.Clamp((Math.Sqrt(intensity) * 0.45) + 0.08, 0.0, 0.65);
+                var rootIntensity = Math.Sqrt(intensity);
+                dot.Core.Opacity = Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0);
+                dot.Specular.Opacity = Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65);
             }
             else
             {
@@ -458,7 +462,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
     private DotVisual CreateDotVisual()
     {
-        if (_config is null || _sharedBodyBrush is null || _sharedCoreOpacityMask is null)
+        if (_config is null || _sharedBodyBrush is null || _sharedCoreOpacityMask is null || _sharedSpecularBrush is null)
         {
             throw new InvalidOperationException("Renderer config unavailable.");
         }
@@ -485,9 +489,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         specular.Height = _config.DotSize;
         specular.Stretch = Stretch.Fill;
         specular.SnapsToDevicePixels = true;
-        specular.Fill = CreateSpecularBrush();
+        specular.Fill = _sharedSpecularBrush;
         specular.Opacity = 0.0;
-        TryFreeze(specular.Fill);
 
         return new DotVisual(body, core, specular, coreBrush);
     }
