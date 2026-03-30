@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.App", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Tests", "src/VirtualDofMatrix.Tests/VirtualDofMatrix.Tests.csproj", "{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Service", "src/VirtualDofMatrix.Service/VirtualDofMatrix.Service.csproj", "{BEFFB55E-CF1F-47FB-95C8-76ACB214C6C6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,5 +28,9 @@ Global
 		{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BEFFB55E-CF1F-47FB-95C8-76ACB214C6C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BEFFB55E-CF1F-47FB-95C8-76ACB214C6C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BEFFB55E-CF1F-47FB-95C8-76ACB214C6C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BEFFB55E-CF1F-47FB-95C8-76ACB214C6C6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
