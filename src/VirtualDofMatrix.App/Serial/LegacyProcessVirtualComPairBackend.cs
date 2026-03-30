@@ -1,3 +1,4 @@
+using VirtualDofMatrix.Core;
 using System.Diagnostics;
 
 namespace VirtualDofMatrix.App.Serial;

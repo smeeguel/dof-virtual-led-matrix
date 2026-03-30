@@ -1,3 +1,4 @@
+using System.Net.Http;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Serial;

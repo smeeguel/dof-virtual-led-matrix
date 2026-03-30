@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Net.Http.Json;
 
 namespace VirtualDofMatrix.App.Serial;
