@@ -1,6 +1,7 @@
 param(
     [switch]$Repair,
     [string]$DriverInfPath = "../../driver/VirtualDofMatrixVirtualSerial/inf/VirtualDofMatrixVirtualSerial.inf",
+    [string]$DriverSysPath = "",
     [string]$ServiceExePath = "../../src/VirtualDofMatrix.Service/bin/Release/net8.0-windows/VirtualDofMatrix.Service.exe",
     [string]$ServiceName = "VirtualDofMatrixProvisioning"
 )
@@ -15,11 +16,65 @@ function Assert-Admin {
     }
 }
 
+function Get-DriverSysFromInf {
+    param([string]$InfFile)
+
+    $sysLine = Get-Content $InfFile |
+        Where-Object { $_ -match '\.sys\s*$' -and $_ -notmatch '^\s*;' } |
+        Select-Object -First 1
+
+    if ([string]::IsNullOrWhiteSpace($sysLine)) {
+        throw "Unable to locate .sys reference inside INF: $InfFile"
+    }
+
+    return ($sysLine -split '[,\s]+' | Where-Object { $_ -match '\.sys$' } | Select-Object -First 1)
+}
+
 Assert-Admin
 
-$resolvedInf = Resolve-Path $DriverInfPath
-Write-Host "Installing signed driver package: $resolvedInf"
-pnputil /add-driver "$resolvedInf" /install
+$resolvedInf = (Resolve-Path $DriverInfPath).Path
+$infDirectory = Split-Path -Parent $resolvedInf
+$infFileName = Split-Path -Leaf $resolvedInf
+$sysFileName = Get-DriverSysFromInf -InfFile $resolvedInf
+
+$resolvedSys = $null
+if (-not [string]::IsNullOrWhiteSpace($DriverSysPath)) {
+    $resolvedSys = (Resolve-Path $DriverSysPath).Path
+} else {
+    $candidateInInfDir = Join-Path $infDirectory $sysFileName
+    if (Test-Path $candidateInInfDir) {
+        $resolvedSys = (Resolve-Path $candidateInInfDir).Path
+    } else {
+        $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "../..")
+        $candidateBuilt = Get-ChildItem -Path $repoRoot -Recurse -Filter $sysFileName -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+
+        if ($null -ne $candidateBuilt) {
+            $resolvedSys = $candidateBuilt.FullName
+        }
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($resolvedSys) -or -not (Test-Path $resolvedSys)) {
+    throw "Driver binary '$sysFileName' was not found. Build the KMDF driver first or pass -DriverSysPath explicitly."
+}
+
+$stagingDir = Join-Path $env:TEMP ("vdm-driver-staging-" + [Guid]::NewGuid())
+New-Item -ItemType Directory -Path $stagingDir | Out-Null
+Copy-Item $resolvedInf (Join-Path $stagingDir $infFileName)
+Copy-Item $resolvedSys (Join-Path $stagingDir $sysFileName)
+
+$catPath = Join-Path $infDirectory ([System.IO.Path]::GetFileNameWithoutExtension($infFileName) + ".cat")
+if (Test-Path $catPath) {
+    Copy-Item $catPath (Join-Path $stagingDir (Split-Path -Leaf $catPath))
+}
+
+$stagedInf = Join-Path $stagingDir $infFileName
+Write-Host "Installing driver package from staged folder: $stagingDir"
+Write-Host "INF: $stagedInf"
+Write-Host "SYS: $(Join-Path $stagingDir $sysFileName)"
+pnputil /add-driver "$stagedInf" /install
 if ($LASTEXITCODE -ne 0) { throw "Driver installation failed with exit code $LASTEXITCODE" }
 
 $resolvedServiceExe = Resolve-Path $ServiceExePath
