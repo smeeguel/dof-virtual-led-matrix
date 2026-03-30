@@ -27,7 +27,9 @@ function Get-DriverSysFromInf {
         throw "Unable to locate .sys reference inside INF: $InfFile"
     }
 
-    return ($sysLine -split '[,\s]+' | Where-Object { $_ -match '\.sys$' } | Select-Object -First 1)
+    $sysToken = ($sysLine -split '[,\s]+' | Where-Object { $_ -match '\.sys$' } | Select-Object -First 1)
+    $sysToken = $sysToken.Trim('"')
+    return (Split-Path $sysToken -Leaf)
 }
 
 Assert-Admin
