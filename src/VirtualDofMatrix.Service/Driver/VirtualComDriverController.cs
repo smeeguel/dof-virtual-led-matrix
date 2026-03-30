@@ -47,7 +47,7 @@ public sealed class VirtualComDriverController : IVirtualComDriverController
         try
         {
             using var service = new ServiceController(ServiceInfo.DriverServiceName);
-            var _ = service.Status;
+            _ = service.Status;
             _ = StructuredLogWriter.WriteAsync("service", "driver-health", new { Result = "reachable" });
             return ServiceResult<bool>.Ok(true, "driver service reachable");
         }

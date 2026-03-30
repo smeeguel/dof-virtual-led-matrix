@@ -1,3 +1,4 @@
+using Xunit;
 using VirtualDofMatrix.App.Serial;
 using VirtualDofMatrix.Core;
 
