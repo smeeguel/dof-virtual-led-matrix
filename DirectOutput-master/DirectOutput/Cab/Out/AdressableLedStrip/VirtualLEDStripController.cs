@@ -6,11 +6,14 @@ using System.Linq;
 namespace DirectOutput.Cab.Out.AdressableLedStrip
 {
     /// <summary>
-    /// Output controller which streams full RGB frame data to a local named pipe.
-    /// Intended as a virtual matrix transport that avoids virtual COM drivers.
+    /// Virtual LED strip output controller for software-only matrix viewers.
+    /// Branch task note: this class was added to provide a non-COM transport path
+    /// (local named pipe) for virtual matrix rendering.
     /// </summary>
-    public class NamedPipeMatrixController : OutputControllerCompleteBase
+    public class VirtualLEDStripController : OutputControllerCompleteBase
     {
+        // Branch task note: Keep strip-count style properties (matching Teensy-like
+        // cabinet configs) so users can switch controller tags with minimal edits.
         protected int[] NumberOfLedsPerStrip = new int[10];
 
         public int NumberOfLedsStrip1 { get { return NumberOfLedsPerStrip[0]; } set { NumberOfLedsPerStrip[0] = value; SetupOutputs(); } }
@@ -89,6 +92,8 @@ namespace DirectOutput.Cab.Out.AdressableLedStrip
 
             try
             {
+                // Branch task note: DOF side acts as named-pipe client; the viewer app
+                // opens a NamedPipeServerStream and waits for this connection.
                 Pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.Out, PipeOptions.WriteThrough);
                 Pipe.Connect(ConnectTimeoutMs);
                 Sequence = 0;
@@ -132,7 +137,7 @@ namespace DirectOutput.Cab.Out.AdressableLedStrip
                 throw new IOException("Named pipe is not connected.");
             }
 
-            // Frame message format (little-endian):
+            // Branch task note: lightweight binary frame envelope (little-endian):
             // [0..3]   Magic "VDMF"
             // [4]      Version (1)
             // [5..8]   Int32 sequence
@@ -161,9 +166,19 @@ namespace DirectOutput.Cab.Out.AdressableLedStrip
             }
         }
 
-        public NamedPipeMatrixController()
+        public VirtualLEDStripController()
         {
             NumberOfLedsPerStrip[0] = 256;
         }
+    }
+
+    /// <summary>
+    /// Backward-compatible alias for earlier branch revisions.
+    /// Branch task note: allows old Cabinet.xml tags (<NamedPipeMatrixController>)
+    /// to continue working while the preferred user-facing name is
+    /// <VirtualLEDStripController>.
+    /// </summary>
+    public class NamedPipeMatrixController : VirtualLEDStripController
+    {
     }
 }

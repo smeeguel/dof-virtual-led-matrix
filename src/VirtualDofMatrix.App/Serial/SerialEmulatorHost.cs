@@ -64,6 +64,8 @@ public sealed class SerialEmulatorHost
 
     private async Task RunLoopAsync(CancellationToken cancellationToken)
     {
+        // Branch task note: allow runtime transport switch without duplicating the
+        // UI/presentation pipeline.
         if (string.Equals(_config.Transport.Mode, "namedPipe", StringComparison.OrdinalIgnoreCase))
         {
             await RunNamedPipeLoopAsync(cancellationToken);
@@ -126,6 +128,8 @@ public sealed class SerialEmulatorHost
 
     private async Task RunNamedPipeLoopAsync(CancellationToken cancellationToken)
     {
+        // Branch task note: viewer hosts a named-pipe server; DOF custom controller
+        // (VirtualLEDStripController) connects as a client.
         var pipeName = string.IsNullOrWhiteSpace(_config.Transport.PipeName)
             ? "VirtualDofMatrix"
             : _config.Transport.PipeName;
@@ -166,6 +170,7 @@ public sealed class SerialEmulatorHost
                         throw new InvalidDataException("Invalid named-pipe frame magic. Expected 'VDMF'.");
                     }
 
+                    // Branch task note: envelope currently uses version 1 framing.
                     var version = header[4];
                     if (version != 1)
                     {

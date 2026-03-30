@@ -193,7 +193,7 @@ Because config-only external controllers are blocked by type discovery/load beha
 
 ### Phase 1 (fastest practical): embedded controller in a DOF-compatible replacement build
 
-- Implement `NamedPipeMatrixController : OutputControllerCompleteBase` inside DOF codebase (or a maintained patched build).
+- Implement `VirtualLEDStripController : OutputControllerCompleteBase` inside DOF codebase (or a maintained patched build).
 - Preserve existing matrix toy mapping in cabinet/table config path.
 - Stream final RGB data directly to viewer process over named pipe.
 
@@ -243,11 +243,11 @@ Because config-only external controllers are blocked by type discovery/load beha
 
 ```xml
 <OutputControllers>
-  <NamedPipeMatrixController>
+  <VirtualLEDStripController>
     <Name>Matrix Pipe 0</Name>
     <PipeName>VirtualDofMatrix</PipeName>
     <ReconnectIntervalMs>1000</ReconnectIntervalMs>
-  </NamedPipeMatrixController>
+  </VirtualLEDStripController>
 </OutputControllers>
 
 <Toys>
