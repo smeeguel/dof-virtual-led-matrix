@@ -27,19 +27,8 @@ If health checks or provisioning return signing-related failures:
 3. Check Windows Event Viewer:
    - **Applications and Services Logs > Microsoft > Windows > CodeIntegrity > Operational**
    - **System** log entries for service/driver load failures.
-4. On Secure Boot-enabled systems, avoid test-signed binaries.
-5. If testing with test-signed packages, use an isolated lab machine and explicitly configure test mode.
-6. Reinstall using installer tooling and rerun post-install health check.
-
-If installer output includes:
-
-- `Failed to enable testsigning mode via bcdedit`
-- and BCDEdit mentions `Secure Boot`
-
-then testsigning is blocked by firmware policy. In that case either:
-
-- disable Secure Boot on a lab machine (test-only workflow), or
-- keep Secure Boot enabled and use a production-attested signed driver package with `-DisableAutoLabSigning`.
+4. Use the release installer path, which does not modify test-signing or Secure Boot settings.
+5. Reinstall using installer tooling and rerun post-install health check.
 
 ### `pnputil` reports missing digital signature metadata
 
@@ -53,9 +42,8 @@ then Windows did not find a trusted signed catalog for the staged INF package.
 Recommended fixes:
 1. Ensure build output includes matching `INF + SYS + CAT` for the same version.
 2. Ensure the `CAT` is signed and trusted for the target machine policy (attestation/production for normal installs).
-3. Re-run `installer/scripts/install.ps1`; it now attempts lab automation before install (enable testsigning, create/trust test cert, generate/sign CAT/SYS) unless `-DisableAutoLabSigning` is set.
-4. If testsigning was just enabled, reboot Windows before retrying install.
-5. For production installs, disable auto-lab-signing and provide a properly signed package.
+3. Run `installer/scripts/verify-release-driver-signature.ps1` against your INF/SYS/CAT package.
+4. Re-run `installer/scripts/install.ps1` after signature preflight succeeds.
 
 ## Service unavailable
 
