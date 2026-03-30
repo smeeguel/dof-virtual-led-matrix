@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle Name="Virtual DOF Matrix Installer"
+          Version="0.1.0.0"
+          Manufacturer="Virtual DOF Matrix"
+          UpgradeCode="5A8EA744-580D-4DF4-B0B5-0B21CD17D83D">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication Theme="standard" />
+    </BootstrapperApplication>
+
+    <Chain>
+      <!-- Signed driver package MSI or EXE wrapper. -->
+      <MsiPackage SourceFile="..\artifacts\driver\VirtualDofMatrix.Driver.msi"
+                  DisplayInternalUI="no"
+                  Vital="yes" />
+
+      <!-- Windows service MSI that installs VirtualDofMatrix.Service binaries. -->
+      <MsiPackage SourceFile="..\artifacts\service\VirtualDofMatrix.Service.msi"
+                  DisplayInternalUI="no"
+                  Vital="yes" />
+
+      <!-- Configure service recovery + health checks via elevated script custom action package. -->
+      <ExePackage SourceFile="powershell.exe"
+                  InstallCommand="-ExecutionPolicy Bypass -File &quot;[WixBundleOriginalSourceFolder]scripts\install.ps1&quot;"
+                  RepairCommand="-ExecutionPolicy Bypass -File &quot;[WixBundleOriginalSourceFolder]scripts\install.ps1&quot; -Repair"
+                  UninstallCommand="-ExecutionPolicy Bypass -File &quot;[WixBundleOriginalSourceFolder]scripts\uninstall.ps1&quot;"
+                  DetectCondition="0"
+                  Vital="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

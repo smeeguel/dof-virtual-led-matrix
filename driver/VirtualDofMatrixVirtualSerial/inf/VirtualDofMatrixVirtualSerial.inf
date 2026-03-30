@@ -1,0 +1,38 @@
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Ports
+ClassGuid   = {4D36E978-E325-11CE-BFC1-08002BE10318}
+Provider    = %ProviderName%
+CatalogFile = VirtualDofMatrixVirtualSerial.cat
+DriverVer   = 03/30/2026,0.1.0.0
+PnpLockdown = 1
+
+[Manufacturer]
+%ProviderName%=Standard,NTamd64
+
+[Standard.NTamd64]
+%VdmDeviceDesc%=Vdm_Install,Root\VIRTUALDOFMATRIXSERIAL
+
+[Vdm_Install.NT]
+CopyFiles = Vdm_CopyFiles
+
+[Vdm_Install.NT.Services]
+AddService = VirtualDofMatrixSerial,0x00000002,Vdm_Service
+
+[Vdm_Service]
+DisplayName    = %VdmServiceName%
+ServiceType    = 1
+StartType      = 3
+ErrorControl   = 1
+ServiceBinary  = %12%\VirtualDofMatrixVirtualSerial.sys
+
+[Vdm_CopyFiles]
+VirtualDofMatrixVirtualSerial.sys
+
+[DestinationDirs]
+Vdm_CopyFiles = 12
+
+[Strings]
+ProviderName   = "Virtual DOF Matrix"
+VdmDeviceDesc  = "Virtual DOF Matrix Serial Pair Bus"
+VdmServiceName = "Virtual DOF Matrix Serial"

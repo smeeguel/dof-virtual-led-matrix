@@ -11,6 +11,8 @@ public sealed class AppConfig
     public WindowConfig Window { get; set; } = new();
 
     public DebugConfig Debug { get; set; } = new();
+
+    public VirtualComProvisioningConfig VirtualCom { get; set; } = new();
 }
 
 public sealed class SerialConfig
@@ -25,9 +27,52 @@ public sealed class SerialConfig
 
     public int ReadTimeoutMs { get; set; } = 200;
 
+    public string VirtualProviderMode { get; set; } = "service";
+
     public int WriteTimeoutMs { get; set; } = 1000;
 
     public bool DtrEnable { get; set; } = true;
+}
+
+
+public sealed class VirtualComProvisioningConfig
+{
+    public bool Enabled { get; set; } = true;
+
+    public string TxPortName { get; set; } = "COM1";
+
+    public string RxPortName { get; set; } = "COM2";
+
+    public bool AutoDeletePairOnShutdown { get; set; } = false;
+
+    public bool UseLegacyProcessBackend { get; set; } = false;
+
+    public string ServiceBaseUrl { get; set; } = "http://127.0.0.1:17341/";
+    public string ServicePipeName { get; set; } = "VirtualDofMatrix.Provisioning.v1";
+
+    public int ServiceConnectTimeoutMs { get; set; } = 3000;
+
+    public bool VerboseProvisioningLogs { get; set; } = false;
+
+    public bool DisableFallbackToProcessCommand { get; set; } = true;
+
+    // Deprecated for default provisioning path. Use serial.virtualProviderMode = "service" by default.
+    public LegacyVirtualComCommandConfig LegacyCommands { get; set; } = new();
+}
+
+public sealed class LegacyVirtualComCommandConfig
+{
+    public string ShellExecutable { get; set; } = "cmd.exe";
+
+    public string ShellArgumentFormat { get; set; } = "/C {0}";
+
+    public string CreatePairCommand { get; set; } = string.Empty;
+
+    public string DeletePairCommand { get; set; } = string.Empty;
+
+    public string ListPairsCommand { get; set; } = string.Empty;
+
+    public string HealthCommand { get; set; } = string.Empty;
 }
 
 public sealed class MatrixConfig

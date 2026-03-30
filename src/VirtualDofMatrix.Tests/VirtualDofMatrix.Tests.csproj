@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,5 +22,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VirtualDofMatrix.Core\VirtualDofMatrix.Core.csproj" />
+    <ProjectReference Include="..\VirtualDofMatrix.App\VirtualDofMatrix.App.csproj" />
   </ItemGroup>
 </Project>

@@ -24,6 +24,9 @@
             </Viewbox>
         </Border>
 
+
+        <Button x:Name="CopyDiagnosticsButton" Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Padding="10,4" Content="Copy diagnostics" Click="OnCopyDiagnosticsClick" />
+
         <StackPanel x:Name="DebugPanel" Grid.Column="2">
             <TextBlock Foreground="Lime" FontSize="20" FontWeight="Bold" Text="Virtual DOF Matrix (Milestone 2 bootstrap)" />
             <TextBlock Margin="0,12,0,0" Foreground="White" Text="CPU/WPF primitive renderer enabled." />
