@@ -7,6 +7,7 @@ public sealed class SerialEmulatorHost
 {
     private readonly AppConfig _config;
     private readonly TeensyProtocolEngine _engine;
+    private readonly VirtualComPairManager _virtualComPairManager;
 
     private CancellationTokenSource? _cts;
     private Task? _runTask;
@@ -21,20 +22,22 @@ public sealed class SerialEmulatorHost
                 MaxStrips = config.Serial.MaxStrips,
             },
             new FrameBuffer());
+        _virtualComPairManager = new VirtualComPairManager(config.VirtualCom);
     }
 
     public event EventHandler<FramePresentation>? FramePresented;
 
-    public Task StartAsync()
+    public async Task StartAsync()
     {
         if (_runTask is not null)
         {
-            return Task.CompletedTask;
+            return;
         }
+
+        await _virtualComPairManager.EnsureConfiguredPairAsync();
 
         _cts = new CancellationTokenSource();
         _runTask = Task.Run(() => RunLoop(_cts.Token), _cts.Token);
-        return Task.CompletedTask;
     }
 
     public async Task StopAsync()
@@ -58,6 +61,8 @@ public sealed class SerialEmulatorHost
         _runTask = null;
         _cts.Dispose();
         _cts = null;
+
+        await _virtualComPairManager.CleanupConfiguredPairAsync();
     }
 
     private void RunLoop(CancellationToken cancellationToken)

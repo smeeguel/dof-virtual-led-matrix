@@ -11,6 +11,8 @@ public sealed class AppConfig
     public WindowConfig Window { get; set; } = new();
 
     public DebugConfig Debug { get; set; } = new();
+
+    public VirtualComProvisioningConfig VirtualCom { get; set; } = new();
 }
 
 public sealed class SerialConfig
@@ -28,6 +30,39 @@ public sealed class SerialConfig
     public int WriteTimeoutMs { get; set; } = 1000;
 
     public bool DtrEnable { get; set; } = true;
+}
+
+
+public sealed class VirtualComProvisioningConfig
+{
+    public bool Enabled { get; set; } = true;
+
+    public string TxPortName { get; set; } = "COM1";
+
+    public string RxPortName { get; set; } = "COM2";
+
+    public bool AutoDeletePairOnShutdown { get; set; } = false;
+
+    public bool UseLegacyProcessBackend { get; set; } = false;
+
+    public string ServiceBaseUrl { get; set; } = "http://127.0.0.1:17341/";
+
+    public LegacyVirtualComCommandConfig LegacyCommands { get; set; } = new();
+}
+
+public sealed class LegacyVirtualComCommandConfig
+{
+    public string ShellExecutable { get; set; } = "cmd.exe";
+
+    public string ShellArgumentFormat { get; set; } = "/C {0}";
+
+    public string CreatePairCommand { get; set; } = string.Empty;
+
+    public string DeletePairCommand { get; set; } = string.Empty;
+
+    public string ListPairsCommand { get; set; } = string.Empty;
+
+    public string HealthCommand { get; set; } = string.Empty;
 }
 
 public sealed class MatrixConfig
