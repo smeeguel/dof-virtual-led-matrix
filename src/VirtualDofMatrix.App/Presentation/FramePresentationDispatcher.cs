@@ -1,5 +1,5 @@
 using System.Windows.Threading;
-using VirtualDofMatrix.App.Serial;
+using VirtualDofMatrix.App.Transport;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Presentation;
@@ -7,7 +7,7 @@ namespace VirtualDofMatrix.App.Presentation;
 public sealed class FramePresentationDispatcher : IDisposable
 {
     private readonly Dispatcher _dispatcher;
-    private SerialEmulatorHost? _host;
+    private IFrameSourceHost? _host;
 
     public FramePresentationDispatcher(Dispatcher dispatcher)
     {
@@ -16,7 +16,7 @@ public sealed class FramePresentationDispatcher : IDisposable
 
     public event EventHandler<FramePresentation>? FramePresentedOnUiThread;
 
-    public void Attach(SerialEmulatorHost host)
+    public void Attach(IFrameSourceHost host)
     {
         if (_host is not null)
         {

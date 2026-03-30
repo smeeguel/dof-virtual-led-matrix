@@ -1,9 +1,10 @@
 using System.IO.Ports;
 using VirtualDofMatrix.Core;
+using VirtualDofMatrix.App.Transport;
 
 namespace VirtualDofMatrix.App.Serial;
 
-public sealed class SerialEmulatorHost
+public sealed class SerialEmulatorHost : IFrameSourceHost
 {
     private readonly AppConfig _config;
     private readonly TeensyProtocolEngine _engine;

@@ -1,7 +1,9 @@
+using System;
 using System.Windows;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Presentation;
 using VirtualDofMatrix.App.Serial;
+using VirtualDofMatrix.App.Transport;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
@@ -14,7 +16,7 @@ public partial class App : Application
 
     private AppConfig? _config;
     private MainWindow? _window;
-    private SerialEmulatorHost? _serialHost;
+    private IFrameSourceHost? _frameSourceHost;
     private FramePresentationDispatcher? _presentationDispatcher;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -33,12 +35,12 @@ public partial class App : Application
         _window.SizeChanged += (_, _) => PersistWindowSettings();
         _window.Closing += (_, _) => PersistWindowSettings();
 
-        _serialHost = new SerialEmulatorHost(_config);
+        _frameSourceHost = CreateFrameSourceHost(_config);
         _presentationDispatcher = new FramePresentationDispatcher(Dispatcher);
-        _presentationDispatcher.Attach(_serialHost);
+        _presentationDispatcher.Attach(_frameSourceHost);
         _presentationDispatcher.FramePresentedOnUiThread += (_, frame) => _window.ApplyPresentation(frame);
 
-        await _serialHost.StartAsync();
+        await _frameSourceHost.StartAsync();
 
         MainWindow = _window;
         _window.Show();
@@ -54,9 +56,9 @@ public partial class App : Application
             _presentationDispatcher = null;
         }
 
-        if (_serialHost is not null)
+        if (_frameSourceHost is not null)
         {
-            await _serialHost.StopAsync();
+            await _frameSourceHost.StopAsync();
         }
 
         base.OnExit(e);
@@ -71,5 +73,15 @@ public partial class App : Application
 
         _window.SyncWindowSettingsToConfig();
         _configurationStore.Save(ConfigFilePath, _config);
+    }
+
+    private static IFrameSourceHost CreateFrameSourceHost(AppConfig config)
+    {
+        if (string.Equals(config.Transport.Mode, "pinone", StringComparison.OrdinalIgnoreCase))
+        {
+            return new PinOnePipeHost(config);
+        }
+
+        return new SerialEmulatorHost(config);
     }
 }
