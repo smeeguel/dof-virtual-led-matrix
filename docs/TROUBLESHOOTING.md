@@ -42,3 +42,14 @@ If health checks or provisioning return signing-related failures:
 - Check if target COM ports are already assigned.
 - For temporary fallback testing, set `virtualCom.disableFallbackToProcessCommand` to `false`.
 - Prefer returning to `serial.virtualProviderMode = "service"` for normal operation.
+
+
+## Driver build error: `ntddk.h` not found
+
+If Visual Studio reports `C1083 Cannot open include file: ntddk.h`, install/repair:
+
+- Visual Studio 2022 (Desktop development with C++)
+- Windows SDK
+- WDK (matching VS2022)
+
+Then retarget the `VirtualDofMatrixVirtualSerial` project to the installed SDK + `WindowsKernelModeDriver10.0` toolset and rebuild x64.
