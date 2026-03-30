@@ -42,6 +42,11 @@ A fully definitive answer on "external OutputController DLL loaded by config-onl
 - Investigate the existing built-in `PinOne` path first (project includes `Cab\Out\PinOne\NamedPipeServer.cs`), as this may provide a pre-existing non-COM transport seam without DOF patching.
 - If `PinOne` protocol can be emulated from our viewer app, users could switch controller type in Cabinet XML (additive config-only migration).
 
+### Matrix compatibility caveat
+
+- Matrix toys (`LedStrip`) require the configured output controller to support `ISupportsSetValues`; `LedStrip.Init()` only binds the controller when this interface is present, and `UpdateOutputs()` only transmits when the binding succeeded.
+- Practical implication: a controller path can initialize, yet still produce no matrix frames if it doesn't satisfy `ISupportsSetValues`.
+
 ## Recommended next validation steps
 
 1. Recover missing `DirectOutput/Cab/Out/*.cs` files from canonical upstream to verify:

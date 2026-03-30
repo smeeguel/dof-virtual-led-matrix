@@ -1,6 +1,6 @@
 {
   "transport": {
-    "mode": "pinone"
+    "mode": "serial"
   },
   "serial": {
     "portName": "COM2",

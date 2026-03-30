@@ -1,147 +1,33 @@
 <?xml version="1.0"?>
 <Cabinet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <Name>PinOnePipeTest</Name>
+  <Name>AddressableLEDSetup</Name>
   <OutputControllers>
-    <PinOne>
-      <Name>PinOne Controller 01</Name>
-      <NumberOfOutputs>63</NumberOfOutputs>
-      <Number>1</Number>
-      <MinCommandIntervalMs>1</MinCommandIntervalMs>
-      <ComPort>COM1</ComPort>
-    </PinOne>
+    <TeensyStripController>
+      <Name>LED Strips 0</Name>
+      <NumberOfLedsStrip1>1024</NumberOfLedsStrip1>
+      <ComPortName>COM1</ComPortName>
+      <TestOnConnect>true</TestOnConnect>
+    </TeensyStripController>
   </OutputControllers>
   <Toys>
+    <LedStrip>
+      <Name>Matrix1</Name>
+      <Width>64</Width>
+      <Height>16</Height>
+      <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
+      <ColorOrder>RGB</ColorOrder>
+      <FirstLedNumber>1</FirstLedNumber>
+      <FadingCurveName>SwissLizardsLedCurve</FadingCurveName>
+      <Brightness>100</Brightness>
+      <OutputControllerName>LED Strips 0</OutputControllerName>
+    </LedStrip>
     <LedWizEquivalent>
       <Name>LedWizEquivalent 30</Name>
       <LedWizNumber>30</LedWizNumber>
       <Outputs>
         <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\1</OutputName>
+          <OutputName>Matrix1</OutputName>
           <LedWizEquivalentOutputNumber>1</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\2</OutputName>
-          <LedWizEquivalentOutputNumber>2</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\3</OutputName>
-          <LedWizEquivalentOutputNumber>3</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\4</OutputName>
-          <LedWizEquivalentOutputNumber>4</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\5</OutputName>
-          <LedWizEquivalentOutputNumber>5</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\6</OutputName>
-          <LedWizEquivalentOutputNumber>6</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\7</OutputName>
-          <LedWizEquivalentOutputNumber>7</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\8</OutputName>
-          <LedWizEquivalentOutputNumber>8</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\9</OutputName>
-          <LedWizEquivalentOutputNumber>9</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\10</OutputName>
-          <LedWizEquivalentOutputNumber>10</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\11</OutputName>
-          <LedWizEquivalentOutputNumber>11</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\12</OutputName>
-          <LedWizEquivalentOutputNumber>12</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\13</OutputName>
-          <LedWizEquivalentOutputNumber>13</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\14</OutputName>
-          <LedWizEquivalentOutputNumber>14</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\15</OutputName>
-          <LedWizEquivalentOutputNumber>15</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\16</OutputName>
-          <LedWizEquivalentOutputNumber>16</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\17</OutputName>
-          <LedWizEquivalentOutputNumber>17</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\18</OutputName>
-          <LedWizEquivalentOutputNumber>18</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\19</OutputName>
-          <LedWizEquivalentOutputNumber>19</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\20</OutputName>
-          <LedWizEquivalentOutputNumber>20</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\21</OutputName>
-          <LedWizEquivalentOutputNumber>21</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\22</OutputName>
-          <LedWizEquivalentOutputNumber>22</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\23</OutputName>
-          <LedWizEquivalentOutputNumber>23</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\24</OutputName>
-          <LedWizEquivalentOutputNumber>24</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\25</OutputName>
-          <LedWizEquivalentOutputNumber>25</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\26</OutputName>
-          <LedWizEquivalentOutputNumber>26</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\27</OutputName>
-          <LedWizEquivalentOutputNumber>27</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\28</OutputName>
-          <LedWizEquivalentOutputNumber>28</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\29</OutputName>
-          <LedWizEquivalentOutputNumber>29</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\30</OutputName>
-          <LedWizEquivalentOutputNumber>30</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\31</OutputName>
-          <LedWizEquivalentOutputNumber>31</LedWizEquivalentOutputNumber>
-        </LedWizEquivalentOutput>
-        <LedWizEquivalentOutput>
-          <OutputName>PinOne Controller 01\32</OutputName>
-          <LedWizEquivalentOutputNumber>32</LedWizEquivalentOutputNumber>
         </LedWizEquivalentOutput>
       </Outputs>
     </LedWizEquivalent>
