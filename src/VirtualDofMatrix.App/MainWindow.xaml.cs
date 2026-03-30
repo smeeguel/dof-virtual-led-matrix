@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls;
+using System.Linq;
+using System.IO;
 using System.Text;
 using VirtualDofMatrix.Core.Diagnostics;
 using VirtualDofMatrix.App.Rendering;

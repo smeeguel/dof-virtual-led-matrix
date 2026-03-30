@@ -10,4 +10,8 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VirtualDofMatrix.Core\VirtualDofMatrix.Core.csproj" />
+  </ItemGroup>
 </Project>
