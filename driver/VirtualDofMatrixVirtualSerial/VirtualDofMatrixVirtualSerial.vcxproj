@@ -54,6 +54,7 @@
   <ItemGroup>
     <ClInclude Include="src\device.h" />
     <ClInclude Include="src\queue.h" />
+    <ClInclude Include="src\ioctl_contract.h" />
     <ClCompile Include="src\driver.c" />
     <ClCompile Include="src\device.c" />
     <ClCompile Include="src\queue.c" />

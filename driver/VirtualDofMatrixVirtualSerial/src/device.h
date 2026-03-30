@@ -7,3 +7,5 @@ DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_DRIVER_DEVICE_ADD VdmEvtDeviceAdd;
 
 NTSTATUS VdmCreateVirtualPair(_In_ WDFDEVICE Device, _In_ PCUNICODE_STRING PairName);
+NTSTATUS VdmDeleteVirtualPair(_In_ WDFDEVICE Device, _In_ PCUNICODE_STRING PairName);
+ULONG VdmGetPairCount();
