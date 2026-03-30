@@ -25,9 +25,18 @@ VdmEvtIoRead(
     _In_ size_t Length)
 {
     UNREFERENCED_PARAMETER(Queue);
-    UNREFERENCED_PARAMETER(Length);
 
-    WdfRequestCompleteWithInformation(Request, STATUS_NOT_IMPLEMENTED, 0);
+    PUCHAR outBuffer = NULL;
+    size_t outLength = 0;
+    NTSTATUS status = WdfRequestRetrieveOutputBuffer(Request, Length, (PVOID*)&outBuffer, &outLength);
+    if (!NT_SUCCESS(status))
+    {
+        WdfRequestCompleteWithInformation(Request, status, 0);
+        return;
+    }
+
+    size_t copied = VdmReadPairPayload(outBuffer, outLength);
+    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, copied);
 }
 
 VOID
@@ -37,9 +46,18 @@ VdmEvtIoWrite(
     _In_ size_t Length)
 {
     UNREFERENCED_PARAMETER(Queue);
-    UNREFERENCED_PARAMETER(Length);
 
-    WdfRequestCompleteWithInformation(Request, STATUS_NOT_IMPLEMENTED, 0);
+    PUCHAR inBuffer = NULL;
+    size_t inLength = 0;
+    NTSTATUS status = WdfRequestRetrieveInputBuffer(Request, Length, (PVOID*)&inBuffer, &inLength);
+    if (!NT_SUCCESS(status))
+    {
+        WdfRequestCompleteWithInformation(Request, status, 0);
+        return;
+    }
+
+    status = VdmWritePairPayload(inBuffer, inLength);
+    WdfRequestCompleteWithInformation(Request, status, NT_SUCCESS(status) ? inLength : 0);
 }
 
 VOID
@@ -66,26 +84,29 @@ VdmEvtIoDeviceControl(
             response->Status = STATUS_SUCCESS;
             response->PairCount = VdmGetPairCount();
             bytesReturned = sizeof(VDM_OPERATION_RESPONSE);
+            KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "[VDM] IOCTL health -> pairCount=%lu\\n", response->PairCount));
         }
     }
     else if (IoControlCode == IOCTL_VDM_CREATE_PAIR || IoControlCode == IOCTL_VDM_DELETE_PAIR)
     {
         PVDM_PAIR_REQUEST request = NULL;
         PVDM_OPERATION_RESPONSE response = NULL;
-        UNICODE_STRING pairName;
+        UNICODE_STRING tx;
+        UNICODE_STRING rx;
 
         status = WdfRequestRetrieveInputBuffer(Request, sizeof(VDM_PAIR_REQUEST), (PVOID*)&request, NULL);
         if (NT_SUCCESS(status))
         {
-            RtlInitUnicodeString(&pairName, request->TxPort);
+            RtlInitUnicodeString(&tx, request->TxPort);
+            RtlInitUnicodeString(&rx, request->RxPort);
 
             if (IoControlCode == IOCTL_VDM_CREATE_PAIR)
             {
-                status = VdmCreateVirtualPair(device, &pairName);
+                status = VdmCreateVirtualPair(device, &tx, &rx);
             }
             else
             {
-                status = VdmDeleteVirtualPair(device, &pairName);
+                status = VdmDeleteVirtualPair(device, &tx, &rx);
             }
         }
 
@@ -100,6 +121,8 @@ VdmEvtIoDeviceControl(
                 bytesReturned = sizeof(VDM_OPERATION_RESPONSE);
             }
         }
+
+        KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "[VDM] IOCTL pair op=0x%08lX status=0x%08X pairCount=%lu\\n", IoControlCode, status, VdmGetPairCount()));
     }
 
     WdfRequestCompleteWithInformation(Request, status, bytesReturned);
