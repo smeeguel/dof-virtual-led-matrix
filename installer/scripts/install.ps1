@@ -32,6 +32,37 @@ function Get-DriverSysFromInf {
     return (Split-Path $sysToken -Leaf)
 }
 
+function Resolve-DriverCatalogPath {
+    param(
+        [string]$InfFilePath,
+        [string]$SysFilePath
+    )
+
+    $catFileName = [System.IO.Path]::GetFileNameWithoutExtension($InfFilePath) + ".cat"
+    $searchRoots = @(
+        (Split-Path -Parent $InfFilePath),
+        (Split-Path -Parent $SysFilePath)
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+    foreach ($root in $searchRoots) {
+        $candidate = Join-Path $root $catFileName
+        if (Test-Path $candidate) {
+            return (Resolve-Path $candidate).Path
+        }
+    }
+
+    foreach ($root in $searchRoots) {
+        $fallback = Get-ChildItem -Path $root -Filter "*.cat" -File -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+        if ($null -ne $fallback) {
+            return $fallback.FullName
+        }
+    }
+
+    return $null
+}
+
 Assert-Admin
 
 $resolvedInf = (Resolve-Path $DriverInfPath).Path
@@ -67,9 +98,12 @@ New-Item -ItemType Directory -Path $stagingDir | Out-Null
 Copy-Item $resolvedInf (Join-Path $stagingDir $infFileName)
 Copy-Item $resolvedSys (Join-Path $stagingDir $sysFileName)
 
-$catPath = Join-Path $infDirectory ([System.IO.Path]::GetFileNameWithoutExtension($infFileName) + ".cat")
-if (Test-Path $catPath) {
-    Copy-Item $catPath (Join-Path $stagingDir (Split-Path -Leaf $catPath))
+$resolvedCat = Resolve-DriverCatalogPath -InfFilePath $resolvedInf -SysFilePath $resolvedSys
+if (-not [string]::IsNullOrWhiteSpace($resolvedCat) -and (Test-Path $resolvedCat)) {
+    Copy-Item $resolvedCat (Join-Path $stagingDir (Split-Path -Leaf $resolvedCat))
+    Write-Host "CAT: $(Join-Path $stagingDir (Split-Path -Leaf $resolvedCat))"
+} else {
+    Write-Warning "No catalog (.cat) was found next to INF or SYS. Unsigned/test builds will fail on normal Windows policy."
 }
 
 $stagedInf = Join-Path $stagingDir $infFileName
@@ -77,7 +111,21 @@ Write-Host "Installing driver package from staged folder: $stagingDir"
 Write-Host "INF: $stagedInf"
 Write-Host "SYS: $(Join-Path $stagingDir $sysFileName)"
 pnputil /add-driver "$stagedInf" /install
-if ($LASTEXITCODE -ne 0) { throw "Driver installation failed with exit code $LASTEXITCODE" }
+if ($LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -eq -536870353) {
+        throw @"
+Driver installation failed with exit code $LASTEXITCODE (unsigned package).
+
+Windows rejected this INF because no trusted digital signature metadata was found.
+Actions:
+  1) Build/package the driver so INF/SYS/CAT are generated together.
+  2) Ensure the CAT is signed (attestation/production for normal systems).
+  3) For lab-only testing, use a test-signed package + test-signing mode.
+"@
+    }
+
+    throw "Driver installation failed with exit code $LASTEXITCODE"
+}
 
 $resolvedServiceExe = Resolve-Path $ServiceExePath
 if ($Repair) {

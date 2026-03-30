@@ -31,6 +31,21 @@ If health checks or provisioning return signing-related failures:
 5. If testing with test-signed packages, use an isolated lab machine and explicitly configure test mode.
 6. Reinstall using installer tooling and rerun post-install health check.
 
+### `pnputil` reports missing digital signature metadata
+
+If installer output shows:
+
+- `Failed to add driver package: The third-party INF does not contain digital signature information.`
+- `Driver installation failed with exit code -536870353`
+
+then Windows did not find a trusted signed catalog for the staged INF package.
+
+Recommended fixes:
+1. Ensure build output includes matching `INF + SYS + CAT` for the same version.
+2. Ensure the `CAT` is signed and trusted for the target machine policy (attestation/production for normal installs).
+3. Re-run `installer/scripts/install.ps1`; it now stages a `.cat` found next to the INF or SYS and prints the staged CAT path.
+4. For lab-only testing, use test-signing mode on non-production machines.
+
 ## Service unavailable
 
 - Ensure `VirtualDofMatrixProvisioning` service exists and is running.
@@ -48,8 +63,8 @@ If health checks or provisioning return signing-related failures:
 
 If Visual Studio reports `C1083 Cannot open include file: ntddk.h`, install/repair:
 
-- Visual Studio 2022 (Desktop development with C++)
+- Visual Studio (current supported version, e.g. VS 2026) with Desktop development with C++
 - Windows SDK
-- WDK (matching VS2022)
+- WDK (matching your installed Visual Studio generation)
 
 Then retarget the `VirtualDofMatrixVirtualSerial` project to the installed SDK + `WindowsKernelModeDriver10.0` toolset and rebuild x64.

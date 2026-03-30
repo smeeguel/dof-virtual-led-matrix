@@ -12,7 +12,7 @@ then your environment is missing WDK integration.
 
 Install all of the following:
 
-1. **Visual Studio 2022** (Desktop development with C++)
+1. **Visual Studio (current supported version, e.g. VS 2026)** with Desktop development with C++
 2. **Windows SDK 10/11** (same major version as your target)
 3. **Windows Driver Kit (WDK)** matching your Visual Studio generation
 
