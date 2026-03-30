@@ -102,6 +102,10 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# Keep DOF source snapshot output-controller sources tracked.
+!DirectOutput-master/DirectOutput/Cab/Out/
+!DirectOutput-master/DirectOutput/Cab/Out/**
+
 # Build results on 'Bin' directories
 **/[Bb]in/*
 # Uncomment if you have tasks that rely on *.refresh files to move binaries
