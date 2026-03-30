@@ -110,6 +110,6 @@ public sealed class NamedPipeHostedService : BackgroundService
     private static Task WriteAsync<T>(StreamWriter writer, ServiceResult<T> response, CancellationToken cancellationToken)
     {
         var json = JsonSerializer.Serialize(response, JsonOptions);
-        return writer.WriteLineAsync(json.AsMemory(), cancellationToken).AsTask();
+        return writer.WriteLineAsync(json.AsMemory(), cancellationToken);
     }
 }
