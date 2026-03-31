@@ -103,6 +103,30 @@ public sealed class MatrixVisualConfig
     // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
     public bool FlatShading { get; set; } = false;
 
+    // When enabled, bulb shading is resolved in RGB with a fixed alpha output path.
+    public bool UseRgbBulbShading { get; set; } = true;
+
+    // Primitive renderer perf flag: avoids per-frame element opacity animation.
+    public bool DisableDynamicLayerOpacity { get; set; } = true;
+
+    // Contribution weights for RGB bulb shading.
+    public double BodyContribution { get; set; } = 1.0;
+
+    public double CoreContribution { get; set; } = 1.0;
+
+    public double SpecularContribution { get; set; } = 1.0;
+
+    // Intensity curve controls.
+    public double CoreBase { get; set; } = 0.2;
+
+    public double CoreIntensityScale { get; set; } = 0.72;
+
+    public double SpecularBase { get; set; } = 0.08;
+
+    public double SpecularIntensityScale { get; set; } = 0.45;
+
+    public double SpecularMax { get; set; } = 0.65;
+
     public byte OffStateTintR { get; set; } = 150;
 
     public byte OffStateTintG { get; set; } = 155;

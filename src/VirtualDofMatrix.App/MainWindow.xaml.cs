@@ -207,6 +207,16 @@ public partial class MainWindow : Window
             Visual = new MatrixVisualConfig
             {
                 FlatShading = _config.Matrix.Visual.FlatShading,
+                UseRgbBulbShading = _config.Matrix.Visual.UseRgbBulbShading,
+                DisableDynamicLayerOpacity = _config.Matrix.Visual.DisableDynamicLayerOpacity,
+                BodyContribution = _config.Matrix.Visual.BodyContribution,
+                CoreContribution = _config.Matrix.Visual.CoreContribution,
+                SpecularContribution = _config.Matrix.Visual.SpecularContribution,
+                CoreBase = _config.Matrix.Visual.CoreBase,
+                CoreIntensityScale = _config.Matrix.Visual.CoreIntensityScale,
+                SpecularBase = _config.Matrix.Visual.SpecularBase,
+                SpecularIntensityScale = _config.Matrix.Visual.SpecularIntensityScale,
+                SpecularMax = _config.Matrix.Visual.SpecularMax,
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,
                 OffStateTintG = _config.Matrix.Visual.OffStateTintG,
                 OffStateTintB = _config.Matrix.Visual.OffStateTintB,

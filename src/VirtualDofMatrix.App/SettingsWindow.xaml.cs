@@ -367,6 +367,16 @@ public partial class SettingsWindow : Window
                 Visual = new MatrixVisualConfig
                 {
                     FlatShading = config.Matrix.Visual.FlatShading,
+                    UseRgbBulbShading = config.Matrix.Visual.UseRgbBulbShading,
+                    DisableDynamicLayerOpacity = config.Matrix.Visual.DisableDynamicLayerOpacity,
+                    BodyContribution = config.Matrix.Visual.BodyContribution,
+                    CoreContribution = config.Matrix.Visual.CoreContribution,
+                    SpecularContribution = config.Matrix.Visual.SpecularContribution,
+                    CoreBase = config.Matrix.Visual.CoreBase,
+                    CoreIntensityScale = config.Matrix.Visual.CoreIntensityScale,
+                    SpecularBase = config.Matrix.Visual.SpecularBase,
+                    SpecularIntensityScale = config.Matrix.Visual.SpecularIntensityScale,
+                    SpecularMax = config.Matrix.Visual.SpecularMax,
                     OffStateTintR = config.Matrix.Visual.OffStateTintR,
                     OffStateTintG = config.Matrix.Visual.OffStateTintG,
                     OffStateTintB = config.Matrix.Visual.OffStateTintB,
