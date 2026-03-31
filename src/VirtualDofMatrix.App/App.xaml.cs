@@ -33,7 +33,6 @@ public partial class App : Application
         };
 
         _window.SettingsRequested += (_, _) => ShowSettingsDialog();
-        _window.ReloadRequested += async (_, _) => await ReloadRuntimeAsync();
 
         _windowSettingsSaveTimer = new DispatcherTimer
         {
@@ -78,17 +77,6 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private async Task ReloadRuntimeAsync()
-    {
-        if (_serialHost is null)
-        {
-            return;
-        }
-
-        await _serialHost.StopAsync();
-        await _serialHost.StartAsync();
-    }
-
     private void ShowSettingsDialog()
     {
         if (_window is null || _config is null)
@@ -124,18 +112,26 @@ public partial class App : Application
         if (_config.Settings.AutoUpdateCabinetOnResolutionChange
             && (originalWidth != _config.Matrix.Width || originalHeight != _config.Matrix.Height))
         {
-            TryUpdateCabinetResolution(_config.Matrix.Width, _config.Matrix.Height);
+            var updatedCabinet = TryUpdateCabinetResolution(_config.Matrix.Width, _config.Matrix.Height);
+            if (updatedCabinet)
+            {
+                MessageBox.Show(_window,
+                    "Cabinet.xml was updated. Restart the current table (or reset DOF) so DOF reloads the new matrix settings.",
+                    "DOF restart required",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
         }
 
         _window.ApplyRuntimeSettings();
         PersistWindowSettings();
     }
 
-    private void TryUpdateCabinetResolution(int width, int height)
+    private bool TryUpdateCabinetResolution(int width, int height)
     {
         if (_config is null || _window is null)
         {
-            return;
+            return false;
         }
 
         var resolvedPath = _cabinetXmlService.ResolveCabinetXmlPath(_config.Settings.CabinetXmlPath);
@@ -150,13 +146,14 @@ public partial class App : Application
             {
                 ShowSettingsDialog();
             }
-            return;
+            return false;
         }
 
         try
         {
             _cabinetXmlService.UpdateLedStripResolution(resolvedPath, _config.Settings.CabinetToyName, width, height);
             _config.Settings.CabinetXmlPath = resolvedPath;
+            return true;
         }
         catch (Exception ex)
         {
@@ -165,6 +162,7 @@ public partial class App : Application
                 "Cabinet update failed",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
+            return false;
         }
     }
 

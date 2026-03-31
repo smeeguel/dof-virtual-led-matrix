@@ -15,7 +15,6 @@
             <ContextMenu>
                 <MenuItem Header="Settings..." Click="OnSettingsMenuClick" />
                 <MenuItem x:Name="PauseRenderingMenuItem" Header="Pause Rendering" IsCheckable="True" Click="OnPauseRenderingClick" />
-                <MenuItem Header="Reload DOF/Cabinet" Click="OnReloadMenuClick" />
                 <Separator />
                 <MenuItem Header="Exit" Click="OnExitMenuClick" />
             </ContextMenu>

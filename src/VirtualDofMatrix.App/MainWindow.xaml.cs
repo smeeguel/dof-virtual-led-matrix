@@ -14,7 +14,7 @@ public partial class MainWindow : Window
     private const int WmExitSizeMove = 0x0232;
     private const int HardMinimumDotSpacing = 2;
     private readonly AppConfig _config;
-    private readonly IMatrixRenderer _matrixRenderer;
+    private IMatrixRenderer _matrixRenderer;
     private bool _isApplyingAspectLock;
     private bool _isInResizeMove;
     private bool _pendingViewportReinitialize;
@@ -24,7 +24,6 @@ public partial class MainWindow : Window
     private bool _isRenderingPaused;
 
     public event EventHandler? SettingsRequested;
-    public event EventHandler? ReloadRequested;
 
     public MainWindow(AppConfig config)
         : this(config, CreateRenderer(config))
@@ -271,6 +270,7 @@ public partial class MainWindow : Window
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
+        _matrixRenderer = CreateRenderer(_config);
         ReinitializeRendererForViewport();
     }
 
@@ -285,8 +285,6 @@ public partial class MainWindow : Window
     }
 
     private void OnSettingsMenuClick(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnReloadMenuClick(object sender, RoutedEventArgs e) => ReloadRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnPauseRenderingClick(object sender, RoutedEventArgs e) => SetRenderingPaused(PauseRenderingMenuItem.IsChecked);
 
