@@ -141,11 +141,15 @@ public partial class App : Application
         var resolvedPath = _cabinetXmlService.ResolveCabinetXmlPath(_config.Settings.CabinetXmlPath);
         if (string.IsNullOrWhiteSpace(resolvedPath))
         {
-            MessageBox.Show(_window,
-                "Cabinet.xml path is not set. Open Settings > DOF / Cabinet and choose the file.",
+            var browse = MessageBox.Show(_window,
+                "Cabinet.xml could not be found. It is typically located in DirectOutput/Config.\n\nWould you like to browse for Cabinet.xml now?",
                 "Cabinet.xml not found",
-                MessageBoxButton.OK,
+                MessageBoxButton.YesNo,
                 MessageBoxImage.Information);
+            if (browse == MessageBoxResult.Yes)
+            {
+                ShowSettingsDialog();
+            }
             return;
         }
 

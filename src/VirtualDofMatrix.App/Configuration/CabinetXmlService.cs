@@ -60,6 +60,7 @@ public sealed class CabinetXmlService
 
         SetOrCreateChildValue(ledStrip, "Width", width.ToString());
         SetOrCreateChildValue(ledStrip, "Height", height.ToString());
+        SyncControllerLedCount(document, ledStrip, totalLeds);
 
         var backupPath = $"{cabinetXmlPath}.bak.{DateTime.UtcNow:yyyyMMddHHmmss}";
         File.Copy(cabinetXmlPath, backupPath, overwrite: false);
@@ -79,5 +80,34 @@ public sealed class CabinetXmlService
         }
 
         child.Value = value;
+    }
+
+    private static void SyncControllerLedCount(XDocument document, XElement ledStrip, int totalLeds)
+    {
+        var outputControllerName = ledStrip.Elements().FirstOrDefault(x => x.Name.LocalName == "OutputControllerName")?.Value;
+        if (string.IsNullOrWhiteSpace(outputControllerName))
+        {
+            return;
+        }
+
+        var controller = document
+            .Descendants()
+            .FirstOrDefault(x =>
+            {
+                if (!x.Name.LocalName.EndsWith("Controller", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                var name = x.Elements().FirstOrDefault(e => e.Name.LocalName == "Name")?.Value;
+                return string.Equals(name, outputControllerName, StringComparison.OrdinalIgnoreCase);
+            });
+
+        if (controller is null)
+        {
+            return;
+        }
+
+        SetOrCreateChildValue(controller, "NumberOfLedsStrip1", totalLeds.ToString());
     }
 }

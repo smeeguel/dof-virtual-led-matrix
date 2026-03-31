@@ -204,6 +204,28 @@ public partial class SettingsWindow : Window
         Close();
     }
 
+    private void OnResetDisplayDefaults(object sender, RoutedEventArgs e)
+    {
+        var defaults = new AppConfig();
+
+        ResolutionPresetCombo.SelectedItem = DetectResolutionPreset(defaults.Matrix.Width, defaults.Matrix.Height);
+        WidthTextBox.Text = defaults.Matrix.Width.ToString();
+        HeightTextBox.Text = defaults.Matrix.Height.ToString();
+        CustomResolutionPanel.Visibility = Equals(ResolutionPresetCombo.SelectedItem, CustomResolution) ? Visibility.Visible : Visibility.Collapsed;
+
+        AlwaysOnTopCheckBox.IsChecked = defaults.Window.AlwaysOnTop;
+        ScaleModeCombo.SelectedItem = defaults.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase) ? "Smooth" : "Nearest";
+        DotShapeCombo.SelectedItem = defaults.Matrix.DotShape;
+        QualityCombo.SelectedItem = defaults.Settings.VisualQuality;
+
+        ToneMappingCheckBox.IsChecked = defaults.Matrix.ToneMapping.Enabled;
+        TemporalSmoothingCheckBox.IsChecked = defaults.Matrix.TemporalSmoothing.Enabled;
+        BloomCheckBox.IsChecked = defaults.Matrix.Bloom.Enabled;
+        CustomQualityPanel.Visibility = defaults.Settings.VisualQuality == VisualQualityProfiles.Custom ? Visibility.Visible : Visibility.Collapsed;
+
+        OnSettingChanged(sender, e);
+    }
+
     private bool TryBuildConfig(out AppConfig config, out string error)
     {
         config = Clone(_working);
@@ -317,13 +339,14 @@ public partial class SettingsWindow : Window
         if (!TryBuildConfig(out var config, out _))
         {
             ApplyButton.Visibility = Visibility.Collapsed;
+            ApplyHintText.Visibility = Visibility.Collapsed;
             return;
         }
 
         var fingerprint = BuildFingerprint(config);
-        ApplyButton.Visibility = string.Equals(fingerprint, _lastAppliedFingerprint, StringComparison.Ordinal)
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        var isDirty = !string.Equals(fingerprint, _lastAppliedFingerprint, StringComparison.Ordinal);
+        ApplyButton.Visibility = isDirty ? Visibility.Visible : Visibility.Collapsed;
+        ApplyHintText.Visibility = isDirty ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static string BuildFingerprint(AppConfig config) => JsonSerializer.Serialize(config, FingerprintSerializerOptions);
