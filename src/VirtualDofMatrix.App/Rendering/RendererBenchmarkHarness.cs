@@ -143,7 +143,7 @@ public static class RendererBenchmarkHarness
             payload[(i * 3) + 2] = (byte)((255 - phase) % 256);
         }
 
-        return new FramePresentation(payload, ledCount, ledCount, frameIndex + 1, DateTimeOffset.UtcNow);
+        return new FramePresentation(payload, ledCount, ledCount, (ulong)(frameIndex + 1), DateTimeOffset.UtcNow);
     }
 
     private readonly record struct RendererBenchmarkResult(
