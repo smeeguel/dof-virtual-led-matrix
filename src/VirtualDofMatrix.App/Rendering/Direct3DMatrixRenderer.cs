@@ -140,15 +140,15 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
                     continue;
                 }
 
-                var offAlpha = offAlphaBase * (0.30f + (0.70f * sample.Alpha));
-                var litAlpha = sample.Alpha * intensity * (0.35f + (0.65f * intensity));
-                var alpha = MathF.Max(offAlpha, litAlpha);
+                var offAlpha = offAlphaBase * (0.40f + (0.60f * sample.Alpha));
+                var litAlpha = sample.Alpha * (0.35f + (1.10f * intensity));
+                var alpha = Math.Clamp(offAlpha + litAlpha, 0f, 1f);
                 if (alpha <= 0f)
                 {
                     continue;
                 }
 
-                var colorBoost = 0.55f + (0.65f * sample.Alpha);
+                var colorBoost = 0.90f + (0.80f * sample.Alpha);
                 var targetR = (byte)Math.Clamp(Math.Max(offR, dot.R * colorBoost), 0f, 255f);
                 var targetG = (byte)Math.Clamp(Math.Max(offG, dot.G * colorBoost), 0f, 255f);
                 var targetB = (byte)Math.Clamp(Math.Max(offB, dot.B * colorBoost), 0f, 255f);
