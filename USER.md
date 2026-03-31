@@ -66,6 +66,9 @@ Implement:
   - Pixel spacing and size.
   - Brightness/gamma multiplier.
   - Nearest-neighbor style scaling.
+- Bloom is **experimental** and disabled by default for performance.
+  - Keep bloom controls out of the Settings GUI.
+  - Manual JSON editing is the intended way to test bloom.
 - Persist window geometry + display options in JSON.
 
 Deliverables:

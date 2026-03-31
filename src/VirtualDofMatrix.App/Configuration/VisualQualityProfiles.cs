@@ -16,35 +16,28 @@ public static class VisualQualityProfiles
         switch (preset)
         {
             case Low:
+                matrix.Renderer = "writeableBitmap";
+                matrix.Visual.FlatShading = true;
                 matrix.ToneMapping.Enabled = false;
                 matrix.ToneMapping.Strength = 0.2;
                 matrix.TemporalSmoothing.Enabled = false;
                 matrix.TemporalSmoothing.RiseAlpha = 1.0;
                 matrix.TemporalSmoothing.FallAlpha = 1.0;
-                matrix.Bloom.Enabled = false;
-                matrix.Bloom.QualityPreset = "off";
                 break;
             case Medium:
-                matrix.ToneMapping.Enabled = true;
-                matrix.ToneMapping.Strength = 0.35;
-                matrix.TemporalSmoothing.Enabled = true;
-                matrix.TemporalSmoothing.RiseAlpha = 0.65;
-                matrix.TemporalSmoothing.FallAlpha = 0.45;
-                matrix.Bloom.Enabled = true;
-                matrix.Bloom.QualityPreset = "medium";
-                matrix.Bloom.SmallStrength = 0.4;
-                matrix.Bloom.WideStrength = 0.18;
+                matrix.Renderer = "primitive";
+                matrix.Visual.FlatShading = false;
+                matrix.ToneMapping.Enabled = false;
+                matrix.TemporalSmoothing.Enabled = false;
                 break;
             case High:
+                matrix.Renderer = "writeableBitmap";
+                matrix.Visual.FlatShading = false;
                 matrix.ToneMapping.Enabled = true;
                 matrix.ToneMapping.Strength = 0.55;
                 matrix.TemporalSmoothing.Enabled = true;
                 matrix.TemporalSmoothing.RiseAlpha = 0.5;
                 matrix.TemporalSmoothing.FallAlpha = 0.3;
-                matrix.Bloom.Enabled = true;
-                matrix.Bloom.QualityPreset = "high";
-                matrix.Bloom.SmallStrength = 0.75;
-                matrix.Bloom.WideStrength = 0.35;
                 break;
             case Custom:
                 break;
@@ -52,5 +45,8 @@ public static class VisualQualityProfiles
                 ApplyPreset(matrix, Medium);
                 break;
         }
+
+        // Bloom is currently experimental and excluded from quality presets.
+        matrix.Bloom.Enabled = false;
     }
 }

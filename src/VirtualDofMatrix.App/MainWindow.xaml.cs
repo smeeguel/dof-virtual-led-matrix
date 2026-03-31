@@ -207,6 +207,7 @@ public partial class MainWindow : Window
             },
             Visual = new MatrixVisualConfig
             {
+                FlatShading = _config.Matrix.Visual.FlatShading,
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,
                 OffStateTintG = _config.Matrix.Visual.OffStateTintG,
                 OffStateTintB = _config.Matrix.Visual.OffStateTintB,

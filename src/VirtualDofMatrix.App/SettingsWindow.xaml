@@ -53,29 +53,15 @@
                         <CheckBox x:Name="AlwaysOnTopCheckBox" Content="Always on top" Margin="0,12,0,0" Checked="OnSettingChanged" Unchecked="OnSettingChanged"
                                   ToolTip="Keep matrix window above other windows."/>
 
-                        <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Scale mode"
-                                   ToolTip="Nearest keeps blocky/pixel-sharp edges. Smooth blends edges for softer output."/>
-                        <ComboBox x:Name="ScaleModeCombo" Margin="0,4,0,0" SelectionChanged="OnScaleModeChanged"
-                                  ToolTip="Choose how matrix dots are scaled in the viewport."/>
-
                         <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Dot shape"
                                    ToolTip="Circle simulates rounded LED lenses; square provides crisp pixel look."/>
                         <ComboBox x:Name="DotShapeCombo" Margin="0,4,0,0" SelectionChanged="OnDotShapeChanged"
                                   ToolTip="Choose dot geometry for matrix rendering."/>
 
                         <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Visual quality"
-                                   ToolTip="Low prioritizes FPS, High prioritizes appearance, Custom exposes manual toggles."/>
+                                   ToolTip="Low = fastest flat render. Medium = bulb look without heavy post FX. High = all non-bloom post FX. Custom = respect JSON values."/>
                         <ComboBox x:Name="QualityCombo" Margin="0,4,0,0" SelectionChanged="OnQualityChanged"
-                                  ToolTip="Select a quality profile for tonemapping, smoothing, and bloom."/>
-
-                        <StackPanel x:Name="CustomQualityPanel" Margin="0,8,0,0" Visibility="Collapsed">
-                            <CheckBox x:Name="ToneMappingCheckBox" Content="Tonemapping" Checked="OnSettingChanged" Unchecked="OnSettingChanged"
-                                      ToolTip="Compresses highlights so bright colors clip less harshly."/>
-                            <CheckBox x:Name="TemporalSmoothingCheckBox" Content="Temporal smoothing" Checked="OnSettingChanged" Unchecked="OnSettingChanged"
-                                      ToolTip="Smooths frame-to-frame changes to reduce flicker."/>
-                            <CheckBox x:Name="BloomCheckBox" Content="Bloom" Checked="OnSettingChanged" Unchecked="OnSettingChanged"
-                                      ToolTip="Adds a soft glow around bright pixels."/>
-                        </StackPanel>
+                                  ToolTip="Select a quality profile. Bloom is experimental and JSON-only."/>
                         </StackPanel>
                     </ScrollViewer>
 

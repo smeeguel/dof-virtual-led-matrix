@@ -97,6 +97,9 @@ public sealed class TemporalSmoothingConfig
 
 public sealed class MatrixVisualConfig
 {
+    // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
+    public bool FlatShading { get; set; } = false;
+
     public byte OffStateTintR { get; set; } = 150;
 
     public byte OffStateTintG { get; set; } = 155;
@@ -114,6 +117,8 @@ public sealed class MatrixVisualConfig
 
 public sealed class BloomConfig
 {
+    // Experimental: Bloom is intentionally disabled in the Settings UI due performance cost.
+    // It can still be toggled manually via settings.json for testing.
     public bool Enabled { get; set; } = false;
 
     public string QualityPreset { get; set; } = "off";

@@ -32,8 +32,8 @@
       "fallAlpha": 1.0
     },
     "bloom": {
-      "enabled": true,
-      "qualityPreset": "medium",
+      "enabled": false,
+      "qualityPreset": "off",
       "threshold": 0.55,
       "smallRadius": 2,
       "wideRadius": 5,

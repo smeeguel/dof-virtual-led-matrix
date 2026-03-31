@@ -98,6 +98,12 @@ internal sealed class MatrixFrameRasterComposer
             return;
         }
 
+        if (visual.FlatShading)
+        {
+            RasterFlatDot(originX, originY, r, g, b);
+            return;
+        }
+
         var rootIntensity = Math.Sqrt(Math.Clamp(intensity, 0.0, 1.0));
         var coreOpacity = intensity > 0.0 ? Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0) : 0.0;
         var specOpacity = intensity > 0.0 ? Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65) : 0.0;
@@ -135,6 +141,44 @@ internal sealed class MatrixFrameRasterComposer
                 _surfaceBgra[dst] = (byte)Math.Clamp(outB, 0.0, 255.0);
                 _surfaceBgra[dst + 1] = (byte)Math.Clamp(outG, 0.0, 255.0);
                 _surfaceBgra[dst + 2] = (byte)Math.Clamp(outR, 0.0, 255.0);
+                _surfaceBgra[dst + 3] = 255;
+            }
+        }
+    }
+
+    private void RasterFlatDot(int originX, int originY, byte r, byte g, byte b)
+    {
+        if (_kernel is null)
+        {
+            return;
+        }
+
+        for (var ky = 0; ky < _kernel.Size; ky++)
+        {
+            var py = originY + ky;
+            if ((uint)py >= (uint)_surfaceHeight)
+            {
+                continue;
+            }
+
+            for (var kx = 0; kx < _kernel.Size; kx++)
+            {
+                var px = originX + kx;
+                if ((uint)px >= (uint)_surfaceWidth)
+                {
+                    continue;
+                }
+
+                var kernelIndex = (ky * _kernel.Size) + kx;
+                if (_kernel.Body[kernelIndex] <= 0.0)
+                {
+                    continue;
+                }
+
+                var dst = (py * _stride) + (px * 4);
+                _surfaceBgra[dst] = b;
+                _surfaceBgra[dst + 1] = g;
+                _surfaceBgra[dst + 2] = r;
                 _surfaceBgra[dst + 3] = 255;
             }
         }

@@ -36,7 +36,6 @@ public partial class SettingsWindow : Window
     {
         ResolutionPresetCombo.ItemsSource = new[] { "SD (32x8)", "HD (64x16)", "Ultra (128x32)", CustomResolution };
         QualityCombo.ItemsSource = VisualQualityProfiles.Names;
-        ScaleModeCombo.ItemsSource = new[] { "Nearest", "Smooth" };
         DotShapeCombo.ItemsSource = new[] { "circle", "square" };
 
         WidthTextBox.Text = _working.Matrix.Width.ToString();
@@ -46,7 +45,6 @@ public partial class SettingsWindow : Window
         CustomResolutionPanel.Visibility = Equals(ResolutionPresetCombo.SelectedItem, CustomResolution) ? Visibility.Visible : Visibility.Collapsed;
 
         AlwaysOnTopCheckBox.IsChecked = _working.Window.AlwaysOnTop;
-        ScaleModeCombo.SelectedItem = _working.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase) ? "Smooth" : "Nearest";
         DotShapeCombo.SelectedItem = _working.Matrix.DotShape;
 
         if (!VisualQualityProfiles.Names.Contains(_working.Settings.VisualQuality, StringComparer.OrdinalIgnoreCase))
@@ -55,11 +53,6 @@ public partial class SettingsWindow : Window
         }
 
         QualityCombo.SelectedItem = _working.Settings.VisualQuality;
-        CustomQualityPanel.Visibility = _working.Settings.VisualQuality == VisualQualityProfiles.Custom ? Visibility.Visible : Visibility.Collapsed;
-
-        ToneMappingCheckBox.IsChecked = _working.Matrix.ToneMapping.Enabled;
-        TemporalSmoothingCheckBox.IsChecked = _working.Matrix.TemporalSmoothing.Enabled;
-        BloomCheckBox.IsChecked = _working.Matrix.Bloom.Enabled;
 
         CabinetPathTextBox.Text = _working.Settings.CabinetXmlPath;
         AutoUpdateCabinetCheckBox.IsChecked = _working.Settings.AutoUpdateCabinetOnResolutionChange;
@@ -95,20 +88,8 @@ public partial class SettingsWindow : Window
 
     private void OnQualityChanged(object sender, SelectionChangedEventArgs e)
     {
-        var quality = QualityCombo.SelectedItem?.ToString() ?? VisualQualityProfiles.Medium;
-        CustomQualityPanel.Visibility = quality == VisualQualityProfiles.Custom ? Visibility.Visible : Visibility.Collapsed;
-        if (quality != VisualQualityProfiles.Custom)
-        {
-            VisualQualityProfiles.ApplyPreset(_working.Matrix, quality);
-            ToneMappingCheckBox.IsChecked = _working.Matrix.ToneMapping.Enabled;
-            TemporalSmoothingCheckBox.IsChecked = _working.Matrix.TemporalSmoothing.Enabled;
-            BloomCheckBox.IsChecked = _working.Matrix.Bloom.Enabled;
-        }
-
         OnSettingChanged(sender, e);
     }
-
-    private void OnScaleModeChanged(object sender, SelectionChangedEventArgs e) => OnSettingChanged(sender, e);
 
     private void OnDotShapeChanged(object sender, SelectionChangedEventArgs e) => OnSettingChanged(sender, e);
 
@@ -214,14 +195,8 @@ public partial class SettingsWindow : Window
         CustomResolutionPanel.Visibility = Equals(ResolutionPresetCombo.SelectedItem, CustomResolution) ? Visibility.Visible : Visibility.Collapsed;
 
         AlwaysOnTopCheckBox.IsChecked = defaults.Window.AlwaysOnTop;
-        ScaleModeCombo.SelectedItem = defaults.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase) ? "Smooth" : "Nearest";
         DotShapeCombo.SelectedItem = defaults.Matrix.DotShape;
         QualityCombo.SelectedItem = defaults.Settings.VisualQuality;
-
-        ToneMappingCheckBox.IsChecked = defaults.Matrix.ToneMapping.Enabled;
-        TemporalSmoothingCheckBox.IsChecked = defaults.Matrix.TemporalSmoothing.Enabled;
-        BloomCheckBox.IsChecked = defaults.Matrix.Bloom.Enabled;
-        CustomQualityPanel.Visibility = defaults.Settings.VisualQuality == VisualQualityProfiles.Custom ? Visibility.Visible : Visibility.Collapsed;
 
         OnSettingChanged(sender, e);
     }
@@ -252,17 +227,10 @@ public partial class SettingsWindow : Window
         config.Matrix.Width = width;
         config.Matrix.Height = height;
         config.Window.AlwaysOnTop = AlwaysOnTopCheckBox.IsChecked == true;
-        config.Matrix.Renderer = Equals(ScaleModeCombo.SelectedItem, "Smooth") ? "writeableBitmap" : "primitive";
         config.Matrix.DotShape = DotShapeCombo.SelectedItem?.ToString() ?? "circle";
 
         config.Settings.VisualQuality = QualityCombo.SelectedItem?.ToString() ?? VisualQualityProfiles.Medium;
-        if (config.Settings.VisualQuality == VisualQualityProfiles.Custom)
-        {
-            config.Matrix.ToneMapping.Enabled = ToneMappingCheckBox.IsChecked == true;
-            config.Matrix.TemporalSmoothing.Enabled = TemporalSmoothingCheckBox.IsChecked == true;
-            config.Matrix.Bloom.Enabled = BloomCheckBox.IsChecked == true;
-        }
-        else
+        if (config.Settings.VisualQuality != VisualQualityProfiles.Custom)
         {
             VisualQualityProfiles.ApplyPreset(config.Matrix, config.Settings.VisualQuality);
         }
@@ -296,13 +264,6 @@ public partial class SettingsWindow : Window
 
     private void UpdateSelectionTooltips()
     {
-        ScaleModeCombo.ToolTip = ScaleModeCombo.SelectedItem?.ToString() switch
-        {
-            "Nearest" => "Nearest: crisp pixel edges with no blending (best for classic dot-matrix look).",
-            "Smooth" => "Smooth: blended scaling for softer edges (more polished, slightly less retro).",
-            _ => "Choose how matrix dots are scaled in the viewport.",
-        };
-
         DotShapeCombo.ToolTip = DotShapeCombo.SelectedItem?.ToString() switch
         {
             "circle" => "Circle: rounded LED style with lens-like look.",
@@ -312,11 +273,11 @@ public partial class SettingsWindow : Window
 
         QualityCombo.ToolTip = QualityCombo.SelectedItem?.ToString() switch
         {
-            VisualQualityProfiles.Low => "Low: tonemapping off, temporal smoothing off, bloom off (best performance).",
-            VisualQualityProfiles.Medium => "Medium: balanced defaults with moderate tonemapping/smoothing/bloom.",
-            VisualQualityProfiles.High => "High: stronger tonemapping/smoothing/bloom for best visual fidelity.",
-            VisualQualityProfiles.Custom => "Custom: manual control of tonemapping, temporal smoothing, and bloom.",
-            _ => "Select a quality profile for tonemapping, smoothing, and bloom.",
+            VisualQualityProfiles.Low => "Low: fastest flat RGB dot path, no bulb/specular, no temporal smoothing, no tone mapping.",
+            VisualQualityProfiles.Medium => "Medium: bulb look enabled, no heavy post-processing, primitive renderer.",
+            VisualQualityProfiles.High => "High: highest-quality renderer with tone mapping + temporal smoothing (Bloom still disabled).",
+            VisualQualityProfiles.Custom => "Custom: respects current values from settings.json as hand-edited.",
+            _ => "Select a quality profile. Bloom is experimental and JSON-only.",
         };
     }
 
@@ -405,6 +366,7 @@ public partial class SettingsWindow : Window
                 },
                 Visual = new MatrixVisualConfig
                 {
+                    FlatShading = config.Matrix.Visual.FlatShading,
                     OffStateTintR = config.Matrix.Visual.OffStateTintR,
                     OffStateTintG = config.Matrix.Visual.OffStateTintG,
                     OffStateTintB = config.Matrix.Visual.OffStateTintB,
