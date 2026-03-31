@@ -5,7 +5,9 @@ namespace VirtualDofMatrix.App.Rendering;
 
 public interface IMatrixRenderer
 {
-    void Initialize(Canvas targetCanvas, MatrixConfig config);
+    bool UsesImageHost { get; }
+
+    void Initialize(Canvas primitiveCanvas, Image bitmapHost, MatrixConfig config);
 
     void Render(FramePresentation framePresentation);
 }

@@ -18,7 +18,7 @@ public partial class MainWindow : Window
     private FramePresentation? _latestPresentation;
 
     public MainWindow(AppConfig config)
-        : this(config, new WpfPrimitiveMatrixRenderer())
+        : this(config, CreateRenderer(config))
     {
     }
 
@@ -73,7 +73,7 @@ public partial class MainWindow : Window
     private void ApplyPersistedVisualSettings()
     {
         Background = Brushes.Black;
-        DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape}";
+        DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape} (renderer: {_config.Matrix.Renderer})";
         DotSizeText.Text = "Dot size: auto";
         DotSpacingText.Text = "Min dot spacing: auto";
         BrightnessText.Text = $"Brightness: {_config.Matrix.Brightness:0.###}";
@@ -137,7 +137,9 @@ public partial class MainWindow : Window
         }
 
         var effectiveMatrixConfig = BuildViewportAdaptiveMatrixConfig();
-        _matrixRenderer.Initialize(MatrixCanvas, effectiveMatrixConfig);
+        MatrixImage.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Visible : Visibility.Collapsed;
+        MatrixCanvas.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Collapsed : Visibility.Visible;
+        _matrixRenderer.Initialize(MatrixCanvas, MatrixImage, effectiveMatrixConfig);
 
         DotShapeText.Text = $"Dot shape: {effectiveMatrixConfig.DotShape}";
         DotSizeText.Text = $"Dot size: auto ({effectiveMatrixConfig.DotSize})";
@@ -165,12 +167,25 @@ public partial class MainWindow : Window
         {
             Width = _config.Matrix.Width,
             Height = _config.Matrix.Height,
+            Renderer = _config.Matrix.Renderer,
             Mapping = _config.Matrix.Mapping,
             DotShape = _config.Matrix.DotShape,
             DotSize = dotSize,
             MinDotSpacing = spacing,
             Brightness = _config.Matrix.Brightness,
             Gamma = _config.Matrix.Gamma,
+            ToneMapping = new ToneMappingConfig
+            {
+                Enabled = _config.Matrix.ToneMapping.Enabled,
+                KneeStart = _config.Matrix.ToneMapping.KneeStart,
+                Strength = _config.Matrix.ToneMapping.Strength,
+            },
+            TemporalSmoothing = new TemporalSmoothingConfig
+            {
+                Enabled = _config.Matrix.TemporalSmoothing.Enabled,
+                RiseAlpha = _config.Matrix.TemporalSmoothing.RiseAlpha,
+                FallAlpha = _config.Matrix.TemporalSmoothing.FallAlpha,
+            },
             Visual = new MatrixVisualConfig
             {
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,
@@ -201,5 +216,12 @@ public partial class MainWindow : Window
         {
             DragMove();
         }
+    }
+
+    private static IMatrixRenderer CreateRenderer(AppConfig config)
+    {
+        return config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase)
+            ? new WriteableBitmapMatrixRenderer()
+            : new WpfPrimitiveMatrixRenderer();
     }
 }

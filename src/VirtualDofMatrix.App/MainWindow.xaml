@@ -20,13 +20,16 @@
 
         <Border x:Name="MatrixViewportBorder" Grid.Column="0" Background="Black" BorderBrush="#222" BorderThickness="1" Padding="8">
             <Viewbox Stretch="Uniform" StretchDirection="Both">
-                <Canvas x:Name="MatrixCanvas" Background="Black" />
+                <Grid Background="Black">
+                    <Canvas x:Name="MatrixCanvas" Background="Black" />
+                    <Image x:Name="MatrixImage" Stretch="None" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                </Grid>
             </Viewbox>
         </Border>
 
         <StackPanel x:Name="DebugPanel" Grid.Column="2">
             <TextBlock Foreground="Lime" FontSize="20" FontWeight="Bold" Text="Virtual DOF Matrix (Milestone 2 bootstrap)" />
-            <TextBlock Margin="0,12,0,0" Foreground="White" Text="CPU/WPF primitive renderer enabled." />
+            <TextBlock Margin="0,12,0,0" Foreground="White" Text="Renderer selected from matrix.renderer config." />
             <TextBlock Foreground="White" Text="Protocol engine remains in VirtualDofMatrix.Core." />
             <TextBlock Margin="0,12,0,0" Foreground="White" Text="Config summary:" />
             <TextBlock Foreground="White" Text="{Binding Serial.PortName, StringFormat=Port: {0}}" />
