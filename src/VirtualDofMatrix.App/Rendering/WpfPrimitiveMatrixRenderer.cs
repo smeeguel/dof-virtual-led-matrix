@@ -31,6 +31,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private double _lutSoftKneeStart = double.NaN;
     private double _lutSoftKneeStrength = double.NaN;
     private ulong _lastFrameSignature;
+    private ulong _lastOutputSequence;
     private ulong _skippedFrames;
     public bool UsesImageHost => false;
     public RendererTelemetry Telemetry { get; private set; } = RendererTelemetry.Empty;
@@ -96,12 +97,15 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         var requestedLedCount = Math.Max(framePresentation.HighestLedWritten, framePresentation.LedsPerChannel);
         var ledCount = Math.Min(Math.Min(requestedLedCount, rgb.Length / 3), matrixCapacity);
         var dirtyRanges = framePresentation.DirtyLedRanges;
+        var effectiveDirtyRanges = dirtyRanges.Count > 0
+            ? dirtyRanges
+            : (ledCount > 0 ? new[] { new DirtyLedRange(0, ledCount) } : Array.Empty<DirtyLedRange>());
         var dirtyLedCount = 0;
 
         EnsureWorkingBuffers(matrixCapacity);
         var dirtyBounds = DirtyBounds.Empty;
 
-        foreach (var range in dirtyRanges)
+        foreach (var range in effectiveDirtyRanges)
         {
             var rangeStart = Math.Clamp(range.StartLed, 0, ledCount);
             var rangeEnd = Math.Clamp(range.EndLedExclusive, 0, ledCount);
@@ -137,8 +141,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        var signature = ComputeFrameSignature(rgb, dirtyRanges, ledCount, framePresentation.OutputSequence);
-        if (signature == _lastFrameSignature)
+        var signature = ComputeFrameSignature(rgb, effectiveDirtyRanges, ledCount);
+        if (signature == _lastFrameSignature && framePresentation.OutputSequence >= _lastOutputSequence)
         {
             _skippedFrames++;
             Telemetry = new RendererTelemetry(dirtyLedCount, _skippedFrames, ComputeDirtyAreaPercent(dirtyBounds.Area, matrixCapacity));
@@ -146,6 +150,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         }
 
         _lastFrameSignature = signature;
+        _lastOutputSequence = framePresentation.OutputSequence;
         BuildColorLutIfNeeded(_config);
         ApplyColorTransforms(_config, dirtyBounds);
         ApplyBloomIfEnabled(matrixCapacity, dirtyBounds);
@@ -667,9 +672,9 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         return ToByte(Math.Clamp(scaled, 0.0, 1.0));
     }
 
-    private static ulong ComputeFrameSignature(ReadOnlySpan<byte> rgb, IReadOnlyList<DirtyLedRange> dirtyRanges, int ledCount, ulong outputSequence)
+    private static ulong ComputeFrameSignature(ReadOnlySpan<byte> rgb, IReadOnlyList<DirtyLedRange> dirtyRanges, int ledCount)
     {
-        var hash = 1469598103934665603UL ^ outputSequence;
+        var hash = 1469598103934665603UL;
         foreach (var range in dirtyRanges)
         {
             var start = Math.Clamp(range.StartLed, 0, ledCount);

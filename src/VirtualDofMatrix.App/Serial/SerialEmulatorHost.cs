@@ -198,7 +198,9 @@ public sealed class SerialEmulatorHost
                         payload.Length / 3,
                         payload.Length / 3,
                         unchecked((ulong)sequence),
-                        DateTimeOffset.UtcNow);
+                        DateTimeOffset.UtcNow,
+                        payload.Length > 0 ? new[] { new DirtyLedRange(0, payload.Length / 3) } : Array.Empty<DirtyLedRange>(),
+                        payload.Length / 3);
 
                     OnFramePresented(frame);
                 }
