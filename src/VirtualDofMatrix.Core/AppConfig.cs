@@ -23,7 +23,10 @@ public sealed class TransportConfig
     // Branch task note:
     // - "serial": legacy VSPE/COM emulation path.
     // - "namedPipe": fallback DOF custom-controller path (VirtualLEDStripController).
-    public string Mode { get; set; } = "serial";
+    //
+    // Performance note:
+    // Named pipe is the default for virtual matrix usage to avoid serial baud bottlenecks.
+    public string Mode { get; set; } = "namedPipe";
 
     // Branch task note: local IPC endpoint used when mode == "namedPipe".
     public string PipeName { get; set; } = "VirtualDofMatrix";
