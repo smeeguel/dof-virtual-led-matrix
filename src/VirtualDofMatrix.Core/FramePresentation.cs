@@ -5,7 +5,11 @@ public sealed record FramePresentation(
     int HighestLedWritten,
     int LedsPerChannel,
     ulong OutputSequence,
-    DateTimeOffset PresentedAtUtc)
+    DateTimeOffset PresentedAtUtc,
+    IReadOnlyList<DirtyLedRange>? DirtyRanges = null,
+    int DirtyLedCount = 0)
 {
     public ReadOnlyMemory<byte> RgbMemory => RgbBytes;
+
+    public IReadOnlyList<DirtyLedRange> DirtyLedRanges => DirtyRanges ?? Array.Empty<DirtyLedRange>();
 }

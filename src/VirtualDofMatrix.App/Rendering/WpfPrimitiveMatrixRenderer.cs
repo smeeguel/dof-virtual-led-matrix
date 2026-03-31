@@ -30,7 +30,11 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private bool _lutSoftKneeEnabled;
     private double _lutSoftKneeStart = double.NaN;
     private double _lutSoftKneeStrength = double.NaN;
+    private ulong _lastFrameSignature;
+    private ulong _lastOutputSequence;
+    private ulong _skippedFrames;
     public bool UsesImageHost => false;
+    public RendererTelemetry Telemetry { get; private set; } = RendererTelemetry.Empty;
 
     public void Initialize(Canvas primitiveCanvas, Image bitmapHost, MatrixConfig config)
     {
@@ -92,69 +96,112 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         var matrixCapacity = _config.Width * _config.Height;
         var requestedLedCount = Math.Max(framePresentation.HighestLedWritten, framePresentation.LedsPerChannel);
         var ledCount = Math.Min(Math.Min(requestedLedCount, rgb.Length / 3), matrixCapacity);
+        var dirtyRanges = framePresentation.DirtyLedRanges;
+        var effectiveDirtyRanges = dirtyRanges.Count > 0
+            ? dirtyRanges
+            : (ledCount > 0 ? new[] { new DirtyLedRange(0, ledCount) } : Array.Empty<DirtyLedRange>());
+        var dirtyLedCount = 0;
 
         EnsureWorkingBuffers(matrixCapacity);
-        Array.Clear(_mappedRgb, 0, _mappedRgb.Length);
+        var dirtyBounds = DirtyBounds.Empty;
 
-        for (var logicalIndex = 0; logicalIndex < ledCount; logicalIndex++)
+        foreach (var range in effectiveDirtyRanges)
         {
-            var rgbOffset = logicalIndex * 3;
-            var mapped = MatrixMapper.MapLinearIndex(logicalIndex, _config.Width, _config.Height, _config.Mapping);
-            var shapeIndex = mapped.Y * _config.Width + mapped.X;
-
-            if ((uint)shapeIndex >= (uint)_dots.Count)
+            var rangeStart = Math.Clamp(range.StartLed, 0, ledCount);
+            var rangeEnd = Math.Clamp(range.EndLedExclusive, 0, ledCount);
+            if (rangeEnd <= rangeStart)
             {
                 continue;
             }
 
-            var colorOffset = shapeIndex * 3;
-            _mappedRgb[colorOffset] = rgb[rgbOffset];
-            _mappedRgb[colorOffset + 1] = rgb[rgbOffset + 1];
-            _mappedRgb[colorOffset + 2] = rgb[rgbOffset + 2];
+            dirtyLedCount += rangeEnd - rangeStart;
+            for (var logicalIndex = rangeStart; logicalIndex < rangeEnd; logicalIndex++)
+            {
+                var rgbOffset = logicalIndex * 3;
+                var mapped = MatrixMapper.MapLinearIndex(logicalIndex, _config.Width, _config.Height, _config.Mapping);
+                var shapeIndex = mapped.Y * _config.Width + mapped.X;
+
+                if ((uint)shapeIndex >= (uint)_dots.Count)
+                {
+                    continue;
+                }
+
+                var colorOffset = shapeIndex * 3;
+                _mappedRgb[colorOffset] = rgb[rgbOffset];
+                _mappedRgb[colorOffset + 1] = rgb[rgbOffset + 1];
+                _mappedRgb[colorOffset + 2] = rgb[rgbOffset + 2];
+                dirtyBounds = dirtyBounds.Include(mapped.X, mapped.Y);
+            }
         }
 
-        BuildColorLutIfNeeded(_config);
-        ApplyColorTransforms(_config, matrixCapacity);
-        ApplyBloomIfEnabled(matrixCapacity);
-
-        for (var shapeIndex = 0; shapeIndex < _dots.Count; shapeIndex++)
+        if (dirtyLedCount == 0 || !dirtyBounds.HasValue)
         {
-            var colorOffset = shapeIndex * 3;
-            var r = ToByte(_workingRgb[colorOffset] / 255.0);
-            var g = ToByte(_workingRgb[colorOffset + 1] / 255.0);
-            var b = ToByte(_workingRgb[colorOffset + 2] / 255.0);
+            _skippedFrames++;
+            Telemetry = new RendererTelemetry(dirtyLedCount, _skippedFrames, ComputeDirtyAreaPercent(0, matrixCapacity));
+            return;
+        }
 
-            var intensity = Math.Max(r, Math.Max(g, b)) / 255.0;
-            var dot = _dots[shapeIndex];
+        var signature = ComputeFrameSignature(rgb, effectiveDirtyRanges, ledCount);
+        if (signature == _lastFrameSignature && framePresentation.OutputSequence >= _lastOutputSequence)
+        {
+            _skippedFrames++;
+            Telemetry = new RendererTelemetry(dirtyLedCount, _skippedFrames, ComputeDirtyAreaPercent(dirtyBounds.Area, matrixCapacity));
+            return;
+        }
 
-            if (intensity > 0.0)
+        _lastFrameSignature = signature;
+        _lastOutputSequence = framePresentation.OutputSequence;
+        BuildColorLutIfNeeded(_config);
+        ApplyColorTransforms(_config, dirtyBounds);
+        ApplyBloomIfEnabled(matrixCapacity, dirtyBounds);
+
+        for (var y = dirtyBounds.MinY; y <= dirtyBounds.MaxY; y++)
+        {
+            for (var x = dirtyBounds.MinX; x <= dirtyBounds.MaxX; x++)
             {
-                dot.CoreBrush.Color = Color.FromRgb(r, g, b);
-                var rootIntensity = Math.Sqrt(intensity);
-                dot.Core.Opacity = Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0);
-                dot.Specular.Opacity = Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65);
-            }
-            else
-            {
-                dot.Core.Opacity = 0.0;
-                dot.Specular.Opacity = 0.0;
+                var shapeIndex = (y * _config.Width) + x;
+                var colorOffset = shapeIndex * 3;
+                var r = ToByte(_workingRgb[colorOffset] / 255.0);
+                var g = ToByte(_workingRgb[colorOffset + 1] / 255.0);
+                var b = ToByte(_workingRgb[colorOffset + 2] / 255.0);
+
+                var intensity = Math.Max(r, Math.Max(g, b)) / 255.0;
+                var dot = _dots[shapeIndex];
+
+                if (intensity > 0.0)
+                {
+                    dot.CoreBrush.Color = Color.FromRgb(r, g, b);
+                    var rootIntensity = Math.Sqrt(intensity);
+                    dot.Core.Opacity = Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0);
+                    dot.Specular.Opacity = Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65);
+                }
+                else
+                {
+                    dot.Core.Opacity = 0.0;
+                    dot.Specular.Opacity = 0.0;
+                }
             }
         }
+
+        Telemetry = new RendererTelemetry(dirtyLedCount, _skippedFrames, ComputeDirtyAreaPercent(dirtyBounds.Area, matrixCapacity));
     }
 
-    private void ApplyColorTransforms(MatrixConfig config, int matrixCapacity)
+    private void ApplyColorTransforms(MatrixConfig config, DirtyBounds dirtyBounds)
     {
         var smoothing = config.TemporalSmoothing;
         var smoothingEnabled = smoothing.Enabled;
         var riseAlpha = Clamp01(smoothing.RiseAlpha);
         var fallAlpha = Clamp01(smoothing.FallAlpha);
 
-        for (var i = 0; i < matrixCapacity; i++)
+        for (var y = dirtyBounds.MinY; y <= dirtyBounds.MaxY; y++)
         {
-            var offset = i * 3;
-            ApplyChannelTransform(offset, riseAlpha, fallAlpha, smoothingEnabled);
-            ApplyChannelTransform(offset + 1, riseAlpha, fallAlpha, smoothingEnabled);
-            ApplyChannelTransform(offset + 2, riseAlpha, fallAlpha, smoothingEnabled);
+            for (var x = dirtyBounds.MinX; x <= dirtyBounds.MaxX; x++)
+            {
+                var offset = ((y * config.Width) + x) * 3;
+                ApplyChannelTransform(offset, riseAlpha, fallAlpha, smoothingEnabled);
+                ApplyChannelTransform(offset + 1, riseAlpha, fallAlpha, smoothingEnabled);
+                ApplyChannelTransform(offset + 2, riseAlpha, fallAlpha, smoothingEnabled);
+            }
         }
     }
 
@@ -200,7 +247,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private void ApplyBloomIfEnabled(int matrixCapacity)
+    private void ApplyBloomIfEnabled(int matrixCapacity, DirtyBounds dirtyBounds)
     {
         if (_config is null)
         {
@@ -218,8 +265,9 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        Array.Copy(_workingRgb, _thresholdRgb, matrixCapacity * 3);
-        if (!ThresholdEmissive(_thresholdRgb, matrixCapacity, bloomProfile.Threshold))
+        var bloomBounds = dirtyBounds.Inflate(bloomProfile.WideRadius * bloomProfile.ScaleDivisor, _config.Width, _config.Height);
+        CopyRegion(_workingRgb, _thresholdRgb, _config.Width, bloomBounds);
+        if (!ThresholdEmissive(_thresholdRgb, _config.Width, bloomBounds, bloomProfile.Threshold))
         {
             return;
         }
@@ -230,7 +278,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         BoxBlurRgbSeparable(_smallBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.SmallRadius);
         BoxBlurRgbSeparable(_wideBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.WideRadius);
 
-        CompositeBloom(_workingRgb, _smallBlurRgb, _wideBlurRgb, _config.Width, _config.Height, _downsampleWidth, _downsampleHeight, bloomProfile);
+        CompositeBloom(_workingRgb, _smallBlurRgb, _wideBlurRgb, _config.Width, _config.Height, _downsampleWidth, _downsampleHeight, bloomProfile, bloomBounds);
     }
 
     private static BloomProfile ResolveBloomProfile(BloomConfig bloom)
@@ -308,24 +356,37 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private static bool ThresholdEmissive(float[] source, int matrixCapacity, double threshold)
+    private static void CopyRegion(float[] source, float[] destination, int width, DirtyBounds bounds)
+    {
+        for (var y = bounds.MinY; y <= bounds.MaxY; y++)
+        {
+            var rowStart = ((y * width) + bounds.MinX) * 3;
+            var length = bounds.Width * 3;
+            Array.Copy(source, rowStart, destination, rowStart, length);
+        }
+    }
+
+    private static bool ThresholdEmissive(float[] source, int width, DirtyBounds bounds, double threshold)
     {
         var cutoff = (float)(Math.Clamp(threshold, 0.0, 1.0) * 255.0);
         var anyActive = false;
 
-        for (var i = 0; i < matrixCapacity; i++)
+        for (var y = bounds.MinY; y <= bounds.MaxY; y++)
         {
-            var offset = i * 3;
-            var peak = Math.Max(source[offset], Math.Max(source[offset + 1], source[offset + 2]));
-            if (peak < cutoff)
+            for (var x = bounds.MinX; x <= bounds.MaxX; x++)
             {
-                source[offset] = 0f;
-                source[offset + 1] = 0f;
-                source[offset + 2] = 0f;
-            }
-            else
-            {
-                anyActive = true;
+                var offset = ((y * width) + x) * 3;
+                var peak = Math.Max(source[offset], Math.Max(source[offset + 1], source[offset + 2]));
+                if (peak < cutoff)
+                {
+                    source[offset] = 0f;
+                    source[offset + 1] = 0f;
+                    source[offset + 2] = 0f;
+                }
+                else
+                {
+                    anyActive = true;
+                }
             }
         }
 
@@ -444,11 +505,11 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private static void CompositeBloom(float[] target, float[] smallBlur, float[] wideBlur, int width, int height, int bloomWidth, int bloomHeight, BloomProfile profile)
+    private static void CompositeBloom(float[] target, float[] smallBlur, float[] wideBlur, int width, int height, int bloomWidth, int bloomHeight, BloomProfile profile, DirtyBounds bounds)
     {
-        for (var y = 0; y < height; y++)
+        for (var y = bounds.MinY; y <= bounds.MaxY && y < height; y++)
         {
-            for (var x = 0; x < width; x++)
+            for (var x = bounds.MinX; x <= bounds.MaxX && x < width; x++)
             {
                 var targetOffset = ((y * width) + x) * 3;
                 var bloomX = Math.Min(bloomWidth - 1, x / profile.ScaleDivisor);
@@ -611,6 +672,38 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         return ToByte(Math.Clamp(scaled, 0.0, 1.0));
     }
 
+    private static ulong ComputeFrameSignature(ReadOnlySpan<byte> rgb, IReadOnlyList<DirtyLedRange> dirtyRanges, int ledCount)
+    {
+        var hash = 1469598103934665603UL;
+        foreach (var range in dirtyRanges)
+        {
+            var start = Math.Clamp(range.StartLed, 0, ledCount);
+            var end = Math.Clamp(range.EndLedExclusive, 0, ledCount);
+            for (var led = start; led < end; led++)
+            {
+                var offset = led * 3;
+                hash ^= rgb[offset];
+                hash *= 1099511628211UL;
+                hash ^= rgb[offset + 1];
+                hash *= 1099511628211UL;
+                hash ^= rgb[offset + 2];
+                hash *= 1099511628211UL;
+            }
+        }
+
+        return hash;
+    }
+
+    private static double ComputeDirtyAreaPercent(int dirtyArea, int matrixArea)
+    {
+        if (matrixArea <= 0 || dirtyArea <= 0)
+        {
+            return 0.0;
+        }
+
+        return Math.Clamp((double)dirtyArea / matrixArea * 100.0, 0.0, 100.0);
+    }
+
     private sealed record DotVisual(Shape Body, Shape Core, Shape Specular, SolidColorBrush CoreBrush);
 
     private sealed record BloomProfile(
@@ -624,4 +717,43 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     {
         public static BloomProfile Disabled => new(false, 1, 0, 0, 1.0, 0.0, 0.0);
     }
+
+    private readonly record struct DirtyBounds(int MinX, int MinY, int MaxX, int MaxY, bool HasValue)
+    {
+        public static DirtyBounds Empty => new(0, 0, 0, 0, false);
+
+        public int Width => HasValue ? (MaxX - MinX + 1) : 0;
+        public int Height => HasValue ? (MaxY - MinY + 1) : 0;
+        public int Area => Width * Height;
+
+        public DirtyBounds Include(int x, int y)
+        {
+            if (!HasValue)
+            {
+                return new DirtyBounds(x, y, x, y, true);
+            }
+
+            return new DirtyBounds(Math.Min(MinX, x), Math.Min(MinY, y), Math.Max(MaxX, x), Math.Max(MaxY, y), true);
+        }
+
+        public DirtyBounds Inflate(int amount, int maxWidth, int maxHeight)
+        {
+            if (!HasValue || amount <= 0)
+            {
+                return this;
+            }
+
+            return new DirtyBounds(
+                Math.Max(0, MinX - amount),
+                Math.Max(0, MinY - amount),
+                Math.Min(maxWidth - 1, MaxX + amount),
+                Math.Min(maxHeight - 1, MaxY + amount),
+                true);
+        }
+    }
+}
+
+public readonly record struct RendererTelemetry(int DirtyLedCount, ulong SkippedFrames, double DirtyAreaPercent)
+{
+    public static RendererTelemetry Empty => new(0, 0, 0.0);
 }

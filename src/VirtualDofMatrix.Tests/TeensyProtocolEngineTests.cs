@@ -134,6 +134,44 @@ public sealed class TeensyProtocolEngineTests
         Assert.Equal(768, frame.RgbBytes.Length);
     }
 
+    [Fact]
+    public void OutputPresentation_ShouldContainDirtyRangesForPartialUpdates()
+    {
+        var engine = CreateEngine();
+        engine.ProcessIncoming([(byte)'L', 0x00, 0x04]);
+
+        // update logical LED 1 only
+        var partial = new byte[] { (byte)'R', 0x00, 0x01, 0x00, 0x01, 0x10, 0x20, 0x30 };
+        Assert.Equal([(byte)'A'], engine.ProcessIncoming(partial).ResponseBytes);
+
+        var output = engine.ProcessIncoming([(byte)'O']);
+        var frame = Assert.Single(output.PresentedFrames);
+
+        var dirty = Assert.Single(frame.DirtyLedRanges);
+        Assert.Equal(1, dirty.StartLed);
+        Assert.Equal(1, dirty.LedCount);
+        Assert.Equal(1, frame.DirtyLedCount);
+    }
+
+    [Fact]
+    public void RewritingSameSegment_ShouldProduceNoDirtyLedsOnSecondOutput()
+    {
+        var engine = CreateEngine();
+        engine.ProcessIncoming([(byte)'L', 0x00, 0x02]);
+        var payload = new byte[] { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF };
+        var command = new List<byte> { (byte)'R', 0x00, 0x00, 0x00, 0x02 };
+        command.AddRange(payload);
+
+        Assert.Equal([(byte)'A'], engine.ProcessIncoming(command.ToArray()).ResponseBytes);
+        var first = Assert.Single(engine.ProcessIncoming([(byte)'O']).PresentedFrames);
+        Assert.Equal(2, first.DirtyLedCount);
+
+        Assert.Equal([(byte)'A'], engine.ProcessIncoming(command.ToArray()).ResponseBytes);
+        var second = Assert.Single(engine.ProcessIncoming([(byte)'O']).PresentedFrames);
+        Assert.Empty(second.DirtyLedRanges);
+        Assert.Equal(0, second.DirtyLedCount);
+    }
+
     private static TeensyProtocolEngine CreateEngine(
         int maxLeds = 1100,
         FrameBuffer? frameBuffer = null)
