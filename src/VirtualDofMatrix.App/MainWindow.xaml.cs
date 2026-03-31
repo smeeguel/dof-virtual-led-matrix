@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.Core;
 
@@ -9,10 +10,14 @@ namespace VirtualDofMatrix.App;
 
 public partial class MainWindow : Window
 {
+    private const int WmEnterSizeMove = 0x0231;
+    private const int WmExitSizeMove = 0x0232;
     private const int HardMinimumDotSpacing = 2;
     private readonly AppConfig _config;
     private readonly IMatrixRenderer _matrixRenderer;
     private bool _isApplyingAspectLock;
+    private bool _isInResizeMove;
+    private bool _pendingViewportReinitialize;
     private double _lockedAspectRatio;
 
     private FramePresentation? _latestPresentation;
@@ -34,6 +39,7 @@ public partial class MainWindow : Window
         ApplyDebugVisibility();
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
 
+        SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) => ReinitializeRendererForViewport();
         SizeChanged += OnWindowSizeChanged;
     }
@@ -126,6 +132,12 @@ public partial class MainWindow : Window
             }
         }
 
+        if (_isInResizeMove)
+        {
+            _pendingViewportReinitialize = true;
+            return;
+        }
+
         ReinitializeRendererForViewport();
     }
 
@@ -216,6 +228,34 @@ public partial class MainWindow : Window
         {
             DragMove();
         }
+    }
+
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        if (PresentationSource.FromVisual(this) is HwndSource hwndSource)
+        {
+            hwndSource.AddHook(WndProc);
+        }
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        switch (msg)
+        {
+            case WmEnterSizeMove:
+                _isInResizeMove = true;
+                break;
+            case WmExitSizeMove:
+                _isInResizeMove = false;
+                if (_pendingViewportReinitialize)
+                {
+                    _pendingViewportReinitialize = false;
+                    ReinitializeRendererForViewport();
+                }
+                break;
+        }
+
+        return IntPtr.Zero;
     }
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
