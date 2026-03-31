@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -23,6 +24,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private float[] _smallBlurRgb = Array.Empty<float>();
     private float[] _wideBlurRgb = Array.Empty<float>();
     private float[] _blurScratchRgb = Array.Empty<float>();
+    private int[] _logicalToShapeIndex = Array.Empty<int>();
     private int _downsampleWidth;
     private int _downsampleHeight;
     private double _lutBrightness = double.NaN;
@@ -30,6 +32,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private bool _lutSoftKneeEnabled;
     private double _lutSoftKneeStart = double.NaN;
     private double _lutSoftKneeStrength = double.NaN;
+    internal static bool ForceScalarProcessingForTests { get; set; }
     public bool UsesImageHost => false;
 
     public void Initialize(Canvas primitiveCanvas, Image bitmapHost, MatrixConfig config)
@@ -53,6 +56,14 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         var dotStride = _config.DotSize + dotSpacing;
         var width = _config.Width;
         var height = _config.Height;
+        var matrixCapacity = width * height;
+
+        _logicalToShapeIndex = new int[matrixCapacity];
+        for (var logicalIndex = 0; logicalIndex < matrixCapacity; logicalIndex++)
+        {
+            var mapped = MatrixMapper.MapLinearIndex(logicalIndex, width, height, _config.Mapping);
+            _logicalToShapeIndex[logicalIndex] = (mapped.Y * width) + mapped.X;
+        }
 
         _targetCanvas.Width = (width * dotStride) + dotSpacing;
         _targetCanvas.Height = (height * dotStride) + dotSpacing;
@@ -99,8 +110,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         for (var logicalIndex = 0; logicalIndex < ledCount; logicalIndex++)
         {
             var rgbOffset = logicalIndex * 3;
-            var mapped = MatrixMapper.MapLinearIndex(logicalIndex, _config.Width, _config.Height, _config.Mapping);
-            var shapeIndex = mapped.Y * _config.Width + mapped.X;
+            var shapeIndex = _logicalToShapeIndex[logicalIndex];
 
             if ((uint)shapeIndex >= (uint)_dots.Count)
             {
@@ -144,36 +154,72 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
     private void ApplyColorTransforms(MatrixConfig config, int matrixCapacity)
     {
+        var channelCapacity = matrixCapacity * 3;
         var smoothing = config.TemporalSmoothing;
         var smoothingEnabled = smoothing.Enabled;
-        var riseAlpha = Clamp01(smoothing.RiseAlpha);
-        var fallAlpha = Clamp01(smoothing.FallAlpha);
+        var riseAlpha = (float)Clamp01(smoothing.RiseAlpha);
+        var fallAlpha = (float)Clamp01(smoothing.FallAlpha);
 
-        for (var i = 0; i < matrixCapacity; i++)
+        for (var channelOffset = 0; channelOffset < channelCapacity; channelOffset++)
         {
-            var offset = i * 3;
-            ApplyChannelTransform(offset, riseAlpha, fallAlpha, smoothingEnabled);
-            ApplyChannelTransform(offset + 1, riseAlpha, fallAlpha, smoothingEnabled);
-            ApplyChannelTransform(offset + 2, riseAlpha, fallAlpha, smoothingEnabled);
+            _workingRgb[channelOffset] = _colorLut[(byte)_mappedRgb[channelOffset]];
         }
-    }
 
-    private void ApplyChannelTransform(int channelOffset, double riseAlpha, double fallAlpha, bool smoothingEnabled)
-    {
-        var target = _colorLut[(byte)_mappedRgb[channelOffset]];
         if (!smoothingEnabled)
         {
-            _smoothedRgb[channelOffset] = target;
-            _workingRgb[channelOffset] = target;
+            Array.Copy(_workingRgb, _smoothedRgb, channelCapacity);
             return;
         }
 
-        var current = _smoothedRgb[channelOffset];
-        var delta = target - current;
-        var alpha = delta >= 0 ? riseAlpha : fallAlpha;
-        var next = current + ((float)alpha * delta);
-        _smoothedRgb[channelOffset] = next;
-        _workingRgb[channelOffset] = next;
+        if (!ForceScalarProcessingForTests && Vector.IsHardwareAccelerated && channelCapacity >= Vector<float>.Count)
+        {
+            ApplySmoothedChannelsVectorized(channelCapacity, riseAlpha, fallAlpha);
+            return;
+        }
+
+        for (var channelOffset = 0; channelOffset < channelCapacity; channelOffset++)
+        {
+            var current = _smoothedRgb[channelOffset];
+            var target = _workingRgb[channelOffset];
+            var delta = target - current;
+            var alpha = delta >= 0f ? riseAlpha : fallAlpha;
+            var next = current + (alpha * delta);
+            _smoothedRgb[channelOffset] = next;
+            _workingRgb[channelOffset] = next;
+        }
+    }
+
+    private void ApplySmoothedChannelsVectorized(int channelCapacity, float riseAlpha, float fallAlpha)
+    {
+        var rise = new Vector<float>(riseAlpha);
+        var fall = new Vector<float>(fallAlpha);
+        var zero = Vector<float>.Zero;
+        var vectorWidth = Vector<float>.Count;
+        var vectorizedCount = channelCapacity - (channelCapacity % vectorWidth);
+
+        var offset = 0;
+        for (; offset < vectorizedCount; offset += vectorWidth)
+        {
+            var current = new Vector<float>(_smoothedRgb, offset);
+            var target = new Vector<float>(_workingRgb, offset);
+            var delta = target - current;
+            var useRise = Vector.GreaterThanOrEqual(delta, zero);
+            var alpha = Vector.ConditionalSelect(useRise, rise, fall);
+            var next = current + (alpha * delta);
+            next.CopyTo(_smoothedRgb, offset);
+            next.CopyTo(_workingRgb, offset);
+        }
+
+        for (; offset < channelCapacity; offset++)
+        {
+            var current = _smoothedRgb[offset];
+            var target = _workingRgb[offset];
+            var delta = target - current;
+            var alpha = delta >= 0f ? riseAlpha : fallAlpha;
+            var next = current + (alpha * delta);
+            _smoothedRgb[offset] = next;
+            _workingRgb[offset] = next;
+        }
     }
 
     private void BuildColorLutIfNeeded(MatrixConfig config)
@@ -313,9 +359,9 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         var cutoff = (float)(Math.Clamp(threshold, 0.0, 1.0) * 255.0);
         var anyActive = false;
 
-        for (var i = 0; i < matrixCapacity; i++)
+        var channelCapacity = matrixCapacity * 3;
+        for (var offset = 0; offset < channelCapacity; offset += 3)
         {
-            var offset = i * 3;
             var peak = Math.Max(source[offset], Math.Max(source[offset + 1], source[offset + 2]));
             if (peak < cutoff)
             {
@@ -446,18 +492,49 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
 
     private static void CompositeBloom(float[] target, float[] smallBlur, float[] wideBlur, int width, int height, int bloomWidth, int bloomHeight, BloomProfile profile)
     {
+        var scaleDivisor = profile.ScaleDivisor;
+        var smallStrength = (float)profile.SmallStrength;
+        var wideStrength = (float)profile.WideStrength;
+
+        if (!ForceScalarProcessingForTests && Vector.IsHardwareAccelerated && scaleDivisor == 1 && width == bloomWidth && height == bloomHeight)
+        {
+            var max = new Vector<float>(255f);
+            var min = Vector<float>.Zero;
+            var vSmallStrength = new Vector<float>(smallStrength);
+            var vWideStrength = new Vector<float>(wideStrength);
+            var vectorWidth = Vector<float>.Count;
+            var vectorizedCount = target.Length - (target.Length % vectorWidth);
+
+            var i = 0;
+            for (; i < vectorizedCount; i += vectorWidth)
+            {
+                var tv = new Vector<float>(target, i);
+                var sv = new Vector<float>(smallBlur, i);
+                var wv = new Vector<float>(wideBlur, i);
+                var composited = tv + (sv * vSmallStrength) + (wv * vWideStrength);
+                Vector.Min(max, Vector.Max(min, composited)).CopyTo(target, i);
+            }
+
+            for (; i < target.Length; i++)
+            {
+                target[i] = Math.Clamp(target[i] + (smallBlur[i] * smallStrength) + (wideBlur[i] * wideStrength), 0f, 255f);
+            }
+
+            return;
+        }
+
         for (var y = 0; y < height; y++)
         {
+            var bloomY = Math.Min(bloomHeight - 1, y / scaleDivisor);
             for (var x = 0; x < width; x++)
             {
                 var targetOffset = ((y * width) + x) * 3;
-                var bloomX = Math.Min(bloomWidth - 1, x / profile.ScaleDivisor);
-                var bloomY = Math.Min(bloomHeight - 1, y / profile.ScaleDivisor);
+                var bloomX = Math.Min(bloomWidth - 1, x / scaleDivisor);
                 var bloomOffset = ((bloomY * bloomWidth) + bloomX) * 3;
 
-                target[targetOffset] = Math.Clamp(target[targetOffset] + (smallBlur[bloomOffset] * (float)profile.SmallStrength) + (wideBlur[bloomOffset] * (float)profile.WideStrength), 0f, 255f);
-                target[targetOffset + 1] = Math.Clamp(target[targetOffset + 1] + (smallBlur[bloomOffset + 1] * (float)profile.SmallStrength) + (wideBlur[bloomOffset + 1] * (float)profile.WideStrength), 0f, 255f);
-                target[targetOffset + 2] = Math.Clamp(target[targetOffset + 2] + (smallBlur[bloomOffset + 2] * (float)profile.SmallStrength) + (wideBlur[bloomOffset + 2] * (float)profile.WideStrength), 0f, 255f);
+                target[targetOffset] = Math.Clamp(target[targetOffset] + (smallBlur[bloomOffset] * smallStrength) + (wideBlur[bloomOffset] * wideStrength), 0f, 255f);
+                target[targetOffset + 1] = Math.Clamp(target[targetOffset + 1] + (smallBlur[bloomOffset + 1] * smallStrength) + (wideBlur[bloomOffset + 1] * wideStrength), 0f, 255f);
+                target[targetOffset + 2] = Math.Clamp(target[targetOffset + 2] + (smallBlur[bloomOffset + 2] * smallStrength) + (wideBlur[bloomOffset + 2] * wideStrength), 0f, 255f);
             }
         }
     }
