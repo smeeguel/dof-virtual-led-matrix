@@ -11,6 +11,15 @@
         SnapsToDevicePixels="True"
         RenderOptions.BitmapScalingMode="NearestNeighbor"
         RenderOptions.EdgeMode="Aliased">
+        <Window.ContextMenu>
+            <ContextMenu>
+                <MenuItem Header="Settings..." Click="OnSettingsMenuClick" />
+                <MenuItem x:Name="PauseRenderingMenuItem" Header="Pause Rendering" IsCheckable="True" Click="OnPauseRenderingClick" />
+                <MenuItem Header="Reload DOF/Cabinet" Click="OnReloadMenuClick" />
+                <Separator />
+                <MenuItem Header="Exit" Click="OnExitMenuClick" />
+            </ContextMenu>
+        </Window.ContextMenu>
     <Grid x:Name="RootGrid" Margin="16">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />

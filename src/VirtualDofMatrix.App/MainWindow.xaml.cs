@@ -21,6 +21,10 @@ public partial class MainWindow : Window
     private double _lockedAspectRatio;
 
     private FramePresentation? _latestPresentation;
+    private bool _isRenderingPaused;
+
+    public event EventHandler? SettingsRequested;
+    public event EventHandler? ReloadRequested;
 
     public MainWindow(AppConfig config)
         : this(config, CreateRenderer(config))
@@ -52,7 +56,10 @@ public partial class MainWindow : Window
         PresentedAtText.Text = $"Presented at UTC: {presentation.PresentedAtUtc:O}";
         PayloadLengthText.Text = $"Payload bytes: {presentation.RgbBytes.Length}";
 
-        _matrixRenderer.Render(presentation);
+        if (!_isRenderingPaused)
+        {
+            _matrixRenderer.Render(presentation);
+        }
     }
 
     public void SyncWindowSettingsToConfig()
@@ -257,6 +264,32 @@ public partial class MainWindow : Window
 
         return IntPtr.Zero;
     }
+
+    public void ApplyRuntimeSettings()
+    {
+        ApplyPersistedWindowSettings();
+        ApplyPersistedVisualSettings();
+        _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
+        ReinitializeRendererForViewport();
+    }
+
+    public void SetRenderingPaused(bool paused)
+    {
+        _isRenderingPaused = paused;
+        PauseRenderingMenuItem.IsChecked = paused;
+        if (!paused && _latestPresentation is not null)
+        {
+            _matrixRenderer.Render(_latestPresentation);
+        }
+    }
+
+    private void OnSettingsMenuClick(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnReloadMenuClick(object sender, RoutedEventArgs e) => ReloadRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnPauseRenderingClick(object sender, RoutedEventArgs e) => SetRenderingPaused(PauseRenderingMenuItem.IsChecked);
+
+    private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {

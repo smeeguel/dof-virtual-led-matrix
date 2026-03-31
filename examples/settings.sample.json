@@ -14,8 +14,8 @@
   },
   "matrix": {
     "renderer": "primitive",
-    "width": 256,
-    "height": 32,
+    "width": 64,
+    "height": 16,
     "mapping": "TopDownAlternateRightLeft",
     "dotShape": "circle",
     "minDotSpacing": 2,
@@ -63,5 +63,11 @@
     "showDebug": false,
     "logProtocol": true,
     "logFrames": false
+  },
+  "settings": {
+    "cabinetXmlPath": "C:/DirectOutput/Config/Cabinet.xml",
+    "cabinetToyName": "Matrix1",
+    "autoUpdateCabinetOnResolutionChange": true,
+    "visualQuality": "Medium"
   }
 }

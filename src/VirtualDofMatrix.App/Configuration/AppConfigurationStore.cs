@@ -32,10 +32,20 @@ public sealed class AppConfigurationStore
 
     private static AppConfig ApplyLegacyDefaults(AppConfig config)
     {
-        if (config.Matrix.Width == 32 && config.Matrix.Height == 8)
+
+        if (config.Settings is null)
         {
-            config.Matrix.Width = 256;
-            config.Matrix.Height = 32;
+            config.Settings = new SettingsConfig();
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Settings.CabinetToyName))
+        {
+            config.Settings.CabinetToyName = "Matrix1";
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Settings.VisualQuality))
+        {
+            config.Settings.VisualQuality = "Medium";
         }
 
         if (config.Matrix.MinDotSpacing < 2)

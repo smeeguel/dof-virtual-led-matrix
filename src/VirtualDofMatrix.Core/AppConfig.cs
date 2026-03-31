@@ -14,6 +14,8 @@ public sealed class AppConfig
     public WindowConfig Window { get; set; } = new();
 
     public DebugConfig Debug { get; set; } = new();
+
+    public SettingsConfig Settings { get; set; } = new();
 }
 
 public sealed class TransportConfig
@@ -48,9 +50,9 @@ public sealed class MatrixConfig
 {
     public string Renderer { get; set; } = "primitive";
 
-    public int Width { get; set; } = 256;
+    public int Width { get; set; } = 64;
 
-    public int Height { get; set; } = 32;
+    public int Height { get; set; } = 16;
 
     public string Mapping { get; set; } = "TopDownAlternateRightLeft";
 
@@ -151,4 +153,15 @@ public sealed class DebugConfig
     public bool LogProtocol { get; set; } = true;
 
     public bool LogFrames { get; set; } = false;
+}
+
+public sealed class SettingsConfig
+{
+    public string CabinetXmlPath { get; set; } = string.Empty;
+
+    public string CabinetToyName { get; set; } = "Matrix1";
+
+    public bool AutoUpdateCabinetOnResolutionChange { get; set; } = true;
+
+    public string VisualQuality { get; set; } = "Medium";
 }
