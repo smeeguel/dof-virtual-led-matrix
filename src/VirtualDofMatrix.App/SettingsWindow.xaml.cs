@@ -374,6 +374,7 @@ public partial class SettingsWindow : Window
                     LensFalloff = config.Matrix.Visual.LensFalloff,
                     SpecularHotspot = config.Matrix.Visual.SpecularHotspot,
                     RimHighlight = config.Matrix.Visual.RimHighlight,
+                    HotspotCoverage = config.Matrix.Visual.HotspotCoverage,
                 },
                 Bloom = new BloomConfig
                 {

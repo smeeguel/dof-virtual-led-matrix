@@ -114,6 +114,7 @@ public static class RendererBenchmarkHarness
                 LensFalloff = 0.45,
                 SpecularHotspot = 0.28,
                 RimHighlight = 0.22,
+                HotspotCoverage = 0.7,
             },
             ToneMapping = new ToneMappingConfig
             {

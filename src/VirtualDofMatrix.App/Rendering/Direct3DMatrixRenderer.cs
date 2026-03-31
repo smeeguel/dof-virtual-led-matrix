@@ -140,18 +140,26 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
                     continue;
                 }
 
-                var offAlpha = offAlphaBase * (0.40f + (0.60f * sample.Alpha));
-                var litAlpha = sample.Alpha * (0.35f + (1.10f * intensity));
+                var offAlpha = offAlphaBase * (0.40f + (0.60f * sample.BodyAlpha));
+                var litAlpha = sample.BodyAlpha * (0.35f + (1.10f * intensity));
                 var alpha = Math.Clamp(offAlpha + litAlpha, 0f, 1f);
                 if (alpha <= 0f)
                 {
                     continue;
                 }
 
-                var colorBoost = 0.90f + (0.80f * sample.Alpha);
+                var colorBoost = 0.90f + (0.80f * sample.BodyAlpha);
                 var targetR = (byte)Math.Clamp(Math.Max(offR, dot.R * colorBoost), 0f, 255f);
                 var targetG = (byte)Math.Clamp(Math.Max(offG, dot.G * colorBoost), 0f, 255f);
                 var targetB = (byte)Math.Clamp(Math.Max(offB, dot.B * colorBoost), 0f, 255f);
+
+                var specularStrength = sample.SpecAlpha * (0.25f + (0.75f * intensity));
+                if (specularStrength > 0f)
+                {
+                    targetR = Blend(targetR, 255, specularStrength * 0.65f);
+                    targetG = Blend(targetG, 255, specularStrength * 0.65f);
+                    targetB = Blend(targetB, 255, specularStrength * 0.70f);
+                }
 
                 var index = ((py * _surfaceWidth) + px) * 4;
                 _pixels[index] = Blend(_pixels[index], targetB, alpha);
@@ -181,24 +189,28 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
                     continue;
                 }
 
-                // Wide hotspot: keep ~95% of the dot at near-full intensity, then roll off at the edge.
-                const float hotspotCoverage = 0.95f;
+                var hotspotCoverage = Math.Clamp((float)config.Visual.HotspotCoverage, 0.05f, 0.98f);
                 var edgeBlend = dist <= hotspotCoverage
                     ? 1f
                     : MathF.Pow(MathF.Max(0f, (1f - dist) / MathF.Max(0.001f, 1f - hotspotCoverage)), 0.65f);
 
                 var body = edgeBlend;
                 var core = MathF.Pow(MathF.Max(0f, 1f - (dist * (float)(1.0 + config.Visual.LensFalloff))), 1.6f);
-                var spec = MathF.Pow(MathF.Max(0f, 1f - (dist / MathF.Max(0.05f, (float)config.Visual.SpecularHotspot))), 5.0f)
-                    * (float)Math.Clamp(config.Visual.RimHighlight + 0.35, 0.0, 1.5);
 
-                var bulb = Math.Clamp((body * 0.92f) + (core * 0.20f) + (spec * 0.10f), 0f, 1.4f);
-                if (bulb <= 0f)
+                // Specular lobe is offset toward top-left to mimic a bulb highlight.
+                var specDx = dx + 0.22f;
+                var specDy = dy + 0.22f;
+                var specDist = MathF.Sqrt((specDx * specDx) + (specDy * specDy));
+                var specBase = MathF.Max(0f, 1f - (specDist / MathF.Max(0.08f, (float)config.Visual.SpecularHotspot)));
+                var spec = MathF.Pow(specBase, 2.4f) * (float)Math.Clamp(config.Visual.RimHighlight + 0.45, 0.0, 1.8);
+
+                var bulb = Math.Clamp((body * 0.90f) + (core * 0.24f), 0f, 1.4f);
+                if (bulb <= 0f && spec <= 0f)
                 {
                     continue;
                 }
 
-                samples.Add(new KernelSample(x, y, Math.Clamp(bulb, 0f, 1f)));
+                samples.Add(new KernelSample(x, y, Math.Clamp(bulb, 0f, 1f), Math.Clamp(spec, 0f, 1f)));
             }
         }
 
@@ -232,5 +244,5 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
 
     private readonly record struct DotInstance(int Left, int Top, byte R, byte G, byte B, float Intensity);
 
-    private readonly record struct KernelSample(int OffsetX, int OffsetY, float Alpha);
+    private readonly record struct KernelSample(int OffsetX, int OffsetY, float BodyAlpha, float SpecAlpha);
 }

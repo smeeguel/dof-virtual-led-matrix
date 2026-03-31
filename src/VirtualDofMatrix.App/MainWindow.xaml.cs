@@ -214,6 +214,7 @@ public partial class MainWindow : Window
                 LensFalloff = _config.Matrix.Visual.LensFalloff,
                 SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
                 RimHighlight = _config.Matrix.Visual.RimHighlight,
+                HotspotCoverage = _config.Matrix.Visual.HotspotCoverage,
             },
             Bloom = new BloomConfig
             {
