@@ -5,7 +5,10 @@ namespace VirtualDofMatrix.App.Rendering;
 internal sealed class MatrixFrameRasterComposer
 {
     private const int HardMinimumDotSpacing = 2;
+    private static readonly Dictionary<DotKernelCacheKey, DotKernel> DotKernelCache = new();
     private readonly byte[] _colorLut = new byte[256];
+    private readonly float[] _intensityCoreOpacityLut = new float[256];
+    private readonly float[] _intensitySpecOpacityLut = new float[256];
     private float[] _mappedRgb = Array.Empty<float>();
     private float[] _workingRgb = Array.Empty<float>();
     private float[] _smoothedRgb = Array.Empty<float>();
@@ -28,6 +31,7 @@ internal sealed class MatrixFrameRasterComposer
     private bool _lutSoftKneeEnabled;
     private double _lutSoftKneeStart = double.NaN;
     private double _lutSoftKneeStrength = double.NaN;
+    private DotKernelCacheKey? _activeKernelKey;
 
     public void Configure(MatrixConfig config)
     {
@@ -38,7 +42,9 @@ internal sealed class MatrixFrameRasterComposer
         _surfaceHeight = (config.Height * _dotStride) + _dotSpacing;
         _stride = _surfaceWidth * 4;
         _surfaceBgra = new byte[_stride * _surfaceHeight];
-        _kernel = DotKernel.Create(config.DotSize, config.DotShape, config.Visual);
+        EnsureKernelCache(config);
+        BuildColorLutIfNeeded(config);
+        BuildIntensityLuts();
     }
 
     public (int Width, int Height, int Stride, byte[] Pixels) Compose(FramePresentation framePresentation)
@@ -80,18 +86,18 @@ internal sealed class MatrixFrameRasterComposer
                 var r = ToByte(_workingRgb[colorOffset] / 255.0);
                 var g = ToByte(_workingRgb[colorOffset + 1] / 255.0);
                 var b = ToByte(_workingRgb[colorOffset + 2] / 255.0);
-                var intensity = Math.Max(r, Math.Max(g, b)) / 255.0;
+                var intensityByte = Math.Max(r, Math.Max(g, b));
 
                 var dstX = _dotSpacing + (x * _dotStride);
                 var dstY = _dotSpacing + (y * _dotStride);
-                RasterDot(dstX, dstY, r, g, b, intensity, _config.Visual);
+                RasterDot(dstX, dstY, r, g, b, intensityByte, _config.Visual);
             }
         }
 
         return (_surfaceWidth, _surfaceHeight, _stride, _surfaceBgra);
     }
 
-    private void RasterDot(int originX, int originY, byte r, byte g, byte b, double intensity, MatrixVisualConfig visual)
+    private void RasterDot(int originX, int originY, byte r, byte g, byte b, byte intensityByte, MatrixVisualConfig visual)
     {
         if (_kernel is null)
         {
@@ -104,9 +110,8 @@ internal sealed class MatrixFrameRasterComposer
             return;
         }
 
-        var rootIntensity = Math.Sqrt(Math.Clamp(intensity, 0.0, 1.0));
-        var coreOpacity = intensity > 0.0 ? Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0) : 0.0;
-        var specOpacity = intensity > 0.0 ? Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65) : 0.0;
+        var coreOpacity = _intensityCoreOpacityLut[intensityByte];
+        var specOpacity = _intensitySpecOpacityLut[intensityByte];
 
         var offR = visual.OffStateTintR;
         var offG = visual.OffStateTintG;
@@ -238,6 +243,42 @@ internal sealed class MatrixFrameRasterComposer
         {
             _colorLut[channel] = ApplyToneMap((byte)channel, config.Brightness, config.Gamma, softKnee);
         }
+    }
+
+    private void BuildIntensityLuts()
+    {
+        for (var intensityByte = 0; intensityByte < 256; intensityByte++)
+        {
+            var normalized = intensityByte / 255.0;
+            if (normalized <= 0.0)
+            {
+                _intensityCoreOpacityLut[intensityByte] = 0f;
+                _intensitySpecOpacityLut[intensityByte] = 0f;
+                continue;
+            }
+
+            var rootIntensity = Math.Sqrt(normalized);
+            _intensityCoreOpacityLut[intensityByte] = (float)Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0);
+            _intensitySpecOpacityLut[intensityByte] = (float)Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65);
+        }
+    }
+
+    private void EnsureKernelCache(MatrixConfig config)
+    {
+        var key = DotKernelCacheKey.FromConfig(config.DotSize, config.DotShape, config.Visual);
+        if (_activeKernelKey is not null && _activeKernelKey.Equals(key) && _kernel is not null)
+        {
+            return;
+        }
+
+        if (!DotKernelCache.TryGetValue(key, out var kernel))
+        {
+            kernel = DotKernel.Create(config.DotSize, config.DotShape, config.Visual);
+            DotKernelCache[key] = kernel;
+        }
+
+        _activeKernelKey = key;
+        _kernel = kernel;
     }
 
     private void EnsureWorkingBuffers(int matrixCapacity)
@@ -556,5 +597,23 @@ internal sealed class MatrixFrameRasterComposer
                 Specular = specular,
             };
         }
+    }
+
+    private sealed record DotKernelCacheKey(
+        int DotSize,
+        string DotShape,
+        double LensFalloff,
+        double SpecularHotspot,
+        double RimHighlight,
+        double OffStateAlpha)
+    {
+        public static DotKernelCacheKey FromConfig(int dotSize, string dotShape, MatrixVisualConfig visual) =>
+            new(
+                Math.Max(1, dotSize),
+                (dotShape ?? "circle").Trim().ToLowerInvariant(),
+                Clamp01(visual.LensFalloff),
+                Clamp01(visual.SpecularHotspot),
+                Clamp01(visual.RimHighlight),
+                Clamp01(visual.OffStateAlpha));
     }
 }
