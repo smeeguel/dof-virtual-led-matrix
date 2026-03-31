@@ -76,7 +76,7 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
 
         BuildColorLutIfNeeded(_config);
         PopulateInstanceBuffer(framePresentation, _config);
-        RasterizeInstances();
+        RasterizeInstances(_config);
 
         _bitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _pixels, _stride, 0);
     }
@@ -119,18 +119,18 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private void RasterizeInstances()
+    private void RasterizeInstances(MatrixConfig config)
     {
         Array.Clear(_pixels, 0, _pixels.Length);
 
+        var offR = config.Visual.OffStateTintR;
+        var offG = config.Visual.OffStateTintG;
+        var offB = config.Visual.OffStateTintB;
+        var offAlphaBase = (float)Math.Clamp(config.Visual.OffStateAlpha, 0.0, 1.0);
+
         foreach (var dot in _instances)
         {
-            if (dot.Intensity <= 0f)
-            {
-                continue;
-            }
-
-            var scale = dot.Intensity;
+            var intensity = dot.Intensity;
             foreach (var sample in _kernel)
             {
                 var px = dot.Left + sample.OffsetX;
@@ -140,16 +140,23 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
                     continue;
                 }
 
-                var alpha = sample.Alpha * scale;
+                var offAlpha = offAlphaBase * (0.30f + (0.70f * sample.Alpha));
+                var litAlpha = sample.Alpha * intensity * (0.35f + (0.65f * intensity));
+                var alpha = MathF.Max(offAlpha, litAlpha);
                 if (alpha <= 0f)
                 {
                     continue;
                 }
 
+                var colorBoost = 0.55f + (0.65f * sample.Alpha);
+                var targetR = (byte)Math.Clamp(Math.Max(offR, dot.R * colorBoost), 0f, 255f);
+                var targetG = (byte)Math.Clamp(Math.Max(offG, dot.G * colorBoost), 0f, 255f);
+                var targetB = (byte)Math.Clamp(Math.Max(offB, dot.B * colorBoost), 0f, 255f);
+
                 var index = ((py * _surfaceWidth) + px) * 4;
-                _pixels[index] = Blend(_pixels[index], dot.B, alpha);
-                _pixels[index + 1] = Blend(_pixels[index + 1], dot.G, alpha);
-                _pixels[index + 2] = Blend(_pixels[index + 2], dot.R, alpha);
+                _pixels[index] = Blend(_pixels[index], targetB, alpha);
+                _pixels[index + 1] = Blend(_pixels[index + 1], targetG, alpha);
+                _pixels[index + 2] = Blend(_pixels[index + 2], targetR, alpha);
                 _pixels[index + 3] = (byte)Math.Clamp(Math.Max(_pixels[index + 3], alpha * 255f), 0f, 255f);
             }
         }
