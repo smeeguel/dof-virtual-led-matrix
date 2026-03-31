@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Threading;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Presentation;
+using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.App.Serial;
 using VirtualDofMatrix.Core;
 
@@ -26,6 +27,14 @@ public partial class App : Application
 
         _config = _configurationStore.Load(ConfigFilePath);
         _configurationStore.Save(ConfigFilePath, _config);
+
+        if (e.Args.Any(arg => arg.Equals("--benchmark-renderers", StringComparison.OrdinalIgnoreCase)))
+        {
+            var benchmarkReport = RendererBenchmarkHarness.Run();
+            MessageBox.Show(benchmarkReport, "Renderer benchmark", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
 
         _window = new MainWindow(_config)
         {

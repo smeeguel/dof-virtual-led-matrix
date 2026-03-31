@@ -59,7 +59,7 @@
                                   ToolTip="Choose dot geometry for matrix rendering."/>
 
                         <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Visual quality"
-                                   ToolTip="Low = flat/fast primitive path. Medium = bulb primitive without heavy post FX. High = full primitive effects. Custom = respect JSON values."/>
+                                   ToolTip="Low = flat/fast primitive path. Medium = bulb primitive without heavy post FX. High = Direct3D backend with tone mapping + temporal smoothing. Custom = respect JSON values."/>
                         <ComboBox x:Name="QualityCombo" Margin="0,4,0,0" SelectionChanged="OnQualityChanged"
                                   ToolTip="Select a quality profile for performance versus visual fidelity."/>
                         </StackPanel>

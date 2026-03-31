@@ -292,8 +292,12 @@ public partial class MainWindow : Window
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {
-        return config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase)
-            ? new WriteableBitmapMatrixRenderer()
-            : new WpfPrimitiveMatrixRenderer();
+        return config.Matrix.Renderer.Trim().ToLowerInvariant() switch
+        {
+            "primitive" => new WpfPrimitiveMatrixRenderer(),
+            "writeablebitmap" => new WriteableBitmapMatrixRenderer(),
+            "direct3d" => new Direct3DMatrixRenderer(),
+            _ => new WpfPrimitiveMatrixRenderer(),
+        };
     }
 }

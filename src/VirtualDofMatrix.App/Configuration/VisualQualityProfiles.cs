@@ -31,7 +31,7 @@ public static class VisualQualityProfiles
                 matrix.TemporalSmoothing.Enabled = false;
                 break;
             case High:
-                matrix.Renderer = "primitive";
+                matrix.Renderer = "direct3d";
                 matrix.Visual.FlatShading = false;
                 matrix.ToneMapping.Enabled = true;
                 matrix.ToneMapping.Strength = 0.55;
