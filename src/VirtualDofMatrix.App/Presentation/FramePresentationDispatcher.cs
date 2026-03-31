@@ -7,7 +7,11 @@ namespace VirtualDofMatrix.App.Presentation;
 public sealed class FramePresentationDispatcher : IDisposable
 {
     private readonly Dispatcher _dispatcher;
+    private readonly object _gate = new();
+
     private SerialEmulatorHost? _host;
+    private FramePresentation? _latestFrame;
+    private bool _uiDispatchPending;
 
     public FramePresentationDispatcher(Dispatcher dispatcher)
     {
@@ -29,7 +33,41 @@ public sealed class FramePresentationDispatcher : IDisposable
 
     private void OnFramePresentedFromHost(object? sender, FramePresentation frame)
     {
-        _dispatcher.BeginInvoke(() => FramePresentedOnUiThread?.Invoke(this, frame));
+        var shouldSchedule = false;
+        lock (_gate)
+        {
+            _latestFrame = frame;
+            if (!_uiDispatchPending)
+            {
+                _uiDispatchPending = true;
+                shouldSchedule = true;
+            }
+        }
+
+        if (shouldSchedule)
+        {
+            _dispatcher.BeginInvoke(ProcessPendingFrameOnUiThread, DispatcherPriority.Render);
+        }
+    }
+
+    private void ProcessPendingFrameOnUiThread()
+    {
+        while (true)
+        {
+            FramePresentation? frame;
+            lock (_gate)
+            {
+                frame = _latestFrame;
+                _latestFrame = null;
+                if (frame is null)
+                {
+                    _uiDispatchPending = false;
+                    return;
+                }
+            }
+
+            FramePresentedOnUiThread?.Invoke(this, frame);
+        }
     }
 
     public void Dispose()
@@ -38,6 +76,12 @@ public sealed class FramePresentationDispatcher : IDisposable
         {
             _host.FramePresented -= OnFramePresentedFromHost;
             _host = null;
+        }
+
+        lock (_gate)
+        {
+            _latestFrame = null;
+            _uiDispatchPending = false;
         }
     }
 }
