@@ -7,10 +7,8 @@ namespace VirtualDofMatrix.App.Rendering;
 
 /// <summary>
 /// Direct3D-style renderer that keeps per-dot instance buffers (position/color/intensity)
-/// and shades each dot through a bulb model (body/core/spec) in a shader-like fragment pass.
-///
-/// Note: this implementation intentionally stays managed/WPF-only so the app remains portable
-/// in developer environments where native D3D interop is unavailable.
+/// and shades each dot through a shader-style bulb model (body/core/spec).
+/// The bulb math is baked into a reusable kernel so frame rendering stays responsive.
 /// </summary>
 public sealed class Direct3DMatrixRenderer : IMatrixRenderer
 {
@@ -18,10 +16,10 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
 
     private readonly byte[] _colorLut = new byte[256];
     private DotInstance[] _instances = Array.Empty<DotInstance>();
+    private KernelSample[] _kernel = Array.Empty<KernelSample>();
     private byte[] _pixels = Array.Empty<byte>();
 
     private MatrixConfig? _config;
-    private Image? _bitmapHost;
     private WriteableBitmap? _bitmap;
     private int _surfaceWidth;
     private int _surfaceHeight;
@@ -35,7 +33,6 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
     public void Initialize(Canvas primitiveCanvas, Image bitmapHost, MatrixConfig config)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
-        _bitmapHost = bitmapHost ?? throw new ArgumentNullException(nameof(bitmapHost));
 
         primitiveCanvas.Children.Clear();
         primitiveCanvas.Width = 0;
@@ -51,7 +48,6 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
         _pixels = new byte[_surfaceWidth * _surfaceHeight * 4];
         _instances = new DotInstance[_config.Width * _config.Height];
 
-        var dotRadius = _config.DotSize * 0.5f;
         var index = 0;
         for (var y = 0; y < _config.Height; y++)
         {
@@ -59,21 +55,16 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
             {
                 var left = dotSpacing + (x * dotStride);
                 var top = dotSpacing + (y * dotStride);
-                _instances[index++] = new DotInstance(
-                    left + dotRadius,
-                    top + dotRadius,
-                    dotRadius,
-                    0,
-                    0,
-                    0,
-                    0f);
+                _instances[index++] = new DotInstance(left, top, 0, 0, 0, 0f);
             }
         }
 
+        BuildKernel(_config);
+
         _bitmap = new WriteableBitmap(_surfaceWidth, _surfaceHeight, 96, 96, PixelFormats.Bgra32, null);
-        _bitmapHost.Source = _bitmap;
-        _bitmapHost.Width = _surfaceWidth;
-        _bitmapHost.Height = _surfaceHeight;
+        bitmapHost.Source = _bitmap;
+        bitmapHost.Width = _surfaceWidth;
+        bitmapHost.Height = _surfaceHeight;
     }
 
     public void Render(FramePresentation framePresentation)
@@ -85,14 +76,18 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
 
         BuildColorLutIfNeeded(_config);
         PopulateInstanceBuffer(framePresentation, _config);
-        ShadeInstanceBuffer(_config);
+        RasterizeInstances();
 
         _bitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _pixels, _stride, 0);
     }
 
     private void PopulateInstanceBuffer(FramePresentation framePresentation, MatrixConfig config)
     {
-        Array.Clear(_pixels, 0, _pixels.Length);
+        // Clear per-frame target values for every dot so old intensity does not persist.
+        for (var i = 0; i < _instances.Length; i++)
+        {
+            _instances[i] = _instances[i] with { R = 0, G = 0, B = 0, Intensity = 0f };
+        }
 
         var rgb = framePresentation.RgbMemory.Span;
         var matrixCapacity = config.Width * config.Height;
@@ -124,8 +119,10 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private void ShadeInstanceBuffer(MatrixConfig config)
+    private void RasterizeInstances()
     {
+        Array.Clear(_pixels, 0, _pixels.Length);
+
         foreach (var dot in _instances)
         {
             if (dot.Intensity <= 0f)
@@ -133,51 +130,67 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
                 continue;
             }
 
-            var minX = Math.Max(0, (int)Math.Floor(dot.CenterX - dot.Radius));
-            var maxX = Math.Min(_surfaceWidth - 1, (int)Math.Ceiling(dot.CenterX + dot.Radius));
-            var minY = Math.Max(0, (int)Math.Floor(dot.CenterY - dot.Radius));
-            var maxY = Math.Min(_surfaceHeight - 1, (int)Math.Ceiling(dot.CenterY + dot.Radius));
-
-            for (var y = minY; y <= maxY; y++)
+            var scale = dot.Intensity;
+            foreach (var sample in _kernel)
             {
-                for (var x = minX; x <= maxX; x++)
+                var px = dot.Left + sample.OffsetX;
+                var py = dot.Top + sample.OffsetY;
+                if ((uint)px >= (uint)_surfaceWidth || (uint)py >= (uint)_surfaceHeight)
                 {
-                    ShadePixel(config, dot, x, y);
+                    continue;
                 }
+
+                var alpha = sample.Alpha * scale;
+                if (alpha <= 0f)
+                {
+                    continue;
+                }
+
+                var index = ((py * _surfaceWidth) + px) * 4;
+                _pixels[index] = Blend(_pixels[index], dot.B, alpha);
+                _pixels[index + 1] = Blend(_pixels[index + 1], dot.G, alpha);
+                _pixels[index + 2] = Blend(_pixels[index + 2], dot.R, alpha);
+                _pixels[index + 3] = (byte)Math.Clamp(Math.Max(_pixels[index + 3], alpha * 255f), 0f, 255f);
             }
         }
     }
 
-    private void ShadePixel(MatrixConfig config, DotInstance dot, int x, int y)
+    private void BuildKernel(MatrixConfig config)
     {
-        var dx = (float)((x + 0.5f) - dot.CenterX);
-        var dy = (float)((y + 0.5f) - dot.CenterY);
-        var distance = MathF.Sqrt((dx * dx) + (dy * dy));
-        var normalized = distance / MathF.Max(0.0001f, dot.Radius);
+        var kernelSize = Math.Max(1, config.DotSize);
+        var center = (kernelSize - 1) * 0.5f;
+        var radius = Math.Max(0.5f, kernelSize * 0.5f);
 
-        if (normalized > 1f)
+        var samples = new List<KernelSample>(kernelSize * kernelSize);
+        for (var y = 0; y < kernelSize; y++)
         {
-            return;
+            for (var x = 0; x < kernelSize; x++)
+            {
+                var dx = (x - center) / radius;
+                var dy = (y - center) / radius;
+                var dist = MathF.Sqrt((dx * dx) + (dy * dy));
+                if (dist > 1f)
+                {
+                    continue;
+                }
+
+                // Shader-style bulb model (body/core/spec) baked once per kernel pixel.
+                var body = MathF.Pow(1f - dist, 1.2f);
+                var core = MathF.Pow(MathF.Max(0f, 1f - (dist * (float)(1.0 + config.Visual.LensFalloff))), 2.8f);
+                var spec = MathF.Pow(MathF.Max(0f, 1f - (dist / MathF.Max(0.05f, (float)config.Visual.SpecularHotspot))), 8.0f)
+                    * (float)Math.Clamp(config.Visual.RimHighlight + 0.4, 0.0, 1.5);
+
+                var bulb = Math.Clamp((body * 0.55f) + (core * 0.75f) + (spec * 0.45f), 0f, 1.8f);
+                if (bulb <= 0f)
+                {
+                    continue;
+                }
+
+                samples.Add(new KernelSample(x, y, Math.Clamp(bulb, 0f, 1f)));
+            }
         }
 
-        // Shader-like bulb model (body/core/spec) approximating a fragment shader.
-        var body = MathF.Pow(1f - normalized, 1.2f);
-        var core = MathF.Pow(MathF.Max(0f, 1f - (normalized * (float)(1.0 + config.Visual.LensFalloff))), 2.8f);
-        var spec = MathF.Pow(MathF.Max(0f, 1f - (normalized / MathF.Max(0.05f, (float)config.Visual.SpecularHotspot))), 8.0f)
-            * (float)Math.Clamp(config.Visual.RimHighlight + 0.4, 0.0, 1.5);
-
-        var bulb = Math.Clamp((body * 0.55f) + (core * 0.75f) + (spec * 0.45f), 0f, 1.8f);
-        var alpha = Math.Clamp(dot.Intensity * bulb, 0f, 1f);
-        if (alpha <= 0f)
-        {
-            return;
-        }
-
-        var index = ((y * _surfaceWidth) + x) * 4;
-        _pixels[index] = Blend(_pixels[index], dot.B, alpha);
-        _pixels[index + 1] = Blend(_pixels[index + 1], dot.G, alpha);
-        _pixels[index + 2] = Blend(_pixels[index + 2], dot.R, alpha);
-        _pixels[index + 3] = (byte)Math.Clamp(Math.Max(_pixels[index + 3], alpha * 255f), 0f, 255f);
+        _kernel = samples.ToArray();
     }
 
     private static byte Blend(byte existing, byte incoming, float alpha)
@@ -205,12 +218,7 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private readonly record struct DotInstance(
-        float CenterX,
-        float CenterY,
-        float Radius,
-        byte R,
-        byte G,
-        byte B,
-        float Intensity);
+    private readonly record struct DotInstance(int Left, int Top, byte R, byte G, byte B, float Intensity);
+
+    private readonly record struct KernelSample(int OffsetX, int OffsetY, float Alpha);
 }
