@@ -181,13 +181,18 @@ public sealed class Direct3DMatrixRenderer : IMatrixRenderer
                     continue;
                 }
 
-                // Shader-style bulb model (body/core/spec) baked once per kernel pixel.
-                var body = MathF.Pow(1f - dist, 1.2f);
-                var core = MathF.Pow(MathF.Max(0f, 1f - (dist * (float)(1.0 + config.Visual.LensFalloff))), 2.8f);
-                var spec = MathF.Pow(MathF.Max(0f, 1f - (dist / MathF.Max(0.05f, (float)config.Visual.SpecularHotspot))), 8.0f)
-                    * (float)Math.Clamp(config.Visual.RimHighlight + 0.4, 0.0, 1.5);
+                // Wide hotspot: keep ~95% of the dot at near-full intensity, then roll off at the edge.
+                const float hotspotCoverage = 0.95f;
+                var edgeBlend = dist <= hotspotCoverage
+                    ? 1f
+                    : MathF.Pow(MathF.Max(0f, (1f - dist) / MathF.Max(0.001f, 1f - hotspotCoverage)), 0.65f);
 
-                var bulb = Math.Clamp((body * 0.55f) + (core * 0.75f) + (spec * 0.45f), 0f, 1.8f);
+                var body = edgeBlend;
+                var core = MathF.Pow(MathF.Max(0f, 1f - (dist * (float)(1.0 + config.Visual.LensFalloff))), 1.6f);
+                var spec = MathF.Pow(MathF.Max(0f, 1f - (dist / MathF.Max(0.05f, (float)config.Visual.SpecularHotspot))), 5.0f)
+                    * (float)Math.Clamp(config.Visual.RimHighlight + 0.35, 0.0, 1.5);
+
+                var bulb = Math.Clamp((body * 0.92f) + (core * 0.20f) + (spec * 0.10f), 0f, 1.4f);
                 if (bulb <= 0f)
                 {
                     continue;

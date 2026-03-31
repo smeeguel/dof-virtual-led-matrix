@@ -46,7 +46,7 @@ public sealed class FramePresentationDispatcher : IDisposable
 
         if (shouldSchedule)
         {
-            _dispatcher.BeginInvoke(ProcessPendingFrameOnUiThread, DispatcherPriority.Normal);
+            _dispatcher.BeginInvoke(ProcessPendingFrameOnUiThread, DispatcherPriority.Send);
         }
     }
 
