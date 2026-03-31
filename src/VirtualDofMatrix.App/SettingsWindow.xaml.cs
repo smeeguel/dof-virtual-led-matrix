@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using VirtualDofMatrix.App.Configuration;
@@ -10,9 +11,11 @@ namespace VirtualDofMatrix.App;
 public partial class SettingsWindow : Window
 {
     private const string CustomResolution = "Custom";
+    private static readonly JsonSerializerOptions FingerprintSerializerOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly AppConfig _working;
+    private AppConfig _working;
     private readonly CabinetXmlService _cabinetXmlService;
+    private string _lastAppliedFingerprint = string.Empty;
 
     public SettingsWindow(AppConfig source, CabinetXmlService cabinetXmlService)
     {
@@ -21,6 +24,7 @@ public partial class SettingsWindow : Window
 
         InitializeComponent();
         PopulateControls();
+        CaptureCurrentAsCleanState();
         UpdateSummary();
     }
 
@@ -62,6 +66,7 @@ public partial class SettingsWindow : Window
         DebugCheckBox.IsChecked = _working.Debug.LogProtocol;
 
         RefreshLedStripList(_working.Settings.CabinetXmlPath);
+        UpdateSelectionTooltips();
     }
 
     private void OnResolutionPresetChanged(object sender, SelectionChangedEventArgs e)
@@ -85,7 +90,7 @@ public partial class SettingsWindow : Window
                 break;
         }
 
-        UpdateSummary();
+        OnSettingChanged(sender, e);
     }
 
     private void OnQualityChanged(object sender, SelectionChangedEventArgs e)
@@ -100,12 +105,25 @@ public partial class SettingsWindow : Window
             BloomCheckBox.IsChecked = _working.Matrix.Bloom.Enabled;
         }
 
-        UpdateSummary();
+        OnSettingChanged(sender, e);
     }
 
-    private void OnSettingChanged(object sender, RoutedEventArgs e) => UpdateSummary();
+    private void OnScaleModeChanged(object sender, SelectionChangedEventArgs e) => OnSettingChanged(sender, e);
 
-    private void OnTextSettingChanged(object sender, TextChangedEventArgs e) => UpdateSummary();
+    private void OnDotShapeChanged(object sender, SelectionChangedEventArgs e) => OnSettingChanged(sender, e);
+
+    private void OnSettingChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateSelectionTooltips();
+        UpdateSummary();
+        UpdateDirtyState();
+    }
+
+    private void OnTextSettingChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateSummary();
+        UpdateDirtyState();
+    }
 
     private void OnBrowseCabinetXml(object sender, RoutedEventArgs e)
     {
@@ -120,7 +138,7 @@ public partial class SettingsWindow : Window
         {
             CabinetPathTextBox.Text = picker.FileName;
             RefreshLedStripList(picker.FileName);
-            UpdateSummary();
+            OnSettingChanged(sender, e);
         }
     }
 
@@ -164,6 +182,9 @@ public partial class SettingsWindow : Window
         }
 
         Result = config;
+        _working = Clone(config);
+        _lastAppliedFingerprint = BuildFingerprint(config);
+        UpdateDirtyState();
         Applied?.Invoke(this, config);
     }
 
@@ -250,6 +271,62 @@ public partial class SettingsWindow : Window
             ? $"Status: compatible with safe DOF target (<= {CabinetXmlService.SafeMaxLedTotal})."
             : $"Status: exceeds safe DOF target (<= {CabinetXmlService.SafeMaxLedTotal}).";
     }
+
+    private void UpdateSelectionTooltips()
+    {
+        ScaleModeCombo.ToolTip = ScaleModeCombo.SelectedItem?.ToString() switch
+        {
+            "Nearest" => "Nearest: crisp pixel edges with no blending (best for classic dot-matrix look).",
+            "Smooth" => "Smooth: blended scaling for softer edges (more polished, slightly less retro).",
+            _ => "Choose how matrix dots are scaled in the viewport.",
+        };
+
+        DotShapeCombo.ToolTip = DotShapeCombo.SelectedItem?.ToString() switch
+        {
+            "circle" => "Circle: rounded LED style with lens-like look.",
+            "square" => "Square: block-style pixel look with hard corners.",
+            _ => "Choose dot geometry for matrix rendering.",
+        };
+
+        QualityCombo.ToolTip = QualityCombo.SelectedItem?.ToString() switch
+        {
+            VisualQualityProfiles.Low => "Low: tonemapping off, temporal smoothing off, bloom off (best performance).",
+            VisualQualityProfiles.Medium => "Medium: balanced defaults with moderate tonemapping/smoothing/bloom.",
+            VisualQualityProfiles.High => "High: stronger tonemapping/smoothing/bloom for best visual fidelity.",
+            VisualQualityProfiles.Custom => "Custom: manual control of tonemapping, temporal smoothing, and bloom.",
+            _ => "Select a quality profile for tonemapping, smoothing, and bloom.",
+        };
+    }
+
+    private void CaptureCurrentAsCleanState()
+    {
+        if (TryBuildConfig(out var config, out _))
+        {
+            _lastAppliedFingerprint = BuildFingerprint(config);
+        }
+        else
+        {
+            _lastAppliedFingerprint = string.Empty;
+        }
+
+        UpdateDirtyState();
+    }
+
+    private void UpdateDirtyState()
+    {
+        if (!TryBuildConfig(out var config, out _))
+        {
+            ApplyButton.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var fingerprint = BuildFingerprint(config);
+        ApplyButton.Visibility = string.Equals(fingerprint, _lastAppliedFingerprint, StringComparison.Ordinal)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private static string BuildFingerprint(AppConfig config) => JsonSerializer.Serialize(config, FingerprintSerializerOptions);
 
     private static string DetectResolutionPreset(int width, int height)
     {
