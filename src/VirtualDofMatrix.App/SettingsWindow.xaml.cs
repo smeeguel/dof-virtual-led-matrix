@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using VirtualDofMatrix.App.Configuration;
@@ -126,7 +127,14 @@ public partial class SettingsWindow : Window
     private void RefreshLedStripList(string? cabinetPath)
     {
         LedStripCombo.ItemsSource = Array.Empty<string>();
-        if (string.IsNullOrWhiteSpace(cabinetPath) || !File.Exists(cabinetPath))
+        if (string.IsNullOrWhiteSpace(cabinetPath))
+        {
+            LedStripCombo.Text = _working.Settings.CabinetToyName;
+            return;
+        }
+
+        var resolvedCabinetPath = cabinetPath;
+        if (!File.Exists(resolvedCabinetPath))
         {
             LedStripCombo.Text = _working.Settings.CabinetToyName;
             return;
@@ -134,7 +142,7 @@ public partial class SettingsWindow : Window
 
         try
         {
-            var toys = _cabinetXmlService.GetLedStripToyNames(cabinetPath);
+            var toys = _cabinetXmlService.GetLedStripToyNames(resolvedCabinetPath);
             LedStripCombo.ItemsSource = toys;
             LedStripCombo.Text = toys.FirstOrDefault(x => x.Equals(_working.Settings.CabinetToyName, StringComparison.OrdinalIgnoreCase))
                 ?? toys.FirstOrDefault(x => x.Equals("Matrix1", StringComparison.OrdinalIgnoreCase))
