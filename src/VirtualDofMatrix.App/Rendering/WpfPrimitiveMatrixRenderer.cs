@@ -130,12 +130,23 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             if (intensity > 0.0)
             {
                 dot.CoreBrush.Color = Color.FromRgb(r, g, b);
-                var rootIntensity = Math.Sqrt(intensity);
-                dot.Core.Opacity = Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0);
-                dot.Specular.Opacity = Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65);
+                if (_config.Visual.FlatShading)
+                {
+                    dot.Body.Opacity = 0.0;
+                    dot.Core.Opacity = 1.0;
+                    dot.Specular.Opacity = 0.0;
+                }
+                else
+                {
+                    dot.Body.Opacity = 1.0;
+                    var rootIntensity = Math.Sqrt(intensity);
+                    dot.Core.Opacity = Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0);
+                    dot.Specular.Opacity = Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65);
+                }
             }
             else
             {
+                dot.Body.Opacity = _config.Visual.FlatShading ? 0.0 : 1.0;
                 dot.Core.Opacity = 0.0;
                 dot.Specular.Opacity = 0.0;
             }

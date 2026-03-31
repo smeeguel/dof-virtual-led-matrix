@@ -16,7 +16,7 @@ public static class VisualQualityProfiles
         switch (preset)
         {
             case Low:
-                matrix.Renderer = "writeableBitmap";
+                matrix.Renderer = "primitive";
                 matrix.Visual.FlatShading = true;
                 matrix.ToneMapping.Enabled = false;
                 matrix.ToneMapping.Strength = 0.2;
@@ -31,7 +31,7 @@ public static class VisualQualityProfiles
                 matrix.TemporalSmoothing.Enabled = false;
                 break;
             case High:
-                matrix.Renderer = "writeableBitmap";
+                matrix.Renderer = "primitive";
                 matrix.Visual.FlatShading = false;
                 matrix.ToneMapping.Enabled = true;
                 matrix.ToneMapping.Strength = 0.55;
