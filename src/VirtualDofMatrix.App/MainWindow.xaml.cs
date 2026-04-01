@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private bool _isInResizeMove;
     private bool _pendingViewportReinitialize;
     private double _lockedAspectRatio;
+    private IntPtr _windowHandle;
 
     private FramePresentation? _latestPresentation;
     private bool _isRenderingPaused;
@@ -45,6 +46,7 @@ public partial class MainWindow : Window
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) => ReinitializeRendererForViewport();
         SizeChanged += OnWindowSizeChanged;
+        Closed += (_, _) => _matrixRenderer.DisposeRenderer();
     }
 
     public void ApplyPresentation(FramePresentation presentation)
@@ -141,9 +143,11 @@ public partial class MainWindow : Window
         if (_isInResizeMove)
         {
             _pendingViewportReinitialize = true;
+            _matrixRenderer.NotifyHostResized((int)Math.Max(1, e.NewSize.Width), (int)Math.Max(1, e.NewSize.Height));
             return;
         }
 
+        _matrixRenderer.NotifyHostResized((int)Math.Max(1, e.NewSize.Width), (int)Math.Max(1, e.NewSize.Height));
         ReinitializeRendererForViewport();
     }
 
@@ -251,7 +255,9 @@ public partial class MainWindow : Window
     {
         if (PresentationSource.FromVisual(this) is HwndSource hwndSource)
         {
+            _windowHandle = hwndSource.Handle;
             hwndSource.AddHook(WndProc);
+            _matrixRenderer.SetNativeHostHandle(_windowHandle);
         }
     }
 
@@ -280,7 +286,13 @@ public partial class MainWindow : Window
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
+        _matrixRenderer.DisposeRenderer();
         _matrixRenderer = CreateRenderer(_config);
+        if (_windowHandle != IntPtr.Zero)
+        {
+            _matrixRenderer.SetNativeHostHandle(_windowHandle);
+            _matrixRenderer.NotifyHostResized((int)Math.Max(1, ActualWidth), (int)Math.Max(1, ActualHeight));
+        }
         ReinitializeRendererForViewport();
     }
 

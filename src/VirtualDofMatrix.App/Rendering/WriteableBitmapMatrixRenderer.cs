@@ -48,4 +48,28 @@ public sealed class WriteableBitmapMatrixRenderer : IMatrixRenderer
 
         _bitmap.WritePixels(new System.Windows.Int32Rect(0, 0, composed.Width, composed.Height), composed.Pixels, composed.Stride, 0);
     }
+
+    public void SetNativeHostHandle(IntPtr hostHwnd)
+    {
+        // No-op for software bitmap renderer.
+    }
+
+    public void NotifyHostResized(int width, int height)
+    {
+        // No-op for software bitmap renderer.
+    }
+
+    public void NotifyDeviceLost()
+    {
+        // No-op for software bitmap renderer.
+    }
+
+    public void DisposeRenderer()
+    {
+        _bitmap = null;
+        if (_bitmapHost is not null)
+        {
+            _bitmapHost.Source = null;
+        }
+    }
 }

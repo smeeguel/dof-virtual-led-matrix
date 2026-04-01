@@ -164,6 +164,30 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         }
     }
 
+    public void SetNativeHostHandle(IntPtr hostHwnd)
+    {
+        // No-op for WPF primitive renderer.
+    }
+
+    public void NotifyHostResized(int width, int height)
+    {
+        // No-op for WPF primitive renderer.
+    }
+
+    public void NotifyDeviceLost()
+    {
+        // No-op for WPF primitive renderer.
+    }
+
+    public void DisposeRenderer()
+    {
+        _dots.Clear();
+        if (_targetCanvas is not null)
+        {
+            _targetCanvas.Children.Clear();
+        }
+    }
+
     private static Color ComposeRgbBulbColor(byte r, byte g, byte b, double intensity, MatrixVisualConfig visual)
     {
         var rootIntensity = Math.Sqrt(Math.Clamp(intensity, 0.0, 1.0));
