@@ -37,6 +37,7 @@ public partial class SettingsWindow : Window
         ResolutionPresetCombo.ItemsSource = new[] { "SD (32x8)", "HD (64x16)", "Ultra (128x32)", CustomResolution };
         QualityCombo.ItemsSource = VisualQualityProfiles.Names;
         DotShapeCombo.ItemsSource = new[] { "circle", "square" };
+        RendererCombo.ItemsSource = new[] { "gpu", "cpu" };
 
         WidthTextBox.Text = _working.Matrix.Width.ToString();
         HeightTextBox.Text = _working.Matrix.Height.ToString();
@@ -46,10 +47,11 @@ public partial class SettingsWindow : Window
 
         AlwaysOnTopCheckBox.IsChecked = _working.Window.AlwaysOnTop;
         DotShapeCombo.SelectedItem = _working.Matrix.DotShape;
+        RendererCombo.SelectedItem = NormalizeRenderer(_working.Matrix.Renderer);
 
         if (!VisualQualityProfiles.Names.Contains(_working.Settings.VisualQuality, StringComparer.OrdinalIgnoreCase))
         {
-            _working.Settings.VisualQuality = VisualQualityProfiles.Medium;
+            _working.Settings.VisualQuality = VisualQualityProfiles.High;
         }
 
         QualityCombo.SelectedItem = _working.Settings.VisualQuality;
@@ -197,6 +199,7 @@ public partial class SettingsWindow : Window
         AlwaysOnTopCheckBox.IsChecked = defaults.Window.AlwaysOnTop;
         DotShapeCombo.SelectedItem = defaults.Matrix.DotShape;
         QualityCombo.SelectedItem = defaults.Settings.VisualQuality;
+        RendererCombo.SelectedItem = NormalizeRenderer(defaults.Matrix.Renderer);
 
         OnSettingChanged(sender, e);
     }
@@ -229,11 +232,12 @@ public partial class SettingsWindow : Window
         config.Window.AlwaysOnTop = AlwaysOnTopCheckBox.IsChecked == true;
         config.Matrix.DotShape = DotShapeCombo.SelectedItem?.ToString() ?? "circle";
 
-        config.Settings.VisualQuality = QualityCombo.SelectedItem?.ToString() ?? VisualQualityProfiles.Medium;
+        config.Settings.VisualQuality = QualityCombo.SelectedItem?.ToString() ?? VisualQualityProfiles.High;
         if (config.Settings.VisualQuality != VisualQualityProfiles.Custom)
         {
             VisualQualityProfiles.ApplyPreset(config.Matrix, config.Settings.VisualQuality);
         }
+        config.Matrix.Renderer = NormalizeRenderer(RendererCombo.SelectedItem?.ToString());
 
         config.Debug.LogProtocol = DebugCheckBox.IsChecked == true;
         config.Settings.AutoUpdateCabinetOnResolutionChange = AutoUpdateCabinetCheckBox.IsChecked == true;
@@ -274,11 +278,15 @@ public partial class SettingsWindow : Window
         QualityCombo.ToolTip = QualityCombo.SelectedItem?.ToString() switch
         {
             VisualQualityProfiles.Low => "Low: fastest flat RGB pass, no temporal smoothing or tone mapping.",
-            VisualQualityProfiles.Medium => "Medium: balanced image quality without heavy post-processing.",
             VisualQualityProfiles.High => "High: tone mapping + temporal smoothing for richer color output.",
             VisualQualityProfiles.Custom => "Custom: respects current values from settings.json as hand-edited.",
             _ => "Select a quality profile for performance versus visual fidelity.",
         };
+    }
+
+    private static string NormalizeRenderer(string? renderer)
+    {
+        return renderer?.Equals("cpu", StringComparison.OrdinalIgnoreCase) == true ? "cpu" : "gpu";
     }
 
     private void CaptureCurrentAsCleanState()

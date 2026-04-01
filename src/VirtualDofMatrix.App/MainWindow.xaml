@@ -14,7 +14,7 @@
         <Window.ContextMenu>
             <ContextMenu>
                 <MenuItem Header="Settings..." Click="OnSettingsMenuClick" />
-                <MenuItem x:Name="PauseRenderingMenuItem" Header="Pause Rendering" IsCheckable="True" Click="OnPauseRenderingClick" />
+                <MenuItem x:Name="ShowDebugMenuItem" Header="Show Debug" IsCheckable="True" Click="OnShowDebugClick" />
                 <Separator />
                 <MenuItem Header="Exit" Click="OnExitMenuClick" />
             </ContextMenu>
@@ -36,21 +36,22 @@
         </Border>
 
         <StackPanel x:Name="DebugPanel" Grid.Column="2">
-            <TextBlock Foreground="Lime" FontSize="20" FontWeight="Bold" Text="Virtual DOF Matrix (Milestone 2 bootstrap)" />
-            <TextBlock Margin="0,12,0,0" Foreground="White" Text="Renderer selected from matrix.renderer config." />
+            <TextBlock Foreground="Lime" FontSize="20" FontWeight="Bold" Text="Virtual DOF Matrix" />
+            <TextBlock x:Name="RendererText" Margin="0,12,0,0" Foreground="White" Text="Renderer: (none)" />
             <TextBlock Foreground="White" Text="Protocol engine remains in VirtualDofMatrix.Core." />
             <TextBlock Margin="0,12,0,0" Foreground="White" Text="Config summary:" />
-            <TextBlock Foreground="White" Text="{Binding Serial.PortName, StringFormat=Port: {0}}" />
             <TextBlock Foreground="White" Text="{Binding Matrix.Mapping, StringFormat=Mapping: {0}}" />
             <TextBlock Foreground="White" Text="{Binding Matrix.Width, StringFormat=Matrix Width: {0}}" />
             <TextBlock Foreground="White" Text="{Binding Matrix.Height, StringFormat=Matrix Height: {0}}" />
 
             <TextBlock Margin="0,12,0,0" Foreground="White" Text="Visual options:" />
+            <TextBlock x:Name="VisualQualityText" Foreground="White" Text="Visual quality: (none)" />
             <TextBlock x:Name="DotShapeText" Foreground="White" Text="Dot shape: (none)" />
             <TextBlock x:Name="DotSizeText" Foreground="White" Text="Dot size: (none)" />
             <TextBlock x:Name="DotSpacingText" Foreground="White" Text="Min dot spacing: (none)" />
             <TextBlock x:Name="BrightnessText" Foreground="White" Text="Brightness: (none)" />
             <TextBlock x:Name="GammaText" Foreground="White" Text="Gamma: (none)" />
+            <TextBlock x:Name="FpsText" Foreground="White" Text="FPS: 0.0" />
 
             <TextBlock Margin="0,12,0,0" Foreground="White" Text="Last presentation:" />
             <TextBlock x:Name="OutputSequenceText" Foreground="White" Text="Output sequence: (none)" />

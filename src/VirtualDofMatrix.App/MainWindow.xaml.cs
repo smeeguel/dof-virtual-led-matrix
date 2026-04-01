@@ -22,10 +22,12 @@ public partial class MainWindow : Window
     private double _lockedAspectRatio;
 
     private FramePresentation? _latestPresentation;
-    private bool _isRenderingPaused;
     private readonly DispatcherTimer _idleClearTimer;
+    private readonly DispatcherTimer _fpsTimer;
     private DateTimeOffset _lastFrameUtc = DateTimeOffset.MinValue;
     private bool _idleCleared;
+    private int _framesSinceFpsSample;
+    private DateTimeOffset _fpsSampleStartUtc = DateTimeOffset.UtcNow;
 
     public event EventHandler? SettingsRequested;
 
@@ -52,6 +54,7 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _idleClearTimer.Stop();
+            _fpsTimer.Stop();
             _matrixRenderer.Dispose();
         };
         _idleClearTimer = new DispatcherTimer(DispatcherPriority.Background)
@@ -60,6 +63,13 @@ public partial class MainWindow : Window
         };
         _idleClearTimer.Tick += OnIdleClearTick;
         _idleClearTimer.Start();
+
+        _fpsTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(1),
+        };
+        _fpsTimer.Tick += OnFpsTick;
+        _fpsTimer.Start();
     }
 
     public void ApplyPresentation(FramePresentation presentation)
@@ -72,11 +82,9 @@ public partial class MainWindow : Window
         PresentedAtText.Text = $"Presented at UTC: {presentation.PresentedAtUtc:O}";
         PayloadLengthText.Text = $"Payload bytes: {presentation.RgbBytes.Length}";
 
-        if (!_isRenderingPaused)
-        {
-            _matrixRenderer.UpdateFrame(presentation);
-            _matrixRenderer.Render();
-        }
+        _matrixRenderer.UpdateFrame(presentation);
+        _matrixRenderer.Render();
+        _framesSinceFpsSample++;
     }
 
     public void SyncWindowSettingsToConfig()
@@ -103,7 +111,9 @@ public partial class MainWindow : Window
     private void ApplyPersistedVisualSettings()
     {
         Background = Brushes.Black;
-        DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape} (renderer: {_config.Matrix.Renderer})";
+        RendererText.Text = $"Renderer: {NormalizeRendererLabel(_config.Matrix.Renderer)}";
+        VisualQualityText.Text = $"Visual quality: {_config.Settings.VisualQuality}";
+        DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape}";
         DotSizeText.Text = "Dot size: auto";
         DotSpacingText.Text = "Min dot spacing: auto";
         BrightnessText.Text = $"Brightness: {_config.Matrix.Brightness:0.###}";
@@ -112,17 +122,14 @@ public partial class MainWindow : Window
 
     private void ApplyDebugVisibility()
     {
-        if (_config.Debug.ShowDebug)
-        {
-            return;
-        }
+        ShowDebugMenuItem.IsChecked = _config.Debug.ShowDebug;
 
-        RootGrid.Margin = new Thickness(0);
-        DebugPanel.Visibility = Visibility.Collapsed;
-        DebugSpacerColumn.Width = new GridLength(0);
-        DebugPanelColumn.Width = new GridLength(0);
-        MatrixViewportBorder.Padding = new Thickness(0);
-        MatrixViewportBorder.BorderThickness = new Thickness(0);
+        RootGrid.Margin = _config.Debug.ShowDebug ? new Thickness(16) : new Thickness(0);
+        DebugPanel.Visibility = _config.Debug.ShowDebug ? Visibility.Visible : Visibility.Collapsed;
+        DebugSpacerColumn.Width = _config.Debug.ShowDebug ? new GridLength(24) : new GridLength(0);
+        DebugPanelColumn.Width = _config.Debug.ShowDebug ? GridLength.Auto : new GridLength(0);
+        MatrixViewportBorder.Padding = _config.Debug.ShowDebug ? new Thickness(8) : new Thickness(0);
+        MatrixViewportBorder.BorderThickness = _config.Debug.ShowDebug ? new Thickness(1) : new Thickness(0);
     }
 
     private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
@@ -305,29 +312,25 @@ public partial class MainWindow : Window
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
         _matrixRenderer.Dispose();
         _matrixRenderer = CreateRenderer(_config);
+        ApplyDebugVisibility();
         ReinitializeRendererForViewport();
     }
 
-    public void SetRenderingPaused(bool paused)
+    public void SetShowDebug(bool showDebug)
     {
-        _isRenderingPaused = paused;
-        PauseRenderingMenuItem.IsChecked = paused;
-        if (!paused && _latestPresentation is not null)
-        {
-            _matrixRenderer.UpdateFrame(_latestPresentation);
-            _matrixRenderer.Render();
-        }
+        _config.Debug.ShowDebug = showDebug;
+        ApplyDebugVisibility();
     }
 
     private void OnSettingsMenuClick(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
 
-    private void OnPauseRenderingClick(object sender, RoutedEventArgs e) => SetRenderingPaused(PauseRenderingMenuItem.IsChecked);
+    private void OnShowDebugClick(object sender, RoutedEventArgs e) => SetShowDebug(ShowDebugMenuItem.IsChecked);
 
     private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
 
     private void OnIdleClearTick(object? sender, EventArgs e)
     {
-        if (_isRenderingPaused || _idleCleared)
+        if (_idleCleared)
         {
             return;
         }
@@ -340,6 +343,26 @@ public partial class MainWindow : Window
 
         _matrixRenderer.Clear();
         _idleCleared = true;
+    }
+
+    private void OnFpsTick(object? sender, EventArgs e)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var elapsed = (now - _fpsSampleStartUtc).TotalSeconds;
+        if (elapsed <= 0)
+        {
+            return;
+        }
+
+        var fps = _framesSinceFpsSample / elapsed;
+        FpsText.Text = $"FPS: {fps:0.0}";
+        _framesSinceFpsSample = 0;
+        _fpsSampleStartUtc = now;
+    }
+
+    private static string NormalizeRendererLabel(string renderer)
+    {
+        return renderer.Equals("cpu", StringComparison.OrdinalIgnoreCase) ? "CPU" : "GPU";
     }
 
 

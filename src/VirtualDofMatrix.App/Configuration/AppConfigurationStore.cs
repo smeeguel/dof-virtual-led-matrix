@@ -45,7 +45,7 @@ public sealed class AppConfigurationStore
 
         if (string.IsNullOrWhiteSpace(config.Settings.VisualQuality))
         {
-            config.Settings.VisualQuality = "Medium";
+            config.Settings.VisualQuality = "High";
         }
 
         if (config.Matrix.MinDotSpacing < 2)

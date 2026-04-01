@@ -14,60 +14,61 @@
   },
   "matrix": {
     "renderer": "gpu",
-    "width": 64,
-    "height": 16,
+    "width": 128,
+    "height": 32,
     "mapping": "TopDownAlternateRightLeft",
     "dotShape": "circle",
     "minDotSpacing": 2,
-    "brightness": 1.0,
-    "gamma": 1.0,
+    "brightness": 1.5,
+    "gamma": 1,
     "toneMapping": {
-      "enabled": false,
-      "kneeStart": 0.85,
-      "strength": 0.35
+      "enabled": true,
+      "kneeStart": 0.95,
+      "strength": 0.55
     },
     "temporalSmoothing": {
-      "enabled": false,
-      "riseAlpha": 1.0,
-      "fallAlpha": 1.0
+      "enabled": true,
+      "riseAlpha": 0.5,
+      "fallAlpha": 0.3
+    },
+    "visual": {
+      "flatShading": false,
+      "offStateTintR": 35,
+      "offStateTintG": 40,
+      "offStateTintB": 45,
+      "offStateAlpha": 0.22,
+      "lensFalloff": 0.45,
+      "specularHotspot": 0.28,
+      "rimHighlight": 0.22
     },
     "bloom": {
-      "enabled": false,
-      "qualityPreset": "off",
+      "enabled": true,
+      "qualityPreset": "medium",
       "threshold": 0.55,
       "smallRadius": 2,
       "wideRadius": 5,
       "smallStrength": 0.6,
       "wideStrength": 0.25,
       "bufferScaleDivisor": 2
-    },
-    "visual": {
-      "offStateTintR": 150,
-      "offStateTintG": 155,
-      "offStateTintB": 170,
-      "offStateAlpha": 0.22,
-      "lensFalloff": 0.45,
-      "specularHotspot": 0.28,
-      "rimHighlight": 0.22
     }
   },
   "window": {
     "alwaysOnTop": true,
     "borderless": true,
-    "left": 100,
-    "top": 100,
-    "width": 1280,
-    "height": 320
+    "left": -3,
+    "top": 1,
+    "width": 1644,
+    "height": 411
   },
   "debug": {
     "showDebug": false,
-    "logProtocol": true,
+    "logProtocol": false,
     "logFrames": false
   },
   "settings": {
-    "cabinetXmlPath": "C:/DirectOutput/Config/Cabinet.xml",
+    "cabinetXmlPath": "C:\\DirectOutput\\Config\\Cabinet.xml",
     "cabinetToyName": "Matrix1",
     "autoUpdateCabinetOnResolutionChange": true,
-    "visualQuality": "Medium"
+    "visualQuality": "High"
   }
 }

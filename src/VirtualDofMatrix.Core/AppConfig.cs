@@ -23,7 +23,7 @@ public sealed class TransportConfig
     // Branch task note:
     // - "serial": legacy VSPE/COM emulation path.
     // - "namedPipe": fallback DOF custom-controller path (VirtualLEDStripController).
-    public string Mode { get; set; } = "serial";
+    public string Mode { get; set; } = "namedPipe";
 
     // Branch task note: local IPC endpoint used when mode == "namedPipe".
     public string PipeName { get; set; } = "VirtualDofMatrix";
@@ -50,7 +50,7 @@ public sealed class MatrixConfig
 {
     public string Renderer { get; set; } = "gpu";
 
-    public int Width { get; set; } = 256;
+    public int Width { get; set; } = 128;
 
     public int Height { get; set; } = 32;
 
@@ -63,7 +63,7 @@ public sealed class MatrixConfig
 
     public int MinDotSpacing { get; set; } = 2;
 
-    public double Brightness { get; set; } = 1.0;
+    public double Brightness { get; set; } = 1.5;
 
     public double Gamma { get; set; } = 1.0;
 
@@ -79,20 +79,20 @@ public sealed class MatrixConfig
 
 public sealed class ToneMappingConfig
 {
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; } = true;
 
-    public double KneeStart { get; set; } = 0.85;
+    public double KneeStart { get; set; } = 0.95;
 
-    public double Strength { get; set; } = 0.35;
+    public double Strength { get; set; } = 0.55;
 }
 
 public sealed class TemporalSmoothingConfig
 {
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; } = true;
 
-    public double RiseAlpha { get; set; } = 1.0;
+    public double RiseAlpha { get; set; } = 0.5;
 
-    public double FallAlpha { get; set; } = 1.0;
+    public double FallAlpha { get; set; } = 0.3;
 }
 
 public sealed class MatrixVisualConfig
@@ -100,11 +100,11 @@ public sealed class MatrixVisualConfig
     // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
     public bool FlatShading { get; set; } = false;
 
-    public byte OffStateTintR { get; set; } = 150;
+    public byte OffStateTintR { get; set; } = 35;
 
-    public byte OffStateTintG { get; set; } = 155;
+    public byte OffStateTintG { get; set; } = 40;
 
-    public byte OffStateTintB { get; set; } = 170;
+    public byte OffStateTintB { get; set; } = 45;
 
     public double OffStateAlpha { get; set; } = 0.22;
 
@@ -119,9 +119,9 @@ public sealed class BloomConfig
 {
     // Experimental: Bloom is intentionally disabled in the Settings UI due performance cost.
     // It can still be toggled manually via settings.json for testing.
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; } = true;
 
-    public string QualityPreset { get; set; } = "off";
+    public string QualityPreset { get; set; } = "medium";
 
     public double Threshold { get; set; } = 0.55;
 
@@ -142,31 +142,31 @@ public sealed class WindowConfig
 
     public bool Borderless { get; set; } = true;
 
-    public double Left { get; set; } = 100;
+    public double Left { get; set; } = -3;
 
-    public double Top { get; set; } = 100;
+    public double Top { get; set; } = 1;
 
-    public double Width { get; set; } = 1280;
+    public double Width { get; set; } = 1644;
 
-    public double Height { get; set; } = 320;
+    public double Height { get; set; } = 411;
 }
 
 public sealed class DebugConfig
 {
     public bool ShowDebug { get; set; } = false;
 
-    public bool LogProtocol { get; set; } = true;
+    public bool LogProtocol { get; set; } = false;
 
     public bool LogFrames { get; set; } = false;
 }
 
 public sealed class SettingsConfig
 {
-    public string CabinetXmlPath { get; set; } = string.Empty;
+    public string CabinetXmlPath { get; set; } = @"C:\DirectOutput\Config\Cabinet.xml";
 
     public string CabinetToyName { get; set; } = "Matrix1";
 
     public bool AutoUpdateCabinetOnResolutionChange { get; set; } = true;
 
-    public string VisualQuality { get; set; } = "Medium";
+    public string VisualQuality { get; set; } = "High";
 }

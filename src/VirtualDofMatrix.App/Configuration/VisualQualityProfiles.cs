@@ -5,11 +5,10 @@ namespace VirtualDofMatrix.App.Configuration;
 public static class VisualQualityProfiles
 {
     public const string Low = "Low";
-    public const string Medium = "Medium";
     public const string High = "High";
     public const string Custom = "Custom";
 
-    public static readonly string[] Names = [Low, Medium, High, Custom];
+    public static readonly string[] Names = [Low, High, Custom];
 
     public static void ApplyPreset(MatrixConfig matrix, string preset)
     {
@@ -23,11 +22,6 @@ public static class VisualQualityProfiles
                 matrix.TemporalSmoothing.RiseAlpha = 1.0;
                 matrix.TemporalSmoothing.FallAlpha = 1.0;
                 break;
-            case Medium:
-                matrix.Visual.FlatShading = false;
-                matrix.ToneMapping.Enabled = false;
-                matrix.TemporalSmoothing.Enabled = false;
-                break;
             case High:
                 matrix.Visual.FlatShading = false;
                 matrix.ToneMapping.Enabled = true;
@@ -39,7 +33,7 @@ public static class VisualQualityProfiles
             case Custom:
                 break;
             default:
-                ApplyPreset(matrix, Medium);
+                ApplyPreset(matrix, High);
                 break;
         }
 
