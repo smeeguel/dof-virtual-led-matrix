@@ -68,6 +68,8 @@
     "cabinetXmlPath": "C:/DirectOutput/Config/Cabinet.xml",
     "cabinetToyName": "Matrix1",
     "autoUpdateCabinetOnResolutionChange": true,
-    "visualQuality": "Medium"
+    "visualQuality": "Medium",
+    "maxRenderFps": 60,
+    "frameDropPolicy": "latestOnly"
   }
 }

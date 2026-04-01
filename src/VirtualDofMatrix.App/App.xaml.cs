@@ -49,7 +49,7 @@ public partial class App : Application
         _window.Closing += (_, _) => PersistWindowSettings();
 
         _serialHost = new SerialEmulatorHost(_config);
-        _presentationDispatcher = new FramePresentationDispatcher(Dispatcher);
+        _presentationDispatcher = new FramePresentationDispatcher(Dispatcher, _config);
         _presentationDispatcher.Attach(_serialHost);
         _presentationDispatcher.FramePresentedOnUiThread += (_, frame) => _window.ApplyPresentation(frame);
 

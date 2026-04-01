@@ -169,4 +169,8 @@ public sealed class SettingsConfig
     public bool AutoUpdateCabinetOnResolutionChange { get; set; } = true;
 
     public string VisualQuality { get; set; } = "Medium";
+
+    public int MaxRenderFps { get; set; } = 60;
+
+    public string FrameDropPolicy { get; set; } = "latestOnly";
 }

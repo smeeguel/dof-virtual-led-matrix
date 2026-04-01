@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace VirtualDofMatrix.Core;
 
 public sealed class FrameBuffer
@@ -19,7 +21,9 @@ public sealed class FrameBuffer
         {
             lock (_sync)
             {
-                return _rgbBytes.ToArray();
+                var frameBytes = Math.Max(HighestLedWritten, LedsPerChannel) * 3;
+                var length = Math.Min(frameBytes, _rgbBytes.Length);
+                return _rgbBytes.AsMemory(0, length);
             }
         }
     }
@@ -85,13 +89,27 @@ public sealed class FrameBuffer
         {
             OutputSequence++;
             LastOutputUtc = DateTimeOffset.UtcNow;
+            var frameBytes = Math.Max(HighestLedWritten, LedsPerChannel) * 3;
+            if (frameBytes == 0)
+            {
+                return new FramePresentation(
+                    rgbBytes: Array.Empty<byte>(),
+                    HighestLedWritten: HighestLedWritten,
+                    LedsPerChannel: LedsPerChannel,
+                    OutputSequence: OutputSequence,
+                    PresentedAtUtc: LastOutputUtc.Value);
+            }
 
-            return new FramePresentation(
-                RgbBytes: _rgbBytes.ToArray(),
-                HighestLedWritten: HighestLedWritten,
-                LedsPerChannel: LedsPerChannel,
-                OutputSequence: OutputSequence,
-                PresentedAtUtc: LastOutputUtc.Value);
+            var pooled = ArrayPool<byte>.Shared.Rent(frameBytes);
+            _rgbBytes.AsSpan(0, frameBytes).CopyTo(pooled);
+
+            return FramePresentation.FromPooledBuffer(
+                rgbBytes: pooled,
+                rgbLength: frameBytes,
+                highestLedWritten: HighestLedWritten,
+                ledsPerChannel: LedsPerChannel,
+                outputSequence: OutputSequence,
+                presentedAtUtc: LastOutputUtc.Value);
         }
     }
 

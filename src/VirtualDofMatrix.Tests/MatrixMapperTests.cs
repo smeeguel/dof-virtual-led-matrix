@@ -32,4 +32,21 @@ public sealed class MatrixMapperTests
 
         Assert.True(config.Matrix.MinDotSpacing >= 2);
     }
+
+    [Fact]
+    public void BuildLogicalToMappedIndex_ShouldMatchMapperCoordinates()
+    {
+        const int width = 8;
+        const int height = 4;
+        var table = MatrixMappingTableBuilder.BuildLogicalToMappedIndex(width, height, "TopDownAlternateRightLeft");
+
+        Assert.Equal(width * height, table.Length);
+
+        for (var logical = 0; logical < table.Length; logical++)
+        {
+            var mapped = MatrixMapper.MapLinearIndex(logical, width, height, "TopDownAlternateRightLeft");
+            var expected = (mapped.Y * width) + mapped.X;
+            Assert.Equal(expected, table[logical]);
+        }
+    }
 }
