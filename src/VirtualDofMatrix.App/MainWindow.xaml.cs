@@ -3,6 +3,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.Core;
 
@@ -22,6 +23,9 @@ public partial class MainWindow : Window
 
     private FramePresentation? _latestPresentation;
     private bool _isRenderingPaused;
+    private readonly DispatcherTimer _idleClearTimer;
+    private DateTimeOffset _lastFrameUtc = DateTimeOffset.MinValue;
+    private bool _idleCleared;
 
     public event EventHandler? SettingsRequested;
 
@@ -45,11 +49,24 @@ public partial class MainWindow : Window
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) => ReinitializeRendererForViewport();
         SizeChanged += OnWindowSizeChanged;
+        Closed += (_, _) =>
+        {
+            _idleClearTimer.Stop();
+            _matrixRenderer.Dispose();
+        };
+        _idleClearTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(400),
+        };
+        _idleClearTimer.Tick += OnIdleClearTick;
+        _idleClearTimer.Start();
     }
 
     public void ApplyPresentation(FramePresentation presentation)
     {
         _latestPresentation = presentation;
+        _lastFrameUtc = DateTimeOffset.UtcNow;
+        _idleCleared = false;
 
         OutputSequenceText.Text = $"Output sequence: {presentation.OutputSequence}";
         PresentedAtText.Text = $"Presented at UTC: {presentation.PresentedAtUtc:O}";
@@ -307,6 +324,31 @@ public partial class MainWindow : Window
     private void OnPauseRenderingClick(object sender, RoutedEventArgs e) => SetRenderingPaused(PauseRenderingMenuItem.IsChecked);
 
     private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
+
+    private void OnIdleClearTick(object? sender, EventArgs e)
+    {
+        if (_isRenderingPaused || _idleCleared)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (_lastFrameUtc == DateTimeOffset.MinValue || (now - _lastFrameUtc) < TimeSpan.FromSeconds(1.5))
+        {
+            return;
+        }
+
+        var ledCount = Math.Max(1, _config.Matrix.Width * _config.Matrix.Height);
+        var blank = new FramePresentation(
+            new byte[ledCount * 3],
+            HighestLedWritten: 0,
+            LedsPerChannel: ledCount,
+            OutputSequence: 0,
+            PresentedAtUtc: now);
+        _matrixRenderer.UpdateFrame(blank);
+        _matrixRenderer.Render();
+        _idleCleared = true;
+    }
 
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
