@@ -162,6 +162,7 @@ public partial class MainWindow : Window
         var dotStyle = new DotStyleConfig(
             effectiveMatrixConfig.DotShape,
             effectiveMatrixConfig.Mapping,
+            effectiveMatrixConfig.DotSize,
             effectiveMatrixConfig.MinDotSpacing,
             effectiveMatrixConfig.Brightness,
             effectiveMatrixConfig.Gamma,
@@ -329,7 +330,7 @@ public partial class MainWindow : Window
         if (config.Matrix.Renderer.Equals("cpu", StringComparison.OrdinalIgnoreCase) ||
             config.Matrix.Renderer.Equals("primitive", StringComparison.OrdinalIgnoreCase))
         {
-            return new WpfPrimitiveMatrixRenderer();
+            return new CpuMatrixRenderer();
         }
 
         return new GpuInstancedMatrixRenderer();

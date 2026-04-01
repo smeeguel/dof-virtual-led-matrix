@@ -18,7 +18,7 @@ Default backend is `gpu` (`GpuInstancedMatrixRenderer`). It:
 
 - creates a static instance buffer sized to `width * height`
 - builds logical-to-raster mapping once using `MatrixFrameIndexMap`
-- uploads dynamic frame colors each frame via `GpuFrameUpload.BuildBgraFrame`
+- composes tone-mapped raster frames via `MatrixFrameRasterComposer` and uploads them as dynamic BGRA textures
 - issues one `DrawInstanced` call for all dots
 
-CPU rendering uses the primitive (`WpfPrimitiveMatrixRenderer`) path as the non-GPU fallback.
+CPU rendering uses `CpuMatrixRenderer` (raster-composed dots) as the non-GPU fallback.

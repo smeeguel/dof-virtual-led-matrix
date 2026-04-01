@@ -6,6 +6,7 @@ namespace VirtualDofMatrix.App.Rendering;
 public sealed record DotStyleConfig(
     string DotShape,
     string Mapping,
+    int DotSize,
     int DotSpacing,
     double Brightness,
     double Gamma,

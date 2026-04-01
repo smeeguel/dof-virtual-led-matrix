@@ -18,6 +18,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private DotStyleConfig _style = new(
         "circle",
         "TopDownAlternateRightLeft",
+        1,
         2,
         1.0,
         1.0,

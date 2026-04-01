@@ -68,6 +68,11 @@ public sealed class AppConfigurationStore
             config.Matrix.Visual = new MatrixVisualConfig();
         }
 
+        if (config.Matrix.Bloom is null)
+        {
+            config.Matrix.Bloom = new BloomConfig();
+        }
+
         return config;
     }
 }
