@@ -13,7 +13,7 @@
     "dtrEnable": true
   },
   "matrix": {
-    "renderer": "primitive",
+    "renderer": "vulkan",
     "width": 64,
     "height": 16,
     "mapping": "TopDownAlternateRightLeft",
@@ -30,6 +30,11 @@
       "enabled": false,
       "riseAlpha": 1.0,
       "fallAlpha": 1.0
+    },
+    "vulkan": {
+      "targetFps": 60,
+      "presentMode": "fifo",
+      "allowSoftwarePreview": false
     },
     "bloom": {
       "enabled": false,

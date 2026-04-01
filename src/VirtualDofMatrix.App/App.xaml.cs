@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Threading;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Presentation;
+using VirtualDofMatrix.App.Rendering.Vulkan;
 using VirtualDofMatrix.App.Serial;
 using VirtualDofMatrix.Core;
 
@@ -25,6 +26,7 @@ public partial class App : Application
         base.OnStartup(e);
 
         _config = _configurationStore.Load(ConfigFilePath);
+        ApplyRendererFallbackPolicy(_config);
         _configurationStore.Save(ConfigFilePath, _config);
 
         _window = new MainWindow(_config)
@@ -57,6 +59,41 @@ public partial class App : Application
 
         MainWindow = _window;
         _window.Show();
+    }
+
+    private static void ApplyRendererFallbackPolicy(AppConfig config)
+    {
+        if (!config.Matrix.Renderer.Equals("vulkan", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!config.Matrix.ProbeVulkanOnStartup)
+        {
+            return;
+        }
+
+        if (VulkanCapabilityProbe.TryProbe(out var reason))
+        {
+            if (SilkVulkanInteropAdapter.TryValidateRenderBackend(config.Matrix, out var backendReason))
+            {
+                return;
+            }
+
+            reason = backendReason;
+        }
+
+        if (!config.Matrix.FallbackToPrimitiveOnVulkanFailure)
+        {
+            return;
+        }
+
+        config.Matrix.Renderer = "primitive";
+        MessageBox.Show(
+            $"Renderer auto-fallback: Vulkan -> primitive.{Environment.NewLine}{Environment.NewLine}Probe result: {reason}",
+            "Vulkan unavailable",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     protected override async void OnExit(ExitEventArgs e)

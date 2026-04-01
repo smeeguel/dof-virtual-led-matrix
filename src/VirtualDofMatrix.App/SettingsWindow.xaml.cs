@@ -273,9 +273,9 @@ public partial class SettingsWindow : Window
 
         QualityCombo.ToolTip = QualityCombo.SelectedItem?.ToString() switch
         {
-            VisualQualityProfiles.Low => "Low: fastest flat RGB pass in primitive renderer, no bulb/specular, no temporal smoothing, no tone mapping.",
-            VisualQualityProfiles.Medium => "Medium: primitive renderer with bulb effect, no heavy post-processing.",
-            VisualQualityProfiles.High => "High: primitive renderer with tone mapping + temporal smoothing.",
+            VisualQualityProfiles.Low => "Low: fastest flat RGB pass tuned for Vulkan backend, no bulb/specular, no temporal smoothing, no tone mapping.",
+            VisualQualityProfiles.Medium => "Medium: Vulkan backend with bulb effect, no heavy post-processing.",
+            VisualQualityProfiles.High => "High: Vulkan backend with tone mapping + temporal smoothing.",
             VisualQualityProfiles.Custom => "Custom: respects current values from settings.json as hand-edited.",
             _ => "Select a quality profile for performance versus visual fidelity.",
         };
@@ -367,6 +367,16 @@ public partial class SettingsWindow : Window
                 Visual = new MatrixVisualConfig
                 {
                     FlatShading = config.Matrix.Visual.FlatShading,
+                    UseRgbBulbShading = config.Matrix.Visual.UseRgbBulbShading,
+                    DisableDynamicLayerOpacity = config.Matrix.Visual.DisableDynamicLayerOpacity,
+                    BodyContribution = config.Matrix.Visual.BodyContribution,
+                    CoreContribution = config.Matrix.Visual.CoreContribution,
+                    SpecularContribution = config.Matrix.Visual.SpecularContribution,
+                    CoreBase = config.Matrix.Visual.CoreBase,
+                    CoreIntensityScale = config.Matrix.Visual.CoreIntensityScale,
+                    SpecularBase = config.Matrix.Visual.SpecularBase,
+                    SpecularIntensityScale = config.Matrix.Visual.SpecularIntensityScale,
+                    SpecularMax = config.Matrix.Visual.SpecularMax,
                     OffStateTintR = config.Matrix.Visual.OffStateTintR,
                     OffStateTintG = config.Matrix.Visual.OffStateTintG,
                     OffStateTintB = config.Matrix.Visual.OffStateTintB,
@@ -385,6 +395,12 @@ public partial class SettingsWindow : Window
                     SmallStrength = config.Matrix.Bloom.SmallStrength,
                     WideStrength = config.Matrix.Bloom.WideStrength,
                     BufferScaleDivisor = config.Matrix.Bloom.BufferScaleDivisor,
+                },
+                Vulkan = new VulkanRenderConfig
+                {
+                    TargetFps = config.Matrix.Vulkan.TargetFps,
+                    PresentMode = config.Matrix.Vulkan.PresentMode,
+                    AllowSoftwarePreview = config.Matrix.Vulkan.AllowSoftwarePreview,
                 },
             },
             Window = new WindowConfig

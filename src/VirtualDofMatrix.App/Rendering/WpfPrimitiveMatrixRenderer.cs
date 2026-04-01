@@ -127,30 +127,89 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             var intensity = Math.Max(r, Math.Max(g, b)) / 255.0;
             var dot = _dots[shapeIndex];
 
+            if (_config.Visual.FlatShading)
+            {
+                dot.CoreBrush.Color = Color.FromRgb(r, g, b);
+                dot.Body.Opacity = 0.0;
+                dot.Core.Opacity = intensity > 0.0 ? 1.0 : 0.0;
+                dot.Specular.Opacity = 0.0;
+                continue;
+            }
+
+            if (_config.Visual.DisableDynamicLayerOpacity && _config.Visual.UseRgbBulbShading)
+            {
+                var shaded = ComposeRgbBulbColor(r, g, b, intensity, _config.Visual);
+                dot.CoreBrush.Color = shaded;
+                dot.Body.Opacity = 0.0;
+                dot.Core.Opacity = 1.0;
+                dot.Specular.Opacity = 0.0;
+                continue;
+            }
+
             if (intensity > 0.0)
             {
                 dot.CoreBrush.Color = Color.FromRgb(r, g, b);
-                if (_config.Visual.FlatShading)
-                {
-                    dot.Body.Opacity = 0.0;
-                    dot.Core.Opacity = 1.0;
-                    dot.Specular.Opacity = 0.0;
-                }
-                else
-                {
-                    dot.Body.Opacity = 1.0;
-                    var rootIntensity = Math.Sqrt(intensity);
-                    dot.Core.Opacity = Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0);
-                    dot.Specular.Opacity = Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65);
-                }
+                dot.Body.Opacity = 1.0;
+                var rootIntensity = Math.Sqrt(intensity);
+                var specularMax = Math.Clamp(_config.Visual.SpecularMax, 0.0, 1.0);
+                dot.Core.Opacity = Math.Clamp(_config.Visual.CoreBase + (rootIntensity * _config.Visual.CoreIntensityScale), 0.0, 1.0);
+                dot.Specular.Opacity = Math.Clamp(_config.Visual.SpecularBase + (rootIntensity * _config.Visual.SpecularIntensityScale), 0.0, specularMax);
             }
             else
             {
-                dot.Body.Opacity = _config.Visual.FlatShading ? 0.0 : 1.0;
+                dot.Body.Opacity = 1.0;
                 dot.Core.Opacity = 0.0;
                 dot.Specular.Opacity = 0.0;
             }
         }
+    }
+
+    public void SetNativeHostHandle(IntPtr hostHwnd)
+    {
+        // No-op for WPF primitive renderer.
+    }
+
+    public void NotifyHostResized(int width, int height)
+    {
+        // No-op for WPF primitive renderer.
+    }
+
+    public void NotifyDeviceLost()
+    {
+        // No-op for WPF primitive renderer.
+    }
+
+    public void DisposeRenderer()
+    {
+        _dots.Clear();
+        if (_targetCanvas is not null)
+        {
+            _targetCanvas.Children.Clear();
+        }
+    }
+
+    private static Color ComposeRgbBulbColor(byte r, byte g, byte b, double intensity, MatrixVisualConfig visual)
+    {
+        var rootIntensity = Math.Sqrt(Math.Clamp(intensity, 0.0, 1.0));
+        var body = Math.Clamp(visual.BodyContribution, 0.0, 4.0);
+        var coreOpacity = intensity > 0.0
+            ? Math.Clamp(visual.CoreBase + (rootIntensity * visual.CoreIntensityScale), 0.0, 1.0)
+            : 0.0;
+        var core = coreOpacity * Math.Clamp(visual.CoreContribution, 0.0, 4.0);
+        var specularMax = Math.Clamp(visual.SpecularMax, 0.0, 1.0);
+        var specOpacity = intensity > 0.0
+            ? Math.Clamp(visual.SpecularBase + (rootIntensity * visual.SpecularIntensityScale), 0.0, specularMax)
+            : 0.0;
+        var spec = specOpacity * Math.Clamp(visual.SpecularContribution, 0.0, 4.0);
+
+        var outR = (visual.OffStateTintR * body) + (r * core) + (255.0 * spec);
+        var outG = (visual.OffStateTintG * body) + (g * core) + (255.0 * spec);
+        var outB = (visual.OffStateTintB * body) + (b * core) + (255.0 * spec);
+
+        return Color.FromRgb(
+            (byte)Math.Clamp(outR, 0.0, 255.0),
+            (byte)Math.Clamp(outG, 0.0, 255.0),
+            (byte)Math.Clamp(outB, 0.0, 255.0));
     }
 
     private void ApplyColorTransforms(MatrixConfig config, int matrixCapacity)

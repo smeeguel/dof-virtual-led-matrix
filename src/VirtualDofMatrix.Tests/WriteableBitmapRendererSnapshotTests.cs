@@ -61,6 +61,36 @@ public sealed class WriteableBitmapRendererSnapshotTests
         Assert.NotEqual(ComputeHash(square.Pixels), ComputeHash(circle.Pixels));
     }
 
+    [Fact]
+    public void Compose_ShouldRespectRgbBulbCurveTuning_ForShadingParity()
+    {
+        var baseConfig = CreateBaseConfig();
+        var frame = CreateGradientFrame(baseConfig.Width * baseConfig.Height);
+
+        var composer = new MatrixFrameRasterComposer();
+        composer.Configure(baseConfig);
+        var baseline = composer.Compose(frame);
+
+        var tunedConfig = CreateBaseConfig();
+        tunedConfig.Visual.BodyContribution = 0.4;
+        tunedConfig.Visual.CoreContribution = 1.35;
+        tunedConfig.Visual.SpecularContribution = 1.8;
+        tunedConfig.Visual.CoreBase = 0.12;
+        tunedConfig.Visual.CoreIntensityScale = 0.88;
+        tunedConfig.Visual.SpecularBase = 0.03;
+        tunedConfig.Visual.SpecularIntensityScale = 0.52;
+        tunedConfig.Visual.SpecularMax = 0.9;
+
+        composer.Configure(tunedConfig);
+        var tuned = composer.Compose(frame);
+
+        Assert.Equal(baseline.Width, tuned.Width);
+        Assert.Equal(baseline.Height, tuned.Height);
+        Assert.Equal(baseline.Stride, tuned.Stride);
+        Assert.NotEqual(ComputeHash(baseline.Pixels), ComputeHash(tuned.Pixels));
+        Assert.All(tuned.Pixels.Where((_, i) => (i + 1) % 4 == 0), a => Assert.Equal(255, a));
+    }
+
     private static MatrixConfig CreateBaseConfig() =>
         new()
         {

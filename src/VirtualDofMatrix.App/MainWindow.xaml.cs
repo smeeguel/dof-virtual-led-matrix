@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using VirtualDofMatrix.App.Rendering;
+using VirtualDofMatrix.App.Rendering.Vulkan;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
@@ -19,6 +20,7 @@ public partial class MainWindow : Window
     private bool _isInResizeMove;
     private bool _pendingViewportReinitialize;
     private double _lockedAspectRatio;
+    private IntPtr _windowHandle;
 
     private FramePresentation? _latestPresentation;
     private bool _isRenderingPaused;
@@ -45,6 +47,7 @@ public partial class MainWindow : Window
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) => ReinitializeRendererForViewport();
         SizeChanged += OnWindowSizeChanged;
+        Closed += (_, _) => _matrixRenderer.DisposeRenderer();
     }
 
     public void ApplyPresentation(FramePresentation presentation)
@@ -141,9 +144,11 @@ public partial class MainWindow : Window
         if (_isInResizeMove)
         {
             _pendingViewportReinitialize = true;
+            _matrixRenderer.NotifyHostResized((int)Math.Max(1, e.NewSize.Width), (int)Math.Max(1, e.NewSize.Height));
             return;
         }
 
+        _matrixRenderer.NotifyHostResized((int)Math.Max(1, e.NewSize.Width), (int)Math.Max(1, e.NewSize.Height));
         ReinitializeRendererForViewport();
     }
 
@@ -155,8 +160,12 @@ public partial class MainWindow : Window
         }
 
         var effectiveMatrixConfig = BuildViewportAdaptiveMatrixConfig();
+        MatrixNativeHost.Content = _matrixRenderer.GetNativeHostElement();
+        MatrixNativeHost.Visibility = _matrixRenderer.UsesNativeHost ? Visibility.Visible : Visibility.Collapsed;
         MatrixImage.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Visible : Visibility.Collapsed;
-        MatrixCanvas.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Collapsed : Visibility.Visible;
+        MatrixCanvas.Visibility = (!_matrixRenderer.UsesImageHost && !_matrixRenderer.UsesNativeHost)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         _matrixRenderer.Initialize(MatrixCanvas, MatrixImage, effectiveMatrixConfig);
 
         DotShapeText.Text = $"Dot shape: {effectiveMatrixConfig.DotShape}";
@@ -207,6 +216,16 @@ public partial class MainWindow : Window
             Visual = new MatrixVisualConfig
             {
                 FlatShading = _config.Matrix.Visual.FlatShading,
+                UseRgbBulbShading = _config.Matrix.Visual.UseRgbBulbShading,
+                DisableDynamicLayerOpacity = _config.Matrix.Visual.DisableDynamicLayerOpacity,
+                BodyContribution = _config.Matrix.Visual.BodyContribution,
+                CoreContribution = _config.Matrix.Visual.CoreContribution,
+                SpecularContribution = _config.Matrix.Visual.SpecularContribution,
+                CoreBase = _config.Matrix.Visual.CoreBase,
+                CoreIntensityScale = _config.Matrix.Visual.CoreIntensityScale,
+                SpecularBase = _config.Matrix.Visual.SpecularBase,
+                SpecularIntensityScale = _config.Matrix.Visual.SpecularIntensityScale,
+                SpecularMax = _config.Matrix.Visual.SpecularMax,
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,
                 OffStateTintG = _config.Matrix.Visual.OffStateTintG,
                 OffStateTintB = _config.Matrix.Visual.OffStateTintB,
@@ -226,6 +245,12 @@ public partial class MainWindow : Window
                 WideStrength = _config.Matrix.Bloom.WideStrength,
                 BufferScaleDivisor = _config.Matrix.Bloom.BufferScaleDivisor,
             },
+            Vulkan = new VulkanRenderConfig
+            {
+                TargetFps = _config.Matrix.Vulkan.TargetFps,
+                PresentMode = _config.Matrix.Vulkan.PresentMode,
+                AllowSoftwarePreview = _config.Matrix.Vulkan.AllowSoftwarePreview,
+            },
         };
     }
 
@@ -241,7 +266,9 @@ public partial class MainWindow : Window
     {
         if (PresentationSource.FromVisual(this) is HwndSource hwndSource)
         {
+            _windowHandle = hwndSource.Handle;
             hwndSource.AddHook(WndProc);
+            _matrixRenderer.SetNativeHostHandle(_windowHandle);
         }
     }
 
@@ -270,7 +297,13 @@ public partial class MainWindow : Window
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
+        _matrixRenderer.DisposeRenderer();
         _matrixRenderer = CreateRenderer(_config);
+        if (_windowHandle != IntPtr.Zero)
+        {
+            _matrixRenderer.SetNativeHostHandle(_windowHandle);
+            _matrixRenderer.NotifyHostResized((int)Math.Max(1, ActualWidth), (int)Math.Max(1, ActualHeight));
+        }
         ReinitializeRendererForViewport();
     }
 
@@ -292,8 +325,11 @@ public partial class MainWindow : Window
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {
-        return config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase)
-            ? new WriteableBitmapMatrixRenderer()
-            : new WpfPrimitiveMatrixRenderer();
+        if (config.Matrix.Renderer.Equals("vulkan", StringComparison.OrdinalIgnoreCase))
+        {
+            return new VulkanMatrixRenderer();
+        }
+
+        return new WpfPrimitiveMatrixRenderer();
     }
 }

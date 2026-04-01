@@ -105,8 +105,16 @@ internal sealed class MatrixFrameRasterComposer
         }
 
         var rootIntensity = Math.Sqrt(Math.Clamp(intensity, 0.0, 1.0));
-        var coreOpacity = intensity > 0.0 ? Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0) : 0.0;
-        var specOpacity = intensity > 0.0 ? Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65) : 0.0;
+        var bodyContribution = (float)Math.Clamp(visual.BodyContribution, 0.0, 4.0);
+        var coreContribution = (float)Math.Clamp(visual.CoreContribution, 0.0, 4.0);
+        var specContribution = (float)Math.Clamp(visual.SpecularContribution, 0.0, 4.0);
+        var specularMax = Math.Clamp(visual.SpecularMax, 0.0, 1.0);
+        var coreOpacity = intensity > 0.0
+            ? Math.Clamp(visual.CoreBase + (rootIntensity * visual.CoreIntensityScale), 0.0, 1.0)
+            : 0.0;
+        var specOpacity = intensity > 0.0
+            ? Math.Clamp(visual.SpecularBase + (rootIntensity * visual.SpecularIntensityScale), 0.0, specularMax)
+            : 0.0;
 
         var offR = visual.OffStateTintR;
         var offG = visual.OffStateTintG;
@@ -129,9 +137,9 @@ internal sealed class MatrixFrameRasterComposer
                 }
 
                 var kernelIndex = (ky * _kernel.Size) + kx;
-                var body = _kernel.Body[kernelIndex];
-                var core = _kernel.Core[kernelIndex] * coreOpacity;
-                var spec = _kernel.Specular[kernelIndex] * specOpacity;
+                var body = _kernel.Body[kernelIndex] * bodyContribution;
+                var core = _kernel.Core[kernelIndex] * coreOpacity * coreContribution;
+                var spec = _kernel.Specular[kernelIndex] * specOpacity * specContribution;
 
                 var dst = (py * _stride) + (px * 4);
                 var outR = (offR * body) + (r * core) + (255.0 * spec);

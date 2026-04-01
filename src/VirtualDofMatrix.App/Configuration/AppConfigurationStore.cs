@@ -32,6 +32,23 @@ public sealed class AppConfigurationStore
 
     private static AppConfig ApplyLegacyDefaults(AppConfig config)
     {
+        if (config.Transport is null)
+        {
+            config.Transport = new TransportConfig();
+        }
+
+        // Virtual matrix should default to named-pipe transport to eliminate
+        // serial COM baud-rate as a frame throughput bottleneck.
+        if (string.IsNullOrWhiteSpace(config.Transport.Mode) ||
+            config.Transport.Mode.Equals("serial", StringComparison.OrdinalIgnoreCase))
+        {
+            config.Transport.Mode = "namedPipe";
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Transport.PipeName))
+        {
+            config.Transport.PipeName = "VirtualDofMatrix";
+        }
 
         if (config.Settings is null)
         {
@@ -53,6 +70,11 @@ public sealed class AppConfigurationStore
             config.Matrix.MinDotSpacing = 2;
         }
 
+        if (string.IsNullOrWhiteSpace(config.Matrix.Renderer))
+        {
+            config.Matrix.Renderer = "vulkan";
+        }
+
         if (config.Matrix.ToneMapping is null)
         {
             config.Matrix.ToneMapping = new ToneMappingConfig();
@@ -66,6 +88,11 @@ public sealed class AppConfigurationStore
         if (config.Matrix.Visual is null)
         {
             config.Matrix.Visual = new MatrixVisualConfig();
+        }
+
+        if (config.Matrix.Vulkan is null)
+        {
+            config.Matrix.Vulkan = new VulkanRenderConfig();
         }
 
         return config;

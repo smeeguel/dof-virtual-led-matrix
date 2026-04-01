@@ -23,7 +23,10 @@ public sealed class TransportConfig
     // Branch task note:
     // - "serial": legacy VSPE/COM emulation path.
     // - "namedPipe": fallback DOF custom-controller path (VirtualLEDStripController).
-    public string Mode { get; set; } = "serial";
+    //
+    // Performance note:
+    // Named pipe is the default for virtual matrix usage to avoid serial baud bottlenecks.
+    public string Mode { get; set; } = "namedPipe";
 
     // Branch task note: local IPC endpoint used when mode == "namedPipe".
     public string PipeName { get; set; } = "VirtualDofMatrix";
@@ -48,7 +51,11 @@ public sealed class SerialConfig
 
 public sealed class MatrixConfig
 {
-    public string Renderer { get; set; } = "primitive";
+    public string Renderer { get; set; } = "vulkan";
+
+    public bool FallbackToPrimitiveOnVulkanFailure { get; set; } = true;
+
+    public bool ProbeVulkanOnStartup { get; set; } = true;
 
     public int Width { get; set; } = 64;
 
@@ -75,6 +82,19 @@ public sealed class MatrixConfig
     public MatrixVisualConfig Visual { get; set; } = new();
 
     public BloomConfig Bloom { get; set; } = new();
+
+    public VulkanRenderConfig Vulkan { get; set; } = new();
+}
+
+public sealed class VulkanRenderConfig
+{
+    public int TargetFps { get; set; } = 60;
+
+    // Suggested values: "fifo", "mailbox"
+    public string PresentMode { get; set; } = "fifo";
+
+    // Temporary software host preview path; disabled by default due frame-time impact.
+    public bool AllowSoftwarePreview { get; set; } = false;
 }
 
 public sealed class ToneMappingConfig
@@ -99,6 +119,30 @@ public sealed class MatrixVisualConfig
 {
     // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
     public bool FlatShading { get; set; } = false;
+
+    // When enabled, bulb shading is resolved in RGB with a fixed alpha output path.
+    public bool UseRgbBulbShading { get; set; } = true;
+
+    // Primitive renderer perf flag: avoids per-frame element opacity animation.
+    public bool DisableDynamicLayerOpacity { get; set; } = true;
+
+    // Contribution weights for RGB bulb shading.
+    public double BodyContribution { get; set; } = 1.0;
+
+    public double CoreContribution { get; set; } = 1.0;
+
+    public double SpecularContribution { get; set; } = 1.0;
+
+    // Intensity curve controls.
+    public double CoreBase { get; set; } = 0.2;
+
+    public double CoreIntensityScale { get; set; } = 0.72;
+
+    public double SpecularBase { get; set; } = 0.08;
+
+    public double SpecularIntensityScale { get; set; } = 0.45;
+
+    public double SpecularMax { get; set; } = 0.65;
 
     public byte OffStateTintR { get; set; } = 150;
 
