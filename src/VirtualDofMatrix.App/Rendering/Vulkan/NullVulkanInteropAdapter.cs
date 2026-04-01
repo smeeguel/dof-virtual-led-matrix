@@ -19,7 +19,7 @@ public sealed class NullVulkanInteropAdapter : IVulkanInteropAdapter
         // Intentionally no-op.
     }
 
-    public void Resize(int width, int height)
+    public void RecreateSwapchain(int width, int height, string presentMode)
     {
         // Intentionally no-op.
     }

@@ -245,6 +245,11 @@ public partial class MainWindow : Window
                 WideStrength = _config.Matrix.Bloom.WideStrength,
                 BufferScaleDivisor = _config.Matrix.Bloom.BufferScaleDivisor,
             },
+            Vulkan = new VulkanRenderConfig
+            {
+                TargetFps = _config.Matrix.Vulkan.TargetFps,
+                PresentMode = _config.Matrix.Vulkan.PresentMode,
+            },
         };
     }
 

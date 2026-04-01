@@ -78,6 +78,16 @@ public sealed class MatrixConfig
     public MatrixVisualConfig Visual { get; set; } = new();
 
     public BloomConfig Bloom { get; set; } = new();
+
+    public VulkanRenderConfig Vulkan { get; set; } = new();
+}
+
+public sealed class VulkanRenderConfig
+{
+    public int TargetFps { get; set; } = 60;
+
+    // Suggested values: "fifo", "mailbox"
+    public string PresentMode { get; set; } = "fifo";
 }
 
 public sealed class ToneMappingConfig

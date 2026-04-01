@@ -6,7 +6,7 @@ public interface IVulkanInteropAdapter : IDisposable
 {
     void Initialize(IntPtr hostHwnd, MatrixConfig config);
 
-    void Resize(int width, int height);
+    void RecreateSwapchain(int width, int height, string presentMode);
 
     void UpdateShaderParameters(in VulkanShaderParameterBlock parameters);
 

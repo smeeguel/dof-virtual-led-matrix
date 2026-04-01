@@ -85,6 +85,11 @@ public sealed class AppConfigurationStore
             config.Matrix.Visual = new MatrixVisualConfig();
         }
 
+        if (config.Matrix.Vulkan is null)
+        {
+            config.Matrix.Vulkan = new VulkanRenderConfig();
+        }
+
         return config;
     }
 }
