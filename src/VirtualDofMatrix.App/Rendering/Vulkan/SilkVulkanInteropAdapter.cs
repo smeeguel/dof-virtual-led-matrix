@@ -20,12 +20,25 @@ public sealed class SilkVulkanInteropAdapter : IVulkanInteropAdapter
     private int _matrixHeight;
     private int _dotSize;
     private int _dotSpacing;
+    private bool _allowSoftwarePreview;
     private VulkanShaderParameterBlock _shaderParameters;
     private GpuDotInstance[] _deviceInstances = Array.Empty<GpuDotInstance>();
 
-    public static bool TryValidateRenderBackend(out string reason)
+    public static bool TryValidateRenderBackend(MatrixConfig matrixConfig, out string reason)
     {
-        return VulkanCapabilityProbe.TryProbe(out reason);
+        if (!VulkanCapabilityProbe.TryProbe(out reason))
+        {
+            return false;
+        }
+
+        if (!matrixConfig.Vulkan.AllowSoftwarePreview)
+        {
+            reason = "Vulkan software preview path is disabled by default because it causes frame pacing/stutter in some VP setups.";
+            return false;
+        }
+
+        reason = "Vulkan software preview path enabled.";
+        return true;
     }
 
     public void Initialize(IntPtr hostHwnd, MatrixConfig config)
@@ -45,6 +58,7 @@ public sealed class SilkVulkanInteropAdapter : IVulkanInteropAdapter
         _matrixHeight = Math.Max(1, config.Height);
         _dotSize = Math.Max(1, config.DotSize);
         _dotSpacing = Math.Max(1, config.MinDotSpacing);
+        _allowSoftwarePreview = config.Vulkan.AllowSoftwarePreview;
         _presentMode = string.IsNullOrWhiteSpace(config.Vulkan.PresentMode) ? "fifo" : config.Vulkan.PresentMode;
         _initialized = true;
     }
@@ -104,6 +118,11 @@ public sealed class SilkVulkanInteropAdapter : IVulkanInteropAdapter
     private void RenderSoftwarePreviewToHost(ReadOnlySpan<GpuDotInstance> instances)
     {
         if (_hostHwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        if (!_allowSoftwarePreview)
         {
             return;
         }

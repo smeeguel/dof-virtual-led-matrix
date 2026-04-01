@@ -400,6 +400,7 @@ public partial class SettingsWindow : Window
                 {
                     TargetFps = config.Matrix.Vulkan.TargetFps,
                     PresentMode = config.Matrix.Vulkan.PresentMode,
+                    AllowSoftwarePreview = config.Matrix.Vulkan.AllowSoftwarePreview,
                 },
             },
             Window = new WindowConfig

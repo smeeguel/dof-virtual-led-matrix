@@ -92,6 +92,9 @@ public sealed class VulkanRenderConfig
 
     // Suggested values: "fifo", "mailbox"
     public string PresentMode { get; set; } = "fifo";
+
+    // Temporary software host preview path; disabled by default due frame-time impact.
+    public bool AllowSoftwarePreview { get; set; } = false;
 }
 
 public sealed class ToneMappingConfig

@@ -249,6 +249,7 @@ public partial class MainWindow : Window
             {
                 TargetFps = _config.Matrix.Vulkan.TargetFps,
                 PresentMode = _config.Matrix.Vulkan.PresentMode,
+                AllowSoftwarePreview = _config.Matrix.Vulkan.AllowSoftwarePreview,
             },
         };
     }
