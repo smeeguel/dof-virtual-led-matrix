@@ -48,7 +48,7 @@ public sealed class SerialConfig
 
 public sealed class MatrixConfig
 {
-    public string Renderer { get; set; } = "primitive";
+    public string Renderer { get; set; } = "direct3d";
 
     public int Width { get; set; } = 64;
 
@@ -113,6 +113,8 @@ public sealed class MatrixVisualConfig
     public double SpecularHotspot { get; set; } = 0.28;
 
     public double RimHighlight { get; set; } = 0.22;
+
+    public double HotspotCoverage { get; set; } = 0.7;
 }
 
 public sealed class BloomConfig

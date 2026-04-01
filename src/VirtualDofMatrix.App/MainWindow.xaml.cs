@@ -214,6 +214,7 @@ public partial class MainWindow : Window
                 LensFalloff = _config.Matrix.Visual.LensFalloff,
                 SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
                 RimHighlight = _config.Matrix.Visual.RimHighlight,
+                HotspotCoverage = _config.Matrix.Visual.HotspotCoverage,
             },
             Bloom = new BloomConfig
             {
@@ -292,8 +293,11 @@ public partial class MainWindow : Window
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {
-        return config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase)
-            ? new WriteableBitmapMatrixRenderer()
-            : new WpfPrimitiveMatrixRenderer();
+        return config.Matrix.Renderer.Trim().ToLowerInvariant() switch
+        {
+            "primitive" => new WpfPrimitiveMatrixRenderer(),
+            "direct3d" => new Direct3DMatrixRenderer(),
+            _ => new Direct3DMatrixRenderer(),
+        };
     }
 }
