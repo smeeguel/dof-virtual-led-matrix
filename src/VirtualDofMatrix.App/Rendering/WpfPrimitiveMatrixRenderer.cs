@@ -30,6 +30,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private bool _lutSoftKneeEnabled;
     private double _lutSoftKneeStart = double.NaN;
     private double _lutSoftKneeStrength = double.NaN;
+    private int[] _logicalToMappedIndex = Array.Empty<int>();
     public bool UsesImageHost => false;
 
     public void Initialize(Canvas primitiveCanvas, Image bitmapHost, MatrixConfig config)
@@ -53,6 +54,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         var dotStride = _config.DotSize + dotSpacing;
         var width = _config.Width;
         var height = _config.Height;
+        _logicalToMappedIndex = MatrixMappingTableBuilder.BuildLogicalToMappedIndex(width, height, _config.Mapping);
 
         _targetCanvas.Width = (width * dotStride) + dotSpacing;
         _targetCanvas.Height = (height * dotStride) + dotSpacing;
@@ -99,8 +101,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         for (var logicalIndex = 0; logicalIndex < ledCount; logicalIndex++)
         {
             var rgbOffset = logicalIndex * 3;
-            var mapped = MatrixMapper.MapLinearIndex(logicalIndex, _config.Width, _config.Height, _config.Mapping);
-            var shapeIndex = mapped.Y * _config.Width + mapped.X;
+            var shapeIndex = _logicalToMappedIndex[logicalIndex];
 
             if ((uint)shapeIndex >= (uint)_dots.Count)
             {

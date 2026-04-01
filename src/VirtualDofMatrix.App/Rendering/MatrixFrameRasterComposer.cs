@@ -28,6 +28,7 @@ internal sealed class MatrixFrameRasterComposer
     private bool _lutSoftKneeEnabled;
     private double _lutSoftKneeStart = double.NaN;
     private double _lutSoftKneeStrength = double.NaN;
+    private int[] _logicalToMappedIndex = Array.Empty<int>();
 
     public void Configure(MatrixConfig config)
     {
@@ -39,6 +40,7 @@ internal sealed class MatrixFrameRasterComposer
         _stride = _surfaceWidth * 4;
         _surfaceBgra = new byte[_stride * _surfaceHeight];
         _kernel = DotKernel.Create(config.DotSize, config.DotShape, config.Visual);
+        _logicalToMappedIndex = MatrixMappingTableBuilder.BuildLogicalToMappedIndex(config.Width, config.Height, config.Mapping);
     }
 
     public (int Width, int Height, int Stride, byte[] Pixels) Compose(FramePresentation framePresentation)
@@ -59,8 +61,7 @@ internal sealed class MatrixFrameRasterComposer
         for (var logicalIndex = 0; logicalIndex < ledCount; logicalIndex++)
         {
             var rgbOffset = logicalIndex * 3;
-            var mapped = MatrixMapper.MapLinearIndex(logicalIndex, _config.Width, _config.Height, _config.Mapping);
-            var mappedOffset = ((mapped.Y * _config.Width) + mapped.X) * 3;
+            var mappedOffset = _logicalToMappedIndex[logicalIndex] * 3;
             _mappedRgb[mappedOffset] = rgb[rgbOffset];
             _mappedRgb[mappedOffset + 1] = rgb[rgbOffset + 1];
             _mappedRgb[mappedOffset + 2] = rgb[rgbOffset + 2];
