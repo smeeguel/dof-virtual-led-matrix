@@ -57,7 +57,9 @@ public partial class MainWindow : Window
 
         if (!_isRenderingPaused)
         {
-            _matrixRenderer.Render(presentation);
+            var frame = ConvertToRgb24Frame(presentation);
+            _matrixRenderer.UpdateFrame(frame);
+            _matrixRenderer.Render();
         }
     }
 
@@ -157,7 +159,16 @@ public partial class MainWindow : Window
         var effectiveMatrixConfig = BuildViewportAdaptiveMatrixConfig();
         MatrixImage.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Visible : Visibility.Collapsed;
         MatrixCanvas.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Collapsed : Visibility.Visible;
-        _matrixRenderer.Initialize(MatrixCanvas, MatrixImage, effectiveMatrixConfig);
+        var dotStyle = new DotStyleConfig(
+            effectiveMatrixConfig.DotShape,
+            effectiveMatrixConfig.Mapping,
+            effectiveMatrixConfig.MinDotSpacing,
+            effectiveMatrixConfig.Brightness,
+            effectiveMatrixConfig.Gamma,
+            effectiveMatrixConfig.Bloom.Enabled,
+            effectiveMatrixConfig.Bloom.SmallStrength);
+        _matrixRenderer.Initialize(new MatrixRendererSurface(MatrixCanvas, MatrixImage), effectiveMatrixConfig.Width, effectiveMatrixConfig.Height, dotStyle);
+        _matrixRenderer.Resize(MatrixViewportBorder.ActualWidth, MatrixViewportBorder.ActualHeight);
 
         DotShapeText.Text = $"Dot shape: {effectiveMatrixConfig.DotShape}";
         DotSizeText.Text = $"Dot size: auto ({effectiveMatrixConfig.DotSize})";
@@ -165,7 +176,9 @@ public partial class MainWindow : Window
 
         if (_latestPresentation is not null)
         {
-            _matrixRenderer.Render(_latestPresentation);
+            var frame = ConvertToRgb24Frame(_latestPresentation);
+            _matrixRenderer.UpdateFrame(frame);
+            _matrixRenderer.Render();
         }
     }
 
@@ -280,7 +293,9 @@ public partial class MainWindow : Window
         PauseRenderingMenuItem.IsChecked = paused;
         if (!paused && _latestPresentation is not null)
         {
-            _matrixRenderer.Render(_latestPresentation);
+            var frame = ConvertToRgb24Frame(_latestPresentation);
+            _matrixRenderer.UpdateFrame(frame);
+            _matrixRenderer.Render();
         }
     }
 
@@ -290,10 +305,34 @@ public partial class MainWindow : Window
 
     private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
 
+
+    private static Rgb24[] ConvertToRgb24Frame(FramePresentation presentation)
+    {
+        var rgb = presentation.RgbMemory.Span;
+        var ledCount = rgb.Length / 3;
+        var result = new Rgb24[ledCount];
+        for (var i = 0; i < ledCount; i++)
+        {
+            var o = i * 3;
+            result[i] = new Rgb24(rgb[o], rgb[o + 1], rgb[o + 2]);
+        }
+
+        return result;
+    }
+
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {
-        return config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase)
-            ? new WriteableBitmapMatrixRenderer()
-            : new WpfPrimitiveMatrixRenderer();
+        if (config.Matrix.Renderer.Equals("cpu", StringComparison.OrdinalIgnoreCase) ||
+            config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WriteableBitmapMatrixRenderer();
+        }
+
+        if (config.Matrix.Renderer.Equals("primitive", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WpfPrimitiveMatrixRenderer();
+        }
+
+        return new GpuInstancedMatrixRenderer();
     }
 }

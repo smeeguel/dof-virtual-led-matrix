@@ -24,6 +24,7 @@ public static class MatrixMapper
         {
             "TopDownAlternateRightLeft" => MapTopDownAlternateRightLeft(index, width, height),
             "RowMajor" => (index % width, index / width),
+            "ColumnMajor" => (index / height, index % height),
             _ => throw new NotSupportedException($"Unsupported mapping mode '{mapping}'.")
         };
     }

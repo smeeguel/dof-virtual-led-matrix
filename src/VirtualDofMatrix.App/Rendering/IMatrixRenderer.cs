@@ -3,11 +3,28 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Rendering;
 
-public interface IMatrixRenderer
+public sealed record DotStyleConfig(
+    string DotShape,
+    string Mapping,
+    int DotSpacing,
+    double Brightness,
+    double Gamma,
+    bool GlowEnabled,
+    double GlowIntensity);
+
+public sealed record MatrixRendererSurface(Canvas PrimitiveCanvas, Image BitmapHost);
+
+public interface IMatrixRenderer : IDisposable
 {
+    string BackendName { get; }
+
     bool UsesImageHost { get; }
 
-    void Initialize(Canvas primitiveCanvas, Image bitmapHost, MatrixConfig config);
+    void Initialize(MatrixRendererSurface renderSurface, int width, int height, DotStyleConfig dotStyleConfig);
 
-    void Render(FramePresentation framePresentation);
+    void UpdateFrame(ReadOnlySpan<Rgb24> logicalFrame);
+
+    void Resize(double viewportWidth, double viewportHeight);
+
+    void Render();
 }

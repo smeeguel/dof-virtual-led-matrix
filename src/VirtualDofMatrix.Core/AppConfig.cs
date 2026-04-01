@@ -48,11 +48,13 @@ public sealed class SerialConfig
 
 public sealed class MatrixConfig
 {
-    public string Renderer { get; set; } = "primitive";
+    public string Renderer { get; set; } = "gpu";
 
-    public int Width { get; set; } = 64;
+    public RendererConfig RendererOptions { get; set; } = new();
 
-    public int Height { get; set; } = 16;
+    public int Width { get; set; } = 256;
+
+    public int Height { get; set; } = 32;
 
     public string Mapping { get; set; } = "TopDownAlternateRightLeft";
 
@@ -75,6 +77,18 @@ public sealed class MatrixConfig
     public MatrixVisualConfig Visual { get; set; } = new();
 
     public BloomConfig Bloom { get; set; } = new();
+}
+
+
+public sealed class RendererConfig
+{
+    public string Backend { get; set; } = "gpu";
+
+    public bool AllowCpuFallback { get; set; } = true;
+
+    public bool EnableGlow { get; set; } = false;
+
+    public double GlowIntensity { get; set; } = 0.4;
 }
 
 public sealed class ToneMappingConfig
