@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Rendering.Vulkan;
