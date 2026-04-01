@@ -1,0 +1,347 @@
+# Virtual DOF Matrix Tester Instructions
+
+This guide is for testers validating the Virtual DOF Matrix package.
+
+---
+
+## Before You Start
+
+### What this test package is
+The package adds a virtual RGB LED matrix viewer that receives output from DOF and displays it in a standalone window.
+
+### What you need
+- A Windows machine.
+- Visual Pinball / front-end environment (VPX, Popper, or both).
+- A working DOF installation (or willingness to install it now).
+- The `.zip` test package I shared with you.
+
+---
+
+## 1) Install or Verify DOF
+
+### If DOF is **already installed**
+You can skip to **2) Apply files from the test .zip**.
+
+### If DOF is **not installed yet**
+Please install **both** DOF builds into `C:\DirectOutput`:
+
+- **64-bit DOF** (used by VPX)
+- **32-bit DOF** (used by Popper and other front ends)
+
+Download source:
+
+- http://mjrnet.org/pinscape/dll-updates.html#DOF
+
+> Why both? VPX and front-end launchers can load different bitness DLLs, so both are required for consistent testing.
+
+---
+
+## 2) Unzip the Test Package
+
+Unzip my `.zip` anywhere you like.
+
+Example location:
+
+- `C:\vPin\VirtualLED`
+
+You do **not** need to unzip into `C:\DirectOutput`; any folder is fine.
+
+---
+
+## 3) What’s Inside the .zip
+
+The package contains:
+
+1. **Replacement `DirectOutput.dll` files**
+   - one for `x64`
+   - one for `x86`
+
+2. **Sample `DirectOutput/Config` folder**
+   - includes a known-good cabinet/config set for virtual matrix testing.
+
+3. **Virtual matrix program**
+   - executable (`.exe`)
+   - `settings.json`
+   - related runtime files.
+
+4. **This documentation**
+
+---
+
+## 4) Replace DOF DLLs (Important)
+
+1. Go to your DOF install:
+   - `C:\DirectOutput\x64`
+   - `C:\DirectOutput\x86`
+
+2. In each folder, back up the original `DirectOutput.dll`.
+   - Example:
+     - `DirectOutput.dll` -> `DirectOutput.dll.backup`
+
+3. Copy the provided replacement DLLs from the `.zip` and overwrite:
+   - replacement x64 DLL -> `C:\DirectOutput\x64\DirectOutput.dll`
+   - replacement x86 DLL -> `C:\DirectOutput\x86\DirectOutput.dll`
+
+If anything goes wrong, restore your backup DLLs.
+
+---
+
+## 5) Apply the Config Folder
+
+### If you do **not** have an existing DOF cabinet setup
+Copy everything from the sample `DirectOutput/Config` in the `.zip` into:
+
+- `C:\DirectOutput\Config`
+
+Allow overwrite when prompted.
+
+### If you **already have** an existing DOF configuration
+Please **do not blindly overwrite** your current config.
+
+Contact me and I’ll help merge the virtual LED entries into your existing setup safely.
+
+---
+
+## 6) Run Order (Critical)
+
+After DOF + DLL replacement is in place:
+
+1. Launch the **virtual matrix `.exe` first**.
+2. Then launch your front end or a VPX table.
+
+The matrix app should already be running before any table starts.
+
+---
+
+## 7) Quick Validation Checklist
+
+Use this quick pass/fail checklist:
+
+- [ ] Virtual matrix app opens successfully.
+- [ ] Matrix window appears and stays visible.
+- [ ] Launching a table produces matrix activity.
+- [ ] Colors/animations update while game events occur.
+- [ ] Closing/reopening table resumes updates.
+- [ ] Popper/front-end path also works (if used).
+
+Optional:
+- [ ] Test VPX (64-bit path).
+- [ ] Test front-end launcher (32-bit path).
+
+---
+
+## 8) Settings GUI Reference (every visible option)
+
+Open the app settings window to access these controls.
+
+## Display tab
+
+### Dot Resolution
+- **SD (32x8)**: sets width 32, height 8.
+- **HD (64x16)**: sets width 64, height 16.
+- **Ultra (128x32)**: sets width 128, height 32.
+- **Custom**: unlocks manual Width + Height fields.
+
+### Width / Height (Custom)
+- Manual matrix LED dimensions.
+- Must be positive integers.
+- Product (`width * height`) must stay within safe cap (8800).
+
+### Always on top
+- Keeps matrix window above other windows.
+
+### Dot shape
+- **circle**: rounded LED look.
+- **square**: pixel/block look.
+
+### Visual quality
+- **Low**: fastest path, reduced effects.
+- **High**: fuller visual processing (tone mapping + smoothing).
+- **Custom**: keeps hand-edited `settings.json` visual values.
+
+### Renderer
+- **gpu**: preferred hardware-accelerated renderer.
+- **cpu**: software fallback renderer.
+
+### Reset to Defaults
+- Resets only Display-tab options back to app defaults.
+
+## DOF / Cabinet tab
+
+### Cabinet.xml
+- Read-only path box showing selected `Cabinet.xml`.
+- **Browse...** button lets you pick a file manually.
+
+### LedStrip toy
+- Choose or type the target LedStrip toy name in `Cabinet.xml`.
+- Typical value: `Matrix1`.
+
+### Auto-update Cabinet.xml when resolution changes
+- If enabled, applying/OK can write new width/height to the selected toy.
+
+## Advanced tab
+
+### Debug logging
+- Enables protocol logging for troubleshooting.
+
+## Footer buttons
+- **Apply**: save changes immediately without closing.
+- **OK**: apply + close.
+- **Cancel**: close without applying new changes.
+
+---
+
+## 9) settings.json Reference (full field breakdown)
+
+Below is every supported section/field and what it does.
+
+## `transport`
+- `mode` (`"namedPipe"` or `"serial"`)
+  - Selects communication backend.
+- `pipeName`
+  - Named pipe endpoint when `mode = "namedPipe"`.
+
+## `serial`
+- `portName`
+  - COM port for emulator mode (example: `COM2`).
+- `baudRate`
+  - Serial baud rate.
+- `maxLedsPerChannel`
+  - Maximum LEDs allowed per strip/channel (typically 1100).
+- `maxStrips`
+  - Max supported strips (safe target: 8).
+- `readTimeoutMs`
+  - Serial read timeout in milliseconds.
+- `writeTimeoutMs`
+  - Serial write timeout in milliseconds.
+- `dtrEnable`
+  - Enables DTR on serial connection.
+
+## `matrix`
+- `renderer`
+  - `gpu` or `cpu` backend.
+- `width`
+  - Matrix width in LEDs.
+- `height`
+  - Matrix height in LEDs.
+- `mapping`
+  - LED index mapping mode (e.g., `TopDownAlternateRightLeft`).
+- `dotShape`
+  - `circle` or `square`.
+- `minDotSpacing`
+  - Minimum spacing between rendered dots.
+- `brightness`
+  - Global brightness multiplier.
+- `gamma`
+  - Gamma adjustment.
+
+### `matrix.toneMapping`
+- `enabled`
+  - Enables tone mapping.
+- `kneeStart`
+  - Compression start point for highlights.
+- `strength`
+  - Tone mapping strength.
+
+### `matrix.temporalSmoothing`
+- `enabled`
+  - Enables frame-to-frame smoothing.
+- `riseAlpha`
+  - Response speed when brightness rises.
+- `fallAlpha`
+  - Response speed when brightness falls.
+
+### `matrix.visual`
+- `flatShading`
+  - Uses flatter/faster single-pass look when enabled.
+- `offStateTintR`, `offStateTintG`, `offStateTintB`
+  - RGB tint values for unlit dot appearance.
+- `offStateAlpha`
+  - Opacity of unlit dots.
+- `lensFalloff`
+  - Lens falloff intensity.
+- `specularHotspot`
+  - Specular highlight amount.
+- `rimHighlight`
+  - Rim-light intensity.
+
+### `matrix.bloom`
+- `enabled`
+  - Enables bloom post-effect.
+- `qualityPreset`
+  - Bloom quality profile string.
+- `threshold`
+  - Brightness threshold that triggers bloom.
+- `smallRadius`
+  - Radius for tighter blur pass.
+- `wideRadius`
+  - Radius for wider blur pass.
+- `smallStrength`
+  - Intensity for tight bloom.
+- `wideStrength`
+  - Intensity for wide bloom.
+- `bufferScaleDivisor`
+  - Downscale factor used for bloom buffers.
+
+## `window`
+- `alwaysOnTop`
+  - Window topmost behavior.
+- `borderless`
+  - Borderless window mode.
+- `left`
+  - Saved X position.
+- `top`
+  - Saved Y position.
+- `width`
+  - Saved window width.
+- `height`
+  - Saved window height.
+
+## `debug`
+- `showDebug`
+  - Extra debug UI/log behavior (if implemented).
+- `logProtocol`
+  - Protocol logging on/off.
+- `logFrames`
+  - Frame-level logging on/off.
+
+## `settings`
+- `cabinetXmlPath`
+  - Path to `Cabinet.xml` used by settings actions.
+- `cabinetToyName`
+  - LedStrip toy name to update (e.g., `Matrix1`).
+- `autoUpdateCabinetOnResolutionChange`
+  - Auto-write dimensions to cabinet config on apply.
+- `visualQuality`
+  - `Low`, `High`, or `Custom` quality profile selection.
+
+---
+
+## 10) Troubleshooting
+
+### Matrix app opens but no animation appears
+- Confirm virtual matrix app was started **before** VPX/front-end.
+- Confirm replacement DLLs were copied to both x64 and x86 folders.
+- Confirm table/config actually drives the configured matrix toy.
+
+### Works in VPX but not in Popper (or vice versa)
+- Re-check both DLL replacements:
+  - `C:\DirectOutput\x64\DirectOutput.dll`
+  - `C:\DirectOutput\x86\DirectOutput.dll`
+
+### Existing DOF config got complicated
+- Stop and contact me for a safe merge into your current `Cabinet.xml` and ini config.
+
+---
+
+## 11) What to Send Back After Testing
+
+Please include:
+- Pass/fail summary.
+- Whether VPX worked.
+- Whether Popper/front-end worked.
+- Your `settings.json` (if changed).
+- Any logs/screenshots of errors.
+- Exact step where behavior diverged from this guide.
+
+Thanks again for testing — this helps validate both fresh setups and existing DOF installs.
