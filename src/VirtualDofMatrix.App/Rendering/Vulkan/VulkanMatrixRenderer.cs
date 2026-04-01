@@ -20,7 +20,7 @@ public sealed class VulkanMatrixRenderer : IMatrixRenderer
     private DateTimeOffset _lastMetricsLogUtc = DateTimeOffset.MinValue;
 
     public VulkanMatrixRenderer()
-        : this(new NullVulkanInteropAdapter())
+        : this(new SilkVulkanInteropAdapter())
     {
     }
 
