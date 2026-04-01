@@ -8,6 +8,8 @@ public interface IVulkanInteropAdapter : IDisposable
 
     void Resize(int width, int height);
 
+    void UpdateShaderParameters(in VulkanShaderParameterBlock parameters);
+
     void UploadAndRender(ReadOnlySpan<GpuDotInstance> stagingInstances, int frameSlot);
 
     void NotifyDeviceLost();

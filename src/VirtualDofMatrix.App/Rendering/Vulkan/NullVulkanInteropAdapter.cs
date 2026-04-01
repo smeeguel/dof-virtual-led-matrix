@@ -24,6 +24,11 @@ public sealed class NullVulkanInteropAdapter : IVulkanInteropAdapter
         // Intentionally no-op.
     }
 
+    public void UpdateShaderParameters(in VulkanShaderParameterBlock parameters)
+    {
+        // Intentionally no-op. Real adapter uploads to push constants/uniforms.
+    }
+
     public void UploadAndRender(ReadOnlySpan<GpuDotInstance> stagingInstances, int frameSlot)
     {
         var slot = Math.Abs(frameSlot) % _deviceRing.Length;

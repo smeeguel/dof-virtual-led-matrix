@@ -15,4 +15,8 @@
   <ItemGroup>
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Rendering\Vulkan\Shaders\*.glsl" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

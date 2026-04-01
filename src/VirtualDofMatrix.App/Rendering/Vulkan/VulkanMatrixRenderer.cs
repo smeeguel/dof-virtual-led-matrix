@@ -41,6 +41,7 @@ public sealed class VulkanMatrixRenderer : IMatrixRenderer
         _hostControl.Width = Math.Max(1, (config.Width * (config.DotSize + config.MinDotSpacing)) + config.MinDotSpacing);
         _hostControl.Height = Math.Max(1, (config.Height * (config.DotSize + config.MinDotSpacing)) + config.MinDotSpacing);
         _uploadPipeline.Configure(config);
+        _interopAdapter.UpdateShaderParameters(VulkanShaderParameterBlock.FromVisual(config.Visual));
 
         TryInitializeInterop();
     }
