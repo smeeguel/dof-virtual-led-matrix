@@ -6,7 +6,7 @@ using Xunit;
 
 namespace VirtualDofMatrix.Tests;
 
-public sealed class WriteableBitmapRendererSnapshotTests
+public sealed class RasterComposerSnapshotTests
 {
     [Fact]
     public void Compose_ShouldRemainDeterministic_ForToneMappedBloomCircleDots()

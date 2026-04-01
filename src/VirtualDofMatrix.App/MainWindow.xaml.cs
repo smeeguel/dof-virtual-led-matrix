@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls;
@@ -22,18 +23,15 @@ public partial class MainWindow : Window
 
     private FramePresentation? _latestPresentation;
     private bool _isRenderingPaused;
+    private string _activeRendererStatus = string.Empty;
 
     public event EventHandler? SettingsRequested;
 
     public MainWindow(AppConfig config)
-        : this(config, CreateRenderer(config))
-    {
-    }
-
-    internal MainWindow(AppConfig config, IMatrixRenderer matrixRenderer)
     {
         _config = config;
-        _matrixRenderer = matrixRenderer;
+        _matrixRenderer = CreateRenderer(config, this, out var rendererStatus);
+        _activeRendererStatus = rendererStatus;
 
         InitializeComponent();
 
@@ -85,7 +83,7 @@ public partial class MainWindow : Window
     private void ApplyPersistedVisualSettings()
     {
         Background = Brushes.Black;
-        DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape} (renderer: {_config.Matrix.Renderer})";
+        DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape} (renderer: {_activeRendererStatus})";
         DotSizeText.Text = "Dot size: auto";
         DotSpacingText.Text = "Min dot spacing: auto";
         BrightnessText.Text = $"Brightness: {_config.Matrix.Brightness:0.###}";
@@ -159,7 +157,7 @@ public partial class MainWindow : Window
         MatrixCanvas.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Collapsed : Visibility.Visible;
         _matrixRenderer.Initialize(MatrixCanvas, MatrixImage, effectiveMatrixConfig);
 
-        DotShapeText.Text = $"Dot shape: {effectiveMatrixConfig.DotShape}";
+        DotShapeText.Text = $"Dot shape: {effectiveMatrixConfig.DotShape} (renderer: {_activeRendererStatus})";
         DotSizeText.Text = $"Dot size: auto ({effectiveMatrixConfig.DotSize})";
         DotSpacingText.Text = $"Min dot spacing: auto ({effectiveMatrixConfig.MinDotSpacing})";
 
@@ -270,7 +268,8 @@ public partial class MainWindow : Window
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
-        _matrixRenderer = CreateRenderer(_config);
+        _matrixRenderer = CreateRenderer(_config, this, out var rendererStatus);
+        _activeRendererStatus = rendererStatus;
         ReinitializeRendererForViewport();
     }
 
@@ -290,10 +289,33 @@ public partial class MainWindow : Window
 
     private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
 
-    private static IMatrixRenderer CreateRenderer(AppConfig config)
+    private static IMatrixRenderer CreateRenderer(AppConfig config, Window owner, out string rendererStatus)
     {
-        return config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase)
-            ? new WriteableBitmapMatrixRenderer()
-            : new WpfPrimitiveMatrixRenderer();
+        if (config.Matrix.Renderer.Equals("primitive", StringComparison.OrdinalIgnoreCase))
+        {
+            rendererStatus = "primitive";
+            return new WpfPrimitiveMatrixRenderer();
+        }
+
+        if (VulkanMatrixRenderer.TryCreate(out var vulkanRenderer, out _))
+        {
+            rendererStatus = vulkanRenderer.RendererName;
+            return vulkanRenderer;
+        }
+
+        var fallbackReason = string.Empty;
+        VulkanMatrixRenderer.TryCreate(out _, out fallbackReason);
+        rendererStatus = $"primitive fallback ({fallbackReason})";
+
+        Dispatcher.CurrentDispatcher.BeginInvoke(() =>
+            MessageBox.Show(
+                owner,
+                $"Vulkan renderer could not be initialized. Falling back to the primitive renderer.\n\nReason: {fallbackReason}",
+                "Vulkan fallback",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning));
+
+        Console.WriteLine($"[Renderer] Requested '{config.Matrix.Renderer}', active renderer: primitive. Reason: {fallbackReason}");
+        return new WpfPrimitiveMatrixRenderer();
     }
 }

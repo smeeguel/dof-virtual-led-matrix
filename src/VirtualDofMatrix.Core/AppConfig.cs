@@ -48,7 +48,7 @@ public sealed class SerialConfig
 
 public sealed class MatrixConfig
 {
-    public string Renderer { get; set; } = "primitive";
+    public string Renderer { get; set; } = "vulkan";
 
     public int Width { get; set; } = 64;
 
