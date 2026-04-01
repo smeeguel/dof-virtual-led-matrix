@@ -20,7 +20,9 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
 
     public void Initialize(MatrixRendererSurface renderSurface, int width, int height, DotStyleConfig dotStyleConfig)
     {
+        _bitmap = null;
         _bitmapHost = renderSurface.BitmapHost ?? throw new ArgumentNullException(nameof(renderSurface.BitmapHost));
+        _bitmapHost.Source = null;
         renderSurface.PrimitiveCanvas.Children.Clear();
         renderSurface.PrimitiveCanvas.Width = 0;
         renderSurface.PrimitiveCanvas.Height = 0;

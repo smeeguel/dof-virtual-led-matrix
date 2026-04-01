@@ -32,7 +32,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     public void Initialize(MatrixRendererSurface renderSurface, int width, int height, DotStyleConfig dotStyleConfig)
     {
+        DisposeDeviceResources();
         _host = renderSurface.BitmapHost;
+        _host.Source = null;
         renderSurface.PrimitiveCanvas.Children.Clear();
 
         _config = new MatrixConfig
@@ -147,10 +149,20 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     public void Dispose()
     {
+        DisposeDeviceResources();
+    }
+
+    private void DisposeDeviceResources()
+    {
         _frameSrv?.Dispose();
+        _frameSrv = null;
         _frameTexture?.Dispose();
+        _frameTexture = null;
         _instanceBuffer?.Dispose();
+        _instanceBuffer = null;
         _context?.Dispose();
+        _context = null;
         _device?.Dispose();
+        _device = null;
     }
 }

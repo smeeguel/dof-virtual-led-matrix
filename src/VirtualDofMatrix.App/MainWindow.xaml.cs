@@ -288,6 +288,7 @@ public partial class MainWindow : Window
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
+        _matrixRenderer.Dispose();
         _matrixRenderer = CreateRenderer(_config);
         ReinitializeRendererForViewport();
     }
