@@ -30,6 +30,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private bool _lutSoftKneeEnabled;
     private double _lutSoftKneeStart = double.NaN;
     private double _lutSoftKneeStrength = double.NaN;
+    public string RendererName => "primitive";
+
     public bool UsesImageHost => false;
 
     public void Initialize(Canvas primitiveCanvas, Image bitmapHost, MatrixConfig config)

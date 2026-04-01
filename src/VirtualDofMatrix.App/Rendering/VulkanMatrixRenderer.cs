@@ -8,6 +8,8 @@ public sealed class VulkanMatrixRenderer : IMatrixRenderer
 {
     private readonly WpfPrimitiveMatrixRenderer _fallbackRenderer = new();
 
+    public string RendererName => "vulkan (shim)";
+
     public bool UsesImageHost => _fallbackRenderer.UsesImageHost;
 
     public static bool TryCreate(out VulkanMatrixRenderer renderer, out string failureReason)
@@ -27,8 +29,8 @@ public sealed class VulkanMatrixRenderer : IMatrixRenderer
         }
 
         NativeLibrary.Free(handle);
-        failureReason = string.Empty;
-        return true;
+        failureReason = "Vulkan backend is not implemented yet in this build; primitive renderer will be used until the GPU pipeline lands.";
+        return false;
     }
 
     public void Initialize(Canvas primitiveCanvas, Image bitmapHost, MatrixConfig config)
