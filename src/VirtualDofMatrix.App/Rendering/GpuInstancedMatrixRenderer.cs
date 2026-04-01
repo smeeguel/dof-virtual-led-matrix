@@ -57,12 +57,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             instanceData[i] = (uint)i;
         }
 
-        _instanceBuffer = _device.CreateBuffer(BindFlags.VertexBuffer, instanceData, ResourceUsage.Immutable);
+        var byteWidth = (uint)(instanceData.Length * sizeof(uint));
+        var instanceDesc = new BufferDescription(byteWidth, BindFlags.VertexBuffer, ResourceUsage.Immutable, CpuAccessFlags.None, ResourceOptionFlags.None, sizeof(uint));
+        _instanceBuffer = _device.CreateBuffer(instanceDesc, instanceData);
 
         _frameTexture = _device.CreateTexture2D(new Texture2DDescription
         {
-            Width = Math.Max(1, width),
-            Height = Math.Max(1, height),
+            Width = (uint)Math.Max(1, width),
+            Height = (uint)Math.Max(1, height),
             ArraySize = 1,
             MipLevels = 1,
             Format = Format.R8G8B8A8_UNorm,
@@ -108,11 +110,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         var data = GpuFrameUpload.BuildBgraFrame(frame, _logicalToRaster, _width, _height);
 
-        var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, MapFlags.None);
+        var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
         Marshal.Copy(data, 0, map.DataPointer, data.Length);
         _context.Unmap(_frameTexture, 0);
 
-        _context.DrawInstanced(4, _width * _height, 0, 0);
+        _context.DrawInstanced(4u, (uint)(_width * _height), 0u, 0u);
 
         _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _width, _height), data, _width * 4, 0);
     }
