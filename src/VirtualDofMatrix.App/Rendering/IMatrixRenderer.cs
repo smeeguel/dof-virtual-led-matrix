@@ -9,6 +9,7 @@ public sealed record DotStyleConfig(
     int DotSpacing,
     double Brightness,
     double Gamma,
+    MatrixVisualConfig Visual,
     ToneMappingConfig ToneMapping,
     TemporalSmoothingConfig TemporalSmoothing,
     BloomConfig Bloom,

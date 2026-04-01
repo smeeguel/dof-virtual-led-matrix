@@ -21,4 +21,4 @@ Default backend is `gpu` (`GpuInstancedMatrixRenderer`). It:
 - uploads dynamic frame colors each frame via `GpuFrameUpload.BuildBgraFrame`
 - issues one `DrawInstanced` call for all dots
 
-CPU bitmap (`WriteableBitmapMatrixRenderer`) remains available for diagnostics/fallback.
+CPU rendering uses the primitive (`WpfPrimitiveMatrixRenderer`) path as the non-GPU fallback.

@@ -49,12 +49,6 @@
       "lensFalloff": 0.45,
       "specularHotspot": 0.28,
       "rimHighlight": 0.22
-    },
-    "rendererOptions": {
-      "backend": "gpu",
-      "allowCpuFallback": true,
-      "enableGlow": false,
-      "glowIntensity": 0.4
     }
   },
   "window": {

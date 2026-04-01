@@ -167,9 +167,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _mappedRgb[mapped + 2] = frame[logical].B;
         }
 
-        BuildColorLutIfNeeded();
-        ApplyColorTransforms(matrixCapacity);
-        ApplyBloomIfEnabled(matrixCapacity);
+        if (_style.Visual.FlatShading)
+        {
+            Array.Copy(_mappedRgb, _workingRgb, matrixCapacity * ColorChannels);
+        }
+        else
+        {
+            BuildColorLutIfNeeded();
+            ApplyColorTransforms(matrixCapacity);
+            ApplyBloomIfEnabled(matrixCapacity);
+        }
 
         var destination = new byte[checked(_width * _height * 4)];
         for (var logical = 0; logical < matrixCapacity; logical++)

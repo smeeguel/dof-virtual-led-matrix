@@ -50,8 +50,6 @@ public sealed class MatrixConfig
 {
     public string Renderer { get; set; } = "gpu";
 
-    public RendererConfig RendererOptions { get; set; } = new();
-
     public int Width { get; set; } = 256;
 
     public int Height { get; set; } = 32;
@@ -77,18 +75,6 @@ public sealed class MatrixConfig
     public MatrixVisualConfig Visual { get; set; } = new();
 
     public BloomConfig Bloom { get; set; } = new();
-}
-
-
-public sealed class RendererConfig
-{
-    public string Backend { get; set; } = "gpu";
-
-    public bool AllowCpuFallback { get; set; } = true;
-
-    public bool EnableGlow { get; set; } = false;
-
-    public double GlowIntensity { get; set; } = 0.4;
 }
 
 public sealed class ToneMappingConfig

@@ -58,12 +58,6 @@ public sealed class AppConfigurationStore
             config.Matrix.ToneMapping = new ToneMappingConfig();
         }
 
-        if (config.Matrix.RendererOptions is null)
-        {
-            config.Matrix.RendererOptions = new RendererConfig();
-        }
-
-
         if (config.Matrix.TemporalSmoothing is null)
         {
             config.Matrix.TemporalSmoothing = new TemporalSmoothingConfig();

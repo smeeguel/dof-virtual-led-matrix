@@ -21,6 +21,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         2,
         1.0,
         1.0,
+        new MatrixVisualConfig(),
         new ToneMappingConfig(),
         new TemporalSmoothingConfig(),
         new BloomConfig(),

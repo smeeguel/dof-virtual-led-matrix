@@ -165,6 +165,7 @@ public partial class MainWindow : Window
             effectiveMatrixConfig.MinDotSpacing,
             effectiveMatrixConfig.Brightness,
             effectiveMatrixConfig.Gamma,
+            effectiveMatrixConfig.Visual,
             effectiveMatrixConfig.ToneMapping,
             effectiveMatrixConfig.TemporalSmoothing,
             effectiveMatrixConfig.Bloom,
@@ -326,12 +327,7 @@ public partial class MainWindow : Window
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {
         if (config.Matrix.Renderer.Equals("cpu", StringComparison.OrdinalIgnoreCase) ||
-            config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase))
-        {
-            return new WriteableBitmapMatrixRenderer();
-        }
-
-        if (config.Matrix.Renderer.Equals("primitive", StringComparison.OrdinalIgnoreCase))
+            config.Matrix.Renderer.Equals("primitive", StringComparison.OrdinalIgnoreCase))
         {
             return new WpfPrimitiveMatrixRenderer();
         }
