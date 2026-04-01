@@ -31,6 +31,7 @@
                 <Grid Background="Black">
                     <Canvas x:Name="MatrixCanvas" Background="Black" />
                     <Image x:Name="MatrixImage" Stretch="None" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                    <ContentControl x:Name="MatrixNativeHost" Visibility="Collapsed" />
                 </Grid>
             </Viewbox>
         </Border>

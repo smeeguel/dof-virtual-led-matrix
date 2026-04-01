@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using VirtualDofMatrix.App.Rendering;
+using VirtualDofMatrix.App.Rendering.Vulkan;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
@@ -159,8 +160,12 @@ public partial class MainWindow : Window
         }
 
         var effectiveMatrixConfig = BuildViewportAdaptiveMatrixConfig();
+        MatrixNativeHost.Content = _matrixRenderer.GetNativeHostElement();
+        MatrixNativeHost.Visibility = _matrixRenderer.UsesNativeHost ? Visibility.Visible : Visibility.Collapsed;
         MatrixImage.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Visible : Visibility.Collapsed;
-        MatrixCanvas.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Collapsed : Visibility.Visible;
+        MatrixCanvas.Visibility = (!_matrixRenderer.UsesImageHost && !_matrixRenderer.UsesNativeHost)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         _matrixRenderer.Initialize(MatrixCanvas, MatrixImage, effectiveMatrixConfig);
 
         DotShapeText.Text = $"Dot shape: {effectiveMatrixConfig.DotShape}";
@@ -314,8 +319,16 @@ public partial class MainWindow : Window
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {
-        return config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase)
-            ? new WriteableBitmapMatrixRenderer()
-            : new WpfPrimitiveMatrixRenderer();
+        if (config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WriteableBitmapMatrixRenderer();
+        }
+
+        if (config.Matrix.Renderer.Equals("vulkan", StringComparison.OrdinalIgnoreCase))
+        {
+            return new VulkanMatrixRenderer();
+        }
+
+        return new WpfPrimitiveMatrixRenderer();
     }
 }
