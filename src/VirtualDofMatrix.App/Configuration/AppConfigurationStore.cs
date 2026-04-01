@@ -53,6 +53,12 @@ public sealed class AppConfigurationStore
             config.Matrix.MinDotSpacing = 2;
         }
 
+        var allowedRenderers = new[] { "direct3d", "primitive" };
+        if (!allowedRenderers.Contains(config.Matrix.Renderer, StringComparer.OrdinalIgnoreCase))
+        {
+            config.Matrix.Renderer = "direct3d";
+        }
+
         if (config.Matrix.ToneMapping is null)
         {
             config.Matrix.ToneMapping = new ToneMappingConfig();

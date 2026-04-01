@@ -18,7 +18,6 @@ public static class RendererBenchmarkHarness
     private static readonly (string Name, Func<IMatrixRenderer> Factory)[] Backends =
     [
         ("primitive", static () => new WpfPrimitiveMatrixRenderer()),
-        ("writeableBitmap", static () => new WriteableBitmapMatrixRenderer()),
         ("direct3d", static () => new Direct3DMatrixRenderer()),
     ];
 

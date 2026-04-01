@@ -36,6 +36,7 @@ public partial class SettingsWindow : Window
     {
         ResolutionPresetCombo.ItemsSource = new[] { "SD (32x8)", "HD (64x16)", "Ultra (128x32)", CustomResolution };
         QualityCombo.ItemsSource = VisualQualityProfiles.Names;
+        RendererCombo.ItemsSource = new[] { "direct3d", "primitive" };
         DotShapeCombo.ItemsSource = new[] { "circle", "square" };
 
         WidthTextBox.Text = _working.Matrix.Width.ToString();
@@ -53,6 +54,7 @@ public partial class SettingsWindow : Window
         }
 
         QualityCombo.SelectedItem = _working.Settings.VisualQuality;
+        RendererCombo.SelectedItem = _working.Matrix.Renderer.Equals("primitive", StringComparison.OrdinalIgnoreCase) ? "primitive" : "direct3d";
 
         CabinetPathTextBox.Text = _working.Settings.CabinetXmlPath;
         AutoUpdateCabinetCheckBox.IsChecked = _working.Settings.AutoUpdateCabinetOnResolutionChange;
@@ -92,6 +94,8 @@ public partial class SettingsWindow : Window
     }
 
     private void OnDotShapeChanged(object sender, SelectionChangedEventArgs e) => OnSettingChanged(sender, e);
+
+    private void OnRendererChanged(object sender, SelectionChangedEventArgs e) => OnSettingChanged(sender, e);
 
     private void OnSettingChanged(object sender, RoutedEventArgs e)
     {
@@ -197,6 +201,7 @@ public partial class SettingsWindow : Window
         AlwaysOnTopCheckBox.IsChecked = defaults.Window.AlwaysOnTop;
         DotShapeCombo.SelectedItem = defaults.Matrix.DotShape;
         QualityCombo.SelectedItem = defaults.Settings.VisualQuality;
+        RendererCombo.SelectedItem = defaults.Matrix.Renderer;
 
         OnSettingChanged(sender, e);
     }
@@ -234,6 +239,8 @@ public partial class SettingsWindow : Window
         {
             VisualQualityProfiles.ApplyPreset(config.Matrix, config.Settings.VisualQuality);
         }
+
+        config.Matrix.Renderer = RendererCombo.SelectedItem?.ToString() ?? "direct3d";
 
         config.Debug.LogProtocol = DebugCheckBox.IsChecked == true;
         config.Settings.AutoUpdateCabinetOnResolutionChange = AutoUpdateCabinetCheckBox.IsChecked == true;
@@ -273,9 +280,9 @@ public partial class SettingsWindow : Window
 
         QualityCombo.ToolTip = QualityCombo.SelectedItem?.ToString() switch
         {
-            VisualQualityProfiles.Low => "Low: fastest flat RGB pass in primitive renderer, no bulb/specular, no temporal smoothing, no tone mapping.",
-            VisualQualityProfiles.Medium => "Medium: primitive renderer with bulb effect, no heavy post-processing.",
-            VisualQualityProfiles.High => "High: Direct3D backend with shader-style bulb model + temporal smoothing + tone mapping.",
+            VisualQualityProfiles.Low => "Low: fastest visual profile (flat shading, no temporal smoothing, no tone mapping).",
+            VisualQualityProfiles.Medium => "Medium: balanced visual profile with bulb shading and minimal post-processing.",
+            VisualQualityProfiles.High => "High: tone mapping + temporal smoothing presets (renderer selected separately below).",
             VisualQualityProfiles.Custom => "Custom: respects current values from settings.json as hand-edited.",
             _ => "Select a quality profile for performance versus visual fidelity.",
         };

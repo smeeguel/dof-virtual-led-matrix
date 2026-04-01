@@ -296,9 +296,8 @@ public partial class MainWindow : Window
         return config.Matrix.Renderer.Trim().ToLowerInvariant() switch
         {
             "primitive" => new WpfPrimitiveMatrixRenderer(),
-            "writeablebitmap" => new WriteableBitmapMatrixRenderer(),
             "direct3d" => new Direct3DMatrixRenderer(),
-            _ => new WpfPrimitiveMatrixRenderer(),
+            _ => new Direct3DMatrixRenderer(),
         };
     }
 }
