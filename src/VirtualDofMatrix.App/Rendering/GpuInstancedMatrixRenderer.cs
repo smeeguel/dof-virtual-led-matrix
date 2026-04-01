@@ -59,7 +59,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         var byteWidth = (uint)(instanceData.Length * sizeof(uint));
         var instanceDesc = new BufferDescription(byteWidth, BindFlags.VertexBuffer, ResourceUsage.Immutable, CpuAccessFlags.None, ResourceOptionFlags.None, sizeof(uint));
-        _instanceBuffer = _device.CreateBuffer(instanceDesc, instanceData);
+        _instanceBuffer = _device.CreateBuffer(instanceDesc);
 
         _frameTexture = _device.CreateTexture2D(new Texture2DDescription
         {
