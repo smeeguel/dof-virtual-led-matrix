@@ -8,6 +8,7 @@ public sealed class VulkanMatrixRenderer : IMatrixRenderer
 {
     private readonly VulkanHostControl _hostControl = new();
     private readonly IVulkanInteropAdapter _interopAdapter;
+    private readonly VulkanFrameUploadPipeline _uploadPipeline = new();
     private MatrixConfig? _config;
 
     public VulkanMatrixRenderer()
@@ -39,6 +40,7 @@ public sealed class VulkanMatrixRenderer : IMatrixRenderer
 
         _hostControl.Width = Math.Max(1, (config.Width * (config.DotSize + config.MinDotSpacing)) + config.MinDotSpacing);
         _hostControl.Height = Math.Max(1, (config.Height * (config.DotSize + config.MinDotSpacing)) + config.MinDotSpacing);
+        _uploadPipeline.Configure(config);
 
         TryInitializeInterop();
     }
@@ -51,7 +53,8 @@ public sealed class VulkanMatrixRenderer : IMatrixRenderer
         }
 
         TryInitializeInterop();
-        _interopAdapter.RenderFrame(framePresentation);
+        var prepared = _uploadPipeline.Prepare(framePresentation);
+        _interopAdapter.UploadAndRender(prepared.StagingInstances.Span, prepared.FrameSlot);
     }
 
     public void SetNativeHostHandle(IntPtr hostHwnd)

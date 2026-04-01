@@ -8,7 +8,7 @@ public interface IVulkanInteropAdapter : IDisposable
 
     void Resize(int width, int height);
 
-    void RenderFrame(FramePresentation framePresentation);
+    void UploadAndRender(ReadOnlySpan<GpuDotInstance> stagingInstances, int frameSlot);
 
     void NotifyDeviceLost();
 }

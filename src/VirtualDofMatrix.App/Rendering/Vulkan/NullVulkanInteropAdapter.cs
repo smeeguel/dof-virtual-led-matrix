@@ -8,6 +8,12 @@ namespace VirtualDofMatrix.App.Rendering.Vulkan;
 /// </summary>
 public sealed class NullVulkanInteropAdapter : IVulkanInteropAdapter
 {
+    private readonly GpuDotInstance[][] _deviceRing =
+    [
+        Array.Empty<GpuDotInstance>(),
+        Array.Empty<GpuDotInstance>(),
+    ];
+
     public void Initialize(IntPtr hostHwnd, MatrixConfig config)
     {
         // Intentionally no-op.
@@ -18,9 +24,17 @@ public sealed class NullVulkanInteropAdapter : IVulkanInteropAdapter
         // Intentionally no-op.
     }
 
-    public void RenderFrame(FramePresentation framePresentation)
+    public void UploadAndRender(ReadOnlySpan<GpuDotInstance> stagingInstances, int frameSlot)
     {
-        // Intentionally no-op.
+        var slot = Math.Abs(frameSlot) % _deviceRing.Length;
+        if (_deviceRing[slot].Length != stagingInstances.Length)
+        {
+            _deviceRing[slot] = new GpuDotInstance[stagingInstances.Length];
+        }
+
+        stagingInstances.CopyTo(_deviceRing[slot]);
+        // Intentionally no-op presentation. This placeholder still models
+        // staging->device buffer copy and double-buffered upload slots.
     }
 
     public void NotifyDeviceLost()
