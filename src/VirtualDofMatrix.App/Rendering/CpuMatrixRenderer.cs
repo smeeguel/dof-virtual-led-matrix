@@ -71,6 +71,20 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
         _bitmap.WritePixels(new System.Windows.Int32Rect(0, 0, composed.Width, composed.Height), composed.Pixels, composed.Stride, 0);
     }
 
+    public void Clear()
+    {
+        if (_bitmap is null || _config is null)
+        {
+            return;
+        }
+
+        _composer.Reset();
+        var ledCount = Math.Max(1, _config.Width * _config.Height);
+        var clear = new FramePresentation(new byte[ledCount * 3], 0, ledCount, 0, DateTimeOffset.UtcNow);
+        var composed = _composer.Compose(clear);
+        _bitmap.WritePixels(new System.Windows.Int32Rect(0, 0, composed.Width, composed.Height), composed.Pixels, composed.Stride, 0);
+    }
+
     public void Dispose()
     {
     }

@@ -91,6 +91,17 @@ internal sealed class MatrixFrameRasterComposer
         return (_surfaceWidth, _surfaceHeight, _stride, _surfaceBgra);
     }
 
+    public void Reset()
+    {
+        Array.Clear(_mappedRgb, 0, _mappedRgb.Length);
+        Array.Clear(_workingRgb, 0, _workingRgb.Length);
+        Array.Clear(_smoothedRgb, 0, _smoothedRgb.Length);
+        Array.Clear(_thresholdRgb, 0, _thresholdRgb.Length);
+        Array.Clear(_smallBlurRgb, 0, _smallBlurRgb.Length);
+        Array.Clear(_wideBlurRgb, 0, _wideBlurRgb.Length);
+        Array.Clear(_blurScratchRgb, 0, _blurScratchRgb.Length);
+    }
+
     private void RasterDot(int originX, int originY, byte r, byte g, byte b, double intensity, MatrixVisualConfig visual)
     {
         if (_kernel is null)

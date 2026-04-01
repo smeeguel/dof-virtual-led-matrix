@@ -168,6 +168,18 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     public void Dispose() => DisposeDeviceResources();
 
+    public void Clear()
+    {
+        if (_fallbackBitmap is null)
+        {
+            return;
+        }
+
+        Array.Clear(_smoothedRgb, 0, _smoothedRgb.Length);
+        Array.Clear(_bgra, 0, _bgra.Length);
+        _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
+    }
+
     private float ApplySmoothing(int channel, byte targetByte, float rise, float fall, bool enabled)
     {
         var target = targetByte;

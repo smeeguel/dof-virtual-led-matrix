@@ -338,15 +338,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var ledCount = Math.Max(1, _config.Matrix.Width * _config.Matrix.Height);
-        var blank = new FramePresentation(
-            new byte[ledCount * 3],
-            HighestLedWritten: 0,
-            LedsPerChannel: ledCount,
-            OutputSequence: 0,
-            PresentedAtUtc: now);
-        _matrixRenderer.UpdateFrame(blank);
-        _matrixRenderer.Render();
+        _matrixRenderer.Clear();
         _idleCleared = true;
     }
 

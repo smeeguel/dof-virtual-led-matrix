@@ -32,4 +32,6 @@ public interface IMatrixRenderer : IDisposable
     void Resize(double viewportWidth, double viewportHeight);
 
     void Render();
+
+    void Clear();
 }

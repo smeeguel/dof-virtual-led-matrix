@@ -110,4 +110,12 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     public void Dispose()
     {
     }
+
+    public void Clear()
+    {
+        foreach (var dot in _dots)
+        {
+            dot.Fill = Brushes.Black;
+        }
+    }
 }
