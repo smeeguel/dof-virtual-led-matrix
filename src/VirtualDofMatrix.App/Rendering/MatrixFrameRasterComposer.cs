@@ -111,6 +111,8 @@ internal sealed class MatrixFrameRasterComposer
         var offR = visual.OffStateTintR;
         var offG = visual.OffStateTintG;
         var offB = visual.OffStateTintB;
+        var litFactor = Math.Clamp(intensity, 0.0, 1.0);
+        var offBlend = 1.0 - (litFactor * litFactor);
 
         for (var ky = 0; ky < _kernel.Size; ky++)
         {
@@ -134,9 +136,9 @@ internal sealed class MatrixFrameRasterComposer
                 var spec = _kernel.Specular[kernelIndex] * specOpacity;
 
                 var dst = (py * _stride) + (px * 4);
-                var outR = (offR * body) + (r * core) + (255.0 * spec);
-                var outG = (offG * body) + (g * core) + (255.0 * spec);
-                var outB = (offB * body) + (b * core) + (255.0 * spec);
+                var outR = (offR * body * offBlend) + (r * core) + (255.0 * spec);
+                var outG = (offG * body * offBlend) + (g * core) + (255.0 * spec);
+                var outB = (offB * body * offBlend) + (b * core) + (255.0 * spec);
 
                 _surfaceBgra[dst] = (byte)Math.Clamp(outB, 0.0, 255.0);
                 _surfaceBgra[dst + 1] = (byte)Math.Clamp(outG, 0.0, 255.0);
@@ -541,8 +543,8 @@ internal sealed class MatrixFrameRasterComposer
                     body[idx] = offAlpha * (0.25 + (0.55 * Math.Pow(edge, 0.5 + lensFalloff))) + (rim * 0.08 * (1.0 - edge));
                     core[idx] = Math.Pow(edge, 1.1 + (lensFalloff * 1.6));
 
-                    var hx = (x / (double)Math.Max(1, size - 1)) - 0.30;
-                    var hy = (y / (double)Math.Max(1, size - 1)) - 0.24;
+                    var hx = (x / (double)Math.Max(1, size - 1)) - 0.50;
+                    var hy = (y / (double)Math.Max(1, size - 1)) - 0.35;
                     var hotspotDist2 = (hx * hx) + (hy * hy);
                     specular[idx] = Math.Exp(-hotspotDist2 / Math.Max(0.01, 0.02 + (0.12 * specHotspot))) * (0.35 + (0.55 * specHotspot));
                 }
