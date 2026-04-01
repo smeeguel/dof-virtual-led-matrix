@@ -22,7 +22,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private Image? _host;
     private WriteableBitmap? _fallbackBitmap;
     private MatrixConfig? _config;
-    private Rgb24[] _stagedFrame = Array.Empty<Rgb24>();
+    private FramePresentation _stagedFrame = new(Array.Empty<byte>(), 0, 0, 0, DateTimeOffset.UnixEpoch);
     private int _surfaceWidth;
     private int _surfaceHeight;
 
@@ -103,11 +103,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         Console.WriteLine($"[renderer] gpu initialized adapter=hardware leds={width * height} surface={_surfaceWidth}x{_surfaceHeight}");
     }
 
-    public void UpdateFrame(ReadOnlySpan<Rgb24> logicalFrame)
+    public void UpdateFrame(FramePresentation presentation)
     {
         lock (_gate)
         {
-            _stagedFrame = logicalFrame.ToArray();
+            _stagedFrame = presentation;
         }
     }
 
@@ -122,21 +122,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        Rgb24[] frame;
+        FramePresentation frame;
         lock (_gate)
         {
             frame = _stagedFrame;
         }
-
-        var payload = new byte[frame.Length * 3];
-        for (var i = 0; i < frame.Length; i++)
-        {
-            payload[i * 3] = frame[i].R;
-            payload[(i * 3) + 1] = frame[i].G;
-            payload[(i * 3) + 2] = frame[i].B;
-        }
-
-        var composed = _composer.Compose(new FramePresentation(payload, frame.Length, frame.Length, 0, DateTimeOffset.UtcNow));
+        var composed = _composer.Compose(frame);
 
         var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
         Marshal.Copy(composed.Pixels, 0, map.DataPointer, composed.Pixels.Length);

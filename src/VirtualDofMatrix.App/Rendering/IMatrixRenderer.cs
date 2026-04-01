@@ -27,7 +27,7 @@ public interface IMatrixRenderer : IDisposable
 
     void Initialize(MatrixRendererSurface renderSurface, int width, int height, DotStyleConfig dotStyleConfig);
 
-    void UpdateFrame(ReadOnlySpan<Rgb24> logicalFrame);
+    void UpdateFrame(FramePresentation presentation);
 
     void Resize(double viewportWidth, double viewportHeight);
 

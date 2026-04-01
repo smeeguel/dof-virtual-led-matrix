@@ -12,7 +12,7 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
     private Image? _bitmapHost;
     private MatrixConfig? _config;
     private WriteableBitmap? _bitmap;
-    private Rgb24[] _latestFrame = Array.Empty<Rgb24>();
+    private FramePresentation _latestFrame = new(Array.Empty<byte>(), 0, 0, 0, DateTimeOffset.UnixEpoch);
 
     public string BackendName => "cpu";
 
@@ -37,11 +37,11 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
         _bitmapHost.Stretch = Stretch.Fill;
     }
 
-    public void UpdateFrame(ReadOnlySpan<Rgb24> logicalFrame)
+    public void UpdateFrame(FramePresentation presentation)
     {
         lock (_gate)
         {
-            _latestFrame = logicalFrame.ToArray();
+            _latestFrame = presentation;
         }
     }
 
@@ -56,21 +56,12 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        Rgb24[] frame;
+        FramePresentation frame;
         lock (_gate)
         {
             frame = _latestFrame;
         }
-
-        var payload = new byte[frame.Length * 3];
-        for (var i = 0; i < frame.Length; i++)
-        {
-            payload[i * 3] = frame[i].R;
-            payload[(i * 3) + 1] = frame[i].G;
-            payload[(i * 3) + 2] = frame[i].B;
-        }
-
-        var composed = _composer.Compose(new FramePresentation(payload, frame.Length, frame.Length, 0, DateTimeOffset.UtcNow));
+        var composed = _composer.Compose(frame);
         if (_bitmap.PixelWidth != composed.Width || _bitmap.PixelHeight != composed.Height)
         {
             _bitmap = new WriteableBitmap(composed.Width, composed.Height, 96, 96, PixelFormats.Bgra32, null);

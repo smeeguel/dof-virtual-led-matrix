@@ -14,7 +14,7 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private int _height;
     private int _dotStride;
     private int[] _logicalToRaster = Array.Empty<int>();
-    private Rgb24[] _latestFrame = Array.Empty<Rgb24>();
+    private FramePresentation _latestFrame = new(Array.Empty<byte>(), 0, 0, 0, DateTimeOffset.UnixEpoch);
     private DotStyleConfig _style = new(
         "circle",
         "TopDownAlternateRightLeft",
@@ -67,11 +67,11 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
         _canvas.Height = height * _dotStride;
     }
 
-    public void UpdateFrame(ReadOnlySpan<Rgb24> logicalFrame)
+    public void UpdateFrame(FramePresentation presentation)
     {
         lock (_gate)
         {
-            _latestFrame = logicalFrame.ToArray();
+            _latestFrame = presentation;
         }
     }
 
@@ -86,13 +86,14 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        Rgb24[] frame;
+        FramePresentation frame;
         lock (_gate)
         {
             frame = _latestFrame;
         }
 
-        var count = Math.Min(frame.Length, _logicalToRaster.Length);
+        var rgb = frame.RgbMemory.Span;
+        var count = Math.Min(rgb.Length / 3, _logicalToRaster.Length);
         for (var logical = 0; logical < count; logical++)
         {
             var rasterIndex = _logicalToRaster[logical];
@@ -101,8 +102,8 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
                 continue;
             }
 
-            var c = frame[logical];
-            _dots[rasterIndex].Fill = new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
+            var offset = logical * 3;
+            _dots[rasterIndex].Fill = new SolidColorBrush(Color.FromRgb(rgb[offset], rgb[offset + 1], rgb[offset + 2]));
         }
     }
 

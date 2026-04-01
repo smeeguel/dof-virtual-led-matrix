@@ -57,8 +57,7 @@ public partial class MainWindow : Window
 
         if (!_isRenderingPaused)
         {
-            var frame = ConvertToRgb24Frame(presentation);
-            _matrixRenderer.UpdateFrame(frame);
+            _matrixRenderer.UpdateFrame(presentation);
             _matrixRenderer.Render();
         }
     }
@@ -181,8 +180,7 @@ public partial class MainWindow : Window
 
         if (_latestPresentation is not null)
         {
-            var frame = ConvertToRgb24Frame(_latestPresentation);
-            _matrixRenderer.UpdateFrame(frame);
+            _matrixRenderer.UpdateFrame(_latestPresentation);
             _matrixRenderer.Render();
         }
     }
@@ -299,8 +297,7 @@ public partial class MainWindow : Window
         PauseRenderingMenuItem.IsChecked = paused;
         if (!paused && _latestPresentation is not null)
         {
-            var frame = ConvertToRgb24Frame(_latestPresentation);
-            _matrixRenderer.UpdateFrame(frame);
+            _matrixRenderer.UpdateFrame(_latestPresentation);
             _matrixRenderer.Render();
         }
     }
@@ -311,20 +308,6 @@ public partial class MainWindow : Window
 
     private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
 
-
-    private static Rgb24[] ConvertToRgb24Frame(FramePresentation presentation)
-    {
-        var rgb = presentation.RgbMemory.Span;
-        var ledCount = rgb.Length / 3;
-        var result = new Rgb24[ledCount];
-        for (var i = 0; i < ledCount; i++)
-        {
-            var o = i * 3;
-            result[i] = new Rgb24(rgb[o], rgb[o + 1], rgb[o + 2]);
-        }
-
-        return result;
-    }
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {
