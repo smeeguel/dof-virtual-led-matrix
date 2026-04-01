@@ -29,6 +29,7 @@ Please install **both** DOF builds into `C:\DirectOutput`:
 - **32-bit DOF** (used by Popper and other front ends)
 
 Download source:
+
 - http://mjrnet.org/pinscape/dll-updates.html#DOF
 
 > Why both? VPX and front-end launchers can load different bitness DLLs, so both are required for consistent testing.
@@ -40,6 +41,7 @@ Download source:
 Unzip my `.zip` anywhere you like.
 
 Example location:
+
 - `C:\vPin\VirtualLED`
 
 You do **not** need to unzip into `C:\DirectOutput`; any folder is fine.
