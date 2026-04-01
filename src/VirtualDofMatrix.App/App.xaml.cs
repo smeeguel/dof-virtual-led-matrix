@@ -85,7 +85,7 @@ public partial class App : Application
 
         config.Matrix.Renderer = "primitive";
         MessageBox.Show(
-            reason,
+            $"Renderer auto-fallback: Vulkan -> primitive.{Environment.NewLine}{Environment.NewLine}Probe result: {reason}",
             "Vulkan unavailable",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
