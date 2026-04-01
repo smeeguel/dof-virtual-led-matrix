@@ -408,6 +408,8 @@ public partial class SettingsWindow : Window
                 CabinetToyName = config.Settings.CabinetToyName,
                 AutoUpdateCabinetOnResolutionChange = config.Settings.AutoUpdateCabinetOnResolutionChange,
                 VisualQuality = config.Settings.VisualQuality,
+                MaxRenderFps = config.Settings.MaxRenderFps,
+                FrameDropPolicy = config.Settings.FrameDropPolicy,
             },
         };
     }

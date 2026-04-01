@@ -48,6 +48,16 @@ public sealed class AppConfigurationStore
             config.Settings.VisualQuality = "Medium";
         }
 
+        if (config.Settings.MaxRenderFps <= 0)
+        {
+            config.Settings.MaxRenderFps = 60;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Settings.FrameDropPolicy))
+        {
+            config.Settings.FrameDropPolicy = "latestOnly";
+        }
+
         if (config.Matrix.MinDotSpacing < 2)
         {
             config.Matrix.MinDotSpacing = 2;
