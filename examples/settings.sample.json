@@ -13,7 +13,7 @@
     "dtrEnable": true
   },
   "matrix": {
-    "renderer": "primitive",
+    "renderer": "vulkan",
     "width": 64,
     "height": 16,
     "mapping": "TopDownAlternateRightLeft",

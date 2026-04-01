@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls;
@@ -292,8 +293,23 @@ public partial class MainWindow : Window
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {
-        return config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase)
-            ? new WriteableBitmapMatrixRenderer()
-            : new WpfPrimitiveMatrixRenderer();
+        if (config.Matrix.Renderer.Equals("primitive", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WpfPrimitiveMatrixRenderer();
+        }
+
+        if (VulkanMatrixRenderer.TryCreate(out var vulkanRenderer, out var reason))
+        {
+            return vulkanRenderer;
+        }
+
+        Dispatcher.CurrentDispatcher.BeginInvoke(() =>
+            MessageBox.Show(
+                $"Vulkan renderer could not be initialized. Falling back to the primitive renderer.\n\nReason: {reason}",
+                "Vulkan fallback",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning));
+
+        return new WpfPrimitiveMatrixRenderer();
     }
 }
