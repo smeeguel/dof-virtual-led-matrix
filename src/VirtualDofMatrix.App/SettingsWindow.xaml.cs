@@ -273,9 +273,9 @@ public partial class SettingsWindow : Window
 
         QualityCombo.ToolTip = QualityCombo.SelectedItem?.ToString() switch
         {
-            VisualQualityProfiles.Low => "Low: fastest flat RGB pass in primitive renderer, no bulb/specular, no temporal smoothing, no tone mapping.",
-            VisualQualityProfiles.Medium => "Medium: primitive renderer with bulb effect, no heavy post-processing.",
-            VisualQualityProfiles.High => "High: primitive renderer with tone mapping + temporal smoothing.",
+            VisualQualityProfiles.Low => "Low: fastest flat RGB pass tuned for Vulkan backend, no bulb/specular, no temporal smoothing, no tone mapping.",
+            VisualQualityProfiles.Medium => "Medium: Vulkan backend with bulb effect, no heavy post-processing.",
+            VisualQualityProfiles.High => "High: Vulkan backend with tone mapping + temporal smoothing.",
             VisualQualityProfiles.Custom => "Custom: respects current values from settings.json as hand-edited.",
             _ => "Select a quality profile for performance versus visual fidelity.",
         };

@@ -51,7 +51,11 @@ public sealed class SerialConfig
 
 public sealed class MatrixConfig
 {
-    public string Renderer { get; set; } = "primitive";
+    public string Renderer { get; set; } = "vulkan";
+
+    public bool FallbackToPrimitiveOnVulkanFailure { get; set; } = true;
+
+    public bool ProbeVulkanOnStartup { get; set; } = true;
 
     public int Width { get; set; } = 64;
 

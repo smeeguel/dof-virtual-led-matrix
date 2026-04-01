@@ -324,11 +324,6 @@ public partial class MainWindow : Window
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {
-        if (config.Matrix.Renderer.Equals("writeableBitmap", StringComparison.OrdinalIgnoreCase))
-        {
-            return new WriteableBitmapMatrixRenderer();
-        }
-
         if (config.Matrix.Renderer.Equals("vulkan", StringComparison.OrdinalIgnoreCase))
         {
             return new VulkanMatrixRenderer();

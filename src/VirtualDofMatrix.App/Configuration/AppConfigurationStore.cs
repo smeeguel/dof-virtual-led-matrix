@@ -70,6 +70,11 @@ public sealed class AppConfigurationStore
             config.Matrix.MinDotSpacing = 2;
         }
 
+        if (string.IsNullOrWhiteSpace(config.Matrix.Renderer))
+        {
+            config.Matrix.Renderer = "vulkan";
+        }
+
         if (config.Matrix.ToneMapping is null)
         {
             config.Matrix.ToneMapping = new ToneMappingConfig();
