@@ -26,6 +26,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private DotStyleConfig? _style;
     private int _width;
     private int _height;
+    private int _surfaceWidth;
+    private int _surfaceHeight;
+    private int _dotStride;
+    private int _dotSize;
+    private int _dotPadding;
+    private float[] _dotMask = Array.Empty<float>();
     private byte[] _bgra = Array.Empty<byte>();
     private float[] _smoothedRgb = Array.Empty<float>();
     private readonly byte[] _toneMapLut = new byte[256];
@@ -50,7 +56,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _height = height;
         _style = dotStyleConfig;
         _logicalToRaster = MatrixFrameIndexMap.BuildLogicalToRasterMap(width, height, dotStyleConfig.Mapping);
-        _bgra = new byte[checked(width * height * 4)];
+        ConfigureDotSurface(dotStyleConfig, width, height);
+        _bgra = new byte[checked(_surfaceWidth * _surfaceHeight * 4)];
         _smoothedRgb = new float[checked(width * height * Channels)];
 
         var hr = D3D11CreateDevice(
@@ -78,8 +85,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         _frameTexture = _device.CreateTexture2D(new Texture2DDescription
         {
-            Width = (uint)Math.Max(1, width),
-            Height = (uint)Math.Max(1, height),
+            Width = (uint)Math.Max(1, _surfaceWidth),
+            Height = (uint)Math.Max(1, _surfaceHeight),
             ArraySize = 1,
             MipLevels = 1,
             Format = Format.R8G8B8A8_UNorm,
@@ -90,11 +97,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         });
 
         _frameSrv = _device.CreateShaderResourceView(_frameTexture);
-        _fallbackBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+        _fallbackBitmap = new WriteableBitmap(_surfaceWidth, _surfaceHeight, 96, 96, PixelFormats.Bgra32, null);
         _host.Source = _fallbackBitmap;
         _host.Stretch = Stretch.Fill;
 
-        Console.WriteLine($"[renderer] gpu initialized fastpath leds={width * height}");
+        Console.WriteLine($"[renderer] gpu initialized fastpath leds={width * height} surface={_surfaceWidth}x{_surfaceHeight}");
     }
 
     public void UpdateFrame(FramePresentation presentation)
@@ -146,11 +153,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 continue;
             }
 
-            var o = raster * 4;
-            _bgra[o] = (byte)b;
-            _bgra[o + 1] = (byte)g;
-            _bgra[o + 2] = (byte)r;
-            _bgra[o + 3] = 255;
+            var baseX = _dotPadding + ((raster % _width) * _dotStride);
+            var baseY = _dotPadding + ((raster / _width) * _dotStride);
+            RasterFastDot(baseX, baseY, r, g, b);
         }
 
         var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -158,7 +163,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.Unmap(_frameTexture, 0);
 
         _context.DrawInstanced(4u, (uint)(_width * _height), 0u, 0u);
-        _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _width, _height), _bgra, _width * 4, 0);
+        _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
     }
 
     public void Dispose() => DisposeDeviceResources();
@@ -214,6 +219,87 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             _toneMapLut[i] = (byte)Math.Round(Math.Clamp(scaled, 0.0, 1.0) * 255.0);
+        }
+    }
+
+    private void ConfigureDotSurface(DotStyleConfig style, int width, int height)
+    {
+        if (style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) && !style.Visual.FlatShading)
+        {
+            _dotSize = Math.Clamp(style.DotSize, 2, 5);
+        }
+        else
+        {
+            _dotSize = 1;
+        }
+
+        _dotPadding = _dotSize > 1 ? 1 : 0;
+        _dotStride = _dotSize + _dotPadding;
+        _surfaceWidth = (_dotPadding * 2) + (width * _dotStride);
+        _surfaceHeight = (_dotPadding * 2) + (height * _dotStride);
+        BuildDotMask(style.DotShape, _dotSize);
+    }
+
+    private void BuildDotMask(string shape, int dotSize)
+    {
+        _dotMask = new float[dotSize * dotSize];
+        if (dotSize == 1)
+        {
+            _dotMask[0] = 1f;
+            return;
+        }
+
+        var center = (dotSize - 1) * 0.5;
+        var radius = Math.Max(0.5, dotSize * 0.5);
+        for (var y = 0; y < dotSize; y++)
+        {
+            for (var x = 0; x < dotSize; x++)
+            {
+                var idx = (y * dotSize) + x;
+                if (shape.Equals("square", StringComparison.OrdinalIgnoreCase))
+                {
+                    _dotMask[idx] = 1f;
+                    continue;
+                }
+
+                var dx = (x - center) / radius;
+                var dy = (y - center) / radius;
+                var radial = Math.Sqrt((dx * dx) + (dy * dy));
+                _dotMask[idx] = radial <= 1.0 ? (float)Math.Pow(1.0 - radial, 0.55) : 0f;
+            }
+        }
+    }
+
+    private void RasterFastDot(int baseX, int baseY, float r, float g, float b)
+    {
+        for (var y = 0; y < _dotSize; y++)
+        {
+            var py = baseY + y;
+            if ((uint)py >= (uint)_surfaceHeight)
+            {
+                continue;
+            }
+
+            for (var x = 0; x < _dotSize; x++)
+            {
+                var mask = _dotMask[(y * _dotSize) + x];
+                if (mask <= 0f)
+                {
+                    continue;
+                }
+
+                var px = baseX + x;
+                if ((uint)px >= (uint)_surfaceWidth)
+                {
+                    continue;
+                }
+
+                var o = ((py * _surfaceWidth) + px) * 4;
+                _bgra[o] = (byte)Math.Clamp(b * mask, 0f, 255f);
+                _bgra[o + 1] = (byte)Math.Clamp(g * mask, 0f, 255f);
+                _bgra[o + 2] = (byte)Math.Clamp(r * mask, 0f, 255f);
+                _bgra[o + 3] = 255;
+            }
         }
     }
 
