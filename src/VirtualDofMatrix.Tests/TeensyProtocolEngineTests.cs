@@ -134,6 +134,22 @@ public sealed class TeensyProtocolEngineTests
         Assert.Equal(768, frame.RgbBytes.Length);
     }
 
+    [Fact]
+    public void R_ShouldClampSegmentsThatExceedConfiguredMaximum()
+    {
+        var frame = new FrameBuffer();
+        var engine = CreateEngine(maxLeds: 4, frameBuffer: frame); // maxTotalLeds = 32
+        var payload = Enumerable.Range(0, 18).Select(i => (byte)(i + 1)).ToArray(); // 6 LEDs
+        var command = new List<byte> { (byte)'R', 0x00, 0x1E, 0x00, 0x06 }; // target=30, count=6
+        command.AddRange(payload);
+
+        var result = engine.ProcessIncoming(command.ToArray());
+
+        Assert.Equal([(byte)'A'], result.ResponseBytes);
+        // Only LEDs 30 and 31 should be accepted (2 LEDs / 6 bytes).
+        Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6 }, frame.RgbBytes.Slice(90, 6).ToArray());
+    }
+
     private static TeensyProtocolEngine CreateEngine(
         int maxLeds = 1100,
         FrameBuffer? frameBuffer = null)

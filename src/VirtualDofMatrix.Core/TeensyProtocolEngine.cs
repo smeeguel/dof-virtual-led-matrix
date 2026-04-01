@@ -107,12 +107,21 @@ public sealed class TeensyProtocolEngine
                 var maxTotalLeds = _settings.MaxTotalLeds;
                 var requestedEndLed = target + ledCount;
 
-                if (requestedEndLed > maxTotalLeds)
+                if (target >= maxTotalLeds)
                 {
-                    logs.Add(Log($"RX R target={target} ledCount={ledCount} exceeds configured maxTotalLeds={maxTotalLeds}; applying with auto-resize to preserve compatibility."));
+                    logs.Add(Log($"RX R target={target} ledCount={ledCount} is out-of-range for maxTotalLeds={maxTotalLeds}; segment dropped."));
                 }
+                else
+                {
+                    var writableLeds = Math.Min(ledCount, maxTotalLeds - target);
+                    if (writableLeds < ledCount)
+                    {
+                        logs.Add(Log($"RX R target={target} ledCount={ledCount} exceeds maxTotalLeds={maxTotalLeds}; clamped to ledCount={writableLeds}."));
+                    }
 
-                _frameBuffer.ApplySegment(target, payload, ledCount);
+                    var writableBytes = writableLeds * 3;
+                    _frameBuffer.ApplySegment(target, payload.AsSpan(0, writableBytes), writableLeds);
+                }
                 tx.Add(Ack);
                 logs.Add(Log($"RX R target={target} ledCount={ledCount} rgbBytes={rgbBytes} -> TX A"));
                 consumed += 5 + rgbBytes;
