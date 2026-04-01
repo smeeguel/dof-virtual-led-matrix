@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Virtual DOF Matrix Tester Instructions</title>
+  <style>
+    :root {
+      --bg: #f6f8fa;
+      --panel: #ffffff;
+      --text: #1f2328;
+      --muted: #57606a;
+      --border: #d0d7de;
+      --accent: #0969da;
+      --code: #f6f8fa;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .wiki-shell {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    .wiki-page {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 1px 2px rgba(31, 35, 40, 0.04);
+    }
+
+    h1, h2, h3 {
+      line-height: 1.25;
+      margin-top: 1.2em;
+      margin-bottom: 0.5em;
+    }
+
+    h1 {
+      font-size: 2rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.3em;
+      margin-top: 0;
+    }
+
+    h2 {
+      font-size: 1.45rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.25em;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+    }
+
+    p, ul, ol {
+      margin-top: 0;
+      margin-bottom: 1em;
+    }
+
+    code {
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1em 0.35em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.92em;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    blockquote {
+      margin: 0 0 1em;
+      padding: 0.5em 1em;
+      color: var(--muted);
+      border-left: 4px solid var(--border);
+      background: #f6f8fa;
+    }
+
+    .note {
+      background: #ddf4ff;
+      border: 1px solid #b6e3ff;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 1em;
+    }
+
+    .footer {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wiki-shell">
+    <main class="wiki-page">
+      <h1>Virtual DOF Matrix Tester Instructions</h1>
+
+      <p>This page is the wiki-style wrapper for the Markdown instructions in <code>instructions_content.md</code>.</p>
+
+      <div class="note">
+        <strong>Tip:</strong> Keep this file and <code>instructions_content.md</code> together in the shared .zip so testers can use whichever format they prefer.
+      </div>
+
+      <h2>Open the Full Instructions Content</h2>
+      <p>
+        The full tester guide lives in:
+        <br />
+        <code>docs/instructions_content.md</code>
+      </p>
+
+      <h2>Quick-start Summary</h2>
+      <ol>
+        <li>If needed, install both DOF builds (x64 + x86) into <code>C:\DirectOutput</code>.</li>
+        <li>Unzip the provided package anywhere (example: <code>C:\vPin\VirtualLED</code>).</li>
+        <li>Back up and replace <code>DirectOutput.dll</code> in both <code>x64</code> and <code>x86</code> folders.</li>
+        <li>Copy sample config files into <code>C:\DirectOutput\Config</code> (or contact for merge help if already customized).</li>
+        <li>Run the virtual matrix <code>.exe</code> before launching VPX or front-end tables.</li>
+      </ol>
+
+      <h2>DOF Download</h2>
+      <p>
+        <a href="http://mjrnet.org/pinscape/dll-updates.html#DOF">http://mjrnet.org/pinscape/dll-updates.html#DOF</a>
+      </p>
+
+      <p class="footer">Last updated: 2026-04-01</p>
+    </main>
+  </div>
+</body>
+</html>
