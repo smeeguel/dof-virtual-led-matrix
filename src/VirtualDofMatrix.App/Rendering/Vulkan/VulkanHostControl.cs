@@ -7,6 +7,7 @@ public sealed class VulkanHostControl : HwndHost
 {
     private const int WsChild = 0x40000000;
     private const int WsVisible = 0x10000000;
+    private const int SsBlackRect = 0x00000004;
     private IntPtr _hwndHost = IntPtr.Zero;
 
     public IntPtr ChildHandle => _hwndHost;
@@ -17,7 +18,7 @@ public sealed class VulkanHostControl : HwndHost
             0,
             "static",
             string.Empty,
-            WsChild | WsVisible,
+            WsChild | WsVisible | SsBlackRect,
             0,
             0,
             Math.Max(1, (int)Width),

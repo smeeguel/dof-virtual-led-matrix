@@ -75,7 +75,12 @@ public partial class App : Application
 
         if (VulkanCapabilityProbe.TryProbe(out var reason))
         {
-            return;
+            if (SilkVulkanInteropAdapter.TryValidateRenderBackend(out var backendReason))
+            {
+                return;
+            }
+
+            reason = backendReason;
         }
 
         if (!config.Matrix.FallbackToPrimitiveOnVulkanFailure)

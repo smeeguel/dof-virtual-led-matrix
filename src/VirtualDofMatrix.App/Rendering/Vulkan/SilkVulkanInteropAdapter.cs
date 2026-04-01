@@ -17,6 +17,12 @@ public sealed class SilkVulkanInteropAdapter : IVulkanInteropAdapter
     private VulkanShaderParameterBlock _shaderParameters;
     private GpuDotInstance[] _deviceInstances = Array.Empty<GpuDotInstance>();
 
+    public static bool TryValidateRenderBackend(out string reason)
+    {
+        reason = "Vulkan render backend is not fully implemented yet (graphics pipeline/draw submission pending); using primitive fallback.";
+        return false;
+    }
+
     public void Initialize(IntPtr hostHwnd, MatrixConfig config)
     {
         if (_initialized)
