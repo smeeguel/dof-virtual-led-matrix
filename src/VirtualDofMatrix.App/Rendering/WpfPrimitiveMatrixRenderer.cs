@@ -15,7 +15,17 @@ public sealed class WpfPrimitiveMatrixRenderer : IMatrixRenderer
     private int _dotStride;
     private int[] _logicalToRaster = Array.Empty<int>();
     private Rgb24[] _latestFrame = Array.Empty<Rgb24>();
-    private DotStyleConfig _style = new("circle", "TopDownAlternateRightLeft", 2, 1.0, 1.0, false, 0.0);
+    private DotStyleConfig _style = new(
+        "circle",
+        "TopDownAlternateRightLeft",
+        2,
+        1.0,
+        1.0,
+        new ToneMappingConfig(),
+        new TemporalSmoothingConfig(),
+        new BloomConfig(),
+        false,
+        0.0);
 
     public string BackendName => "cpu-primitive";
 

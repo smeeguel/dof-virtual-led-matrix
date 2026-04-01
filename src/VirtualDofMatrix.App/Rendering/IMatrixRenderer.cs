@@ -9,6 +9,9 @@ public sealed record DotStyleConfig(
     int DotSpacing,
     double Brightness,
     double Gamma,
+    ToneMappingConfig ToneMapping,
+    TemporalSmoothingConfig TemporalSmoothing,
+    BloomConfig Bloom,
     bool GlowEnabled,
     double GlowIntensity);
 

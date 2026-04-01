@@ -165,6 +165,9 @@ public partial class MainWindow : Window
             effectiveMatrixConfig.MinDotSpacing,
             effectiveMatrixConfig.Brightness,
             effectiveMatrixConfig.Gamma,
+            effectiveMatrixConfig.ToneMapping,
+            effectiveMatrixConfig.TemporalSmoothing,
+            effectiveMatrixConfig.Bloom,
             effectiveMatrixConfig.Bloom.Enabled,
             effectiveMatrixConfig.Bloom.SmallStrength);
         _matrixRenderer.Initialize(new MatrixRendererSurface(MatrixCanvas, MatrixImage), effectiveMatrixConfig.Width, effectiveMatrixConfig.Height, dotStyle);

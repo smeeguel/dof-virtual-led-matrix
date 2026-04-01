@@ -34,11 +34,28 @@ public sealed class WriteableBitmapMatrixRenderer : IMatrixRenderer
             MinDotSpacing = dotStyleConfig.DotSpacing,
             Brightness = dotStyleConfig.Brightness,
             Gamma = dotStyleConfig.Gamma,
+            ToneMapping = new ToneMappingConfig
+            {
+                Enabled = dotStyleConfig.ToneMapping.Enabled,
+                KneeStart = dotStyleConfig.ToneMapping.KneeStart,
+                Strength = dotStyleConfig.ToneMapping.Strength,
+            },
+            TemporalSmoothing = new TemporalSmoothingConfig
+            {
+                Enabled = dotStyleConfig.TemporalSmoothing.Enabled,
+                RiseAlpha = dotStyleConfig.TemporalSmoothing.RiseAlpha,
+                FallAlpha = dotStyleConfig.TemporalSmoothing.FallAlpha,
+            },
             Bloom = new BloomConfig
             {
-                Enabled = dotStyleConfig.GlowEnabled,
-                SmallStrength = dotStyleConfig.GlowIntensity,
-                WideStrength = dotStyleConfig.GlowIntensity * 0.5,
+                Enabled = dotStyleConfig.Bloom.Enabled,
+                QualityPreset = dotStyleConfig.Bloom.QualityPreset,
+                Threshold = dotStyleConfig.Bloom.Threshold,
+                SmallRadius = dotStyleConfig.Bloom.SmallRadius,
+                WideRadius = dotStyleConfig.Bloom.WideRadius,
+                SmallStrength = dotStyleConfig.Bloom.SmallStrength,
+                WideStrength = dotStyleConfig.Bloom.WideStrength,
+                BufferScaleDivisor = dotStyleConfig.Bloom.BufferScaleDivisor,
             },
         };
         _composer.Configure(_config);
