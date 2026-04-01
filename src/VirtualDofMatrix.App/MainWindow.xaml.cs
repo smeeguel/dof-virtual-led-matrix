@@ -49,8 +49,9 @@ public partial class MainWindow : Window
 
     public void ApplyPresentation(FramePresentation presentation)
     {
+        var previous = _latestPresentation;
         _latestPresentation = presentation;
-
+        previous?.Dispose();
         OutputSequenceText.Text = $"Output sequence: {presentation.OutputSequence}";
         PresentedAtText.Text = $"Presented at UTC: {presentation.PresentedAtUtc:O}";
         PayloadLengthText.Text = $"Payload bytes: {presentation.RgbBytes.Length}";
@@ -289,6 +290,14 @@ public partial class MainWindow : Window
     private void OnPauseRenderingClick(object sender, RoutedEventArgs e) => SetRenderingPaused(PauseRenderingMenuItem.IsChecked);
 
     private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
+
+    protected override void OnClosed(EventArgs e)
+    {
+        var latest = _latestPresentation;
+        _latestPresentation = null;
+        latest?.Dispose();
+        base.OnClosed(e);
+    }
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {

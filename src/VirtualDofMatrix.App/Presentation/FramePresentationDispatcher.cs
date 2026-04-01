@@ -31,7 +31,8 @@ public sealed class FramePresentationDispatcher : IDisposable
 
     private void OnFramePresentedFromHost(object? sender, FramePresentation frame)
     {
-        Interlocked.Exchange(ref _latestFrame, frame);
+        var dropped = Interlocked.Exchange(ref _latestFrame, frame);
+        dropped?.Dispose();
 
         if (Interlocked.CompareExchange(ref _dispatchQueued, 1, 0) == 0)
         {
@@ -64,7 +65,8 @@ public sealed class FramePresentationDispatcher : IDisposable
             _host = null;
         }
 
-        Interlocked.Exchange(ref _latestFrame, null);
+        var pending = Interlocked.Exchange(ref _latestFrame, null);
+        pending?.Dispose();
         Interlocked.Exchange(ref _dispatchQueued, 0);
     }
 }

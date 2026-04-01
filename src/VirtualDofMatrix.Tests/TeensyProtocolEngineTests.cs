@@ -85,6 +85,7 @@ public sealed class TeensyProtocolEngineTests
         Assert.Equal((ulong)1, frame.OutputSequence);
         Assert.Single(result.PresentedFrames);
         Assert.Equal((ulong)1, result.PresentedFrames[0].OutputSequence);
+        result.PresentedFrames[0].Dispose();
     }
 
     [Fact]
@@ -122,6 +123,7 @@ public sealed class TeensyProtocolEngineTests
         var firstOutput = engine.ProcessIncoming([(byte)'O']);
         Assert.Equal([(byte)'A'], firstOutput.ResponseBytes);
         Assert.Single(firstOutput.PresentedFrames);
+        firstOutput.PresentedFrames[0].Dispose();
 
         var r = new List<byte> { (byte)'R', 0x00, 0x00, 0x01, 0x00 };
         r.AddRange(payload);
@@ -130,6 +132,7 @@ public sealed class TeensyProtocolEngineTests
         var secondOutput = engine.ProcessIncoming([(byte)'O']);
         Assert.Equal([(byte)'A'], secondOutput.ResponseBytes);
         Assert.Single(secondOutput.PresentedFrames);
+        secondOutput.PresentedFrames[0].Dispose();
         Assert.Equal((ulong)2, frame.OutputSequence);
         Assert.Equal(768, frame.RgbBytes.Length);
     }
