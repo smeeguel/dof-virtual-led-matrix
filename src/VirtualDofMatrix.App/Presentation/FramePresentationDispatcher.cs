@@ -48,22 +48,31 @@ public sealed class FramePresentationDispatcher : IDisposable
 
     private void DispatchLatestFrameToUi()
     {
-        while (true)
+        FramePresentation frame;
+        lock (_gate)
         {
-            FramePresentation frame;
-            lock (_gate)
+            if (!_hasFrame)
             {
-                if (!_hasFrame)
-                {
-                    Interlocked.Exchange(ref _uiDispatchScheduled, 0);
-                    return;
-                }
-
-                frame = _latestFrame;
-                _hasFrame = false;
+                Interlocked.Exchange(ref _uiDispatchScheduled, 0);
+                return;
             }
 
-            FramePresentedOnUiThread?.Invoke(this, frame);
+            frame = _latestFrame;
+            _hasFrame = false;
+        }
+
+        FramePresentedOnUiThread?.Invoke(this, frame);
+
+        Interlocked.Exchange(ref _uiDispatchScheduled, 0);
+        var shouldReschedule = false;
+        lock (_gate)
+        {
+            shouldReschedule = _hasFrame;
+        }
+
+        if (shouldReschedule && Interlocked.Exchange(ref _uiDispatchScheduled, 1) == 0)
+        {
+            _dispatcher.BeginInvoke(DispatchLatestFrameToUi);
         }
     }
 
