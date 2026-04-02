@@ -1,0 +1,14 @@
+{
+  "mappings": [
+    {
+      "type": "file",
+      "from": "examples/settings.sample.json",
+      "to": "config/settings.sample.json"
+    },
+    {
+      "type": "directory",
+      "from": "dofinstall/Config/Examples",
+      "to": "DOF/examples"
+    }
+  ]
+}

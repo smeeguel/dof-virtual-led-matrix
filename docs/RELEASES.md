@@ -1,0 +1,94 @@
+# Release workflow and package manifest
+
+This repository ships test builds through a manually triggered GitHub Actions workflow.
+
+## Manual release workflow
+
+Workflow file: `.github/workflows/manual-release.yml`.
+
+### Trigger and branch rules
+
+- Trigger type: `workflow_dispatch` (manual only).
+- Allowed branch: `main` only.
+- Tag format: `vX.Y.Z`.
+
+### Inputs
+
+- `bump`: `patch`, `minor`, or `major`.
+- `version_override`: optional explicit version in `N.N.N` format (example: `0.2.0`).
+- `is_prerelease`: boolean toggle.
+  - `true`: publish as a pre-release.
+  - `false`: publish as a stable release.
+
+### Version behavior
+
+- If `version_override` is set, that value is used.
+- Otherwise, the workflow finds the latest `v*` tag and increments it using `bump`.
+- The first run with no existing tags and default `patch` will produce `v0.0.1`.
+  - To start from `v0.1.0`, run with `version_override: 0.1.0` for the first release.
+
+### Build and package flow
+
+1. `dotnet publish` builds `VirtualDofMatrix.App` for `win-x64` self-contained release output.
+2. The publish output is copied into a staging folder.
+3. Additional files and directories are copied from `release-manifest.json`.
+4. The final zip is created as:
+   - `virtual-dof-matrix-vX.Y.Z-win-x64.zip`
+5. The workflow creates and pushes the release tag, then publishes a GitHub Release with auto-generated notes.
+
+## Release manifest
+
+Manifest file: `release-manifest.json`.
+
+Use the `mappings` array to define files to copy into the release zip staging folder.
+
+### Supported mapping types
+
+- `file`: copy one specific file.
+- `directory`: copy a directory recursively, optionally filtered by include/exclude patterns.
+- `glob`: copy files matching a wildcard pattern.
+
+Any missing source path or empty required match fails the release with a specific error.
+
+### Manifest schema examples
+
+```json
+{
+  "mappings": [
+    {
+      "type": "file",
+      "from": "DirectOutput-master/bin/x86/Release/DirectOutput.dll",
+      "to": "DOF/x86/DirectOutput.dll"
+    },
+    {
+      "type": "directory",
+      "from": "examples",
+      "to": "examples",
+      "include": ["**/*"],
+      "exclude": ["**/*.tmp"]
+    },
+    {
+      "type": "glob",
+      "from": "docs/**/*.md",
+      "to": "docs"
+    }
+  ]
+}
+```
+
+### Mapping field reference
+
+- `type` (required): `file`, `directory`, or `glob`.
+- `from` (required): source file path, source directory path, or glob pattern relative to repo root.
+- `to` (required): destination path inside release zip staging root.
+- `include` (optional, `directory` only): array of wildcard filters.
+- `exclude` (optional, `directory` only): array of wildcard filters.
+
+## Current manifest in this repo
+
+Current `release-manifest.json` includes examples that already exist in this repository:
+
+- `examples/settings.sample.json` -> `config/settings.sample.json`
+- `dofinstall/Config/Examples` -> `DOF/examples`
+
+Add or update mappings as release packaging requirements evolve.
