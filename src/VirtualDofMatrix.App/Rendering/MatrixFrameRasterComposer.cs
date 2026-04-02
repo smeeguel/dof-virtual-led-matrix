@@ -279,7 +279,7 @@ internal sealed class MatrixFrameRasterComposer
             return;
         }
 
-        var bloomProfile = ResolveBloomProfile(_config.Bloom);
+        var bloomProfile = BloomProfileResolver.Resolve(_config.Bloom);
         if (!bloomProfile.Enabled || (bloomProfile.SmallStrength <= 0.0 && bloomProfile.WideStrength <= 0.0))
         {
             return;
@@ -296,32 +296,6 @@ internal sealed class MatrixFrameRasterComposer
         BoxBlurRgbSeparable(_smallBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.SmallRadius);
         BoxBlurRgbSeparable(_wideBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.WideRadius);
         CompositeBloom(_workingRgb, _smallBlurRgb, _wideBlurRgb, _config.Width, _config.Height, _downsampleWidth, _downsampleHeight, bloomProfile);
-    }
-
-    private static BloomProfile ResolveBloomProfile(BloomConfig bloom)
-    {
-        if (!bloom.Enabled)
-        {
-            return BloomProfile.Disabled;
-        }
-
-        var preset = bloom.QualityPreset.Trim().ToLowerInvariant();
-        var profile = preset switch
-        {
-            "low" => new BloomProfile(true, 2, 1, 2, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
-            "medium" => new BloomProfile(true, 2, 2, 4, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
-            "high" => new BloomProfile(true, 1, 3, 6, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
-            "off" or "" => BloomProfile.Disabled,
-            _ => new BloomProfile(true, bloom.BufferScaleDivisor, bloom.SmallRadius, bloom.WideRadius, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
-        };
-
-        return profile with
-        {
-            ScaleDivisor = Math.Clamp(profile.ScaleDivisor, 1, 4),
-            SmallRadius = Math.Clamp(profile.SmallRadius, 1, 8),
-            WideRadius = Math.Clamp(profile.WideRadius, Math.Max(1, profile.SmallRadius), 16),
-            Threshold = Clamp01(profile.Threshold),
-        };
     }
 
     private void Downsample(float[] source, int width, int height, int scaleDivisor)
@@ -517,11 +491,6 @@ internal sealed class MatrixFrameRasterComposer
 
     private static byte ToByte(double value) => (byte)Math.Round(Math.Clamp(value, 0.0, 1.0) * 255.0);
     private static double Clamp01(double value) => Math.Clamp(value, 0.0, 1.0);
-
-    private sealed record BloomProfile(bool Enabled, int ScaleDivisor, int SmallRadius, int WideRadius, double Threshold, double SmallStrength, double WideStrength)
-    {
-        public static BloomProfile Disabled => new(false, 1, 0, 0, 1.0, 0.0, 0.0);
-    }
 
     private sealed class DotKernel
     {
