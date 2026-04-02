@@ -339,17 +339,7 @@ public partial class SettingsWindow : Window
     {
         return new AppConfig
         {
-            Transport = new TransportConfig { Mode = config.Transport.Mode, PipeName = config.Transport.PipeName },
-            Serial = new SerialConfig
-            {
-                PortName = config.Serial.PortName,
-                BaudRate = config.Serial.BaudRate,
-                MaxLedsPerChannel = config.Serial.MaxLedsPerChannel,
-                MaxStrips = config.Serial.MaxStrips,
-                ReadTimeoutMs = config.Serial.ReadTimeoutMs,
-                WriteTimeoutMs = config.Serial.WriteTimeoutMs,
-                DtrEnable = config.Serial.DtrEnable,
-            },
+            Transport = new TransportConfig { PipeName = config.Transport.PipeName },
             Matrix = new MatrixConfig
             {
                 Renderer = config.Matrix.Renderer,

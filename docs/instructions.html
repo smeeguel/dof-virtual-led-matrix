@@ -231,26 +231,8 @@ Open the app settings window to access these controls.
 Below is every supported section/field and what it does.
 
 ## `transport`
-- `mode` (`&quot;namedPipe&quot;` or `&quot;serial&quot;`)
-  - Selects communication backend.
 - `pipeName`
-  - Named pipe endpoint when `mode = &quot;namedPipe&quot;`.
-
-## `serial`
-- `portName`
-  - COM port for emulator mode (example: `COM2`).
-- `baudRate`
-  - Serial baud rate.
-- `maxLedsPerChannel`
-  - Maximum LEDs allowed per strip/channel (typically 1100).
-- `maxStrips`
-  - Max supported strips (safe target: 8).
-- `readTimeoutMs`
-  - Serial read timeout in milliseconds.
-- `writeTimeoutMs`
-  - Serial write timeout in milliseconds.
-- `dtrEnable`
-  - Enables DTR on serial connection.
+  - Named pipe endpoint used by the app to receive frames from DOF (`VirtualLEDStripController`).
 
 ## `matrix`
 - `renderer`

@@ -22,7 +22,6 @@ Use the updated cabinet config in this repo (`dofinstall/Config/Cabinet.xml`), o
 
 ```json
 "transport": {
-  "mode": "namedPipe",
   "pipeName": "VirtualDofMatrix"
 }
 ```

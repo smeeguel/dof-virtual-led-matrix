@@ -1,16 +1,6 @@
 {
   "transport": {
-    "mode": "namedPipe",
     "pipeName": "VirtualDofMatrix"
-  },
-  "serial": {
-    "portName": "COM2",
-    "baudRate": 9600,
-    "maxLedsPerChannel": 1100,
-    "maxStrips": 8,
-    "readTimeoutMs": 200,
-    "writeTimeoutMs": 1000,
-    "dtrEnable": true
   },
   "matrix": {
     "renderer": "gpu",

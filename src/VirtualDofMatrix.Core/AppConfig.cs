@@ -4,10 +4,7 @@ namespace VirtualDofMatrix.Core;
 
 public sealed class AppConfig
 {
-    // Branch task note: transport selector for serial-vs-named-pipe runtime modes.
     public TransportConfig Transport { get; set; } = new();
-
-    public SerialConfig Serial { get; set; } = new();
 
     public MatrixConfig Matrix { get; set; } = new();
 
@@ -20,30 +17,8 @@ public sealed class AppConfig
 
 public sealed class TransportConfig
 {
-    // Branch task note:
-    // - "serial": legacy VSPE/COM emulation path.
-    // - "namedPipe": fallback DOF custom-controller path (VirtualLEDStripController).
-    public string Mode { get; set; } = "namedPipe";
-
-    // Branch task note: local IPC endpoint used when mode == "namedPipe".
+    // Local IPC endpoint used by the VirtualLEDStripController named-pipe transport.
     public string PipeName { get; set; } = "VirtualDofMatrix";
-}
-
-public sealed class SerialConfig
-{
-    public string PortName { get; set; } = "COM2";
-
-    public int BaudRate { get; set; } = 9600;
-
-    public int MaxLedsPerChannel { get; set; } = 1100;
-
-    public int MaxStrips { get; set; } = 8;
-
-    public int ReadTimeoutMs { get; set; } = 200;
-
-    public int WriteTimeoutMs { get; set; } = 1000;
-
-    public bool DtrEnable { get; set; } = true;
 }
 
 public sealed class MatrixConfig

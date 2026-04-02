@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Threading;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Presentation;
-using VirtualDofMatrix.App.Serial;
+using VirtualDofMatrix.App.Transport;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
@@ -16,7 +16,7 @@ public partial class App : Application
 
     private AppConfig? _config;
     private MainWindow? _window;
-    private SerialEmulatorHost? _serialHost;
+    private FrameTransportHost? _transportHost;
     private FramePresentationDispatcher? _presentationDispatcher;
     private DispatcherTimer? _windowSettingsSaveTimer;
 
@@ -48,12 +48,12 @@ public partial class App : Application
         _window.SizeChanged += (_, _) => ScheduleWindowSettingsPersist();
         _window.Closing += (_, _) => PersistWindowSettings();
 
-        _serialHost = new SerialEmulatorHost(_config);
+        _transportHost = new FrameTransportHost(_config);
         _presentationDispatcher = new FramePresentationDispatcher(Dispatcher);
-        _presentationDispatcher.Attach(_serialHost);
+        _presentationDispatcher.Attach(_transportHost);
         _presentationDispatcher.FramePresentedOnUiThread += (_, frame) => _window.ApplyPresentation(frame);
 
-        await _serialHost.StartAsync();
+        await _transportHost.StartAsync();
 
         MainWindow = _window;
         _window.Show();
@@ -69,9 +69,9 @@ public partial class App : Application
             _presentationDispatcher = null;
         }
 
-        if (_serialHost is not null)
+        if (_transportHost is not null)
         {
-            await _serialHost.StopAsync();
+            await _transportHost.StopAsync();
         }
 
         base.OnExit(e);
@@ -169,7 +169,6 @@ public partial class App : Application
     private static void CopyConfig(AppConfig source, AppConfig destination)
     {
         destination.Transport = source.Transport;
-        destination.Serial = source.Serial;
         destination.Matrix = source.Matrix;
         destination.Window = source.Window;
         destination.Debug = source.Debug;
