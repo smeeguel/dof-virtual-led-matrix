@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _fpsTimer;
     private DateTimeOffset _lastFrameUtc = DateTimeOffset.MinValue;
     private bool _idleCleared;
+    private FramePresentation? _idleOffPresentation;
     private int _framesSinceFpsSample;
     private DateTimeOffset _fpsSampleStartUtc = DateTimeOffset.UtcNow;
 
@@ -311,6 +312,7 @@ public partial class MainWindow : Window
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
+        _idleOffPresentation = null;
         _matrixRenderer.Dispose();
         _matrixRenderer = CreateRenderer(_config);
         ApplyDebugVisibility();
@@ -342,8 +344,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        _matrixRenderer.Clear();
+        _idleOffPresentation ??= BuildIdleOffPresentation();
+        _matrixRenderer.UpdateFrame(_idleOffPresentation);
+        _matrixRenderer.Render();
         _idleCleared = true;
+    }
+
+    private FramePresentation BuildIdleOffPresentation()
+    {
+        var ledCount = Math.Max(1, _config.Matrix.Width * _config.Matrix.Height);
+        return new FramePresentation(new byte[ledCount * 3], ledCount, ledCount, 0, DateTimeOffset.UtcNow);
     }
 
     private void OnFpsTick(object? sender, EventArgs e)
