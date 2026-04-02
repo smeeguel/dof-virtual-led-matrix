@@ -27,6 +27,15 @@ Workflow file: `.github/workflows/manual-release.yml`.
 - The first run with no existing tags and default `patch` will produce `v0.0.1`.
   - To start from `v0.1.0`, run with `version_override: 0.1.0` for the first release.
 
+### Common failure: `tag already exists`
+
+- The workflow intentionally fails if the computed tag already exists in the repository.
+- Check existing tags with:
+  - `git tag --list "v*"`
+- If you want to publish again, choose a new version:
+  - `version_override` set to an unused value like `0.1.1`, or
+  - leave `version_override` blank and choose a bump that advances past the latest existing tag.
+
 ### Build and package flow
 
 1. `dotnet publish` builds `VirtualDofMatrix.App` for `win-x64` self-contained release output.
