@@ -341,7 +341,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
                 var normalizedRadial = (radial - fullRadius) / Math.Max(0.0001, 1.0 - fullRadius);
                 var edge = Math.Clamp(1.0 - normalizedRadial, 0.0, 1.0);
-                _dotBodyMask[idx] = (float)(offAlpha * (0.25 + (0.55 * Math.Pow(edge, 0.5 + lensFalloff))) + (rim * 0.08 * (1.0 - edge)));
+                _dotBodyMask[idx] = (float)(offAlpha * ((0.25 + (0.55 * Math.Pow(edge, 0.5 + lensFalloff))) + (rim * 0.08 * (1.0 - edge))));
                 _dotCoreMask[idx] = (float)Math.Pow(edge, 1.1 + (lensFalloff * 1.6));
 
                 var hx = (x / (double)Math.Max(1, dotSize - 1)) - 0.50;
@@ -401,6 +401,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var offR = visual.OffStateTintR;
         var offG = visual.OffStateTintG;
         var offB = visual.OffStateTintB;
+        var hasOffState = visual.OffStateAlpha > 0.0001 && (offR > 0 || offG > 0 || offB > 0);
+        if (!hasOffState && intensity <= 0f)
+        {
+            return;
+        }
 
         for (var y = 0; y < _dotSize; y++)
         {
