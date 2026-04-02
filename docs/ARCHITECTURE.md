@@ -4,7 +4,7 @@
 
 The app now uses a renderer backend abstraction (`IMatrixRenderer`) at the app/UI boundary.
 
-Protocol/parsing in `VirtualDofMatrix.Core` remains unchanged: serial host emits `FramePresentation` snapshots. The window converts payload bytes to `Rgb24[]` and hands frames to renderer backends through:
+Frame transport in `VirtualDofMatrix.App` is named-pipe based (`FrameTransportHost`) and emits `FramePresentation` snapshots. The window converts payload bytes to `Rgb24[]` and hands frames to renderer backends through:
 
 - `Initialize(renderSurface, width, height, dotStyleConfig)`
 - `UpdateFrame(ReadOnlySpan<Rgb24>)`

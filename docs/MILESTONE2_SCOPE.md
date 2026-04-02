@@ -4,7 +4,7 @@
 
 Milestone 2 focuses on a **known-good 32x8 path first**:
 
-- Keep the serial protocol emulation stable and DOF-compatible.
+- Keep frame ingestion stable and DOF-compatible through the named-pipe path.
 - Present frames in a WPF viewer window with low complexity.
 - Keep mapping and rendering interfaces ready for expansion, without claiming full generalized geometry support yet.
 
@@ -17,7 +17,7 @@ This is intentionally narrower than Milestone 3.
 1. Protocol ingestion and frame presentation for the known-good sequence (`00`, `M`, `L`, `C`, `O`, `R`, `O`).
 2. Snapshot-based frame handoff at `O` output boundaries.
 3. Rendering of 32x8 matrix payloads in app layer via pluggable renderer interface.
-4. Configuration-driven defaults aligned with current test setup (`COM2`, `9600`, `32x8`, `TopDownAlternateRightLeft`).
+4. Configuration-driven defaults aligned with current test setup (`VirtualDofMatrix`, `32x8`, `TopDownAlternateRightLeft`).
 
 ---
 
