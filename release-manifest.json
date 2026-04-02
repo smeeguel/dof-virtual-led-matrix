@@ -19,6 +19,11 @@
       "type": "file",
       "from": "examples/settings.sample.json",
       "to": "examples/settings.sample.json"
+    },
+    {
+      "type": "file",
+      "from": "docs/instructions.html",
+      "to": "docs/instructions.html"
     }
   ]
 }
