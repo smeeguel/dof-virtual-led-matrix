@@ -190,6 +190,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         var current = _smoothedRgb[channel];
+        if (targetByte == byte.MaxValue)
+        {
+            _smoothedRgb[channel] = byte.MaxValue;
+            return byte.MaxValue;
+        }
+
         var delta = target - current;
         var alpha = delta >= 0 ? rise : fall;
         var next = current + (alpha * delta);
@@ -278,6 +284,25 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 var dy = (y - center) / radius;
                 var radial = Math.Sqrt((dx * dx) + (dy * dy));
                 _dotMask[idx] = radial <= 1.0 ? (float)Math.Pow(1.0 - radial, 0.55) : 0f;
+            }
+        }
+
+        var maxMask = 0f;
+        for (var i = 0; i < _dotMask.Length; i++)
+        {
+            if (_dotMask[i] > maxMask)
+            {
+                maxMask = _dotMask[i];
+            }
+        }
+        if (maxMask > 0f && maxMask < 1f)
+        {
+            for (var i = 0; i < _dotMask.Length; i++)
+            {
+                if (_dotMask[i] > 0f)
+                {
+                    _dotMask[i] /= maxMask;
+                }
             }
         }
     }

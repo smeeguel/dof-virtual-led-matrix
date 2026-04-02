@@ -116,7 +116,7 @@ internal sealed class MatrixFrameRasterComposer
         }
 
         var rootIntensity = Math.Sqrt(Math.Clamp(intensity, 0.0, 1.0));
-        var coreOpacity = intensity > 0.0 ? Math.Clamp(0.2 + (rootIntensity * 0.72), 0.0, 1.0) : 0.0;
+        var coreOpacity = intensity > 0.0 ? Math.Clamp(0.35 + (rootIntensity * 0.65), 0.0, 1.0) : 0.0;
         var specOpacity = intensity > 0.0 ? Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65) : 0.0;
 
         var offR = visual.OffStateTintR;
@@ -223,6 +223,13 @@ internal sealed class MatrixFrameRasterComposer
         }
 
         var current = _smoothedRgb[channelOffset];
+        if (target == byte.MaxValue)
+        {
+            _smoothedRgb[channelOffset] = byte.MaxValue;
+            _workingRgb[channelOffset] = byte.MaxValue;
+            return;
+        }
+
         var delta = target - current;
         var alpha = delta >= 0 ? riseAlpha : fallAlpha;
         var next = current + ((float)alpha * delta);
@@ -561,6 +568,10 @@ internal sealed class MatrixFrameRasterComposer
                 }
             }
 
+            NormalizeMask(body);
+            NormalizeMask(core);
+            NormalizeMask(specular);
+
             return new DotKernel
             {
                 Size = size,
@@ -568,6 +579,31 @@ internal sealed class MatrixFrameRasterComposer
                 Core = core,
                 Specular = specular,
             };
+        }
+
+        private static void NormalizeMask(double[] mask)
+        {
+            var max = 0.0;
+            for (var i = 0; i < mask.Length; i++)
+            {
+                if (mask[i] > max)
+                {
+                    max = mask[i];
+                }
+            }
+
+            if (max <= 0.0 || max >= 1.0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < mask.Length; i++)
+            {
+                if (mask[i] > 0.0)
+                {
+                    mask[i] /= max;
+                }
+            }
         }
     }
 }
