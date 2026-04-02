@@ -2,18 +2,8 @@
   "mappings": [
     {
       "type": "directory",
-      "from": "DOF/Config",
-      "to": "DOF/Config"
-    },
-    {
-      "type": "file",
-      "from": "DirectOutput-master/bin/x86/Release/DirectOutput.dll",
-      "to": "DOF/x86/DirectOutput.dll"
-    },
-    {
-      "type": "file",
-      "from": "DirectOutput-master/bin/x64/Release/DirectOutput.dll",
-      "to": "DOF/x64/DirectOutput.dll"
+      "from": "DOF",
+      "to": "DOF"
     },
     {
       "type": "file",

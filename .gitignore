@@ -13,7 +13,9 @@
 [Rr]elease/
 [Rr]eleases/
 x64/
+!DOF/x64/
 x86/
+!DOF/x86/
 [Ww][Ii][Nn]32/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
