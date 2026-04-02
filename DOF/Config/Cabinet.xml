@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Cabinet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Name>AddressableLEDSetup</Name>
+  <OutputControllers>
+    <VirtualLEDStripController>
+      <Name>LED Strips 0</Name>
+      <NumberOfLedsStrip1>4096</NumberOfLedsStrip1>
+      <PipeName>VirtualDofMatrix</PipeName>
+      <ConnectTimeoutMs>2000</ConnectTimeoutMs>
+      <ReconnectDelayMs>250</ReconnectDelayMs>
+    </VirtualLEDStripController>
+  </OutputControllers>
+  <Toys>
+    <LedStrip>
+      <Name>Matrix1</Name>
+      <Width>128</Width>
+      <Height>32</Height>
+      <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
+      <ColorOrder>RGB</ColorOrder>
+      <FirstLedNumber>1</FirstLedNumber>
+      <FadingCurveName>SwissLizardsLedCurve</FadingCurveName>
+      <Brightness>100</Brightness>
+      <OutputControllerName>LED Strips 0</OutputControllerName>
+    </LedStrip>
+    <LedWizEquivalent>
+      <Name>LedWizEquivalent 30</Name>
+      <LedWizNumber>30</LedWizNumber>
+      <Outputs>
+        <LedWizEquivalentOutput>
+          <OutputName>Matrix1</OutputName>
+          <LedWizEquivalentOutputNumber>1</LedWizEquivalentOutputNumber>
+        </LedWizEquivalentOutput>
+      </Outputs>
+    </LedWizEquivalent>
+  </Toys>
+</Cabinet>

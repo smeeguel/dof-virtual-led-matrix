@@ -1,14 +1,24 @@
 {
   "mappings": [
     {
-      "type": "file",
-      "from": "examples/settings.sample.json",
-      "to": "config/settings.sample.json"
+      "type": "directory",
+      "from": "DOF/Config",
+      "to": "DOF/Config"
     },
     {
-      "type": "directory",
-      "from": "dofinstall/Config/Examples",
-      "to": "DOF/examples"
+      "type": "file",
+      "from": "DirectOutput-master/bin/x86/Release/DirectOutput.dll",
+      "to": "DOF/x86/DirectOutput.dll"
+    },
+    {
+      "type": "file",
+      "from": "DirectOutput-master/bin/x64/Release/DirectOutput.dll",
+      "to": "DOF/x64/DirectOutput.dll"
+    },
+    {
+      "type": "file",
+      "from": "examples/settings.sample.json",
+      "to": "examples/settings.sample.json"
     }
   ]
 }
