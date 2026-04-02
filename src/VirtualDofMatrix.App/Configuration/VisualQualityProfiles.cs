@@ -21,6 +21,7 @@ public static class VisualQualityProfiles
                 matrix.TemporalSmoothing.Enabled = false;
                 matrix.TemporalSmoothing.RiseAlpha = 1.0;
                 matrix.TemporalSmoothing.FallAlpha = 1.0;
+                matrix.Bloom.Enabled = false;
                 break;
             case High:
                 matrix.Visual.FlatShading = false;
@@ -29,6 +30,7 @@ public static class VisualQualityProfiles
                 matrix.TemporalSmoothing.Enabled = true;
                 matrix.TemporalSmoothing.RiseAlpha = 0.5;
                 matrix.TemporalSmoothing.FallAlpha = 0.3;
+                matrix.Bloom.Enabled = true;
                 break;
             case Custom:
                 break;
@@ -36,8 +38,5 @@ public static class VisualQualityProfiles
                 ApplyPreset(matrix, High);
                 break;
         }
-
-        // Bloom is currently experimental and excluded from quality presets.
-        matrix.Bloom.Enabled = false;
     }
 }
