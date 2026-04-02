@@ -9,7 +9,7 @@
     "mapping": "TopDownAlternateRightLeft",
     "dotShape": "circle",
     "minDotSpacing": 2,
-    "brightness": 1.5,
+    "brightness": 1.0,
     "gamma": 1,
     "toneMapping": {
       "enabled": true,

@@ -493,10 +493,10 @@ internal sealed class MatrixFrameRasterComposer
     {
         var normalized = channel / 255.0;
         var adjusted = Math.Pow(Math.Clamp(normalized, 0.0, 1.0), Math.Clamp(gamma, 0.1, 5.0));
-        var scaled = adjusted * Math.Clamp(brightness, 0.0, 4.0);
-        if (toneMapping.Enabled)
+        var scaled = adjusted * Math.Clamp(brightness, 0.0, 1.0);
+        if (toneMapping.Enabled && scaled > 1.0)
         {
-            var kneeStart = Math.Clamp(toneMapping.KneeStart, 0.5, 0.99);
+            var kneeStart = Math.Clamp(toneMapping.KneeStart, 1.0, 2.0);
             var strength = Math.Clamp(toneMapping.Strength, 0.0, 8.0);
             if (scaled > kneeStart)
             {

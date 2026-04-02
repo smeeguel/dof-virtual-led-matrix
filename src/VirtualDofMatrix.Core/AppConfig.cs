@@ -38,7 +38,7 @@ public sealed class MatrixConfig
 
     public int MinDotSpacing { get; set; } = 2;
 
-    public double Brightness { get; set; } = 1.5;
+    public double Brightness { get; set; } = 1.0;
 
     public double Gamma { get; set; } = 1.0;
 

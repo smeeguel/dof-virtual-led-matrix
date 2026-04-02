@@ -218,10 +218,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             var normalized = i / 255.0;
             var adjusted = Math.Pow(Math.Clamp(normalized, 0.0, 1.0), Math.Clamp(style.Gamma, 0.1, 5.0));
-            var scaled = adjusted * Math.Clamp(style.Brightness, 0.0, 4.0);
-            if (style.ToneMapping.Enabled)
+            var scaled = adjusted * Math.Clamp(style.Brightness, 0.0, 1.0);
+            if (style.ToneMapping.Enabled && scaled > 1.0)
             {
-                var kneeStart = Math.Clamp(style.ToneMapping.KneeStart, 0.5, 0.99);
+                var kneeStart = Math.Clamp(style.ToneMapping.KneeStart, 1.0, 2.0);
                 var strength = Math.Clamp(style.ToneMapping.Strength, 0.0, 8.0);
                 if (scaled > kneeStart)
                 {

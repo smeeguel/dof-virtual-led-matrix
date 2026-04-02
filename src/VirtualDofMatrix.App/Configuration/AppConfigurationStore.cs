@@ -52,6 +52,8 @@ public sealed class AppConfigurationStore
         {
             config.Matrix.MinDotSpacing = 2;
         }
+        
+        config.Matrix.Brightness = Math.Round(Math.Clamp(config.Matrix.Brightness, 0.0, 1.0) / 0.05, MidpointRounding.AwayFromZero) * 0.05;
 
         if (config.Matrix.ToneMapping is null)
         {

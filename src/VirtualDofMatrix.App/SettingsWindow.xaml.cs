@@ -47,6 +47,8 @@ public partial class SettingsWindow : Window
 
         AlwaysOnTopCheckBox.IsChecked = _working.Window.AlwaysOnTop;
         DotShapeCombo.SelectedItem = _working.Matrix.DotShape;
+        DotBrightnessSlider.Value = NormalizeDotBrightness(_working.Matrix.Brightness);
+        DotBrightnessValueText.Text = $"{DotBrightnessSlider.Value:0.00}";
         RendererCombo.SelectedItem = NormalizeRenderer(_working.Matrix.Renderer);
 
         if (!VisualQualityProfiles.Names.Contains(_working.Settings.VisualQuality, StringComparer.OrdinalIgnoreCase))
@@ -94,6 +96,12 @@ public partial class SettingsWindow : Window
     }
 
     private void OnDotShapeChanged(object sender, SelectionChangedEventArgs e) => OnSettingChanged(sender, e);
+
+    private void OnDotBrightnessChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        DotBrightnessValueText.Text = $"{NormalizeDotBrightness(e.NewValue):0.00}";
+        OnSettingChanged(sender, e);
+    }
 
     private void OnSettingChanged(object sender, RoutedEventArgs e)
     {
@@ -198,6 +206,7 @@ public partial class SettingsWindow : Window
 
         AlwaysOnTopCheckBox.IsChecked = defaults.Window.AlwaysOnTop;
         DotShapeCombo.SelectedItem = defaults.Matrix.DotShape;
+        DotBrightnessSlider.Value = NormalizeDotBrightness(defaults.Matrix.Brightness);
         QualityCombo.SelectedItem = defaults.Settings.VisualQuality;
         RendererCombo.SelectedItem = NormalizeRenderer(defaults.Matrix.Renderer);
 
@@ -231,6 +240,7 @@ public partial class SettingsWindow : Window
         config.Matrix.Height = height;
         config.Window.AlwaysOnTop = AlwaysOnTopCheckBox.IsChecked == true;
         config.Matrix.DotShape = DotShapeCombo.SelectedItem?.ToString() ?? "circle";
+        config.Matrix.Brightness = NormalizeDotBrightness(DotBrightnessSlider.Value);
 
         config.Settings.VisualQuality = QualityCombo.SelectedItem?.ToString() ?? VisualQualityProfiles.High;
         if (config.Settings.VisualQuality != VisualQualityProfiles.Custom)
@@ -287,6 +297,12 @@ public partial class SettingsWindow : Window
     private static string NormalizeRenderer(string? renderer)
     {
         return renderer?.Equals("cpu", StringComparison.OrdinalIgnoreCase) == true ? "cpu" : "gpu";
+    }
+
+    private static double NormalizeDotBrightness(double value)
+    {
+        var clamped = Math.Clamp(value, 0.0, 1.0);
+        return Math.Round(clamped / 0.05, MidpointRounding.AwayFromZero) * 0.05;
     }
 
     private void CaptureCurrentAsCleanState()
