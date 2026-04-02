@@ -10,24 +10,24 @@
     "dotShape": "circle",
     "minDotSpacing": 2,
     "brightness": 1.0,
-    "gamma": 1,
+    "gamma": 0.8,
     "toneMapping": {
       "enabled": true,
       "kneeStart": 0.95,
       "strength": 0.55
     },
     "temporalSmoothing": {
-      "enabled": true,
+      "enabled": false,
       "riseAlpha": 0.5,
       "fallAlpha": 0.3
     },
     "visual": {
       "flatShading": false,
-      "fullBrightnessRadiusMinPct": 0.5,
-      "offStateTintR": 35,
-      "offStateTintG": 40,
-      "offStateTintB": 45,
-      "offStateAlpha": 0.22,
+      "fullBrightnessRadiusMinPct": 0.8,
+      "offStateTintR": 20,
+      "offStateTintG": 20,
+      "offStateTintB": 20,
+      "offStateAlpha": 0,
       "lensFalloff": 0.45,
       "specularHotspot": 0.28,
       "rimHighlight": 0.22
@@ -46,10 +46,10 @@
   "window": {
     "alwaysOnTop": true,
     "borderless": true,
-    "left": -3,
-    "top": 1,
-    "width": 1644,
-    "height": 411
+    "left": 10,
+    "top": 6,
+    "width": 1412,
+    "height": 353
   },
   "debug": {
     "showDebug": false,

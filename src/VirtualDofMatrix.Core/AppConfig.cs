@@ -40,7 +40,7 @@ public sealed class MatrixConfig
 
     public double Brightness { get; set; } = 1.0;
 
-    public double Gamma { get; set; } = 1.0;
+    public double Gamma { get; set; } = 0.8;
 
 
     public ToneMappingConfig ToneMapping { get; set; } = new();
@@ -63,7 +63,7 @@ public sealed class ToneMappingConfig
 
 public sealed class TemporalSmoothingConfig
 {
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; } = false;
 
     public double RiseAlpha { get; set; } = 0.5;
 
@@ -76,15 +76,15 @@ public sealed class MatrixVisualConfig
     public bool FlatShading { get; set; } = false;
 
     // Inner-radius percentage (0..1) kept at full intensity before radial falloff starts.
-    public double FullBrightnessRadiusMinPct { get; set; } = 0.5;
+    public double FullBrightnessRadiusMinPct { get; set; } = 0.8;
 
-    public byte OffStateTintR { get; set; } = 35;
+    public byte OffStateTintR { get; set; } = 20;
 
-    public byte OffStateTintG { get; set; } = 40;
+    public byte OffStateTintG { get; set; } = 20;
 
-    public byte OffStateTintB { get; set; } = 45;
+    public byte OffStateTintB { get; set; } = 20;
 
-    public double OffStateAlpha { get; set; } = 0.22;
+    public double OffStateAlpha { get; set; } = 0.0;
 
     public double LensFalloff { get; set; } = 0.45;
 
@@ -120,13 +120,13 @@ public sealed class WindowConfig
 
     public bool Borderless { get; set; } = true;
 
-    public double Left { get; set; } = -3;
+    public double Left { get; set; } = 10;
 
-    public double Top { get; set; } = 1;
+    public double Top { get; set; } = 6;
 
-    public double Width { get; set; } = 1644;
+    public double Width { get; set; } = 1412;
 
-    public double Height { get; set; } = 411;
+    public double Height { get; set; } = 353;
 }
 
 public sealed class DebugConfig
