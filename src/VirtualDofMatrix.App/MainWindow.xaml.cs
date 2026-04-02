@@ -207,7 +207,12 @@ public partial class MainWindow : Window
         {
             _matrixRenderer.UpdateFrame(_latestPresentation);
             _matrixRenderer.Render();
+            return;
         }
+
+        _idleOffPresentation ??= BuildIdleOffPresentation();
+        _matrixRenderer.UpdateFrame(_idleOffPresentation);
+        _matrixRenderer.Render();
     }
 
     private MatrixConfig BuildViewportAdaptiveMatrixConfig()
