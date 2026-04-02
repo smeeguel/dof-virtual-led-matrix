@@ -75,6 +75,9 @@ public sealed class MatrixVisualConfig
     // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
     public bool FlatShading { get; set; } = false;
 
+    // Inner-radius percentage (0..1) kept at full intensity before radial falloff starts.
+    public double FullBrightnessRadiusMinPct { get; set; } = 0.5;
+
     public byte OffStateTintR { get; set; } = 35;
 
     public byte OffStateTintG { get; set; } = 40;

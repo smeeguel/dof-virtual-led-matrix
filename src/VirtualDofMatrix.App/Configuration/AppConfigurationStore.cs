@@ -69,6 +69,8 @@ public sealed class AppConfigurationStore
         {
             config.Matrix.Visual = new MatrixVisualConfig();
         }
+        
+        config.Matrix.Visual.FullBrightnessRadiusMinPct = Math.Clamp(config.Matrix.Visual.FullBrightnessRadiusMinPct, 0.0, 1.0);
 
         if (config.Matrix.Bloom is null)
         {

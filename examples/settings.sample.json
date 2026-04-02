@@ -23,6 +23,7 @@
     },
     "visual": {
       "flatShading": false,
+      "fullBrightnessRadiusMinPct": 0.5,
       "offStateTintR": 35,
       "offStateTintG": 40,
       "offStateTintB": 45,

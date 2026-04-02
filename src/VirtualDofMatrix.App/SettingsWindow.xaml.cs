@@ -381,6 +381,7 @@ public partial class SettingsWindow : Window
                 Visual = new MatrixVisualConfig
                 {
                     FlatShading = config.Matrix.Visual.FlatShading,
+                    FullBrightnessRadiusMinPct = config.Matrix.Visual.FullBrightnessRadiusMinPct,
                     OffStateTintR = config.Matrix.Visual.OffStateTintR,
                     OffStateTintG = config.Matrix.Visual.OffStateTintG,
                     OffStateTintB = config.Matrix.Visual.OffStateTintB,

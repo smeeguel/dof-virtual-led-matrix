@@ -540,6 +540,7 @@ internal sealed class MatrixFrameRasterComposer
             var specHotspot = Clamp01(visual.SpecularHotspot);
             var rim = Clamp01(visual.RimHighlight);
             var offAlpha = Clamp01(visual.OffStateAlpha);
+            var fullRadius = Clamp01(visual.FullBrightnessRadiusMinPct);
 
             var center = (size - 1) * 0.5;
             var radius = Math.Max(0.5, size * 0.5);
@@ -557,7 +558,10 @@ internal sealed class MatrixFrameRasterComposer
                     }
 
                     var idx = (y * size) + x;
-                    var edge = Math.Clamp(1.0 - radial, 0.0, 1.0);
+                    var normalizedRadial = radial <= fullRadius
+                        ? 0.0
+                        : (radial - fullRadius) / Math.Max(0.0001, 1.0 - fullRadius);
+                    var edge = Math.Clamp(1.0 - normalizedRadial, 0.0, 1.0);
                     body[idx] = offAlpha * (0.25 + (0.55 * Math.Pow(edge, 0.5 + lensFalloff))) + (rim * 0.08 * (1.0 - edge));
                     core[idx] = Math.Pow(edge, 1.1 + (lensFalloff * 1.6));
 

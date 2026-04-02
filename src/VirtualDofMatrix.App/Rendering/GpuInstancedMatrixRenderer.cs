@@ -255,10 +255,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _dotStride = _dotSize + _dotPadding;
         _surfaceWidth = (_dotPadding * 2) + (width * _dotStride);
         _surfaceHeight = (_dotPadding * 2) + (height * _dotStride);
-        BuildDotMask(style.DotShape, _dotSize);
+        BuildDotMask(style.DotShape, _dotSize, style.Visual.FullBrightnessRadiusMinPct);
     }
 
-    private void BuildDotMask(string shape, int dotSize)
+    private void BuildDotMask(string shape, int dotSize, double fullBrightnessRadiusMinPct)
     {
         _dotMask = new float[dotSize * dotSize];
         if (dotSize == 1)
@@ -269,6 +269,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         var center = (dotSize - 1) * 0.5;
         var radius = Math.Max(0.5, dotSize * 0.5);
+        var fullRadius = Math.Clamp((float)fullBrightnessRadiusMinPct, 0f, 1f);
         for (var y = 0; y < dotSize; y++)
         {
             for (var x = 0; x < dotSize; x++)
@@ -283,7 +284,20 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 var dx = (x - center) / radius;
                 var dy = (y - center) / radius;
                 var radial = Math.Sqrt((dx * dx) + (dy * dy));
-                _dotMask[idx] = radial <= 1.0 ? (float)Math.Pow(1.0 - radial, 0.55) : 0f;
+                if (radial > 1.0)
+                {
+                    _dotMask[idx] = 0f;
+                    continue;
+                }
+
+                if (radial <= fullRadius)
+                {
+                    _dotMask[idx] = 1f;
+                    continue;
+                }
+
+                var normalized = (float)((radial - fullRadius) / Math.Max(0.0001, 1.0 - fullRadius));
+                _dotMask[idx] = (float)Math.Pow(Math.Clamp(1.0 - normalized, 0.0, 1.0), 0.55);
             }
         }
 
