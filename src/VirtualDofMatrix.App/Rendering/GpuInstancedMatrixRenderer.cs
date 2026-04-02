@@ -31,7 +31,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private int _dotStride;
     private int _dotSize;
     private int _dotPadding;
-    private float[] _dotMask = Array.Empty<float>();
+    private float[] _dotBodyMask = Array.Empty<float>();
+    private float[] _dotCoreMask = Array.Empty<float>();
+    private float[] _dotSpecularMask = Array.Empty<float>();
     private byte[] _bgra = Array.Empty<byte>();
     private float[] _smoothedRgb = Array.Empty<float>();
     private float[] _workingRgb = Array.Empty<float>();
@@ -286,21 +288,31 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _dotStride = _dotSize + _dotPadding;
         _surfaceWidth = (_dotPadding * 2) + (width * _dotStride);
         _surfaceHeight = (_dotPadding * 2) + (height * _dotStride);
-        BuildDotMask(style.DotShape, _dotSize, style.Visual.FullBrightnessRadiusMinPct);
+        BuildDotMasks(style, _dotSize);
     }
 
-    private void BuildDotMask(string shape, int dotSize, double fullBrightnessRadiusMinPct)
+    private void BuildDotMasks(DotStyleConfig style, int dotSize)
     {
-        _dotMask = new float[dotSize * dotSize];
+        var shape = style.DotShape;
+        var visual = style.Visual;
+        _dotBodyMask = new float[dotSize * dotSize];
+        _dotCoreMask = new float[dotSize * dotSize];
+        _dotSpecularMask = new float[dotSize * dotSize];
         if (dotSize == 1)
         {
-            _dotMask[0] = 1f;
+            _dotBodyMask[0] = 1f;
+            _dotCoreMask[0] = 1f;
+            _dotSpecularMask[0] = 1f;
             return;
         }
 
         var center = (dotSize - 1) * 0.5;
         var radius = Math.Max(0.5, dotSize * 0.5);
-        var fullRadius = Math.Clamp((float)fullBrightnessRadiusMinPct, 0f, 1f);
+        var fullRadius = Math.Clamp(visual.FullBrightnessRadiusMinPct, 0.0, 1.0);
+        var lensFalloff = Math.Clamp(visual.LensFalloff, 0.0, 1.0);
+        var specHotspot = Math.Clamp(visual.SpecularHotspot, 0.0, 1.0);
+        var rim = Math.Clamp(visual.RimHighlight, 0.0, 1.0);
+        var offAlpha = Math.Clamp(visual.OffStateAlpha, 0.0, 1.0);
         for (var y = 0; y < dotSize; y++)
         {
             for (var x = 0; x < dotSize; x++)
@@ -308,45 +320,60 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 var idx = (y * dotSize) + x;
                 if (shape.Equals("square", StringComparison.OrdinalIgnoreCase))
                 {
-                    _dotMask[idx] = 1f;
+                    _dotBodyMask[idx] = 1f;
+                    _dotCoreMask[idx] = 1f;
+                    _dotSpecularMask[idx] = 0.15f;
                     continue;
                 }
 
                 var dx = (x - center) / radius;
                 var dy = (y - center) / radius;
                 var radial = Math.Sqrt((dx * dx) + (dy * dy));
-                if (radial > 1.0)
-                {
-                    _dotMask[idx] = 0f;
-                    continue;
-                }
-
                 if (radial <= fullRadius)
                 {
-                    _dotMask[idx] = 1f;
+                    radial = fullRadius;
+                }
+
+                if (radial > 1.0)
+                {
                     continue;
                 }
 
-                var normalized = (float)((radial - fullRadius) / Math.Max(0.0001, 1.0 - fullRadius));
-                _dotMask[idx] = (float)Math.Pow(Math.Clamp(1.0 - normalized, 0.0, 1.0), 0.55);
+                var normalizedRadial = (radial - fullRadius) / Math.Max(0.0001, 1.0 - fullRadius);
+                var edge = Math.Clamp(1.0 - normalizedRadial, 0.0, 1.0);
+                _dotBodyMask[idx] = (float)(offAlpha * (0.25 + (0.55 * Math.Pow(edge, 0.5 + lensFalloff))) + (rim * 0.08 * (1.0 - edge)));
+                _dotCoreMask[idx] = (float)Math.Pow(edge, 1.1 + (lensFalloff * 1.6));
+
+                var hx = (x / (double)Math.Max(1, dotSize - 1)) - 0.50;
+                var hy = (y / (double)Math.Max(1, dotSize - 1)) - 0.35;
+                var hotspotDist2 = (hx * hx) + (hy * hy);
+                _dotSpecularMask[idx] = (float)(Math.Exp(-hotspotDist2 / Math.Max(0.01, 0.02 + (0.12 * specHotspot))) * (0.35 + (0.55 * specHotspot)));
             }
         }
 
+        NormalizeMask(_dotBodyMask);
+        NormalizeMask(_dotCoreMask);
+        NormalizeMask(_dotSpecularMask);
+    }
+
+    private static void NormalizeMask(float[] mask)
+    {
         var maxMask = 0f;
-        for (var i = 0; i < _dotMask.Length; i++)
+        for (var i = 0; i < mask.Length; i++)
         {
-            if (_dotMask[i] > maxMask)
+            if (mask[i] > maxMask)
             {
-                maxMask = _dotMask[i];
+                maxMask = mask[i];
             }
         }
+
         if (maxMask > 0f && maxMask < 1f)
         {
-            for (var i = 0; i < _dotMask.Length; i++)
+            for (var i = 0; i < mask.Length; i++)
             {
-                if (_dotMask[i] > 0f)
+                if (mask[i] > 0f)
                 {
-                    _dotMask[i] /= maxMask;
+                    mask[i] /= maxMask;
                 }
             }
         }
@@ -354,7 +381,26 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private void RasterFastDot(int baseX, int baseY, float r, float g, float b)
     {
-        const float emissiveFloor = 0.35f;
+        if (_style is null)
+        {
+            return;
+        }
+
+        var visual = _style.Visual;
+        if (visual.FlatShading)
+        {
+            RasterFlatDot(baseX, baseY, r, g, b);
+            return;
+        }
+
+        var intensity = Math.Clamp(Math.Max(r, Math.Max(g, b)) / 255f, 0f, 1f);
+        var rootIntensity = Math.Sqrt(intensity);
+        var coreOpacity = intensity > 0f ? Math.Clamp(0.35 + (rootIntensity * 0.65), 0.0, 1.0) : 0.0;
+        var specOpacity = intensity > 0f ? Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65) : 0.0;
+        var offBlend = 1.0 - (intensity * intensity);
+        var offR = visual.OffStateTintR;
+        var offG = visual.OffStateTintG;
+        var offB = visual.OffStateTintB;
 
         for (var y = 0; y < _dotSize; y++)
         {
@@ -366,13 +412,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
             for (var x = 0; x < _dotSize; x++)
             {
-                var mask = _dotMask[(y * _dotSize) + x];
-                if (mask <= 0f)
+                var idx = (y * _dotSize) + x;
+                var body = _dotBodyMask[idx];
+                var core = _dotCoreMask[idx] * (float)coreOpacity;
+                var spec = _dotSpecularMask[idx] * (float)specOpacity;
+                if (body <= 0f && core <= 0f && spec <= 0f)
                 {
                     continue;
                 }
-
-                var brightnessFactor = emissiveFloor + ((1f - emissiveFloor) * mask);
 
                 var px = baseX + x;
                 if ((uint)px >= (uint)_surfaceWidth)
@@ -381,9 +428,45 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 }
 
                 var o = ((py * _surfaceWidth) + px) * 4;
-                _bgra[o] = (byte)Math.Clamp(b * brightnessFactor, 0f, 255f);
-                _bgra[o + 1] = (byte)Math.Clamp(g * brightnessFactor, 0f, 255f);
-                _bgra[o + 2] = (byte)Math.Clamp(r * brightnessFactor, 0f, 255f);
+                var outR = (offR * body * offBlend) + (r * core) + (255.0 * spec);
+                var outG = (offG * body * offBlend) + (g * core) + (255.0 * spec);
+                var outB = (offB * body * offBlend) + (b * core) + (255.0 * spec);
+                _bgra[o] = (byte)Math.Clamp(outB, 0.0, 255.0);
+                _bgra[o + 1] = (byte)Math.Clamp(outG, 0.0, 255.0);
+                _bgra[o + 2] = (byte)Math.Clamp(outR, 0.0, 255.0);
+                _bgra[o + 3] = 255;
+            }
+        }
+    }
+
+    private void RasterFlatDot(int baseX, int baseY, float r, float g, float b)
+    {
+        for (var y = 0; y < _dotSize; y++)
+        {
+            var py = baseY + y;
+            if ((uint)py >= (uint)_surfaceHeight)
+            {
+                continue;
+            }
+
+            for (var x = 0; x < _dotSize; x++)
+            {
+                var idx = (y * _dotSize) + x;
+                if (_dotBodyMask[idx] <= 0f)
+                {
+                    continue;
+                }
+
+                var px = baseX + x;
+                if ((uint)px >= (uint)_surfaceWidth)
+                {
+                    continue;
+                }
+
+                var o = ((py * _surfaceWidth) + px) * 4;
+                _bgra[o] = (byte)Math.Clamp(b, 0f, 255f);
+                _bgra[o + 1] = (byte)Math.Clamp(g, 0f, 255f);
+                _bgra[o + 2] = (byte)Math.Clamp(r, 0f, 255f);
                 _bgra[o + 3] = 255;
             }
         }
