@@ -84,7 +84,7 @@ public sealed class MatrixVisualConfig
 
     public byte OffStateTintB { get; set; } = 20;
 
-    public double OffStateAlpha { get; set; } = 0.0;
+    public double OffStateAlpha { get; set; } = 0.2;
 
     public double LensFalloff { get; set; } = 0.45;
 

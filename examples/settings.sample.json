@@ -27,7 +27,7 @@
       "offStateTintR": 20,
       "offStateTintG": 20,
       "offStateTintB": 20,
-      "offStateAlpha": 0,
+      "offStateAlpha": 0.2,
       "lensFalloff": 0.45,
       "specularHotspot": 0.28,
       "rimHighlight": 0.22
