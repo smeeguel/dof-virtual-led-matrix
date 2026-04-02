@@ -38,14 +38,67 @@ jobs:
           Write-Error "This workflow only runs from main. Current ref: $env:GITHUB_REF_NAME"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 8.0.x
+
+      - name: Validate release manifest sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $manifestPath = "release-manifest.json"
+          if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+            throw "Manifest file not found: $manifestPath"
+          }
+
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+          if ($null -eq $manifest.mappings -or $manifest.mappings.Count -eq 0) {
+            throw "Manifest contains no mappings: $manifestPath"
+          }
+
+          Write-Host "Validating $($manifest.mappings.Count) manifest mappings..."
+          for ($i = 0; $i -lt $manifest.mappings.Count; $i++) {
+            $mapping = $manifest.mappings[$i]
+            if ([string]::IsNullOrWhiteSpace($mapping.type)) {
+              throw "Mapping[$i] missing 'type'."
+            }
+            if ([string]::IsNullOrWhiteSpace($mapping.from)) {
+              throw "Mapping[$i] missing 'from'."
+            }
+            if ([string]::IsNullOrWhiteSpace($mapping.to)) {
+              throw "Mapping[$i] missing 'to'."
+            }
+
+            $sourcePath = [System.IO.Path]::GetFullPath($mapping.from)
+            switch ($mapping.type.ToLowerInvariant()) {
+              "file" {
+                if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+                  throw "Mapping[$i] file source not found: '$($mapping.from)'"
+                }
+              }
+              "directory" {
+                if (-not (Test-Path -LiteralPath $sourcePath -PathType Container)) {
+                  throw "Mapping[$i] directory source not found: '$($mapping.from)'"
+                }
+              }
+              "glob" {
+                if ([string]::IsNullOrWhiteSpace($mapping.from)) {
+                  throw "Mapping[$i] glob pattern is empty."
+                }
+              }
+              default {
+                throw "Mapping[$i] has unsupported type '$($mapping.type)'."
+              }
+            }
+
+            Write-Host "Mapping[$i] OK: [$($mapping.type)] $($mapping.from) -> $($mapping.to)"
+          }
 
       - name: Resolve release version
         id: version

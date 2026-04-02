@@ -86,9 +86,10 @@ Any missing source path or empty required match fails the release with a specifi
 
 ## Current manifest in this repo
 
-Current `release-manifest.json` includes examples that already exist in this repository:
+Current `release-manifest.json` includes:
 
-- `examples/settings.sample.json` -> `config/settings.sample.json`
-- `dofinstall/Config/Examples` -> `DOF/examples`
+- `DOF` -> `DOF`
+- `examples/settings.sample.json` -> `examples/settings.sample.json`
+- `docs/instructions.html` -> `docs/instructions.html`
 
 Add or update mappings as release packaging requirements evolve.
