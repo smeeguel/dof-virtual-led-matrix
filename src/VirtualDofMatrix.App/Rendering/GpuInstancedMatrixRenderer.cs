@@ -309,6 +309,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private void RasterFastDot(int baseX, int baseY, float r, float g, float b)
     {
+        const float emissiveFloor = 0.35f;
+
         for (var y = 0; y < _dotSize; y++)
         {
             var py = baseY + y;
@@ -325,6 +327,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                     continue;
                 }
 
+                var brightnessFactor = emissiveFloor + ((1f - emissiveFloor) * mask);
+
                 var px = baseX + x;
                 if ((uint)px >= (uint)_surfaceWidth)
                 {
@@ -332,9 +336,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 }
 
                 var o = ((py * _surfaceWidth) + px) * 4;
-                _bgra[o] = (byte)Math.Clamp(b * mask, 0f, 255f);
-                _bgra[o + 1] = (byte)Math.Clamp(g * mask, 0f, 255f);
-                _bgra[o + 2] = (byte)Math.Clamp(r * mask, 0f, 255f);
+                _bgra[o] = (byte)Math.Clamp(b * brightnessFactor, 0f, 255f);
+                _bgra[o + 1] = (byte)Math.Clamp(g * brightnessFactor, 0f, 255f);
+                _bgra[o + 2] = (byte)Math.Clamp(r * brightnessFactor, 0f, 255f);
                 _bgra[o + 3] = 255;
             }
         }
