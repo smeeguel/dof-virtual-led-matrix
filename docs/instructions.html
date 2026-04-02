@@ -29,7 +29,7 @@
       <p class="meta">Rendered from <code>instructions_content.md</code> for double-click offline viewing.</p>
       <p id="status" class="status">Rendering markdown...</p>
       <article id="content"></article>
-      <p class="footer">Last updated: 2026-04-01</p>
+      <p class="footer">Last updated: 2026-04-02</p>
     </main>
   </div>
 
@@ -191,7 +191,7 @@ Open the app settings window to access these controls.
 
 ### Visual quality
 - **Low**: fastest path, reduced effects.
-- **High**: fuller visual processing (tone mapping + smoothing).
+- **High**: fuller visual processing (tone mapping + temporal smoothing + bloom enabled).
 - **Custom**: keeps hand-edited `settings.json` visual values.
 
 ### Renderer
@@ -271,6 +271,8 @@ Below is every supported section/field and what it does.
 ### `matrix.visual`
 - `flatShading`
   - Uses flatter/faster single-pass look when enabled.
+- `fullBrightnessRadiusMinPct`
+  - Percentage of dot radius kept at full brightness before falloff.
 - `offStateTintR`, `offStateTintG`, `offStateTintB`
   - RGB tint values for unlit dot appearance.
 - `offStateAlpha`
@@ -299,6 +301,16 @@ Below is every supported section/field and what it does.
   - Intensity for wide bloom.
 - `bufferScaleDivisor`
   - Downscale factor used for bloom buffers.
+
+### Current default values (as shipped)
+- `matrix.gamma`: `0.8`
+- `matrix.toneMapping.enabled`: `true`
+- `matrix.temporalSmoothing.enabled`: `false`
+- `matrix.visual.fullBrightnessRadiusMinPct`: `0.8`
+- `matrix.visual.offStateTintR/G/B`: `20 / 20 / 20`
+- `matrix.visual.offStateAlpha`: `0.2`
+- `matrix.bloom.enabled`: `true` (with `qualityPreset: "medium"`)
+- `window.left/top/width/height`: `10 / 6 / 1412 / 353`
 
 ## `window`
 - `alwaysOnTop`
