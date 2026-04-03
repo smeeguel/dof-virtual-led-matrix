@@ -111,37 +111,62 @@ jobs:
 
           git fetch --tags --force
 
+          function Get-NextVersionCandidate([Version]$version, [string]$bumpKind) {
+            switch ($bumpKind) {
+              'major' { return "{0}.{1}.{2}" -f ($version.Major + 1), 0, 0 }
+              'minor' { return "{0}.{1}.{2}" -f $version.Major, ($version.Minor + 1), 0 }
+              'patch' { return "{0}.{1}.{2}" -f $version.Major, $version.Minor, ($version.Build + 1) }
+              default { throw "Unsupported bump value '$bumpKind'." }
+            }
+          }
+
+          function Test-TagExists([string]$tagName) {
+            git show-ref --verify --quiet "refs/tags/$tagName"
+            return ($LASTEXITCODE -eq 0)
+          }
+
           $override = "$env:INPUT_VERSION_OVERRIDE".Trim()
           if ($override) {
             if ($override -notmatch '^\d+\.\d+\.\d+$') {
               throw "version_override must match N.N.N format, got '$override'"
             }
             $nextVersion = $override
+            $tag = "v$nextVersion"
+            if (Test-TagExists $tag) {
+              throw "Tag '$tag' already exists. Provide a new version_override."
+            }
           }
           else {
-            $latestTag = git tag --list 'v*' --sort=-v:refname | Select-Object -First 1
+            $latestTag = git tag --list 'v*' --sort=-v:refname | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } | Select-Object -First 1
             if (-not $latestTag) {
               $baseVersion = [Version]'0.0.0'
             }
             else {
-              if ($latestTag -notmatch '^v(\d+\.\d+\.\d+)$') {
-                throw "Latest tag '$latestTag' is not SemVer in vN.N.N format."
-              }
-              $baseVersion = [Version]$Matches[1]
+              $baseVersion = [Version]($latestTag.Substring(1))
             }
 
-            switch ("$env:INPUT_BUMP") {
-              'major' { $nextVersion = "{0}.{1}.{2}" -f ($baseVersion.Major + 1), 0, 0 }
-              'minor' { $nextVersion = "{0}.{1}.{2}" -f $baseVersion.Major, ($baseVersion.Minor + 1), 0 }
-              'patch' { $nextVersion = "{0}.{1}.{2}" -f $baseVersion.Major, $baseVersion.Minor, ($baseVersion.Build + 1) }
-              default { throw "Unsupported bump value '$env:INPUT_BUMP'." }
-            }
+            $candidateBase = $baseVersion
+            do {
+              $nextVersion = Get-NextVersionCandidate $candidateBase "$env:INPUT_BUMP"
+              $tag = "v$nextVersion"
+              if (Test-TagExists $tag) {
+                Write-Host "Tag '$tag' already exists, trying next $env:INPUT_BUMP version..."
+                $candidateBase = [Version]$nextVersion
+              }
+            } while (Test-TagExists $tag)
+
+            Write-Host "Resolved next available version: $nextVersion"
           }
 
-          $tag = "v$nextVersion"
-          git show-ref --verify --quiet "refs/tags/$tag"
-          if ($LASTEXITCODE -eq 0) {
-            throw "Tag '$tag' already exists."
+          if (-not $tag) {
+            $tag = "v$nextVersion"
+          }
+
+          if (Test-TagExists $tag) {
+            if ($override) {
+              throw "Tag '$tag' already exists. Provide a new version_override."
+            }
+            throw "Unable to resolve a unique tag for '$tag'."
           }
 
           "version=$nextVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
