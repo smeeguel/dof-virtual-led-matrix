@@ -5,6 +5,7 @@ namespace VirtualDofMatrix.App.Rendering;
 internal sealed class MatrixFrameRasterComposer
 {
     private const int HardMinimumDotSpacing = 2;
+    private const float TemporalSmoothingOffSnapThreshold = 1.0f;
     private readonly byte[] _colorLut = new byte[256];
     private float[] _mappedRgb = Array.Empty<float>();
     private float[] _workingRgb = Array.Empty<float>();
@@ -239,6 +240,11 @@ internal sealed class MatrixFrameRasterComposer
         var delta = target - current;
         var alpha = delta >= 0 ? riseAlpha : fallAlpha;
         var next = current + ((float)alpha * delta);
+        if (target == 0 && next <= TemporalSmoothingOffSnapThreshold)
+        {
+            next = 0f;
+        }
+
         _smoothedRgb[channelOffset] = next;
         _workingRgb[channelOffset] = next;
     }

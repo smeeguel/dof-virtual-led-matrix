@@ -61,6 +61,35 @@ public sealed class WriteableBitmapRendererSnapshotTests
         Assert.NotEqual(ComputeHash(square.Pixels), ComputeHash(circle.Pixels));
     }
 
+    [Fact]
+    public void Compose_ShouldSnapResidualSmoothingToOffState_ForRepeatedBlackFrames()
+    {
+        var config = CreateBaseConfig();
+        config.Width = 4;
+        config.Height = 2;
+        config.Bloom.Enabled = false;
+        config.TemporalSmoothing.Enabled = true;
+        config.TemporalSmoothing.RiseAlpha = 0.5;
+        config.TemporalSmoothing.FallAlpha = 0.3;
+
+        var historyComposer = new MatrixFrameRasterComposer();
+        historyComposer.Configure(config);
+
+        historyComposer.Compose(CreateSolidFrame(config.Width * config.Height, 255, 20, 20, 3));
+        for (var i = 0; i < 24; i++)
+        {
+            historyComposer.Compose(CreateSolidFrame(config.Width * config.Height, 0, 0, 0, 4 + i));
+        }
+
+        var decayed = historyComposer.Compose(CreateSolidFrame(config.Width * config.Height, 0, 0, 0, 100));
+
+        var baselineComposer = new MatrixFrameRasterComposer();
+        baselineComposer.Configure(config);
+        var baseline = baselineComposer.Compose(CreateSolidFrame(config.Width * config.Height, 0, 0, 0, 200));
+
+        Assert.Equal(ComputeHash(baseline.Pixels), ComputeHash(decayed.Pixels));
+    }
+
     private static MatrixConfig CreateBaseConfig() =>
         new()
         {
@@ -108,6 +137,19 @@ public sealed class WriteableBitmapRendererSnapshotTests
         }
 
         return new FramePresentation(payload, ledCount, ledCount, 2, DateTimeOffset.UtcNow);
+    }
+
+    private static FramePresentation CreateSolidFrame(int ledCount, byte r, byte g, byte b, long sequence)
+    {
+        var payload = new byte[ledCount * 3];
+        for (var i = 0; i < ledCount; i++)
+        {
+            payload[i * 3] = r;
+            payload[(i * 3) + 1] = g;
+            payload[(i * 3) + 2] = b;
+        }
+
+        return new FramePresentation(payload, ledCount, ledCount, sequence, DateTimeOffset.UtcNow);
     }
 
     private static string ComputeHash(byte[] bytes)

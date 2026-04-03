@@ -13,6 +13,7 @@ namespace VirtualDofMatrix.App.Rendering;
 public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 {
     private const int Channels = 3;
+    private const float TemporalSmoothingOffSnapThreshold = 1.0f;
     private ID3D11Device? _device;
     private ID3D11DeviceContext? _context;
     private ID3D11Buffer? _instanceBuffer;
@@ -232,6 +233,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var delta = target - current;
         var alpha = delta >= 0 ? rise : fall;
         var next = current + (alpha * delta);
+        if (targetByte == 0 && next <= TemporalSmoothingOffSnapThreshold)
+        {
+            next = 0f;
+        }
+
         _smoothedRgb[channel] = next;
         return next;
     }
