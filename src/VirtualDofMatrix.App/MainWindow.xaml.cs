@@ -44,6 +44,18 @@ public partial class MainWindow : Window
 
         InitializeComponent();
 
+        _idleClearTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(400),
+        };
+        _idleClearTimer.Tick += OnIdleClearTick;
+
+        _fpsTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(1),
+        };
+        _fpsTimer.Tick += OnFpsTick;
+
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
         ApplyDebugVisibility();
@@ -58,18 +70,7 @@ public partial class MainWindow : Window
             _fpsTimer.Stop();
             _matrixRenderer.Dispose();
         };
-        _idleClearTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromMilliseconds(400),
-        };
-        _idleClearTimer.Tick += OnIdleClearTick;
         _idleClearTimer.Start();
-
-        _fpsTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromSeconds(1),
-        };
-        _fpsTimer.Tick += OnFpsTick;
         _fpsTimer.Start();
     }
 

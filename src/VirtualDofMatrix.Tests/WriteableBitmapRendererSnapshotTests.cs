@@ -139,7 +139,7 @@ public sealed class WriteableBitmapRendererSnapshotTests
         return new FramePresentation(payload, ledCount, ledCount, 2, DateTimeOffset.UtcNow);
     }
 
-    private static FramePresentation CreateSolidFrame(int ledCount, byte r, byte g, byte b, long sequence)
+    private static FramePresentation CreateSolidFrame(int ledCount, byte r, byte g, byte b, ulong sequence)
     {
         var payload = new byte[ledCount * 3];
         for (var i = 0; i < ledCount; i++)
