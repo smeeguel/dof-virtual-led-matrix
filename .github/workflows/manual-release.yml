@@ -197,6 +197,10 @@ jobs:
             -c Release `
             -r win-x64 `
             --self-contained true `
+            /p:PublishSingleFile=true `
+            /p:EnableCompressionInSingleFile=true `
+            /p:IncludeNativeLibrariesForSelfExtract=true `
+            /p:PublishTrimmed=false `
             /p:DebugType=None `
             /p:DebugSymbols=false `
             /p:Version=${{ steps.version.outputs.version }}
@@ -208,10 +212,31 @@ jobs:
           $publishDir = "src/VirtualDofMatrix.App/bin/Release/net8.0-windows/win-x64/publish"
           $stagingDir = "artifacts/staging"
           $assetName = "virtual-dof-matrix-${{ steps.version.outputs.tag }}-win-x64.zip"
+          $manifestPath = "artifacts/release-manifest.effective.json"
+          $exeName = "VirtualDofMatrix.App.exe"
+          $exePath = Join-Path $publishDir $exeName
+
+          if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
+            throw "Published executable not found: $exePath"
+          }
+
+          $baseManifest = Get-Content -LiteralPath "release-manifest.json" -Raw | ConvertFrom-Json
+          $effectiveManifest = [ordered]@{
+            mappings = @(
+              @{
+                type = "file"
+                from = $exeName
+                to   = $exeName
+              }
+            ) + @($baseManifest.mappings)
+          }
+
+          New-Item -ItemType Directory -Path (Split-Path -Parent $manifestPath) -Force | Out-Null
+          $effectiveManifest | ConvertTo-Json -Depth 10 | Out-File -LiteralPath $manifestPath -Encoding utf8
 
           ./tools/packaging/package-release.ps1 `
             -PublishOutput $publishDir `
-            -ManifestPath "release-manifest.json" `
+            -ManifestPath $manifestPath `
             -StagingRoot $stagingDir `
             -AssetName $assetName
 
