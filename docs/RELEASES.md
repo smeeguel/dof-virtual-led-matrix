@@ -39,11 +39,12 @@ Workflow file: `.github/workflows/manual-release.yml`.
 ### Build and package flow
 
 1. `dotnet publish` builds `VirtualDofMatrix.App` for `win-x64` self-contained release output.
-2. The staging folder is initialized empty.
-3. `release-manifest.json` is treated as authoritative; only mapped files/directories are copied.
-4. The final zip is created as:
+2. The workflow verifies the published app executable exists and generates an effective manifest by prepending an executable mapping to the base `release-manifest.json`.
+3. The staging folder is initialized empty.
+4. The effective manifest is treated as authoritative; only mapped files/directories are copied.
+5. The final zip is created as:
    - `virtual-dof-matrix-vX.Y.Z-win-x64.zip`
-5. The workflow creates and pushes the release tag, then publishes a GitHub Release with auto-generated notes.
+6. The workflow creates and pushes the release tag, then publishes a GitHub Release with auto-generated notes.
 
 ## Release manifest
 
@@ -98,9 +99,12 @@ Any missing source path or empty required match fails the release with a specifi
 
 Current `release-manifest.json` includes:
 
-- `VirtualDofMatrix.App.exe` (resolved from publish output) -> `VirtualDofMatrix.App.exe`
 - `DOF` -> `DOF`
 - `examples/settings.sample.json` -> `examples/settings.sample.json`
 - `docs/instructions.html` -> `docs/instructions.html`
+
+At release time, the workflow generates `artifacts/release-manifest.effective.json` that prepends:
+
+- `VirtualDofMatrix.App.exe` (resolved from publish output) -> `VirtualDofMatrix.App.exe`
 
 Add or update mappings as release packaging requirements evolve.
