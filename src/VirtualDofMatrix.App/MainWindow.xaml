@@ -77,13 +77,12 @@
               Stroke="#CCFFFFFF"
               StrokeThickness="1.4"
               SnapsToDevicePixels="True"
-              IsHitTestVisible="False"
-              Visibility="Collapsed">
+              IsHitTestVisible="False">
             <Path.Style>
                 <Style TargetType="Path">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsMouseOver, ElementName=RootGrid}" Value="True">
+                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
                             <Setter Property="Visibility" Value="Visible" />
                         </DataTrigger>
                     </Style.Triggers>
