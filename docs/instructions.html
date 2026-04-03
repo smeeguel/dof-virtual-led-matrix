@@ -29,7 +29,7 @@
       <p class="meta">Rendered from <code>instructions_content.md</code> for double-click offline viewing.</p>
       <p id="status" class="status">Rendering markdown...</p>
       <article id="content"></article>
-      <p class="footer">Last updated: 2026-04-02</p>
+      <p class="footer">Last updated: 2026-04-03</p>
     </main>
   </div>
 
@@ -148,15 +148,74 @@ The matrix app should already be running before any table starts.
 
 ---
 
-## 7) Quick Validation Checklist
+## 7) Popper Script Integration (Show/Hide Control)
+
+The matrix app supports a runtime control command so Popper can hide/show it without restarting the app.
+
+### Command format
+
+Use this command pattern in Popper scripts:
+
+```bat
+"C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command <action> [optional args]
+```
+
+Supported actions:
+
+- `show` - show + activate matrix rendering
+- `hide` - hide + deactivate matrix rendering
+- `frontend-return` - same behavior as `show`
+- `table-launch [CUSTOMVAR1] [CUSTOMVAR2] [CUSTOMVAR3] [CUSTOMVAR4]`
+  - Default behavior: hide matrix on table launch
+  - Opt-in visible behavior: include `ShowVirtualLED` in any custom var
+
+### Recommended Popper flow
+
+1. **Popper Startup Script**  
+   Launch the matrix app normally once:
+   ```bat
+   START "" "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe"
+   ```
+
+2. **VPX Launch Script (before table starts)**  
+   Tell the running app this is a table launch:
+   ```bat
+   "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command table-launch "[CUSTOMVAR1]" "[CUSTOMVAR2]" "[CUSTOMVAR3]" "[CUSTOMVAR4]"
+   ```
+   - If none of those values contain `ShowVirtualLED`, matrix is hidden.
+   - If any contains `ShowVirtualLED`, matrix stays visible and active.
+
+3. **VPX Close Script (returning to Popper)**  
+   Ensure matrix always reappears:
+   ```bat
+   "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command frontend-return
+   ```
+
+4. **Popper Exit Script**  
+   Close the matrix app process (if desired for your setup).
+
+### Optional explicit override
+
+If you want explicit behavior regardless of custom vars:
+
+```bat
+"C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command hide
+"C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command show
+```
+
+---
+
+## 8) Quick Validation Checklist
 
 Use this quick pass/fail checklist:
 
 - [ ] Virtual matrix app opens successfully.
-- [ ] Matrix window appears and stays visible.
+- [ ] Matrix window appears while in Popper/front-end.
+- [ ] Launching a table hides matrix by default (no `ShowVirtualLED` custom var).
+- [ ] Adding `ShowVirtualLED` in any custom var keeps matrix visible during table launch.
 - [ ] Launching a table produces matrix activity.
 - [ ] Colors/animations update while game events occur.
-- [ ] Closing/reopening table resumes updates.
+- [ ] Closing/reopening table returns matrix visibility in Popper.
 - [ ] Popper/front-end path also works (if used).
 
 Optional:
@@ -165,7 +224,7 @@ Optional:
 
 ---
 
-## 8) Settings GUI Reference (every visible option)
+## 9) Settings GUI Reference (every visible option)
 
 Open the app settings window to access these controls.
 
@@ -226,13 +285,15 @@ Open the app settings window to access these controls.
 
 ---
 
-## 9) settings.json Reference (full field breakdown)
+## 10) settings.json Reference (full field breakdown)
 
 Below is every supported section/field and what it does.
 
 ## `transport`
 - `pipeName`
   - Named pipe endpoint used by the app to receive frames from DOF (`VirtualLEDStripController`).
+- `controlPipeName`
+  - Named pipe endpoint used by Popper/runtime control commands to show/hide the matrix app.
 
 ## `matrix`
 - `renderer`
@@ -336,7 +397,7 @@ Below is every supported section/field and what it does.
 
 ---
 
-## 10) Troubleshooting
+## 11) Troubleshooting
 
 ### Matrix app opens but no animation appears
 - Confirm virtual matrix app was started **before** VPX/front-end.
@@ -353,7 +414,7 @@ Below is every supported section/field and what it does.
 
 ---
 
-## 11) What to Send Back After Testing
+## 12) What to Send Back After Testing
 
 Please include:
 - Pass/fail summary.

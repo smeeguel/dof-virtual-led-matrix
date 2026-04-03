@@ -4,6 +4,9 @@ using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Presentation;
 using VirtualDofMatrix.App.Transport;
 using VirtualDofMatrix.Core;
+using System.IO.Pipes;
+using System.Text;
+using System.Text.Json;
 
 namespace VirtualDofMatrix.App;
 
@@ -19,6 +22,9 @@ public partial class App : Application
     private FrameTransportHost? _transportHost;
     private FramePresentationDispatcher? _presentationDispatcher;
     private DispatcherTimer? _windowSettingsSaveTimer;
+    private CancellationTokenSource? _controlCts;
+    private Task? _controlTask;
+    private bool _isAppReady;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -26,6 +32,12 @@ public partial class App : Application
 
         _config = _configurationStore.Load(ConfigFilePath);
         _configurationStore.Save(ConfigFilePath, _config);
+
+        if (TryHandleControlClientMode(e.Args, _config))
+        {
+            Shutdown();
+            return;
+        }
 
         _window = new MainWindow(_config)
         {
@@ -54,13 +66,34 @@ public partial class App : Application
         _presentationDispatcher.FramePresentedOnUiThread += (_, frame) => _window.ApplyPresentation(frame);
 
         await _transportHost.StartAsync();
+        StartControlServer(_config);
 
         MainWindow = _window;
-        _window.Show();
+        _isAppReady = true;
+
+        var visibleOnStartup = ResolveInitialVisibility(e.Args);
+        SetMatrixVisibility(visibleOnStartup, "startup");
     }
 
     protected override async void OnExit(ExitEventArgs e)
     {
+        if (_controlCts is not null)
+        {
+            _controlCts.Cancel();
+        }
+
+        if (_controlTask is not null)
+        {
+            try
+            {
+                await _controlTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected on shutdown.
+            }
+        }
+
         PersistWindowSettings();
 
         if (_presentationDispatcher is not null)
@@ -196,4 +229,172 @@ public partial class App : Application
         _windowSettingsSaveTimer.Stop();
         _windowSettingsSaveTimer.Start();
     }
+
+    private bool ResolveInitialVisibility(string[] args)
+    {
+        if (HasArg(args, "--show-virtual-led"))
+        {
+            return true;
+        }
+
+        if (HasArg(args, "--hide-virtual-led"))
+        {
+            return false;
+        }
+
+        if (HasArg(args, "--table-launch"))
+        {
+            return PopperLaunchOptions.ContainsShowVirtualLedToken(args);
+        }
+
+        return true;
+    }
+
+    private void StartControlServer(AppConfig config)
+    {
+        var pipeName = string.IsNullOrWhiteSpace(config.Transport.ControlPipeName)
+            ? "VirtualDofMatrix.Control"
+            : config.Transport.ControlPipeName;
+
+        _controlCts = new CancellationTokenSource();
+        _controlTask = Task.Run(() => RunControlServerLoopAsync(pipeName, _controlCts.Token), _controlCts.Token);
+    }
+
+    private async Task RunControlServerLoopAsync(string pipeName, CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await using var pipe = new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.In,
+                1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous);
+
+            try
+            {
+                await pipe.WaitForConnectionAsync(cancellationToken);
+                using var reader = new StreamReader(pipe, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
+                var message = await reader.ReadToEndAsync();
+                if (string.IsNullOrWhiteSpace(message))
+                {
+                    continue;
+                }
+
+                var command = JsonSerializer.Deserialize<ControlCommandMessage>(message);
+                if (command is null)
+                {
+                    continue;
+                }
+
+                await Dispatcher.InvokeAsync(() => HandleControlCommand(command));
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected on shutdown.
+            }
+            catch
+            {
+                // Ignore malformed control messages.
+            }
+        }
+    }
+
+    private void HandleControlCommand(ControlCommandMessage command)
+    {
+        if (!_isAppReady)
+        {
+            return;
+        }
+
+        var commandText = command.Command ?? string.Empty;
+        if (commandText.Equals("show", StringComparison.OrdinalIgnoreCase) ||
+            commandText.Equals("frontend-return", StringComparison.OrdinalIgnoreCase))
+        {
+            SetMatrixVisibility(true, commandText);
+            return;
+        }
+
+        if (commandText.Equals("hide", StringComparison.OrdinalIgnoreCase))
+        {
+            SetMatrixVisibility(false, commandText);
+            return;
+        }
+
+        if (commandText.Equals("table-launch", StringComparison.OrdinalIgnoreCase))
+        {
+            var tokens = command.Args ?? [];
+            var show = PopperLaunchOptions.ContainsShowVirtualLedToken(tokens);
+            SetMatrixVisibility(show, "table-launch");
+        }
+    }
+
+    private void SetMatrixVisibility(bool visible, string reason)
+    {
+        if (_window is null || _transportHost is null)
+        {
+            return;
+        }
+
+        _transportHost.SetActive(visible);
+
+        if (visible)
+        {
+            _window.ShowInTaskbar = true;
+            if (!_window.IsVisible)
+            {
+                _window.Show();
+            }
+            _window.Activate();
+        }
+        else
+        {
+            _window.ShowInTaskbar = false;
+            _window.Hide();
+        }
+
+        if (_config?.Debug.LogProtocol == true)
+        {
+            Console.WriteLine($"[{DateTimeOffset.UtcNow:O}] Control visibility='{(visible ? "visible" : "hidden")}' reason='{reason}'.");
+        }
+    }
+
+    private static bool TryHandleControlClientMode(string[] args, AppConfig config)
+    {
+        var commandIndex = Array.FindIndex(args, x => x.Equals("--command", StringComparison.OrdinalIgnoreCase));
+        if (commandIndex < 0 || commandIndex + 1 >= args.Length)
+        {
+            return false;
+        }
+
+        var command = args[commandIndex + 1];
+        var commandArgs = args.Skip(commandIndex + 2).ToArray();
+        var message = new ControlCommandMessage(command, commandArgs);
+        var payload = JsonSerializer.Serialize(message);
+        var pipeName = string.IsNullOrWhiteSpace(config.Transport.ControlPipeName)
+            ? "VirtualDofMatrix.Control"
+            : config.Transport.ControlPipeName;
+
+        try
+        {
+            using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.Out);
+            client.Connect(750);
+            using var writer = new StreamWriter(client, Encoding.UTF8, bufferSize: 1024, leaveOpen: true);
+            writer.Write(payload);
+            writer.Flush();
+        }
+        catch
+        {
+            // App may not be running yet; command mode is best-effort.
+        }
+
+        return true;
+    }
+
+    private static bool HasArg(string[] args, string expected)
+    {
+        return args.Any(a => a.Equals(expected, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private sealed record ControlCommandMessage(string Command, string[] Args);
 }

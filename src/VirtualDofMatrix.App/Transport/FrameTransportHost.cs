@@ -7,6 +7,7 @@ namespace VirtualDofMatrix.App.Transport;
 public sealed class FrameTransportHost
 {
     private readonly AppConfig _config;
+    private volatile bool _isActive = true;
 
     private CancellationTokenSource? _cts;
     private Task? _runTask;
@@ -17,6 +18,11 @@ public sealed class FrameTransportHost
     }
 
     public event EventHandler<FramePresentation>? FramePresented;
+
+    public void SetActive(bool active)
+    {
+        _isActive = active;
+    }
 
     public Task StartAsync()
     {
@@ -123,6 +129,11 @@ public sealed class FrameTransportHost
                     if (_config.Debug.LogProtocol)
                     {
                         Console.WriteLine($"[{DateTimeOffset.UtcNow:O}] Pipe frame seq={sequence}, payload={payloadLength} bytes.");
+                    }
+
+                    if (!_isActive)
+                    {
+                        continue;
                     }
 
                     var frame = new FramePresentation(

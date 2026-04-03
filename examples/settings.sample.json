@@ -1,6 +1,7 @@
 {
   "transport": {
-    "pipeName": "VirtualDofMatrix"
+    "pipeName": "VirtualDofMatrix",
+    "controlPipeName": "VirtualDofMatrix.Control"
   },
   "matrix": {
     "renderer": "gpu",

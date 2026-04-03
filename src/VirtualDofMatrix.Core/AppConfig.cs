@@ -19,6 +19,9 @@ public sealed class TransportConfig
 {
     // Local IPC endpoint used by the VirtualLEDStripController named-pipe transport.
     public string PipeName { get; set; } = "VirtualDofMatrix";
+
+    // Local IPC endpoint used for runtime show/hide control commands.
+    public string ControlPipeName { get; set; } = "VirtualDofMatrix.Control";
 }
 
 public sealed class MatrixConfig
