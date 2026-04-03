@@ -11,6 +11,13 @@ namespace VirtualDofMatrix.App;
 
 public partial class MainWindow : Window
 {
+    private enum AspectLockAxis
+    {
+        None,
+        Width,
+        Height,
+    }
+
     private const int WmEnterSizeMove = 0x0231;
     private const int WmExitSizeMove = 0x0232;
     private const int HardMinimumDotSpacing = 2;
@@ -19,6 +26,7 @@ public partial class MainWindow : Window
     private bool _isApplyingAspectLock;
     private bool _isInResizeMove;
     private bool _pendingViewportReinitialize;
+    private AspectLockAxis _activeResizeAspectAxis = AspectLockAxis.None;
     private double _lockedAspectRatio;
 
     private FramePresentation? _latestPresentation;
@@ -146,23 +154,7 @@ public partial class MainWindow : Window
 
         if (widthDelta > 0.01 || heightDelta > 0.01)
         {
-            try
-            {
-                _isApplyingAspectLock = true;
-
-                if (widthDelta >= heightDelta)
-                {
-                    Height = Math.Max(MinHeight, Width / _lockedAspectRatio);
-                }
-                else
-                {
-                    Width = Math.Max(MinWidth, Height * _lockedAspectRatio);
-                }
-            }
-            finally
-            {
-                _isApplyingAspectLock = false;
-            }
+            EnforceAspectRatio(widthDelta, heightDelta);
         }
 
         if (_isInResizeMove)
@@ -299,9 +291,11 @@ public partial class MainWindow : Window
         {
             case WmEnterSizeMove:
                 _isInResizeMove = true;
+                _activeResizeAspectAxis = AspectLockAxis.None;
                 break;
             case WmExitSizeMove:
                 _isInResizeMove = false;
+                _activeResizeAspectAxis = AspectLockAxis.None;
                 if (_pendingViewportReinitialize)
                 {
                     _pendingViewportReinitialize = false;
@@ -311,6 +305,35 @@ public partial class MainWindow : Window
         }
 
         return IntPtr.Zero;
+    }
+
+    private void EnforceAspectRatio(double widthDelta, double heightDelta)
+    {
+        try
+        {
+            _isApplyingAspectLock = true;
+
+            if (_isInResizeMove && _activeResizeAspectAxis == AspectLockAxis.None)
+            {
+                _activeResizeAspectAxis = widthDelta >= heightDelta ? AspectLockAxis.Width : AspectLockAxis.Height;
+            }
+
+            var axis = _isInResizeMove
+                ? _activeResizeAspectAxis
+                : (widthDelta >= heightDelta ? AspectLockAxis.Width : AspectLockAxis.Height);
+
+            if (axis == AspectLockAxis.Height)
+            {
+                Width = Math.Max(MinWidth, Height * _lockedAspectRatio);
+                return;
+            }
+
+            Height = Math.Max(MinHeight, Width / _lockedAspectRatio);
+        }
+        finally
+        {
+            _isApplyingAspectLock = false;
+        }
     }
 
     public void ApplyRuntimeSettings()
