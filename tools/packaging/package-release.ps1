@@ -21,6 +21,36 @@ function Resolve-RepoPath {
     return [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "../../$Path"))
 }
 
+function Resolve-MappingSourcePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Leaf', 'Container')]
+        [string]$PathType
+    )
+
+    $candidates = @()
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        $candidates += [System.IO.Path]::GetFullPath($Path)
+    }
+    else {
+        $candidates += [System.IO.Path]::GetFullPath((Join-Path $repoRoot $Path))
+        $candidates += [System.IO.Path]::GetFullPath((Join-Path $publishDir $Path))
+    }
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if (Test-Path -LiteralPath $candidate -PathType $PathType) {
+            return $candidate
+        }
+    }
+
+    $checked = ($candidates | Select-Object -Unique) -join "', '"
+    throw "Unable to resolve source path '$Path'. Checked: '$checked'"
+}
+
 $repoRoot = Resolve-RepoPath "."
 $publishDir = [System.IO.Path]::GetFullPath($PublishOutput)
 $manifestFile = [System.IO.Path]::GetFullPath($ManifestPath)
@@ -39,8 +69,8 @@ if (Test-Path -LiteralPath $stagingDir) {
 }
 New-Item -ItemType Directory -Path $stagingDir | Out-Null
 
-Write-Host "Copying publish output from $publishDir to $stagingDir"
-Copy-Item -Path (Join-Path $publishDir '*') -Destination $stagingDir -Recurse -Force
+Write-Host "Staging directory initialized at $stagingDir"
+Write-Host "Manifest is authoritative; only mapped files will be copied."
 
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
 if ($null -eq $manifest.mappings -or $manifest.mappings.Count -eq 0) {
@@ -66,10 +96,7 @@ for ($i = 0; $i -lt $manifest.mappings.Count; $i++) {
 
     switch ($type) {
         'file' {
-            $sourceFile = Resolve-RepoPath $mapping.from
-            if (-not (Test-Path -LiteralPath $sourceFile -PathType Leaf)) {
-                throw "Mapping[$i] file source not found: '$($mapping.from)'"
-            }
+            $sourceFile = Resolve-MappingSourcePath -Path $mapping.from -PathType Leaf
 
             $destFile = [System.IO.Path]::GetFullPath((Join-Path $stagingDir $mapping.to))
             $destParent = Split-Path -Parent $destFile
@@ -80,10 +107,7 @@ for ($i = 0; $i -lt $manifest.mappings.Count; $i++) {
         }
 
         'directory' {
-            $sourceDir = Resolve-RepoPath $mapping.from
-            if (-not (Test-Path -LiteralPath $sourceDir -PathType Container)) {
-                throw "Mapping[$i] directory source not found: '$($mapping.from)'"
-            }
+            $sourceDir = Resolve-MappingSourcePath -Path $mapping.from -PathType Container
 
             $destDir = [System.IO.Path]::GetFullPath((Join-Path $stagingDir $mapping.to))
             New-Item -ItemType Directory -Path $destDir -Force | Out-Null

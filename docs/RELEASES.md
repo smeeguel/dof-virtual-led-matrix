@@ -39,8 +39,8 @@ Workflow file: `.github/workflows/manual-release.yml`.
 ### Build and package flow
 
 1. `dotnet publish` builds `VirtualDofMatrix.App` for `win-x64` self-contained release output.
-2. The publish output is copied into a staging folder.
-3. Additional files and directories are copied from `release-manifest.json`.
+2. The staging folder is initialized empty.
+3. `release-manifest.json` is treated as authoritative; only mapped files/directories are copied.
 4. The final zip is created as:
    - `virtual-dof-matrix-vX.Y.Z-win-x64.zip`
 5. The workflow creates and pushes the release tag, then publishes a GitHub Release with auto-generated notes.
@@ -89,6 +89,7 @@ Any missing source path or empty required match fails the release with a specifi
 
 - `type` (required): `file`, `directory`, or `glob`.
 - `from` (required): source file path, source directory path, or glob pattern relative to repo root.
+  - For `file` and `directory` mappings, `from` can also be relative to the publish output folder passed to `package-release.ps1`.
 - `to` (required): destination path inside release zip staging root.
 - `include` (optional, `directory` only): array of wildcard filters.
 - `exclude` (optional, `directory` only): array of wildcard filters.
@@ -97,6 +98,7 @@ Any missing source path or empty required match fails the release with a specifi
 
 Current `release-manifest.json` includes:
 
+- `VirtualDofMatrix.App.exe` (resolved from publish output) -> `VirtualDofMatrix.App.exe`
 - `DOF` -> `DOF`
 - `examples/settings.sample.json` -> `examples/settings.sample.json`
 - `docs/instructions.html` -> `docs/instructions.html`

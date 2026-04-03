@@ -1,6 +1,11 @@
 {
   "mappings": [
     {
+      "type": "file",
+      "from": "VirtualDofMatrix.App.exe",
+      "to": "VirtualDofMatrix.App.exe"
+    },
+    {
       "type": "directory",
       "from": "DOF",
       "to": "DOF"
