@@ -160,6 +160,8 @@ Use this command pattern in Popper scripts:
 "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command <action> [optional args]
 ```
 
+`C:\vPin\VirtualLED` is only an example path. Use the folder where **you** installed the app.
+
 Supported actions:
 
 - `show` - show + activate matrix rendering
@@ -168,6 +170,10 @@ Supported actions:
 - `table-launch [CUSTOMVAR1] [CUSTOMVAR2] [CUSTOMVAR3] [CUSTOMVAR4]`
   - Default behavior: hide matrix on table launch
   - Opt-in visible behavior: include `ShowVirtualLED` in any custom var
+  - Opt-in hidden behavior: include `HideVirtualLED` in any custom var
+- `table-launch --default-show-virtual-led [CUSTOMVAR1] [CUSTOMVAR2] [CUSTOMVAR3] [CUSTOMVAR4]`
+  - For "always show except selected tables" setups
+  - `HideVirtualLED` will hide only those selected tables
 
 ### Recommended Popper flow
 
@@ -178,12 +184,19 @@ Supported actions:
    ```
 
 2. **VPX Launch Script (before table starts)**  
-   Tell the running app this is a table launch:
+   Tell the running app this is a table launch (default-hide mode):
    ```bat
    "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command table-launch "[CUSTOMVAR1]" "[CUSTOMVAR2]" "[CUSTOMVAR3]" "[CUSTOMVAR4]"
    ```
    - If none of those values contain `ShowVirtualLED`, matrix is hidden.
    - If any contains `ShowVirtualLED`, matrix stays visible and active.
+   - If any contains `HideVirtualLED`, matrix hides.
+
+   Optional alternate launch script (default-show mode):
+   ```bat
+   "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command table-launch --default-show-virtual-led "[CUSTOMVAR1]" "[CUSTOMVAR2]" "[CUSTOMVAR3]" "[CUSTOMVAR4]"
+   ```
+   - Matrix stays visible unless a custom var contains `HideVirtualLED`.
 
 3. **VPX Close Script (returning to Popper)**  
    Ensure matrix always reappears:
@@ -192,7 +205,10 @@ Supported actions:
    ```
 
 4. **Popper Exit Script**  
-   Close the matrix app process (if desired for your setup).
+   Close the matrix app process:
+   ```bat
+   taskkill /IM "VirtualDofMatrix.App.exe" /F
+   ```
 
 ### Optional explicit override
 
@@ -213,6 +229,7 @@ Use this quick pass/fail checklist:
 - [ ] Matrix window appears while in Popper/front-end.
 - [ ] Launching a table hides matrix by default (no `ShowVirtualLED` custom var).
 - [ ] Adding `ShowVirtualLED` in any custom var keeps matrix visible during table launch.
+- [ ] (Optional default-show mode) Adding `HideVirtualLED` in any custom var hides only selected tables.
 - [ ] Launching a table produces matrix activity.
 - [ ] Colors/animations update while game events occur.
 - [ ] Closing/reopening table returns matrix visibility in Popper.

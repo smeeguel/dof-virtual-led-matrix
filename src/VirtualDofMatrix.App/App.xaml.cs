@@ -245,7 +245,8 @@ public partial class App : Application
 
         if (HasArg(args, "--table-launch"))
         {
-            return PopperLaunchOptions.ContainsShowVirtualLedToken(args);
+            var defaultVisible = HasArg(args, "--default-show-virtual-led");
+            return PopperLaunchOptions.ResolveTableLaunchVisibility(args, defaultVisible);
         }
 
         return true;
@@ -325,7 +326,8 @@ public partial class App : Application
         if (commandText.Equals("table-launch", StringComparison.OrdinalIgnoreCase))
         {
             var tokens = command.Args ?? [];
-            var show = PopperLaunchOptions.ContainsShowVirtualLedToken(tokens);
+            var defaultVisible = HasArg(tokens, "--default-show-virtual-led");
+            var show = PopperLaunchOptions.ResolveTableLaunchVisibility(tokens, defaultVisible);
             SetMatrixVisibility(show, "table-launch");
         }
     }
