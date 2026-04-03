@@ -2,7 +2,7 @@
   "mappings": [
     {
       "type": "file",
-      "from": "src/VirtualDofMatrix.App/bin/Release/net8.0-windows/win-x64/publish/VirtualDofMatrix.App.exe",
+      "from": "VirtualDofMatrix.App.exe",
       "to": "VirtualDofMatrix.App.exe"
     },
     {
