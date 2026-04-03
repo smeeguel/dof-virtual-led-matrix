@@ -101,15 +101,15 @@ public sealed class BloomConfig
 
     public string QualityPreset { get; set; } = "medium";
 
-    public double Threshold { get; set; } = 0.55;
+    public double Threshold { get; set; } = 0.98;
 
-    public int SmallRadius { get; set; } = 2;
+    public int SmallRadius { get; set; } = 1;
 
-    public int WideRadius { get; set; } = 5;
+    public int WideRadius { get; set; } = 1;
 
-    public double SmallStrength { get; set; } = 0.6;
+    public double SmallStrength { get; set; } = 0.1;
 
-    public double WideStrength { get; set; } = 0.25;
+    public double WideStrength { get; set; } = 0.0;
 
     public int BufferScaleDivisor { get; set; } = 2;
 }

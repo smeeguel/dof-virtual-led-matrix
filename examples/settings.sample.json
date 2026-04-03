@@ -35,11 +35,11 @@
     "bloom": {
       "enabled": true,
       "qualityPreset": "medium",
-      "threshold": 0.55,
-      "smallRadius": 2,
-      "wideRadius": 5,
-      "smallStrength": 0.6,
-      "wideStrength": 0.25,
+      "threshold": 0.98,
+      "smallRadius": 1,
+      "wideRadius": 1,
+      "smallStrength": 0.1,
+      "wideStrength": 0.0,
       "bufferScaleDivisor": 2
     }
   },
