@@ -5,6 +5,7 @@
         Background="Black"
         WindowStyle="None"
         ResizeMode="CanResizeWithGrip"
+        ShowActivated="False"
         AllowsTransparency="False"
         MouseLeftButtonDown="OnMouseLeftButtonDown"
         UseLayoutRounding="True"

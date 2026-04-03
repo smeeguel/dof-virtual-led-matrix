@@ -348,7 +348,6 @@ public partial class App : Application
             {
                 _window.Show();
             }
-            _window.Activate();
         }
         else
         {
