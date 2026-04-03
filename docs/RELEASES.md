@@ -89,6 +89,7 @@ Any missing source path or empty required match fails the release with a specifi
 
 - `type` (required): `file`, `directory`, or `glob`.
 - `from` (required): source file path, source directory path, or glob pattern relative to repo root.
+  - For `file` and `directory` mappings, `from` can also be relative to the publish output folder passed to `package-release.ps1`.
 - `to` (required): destination path inside release zip staging root.
 - `include` (optional, `directory` only): array of wildcard filters.
 - `exclude` (optional, `directory` only): array of wildcard filters.
@@ -97,7 +98,7 @@ Any missing source path or empty required match fails the release with a specifi
 
 Current `release-manifest.json` includes:
 
-- `src/VirtualDofMatrix.App/bin/Release/net8.0-windows/win-x64/publish/VirtualDofMatrix.App.exe` -> `VirtualDofMatrix.App.exe`
+- `VirtualDofMatrix.App.exe` (resolved from publish output) -> `VirtualDofMatrix.App.exe`
 - `DOF` -> `DOF`
 - `examples/settings.sample.json` -> `examples/settings.sample.json`
 - `docs/instructions.html` -> `docs/instructions.html`
