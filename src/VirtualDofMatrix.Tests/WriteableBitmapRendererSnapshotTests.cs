@@ -75,17 +75,17 @@ public sealed class WriteableBitmapRendererSnapshotTests
         var historyComposer = new MatrixFrameRasterComposer();
         historyComposer.Configure(config);
 
-        historyComposer.Compose(CreateSolidFrame(config.Width * config.Height, 255, 20, 20, 3));
+        historyComposer.Compose(CreateSolidFrame(config.Width * config.Height, 255, 20, 20, 3UL));
         for (var i = 0; i < 24; i++)
         {
-            historyComposer.Compose(CreateSolidFrame(config.Width * config.Height, 0, 0, 0, 4 + i));
+            historyComposer.Compose(CreateSolidFrame(config.Width * config.Height, 0, 0, 0, (ulong)(4 + i)));
         }
 
-        var decayed = historyComposer.Compose(CreateSolidFrame(config.Width * config.Height, 0, 0, 0, 100));
+        var decayed = historyComposer.Compose(CreateSolidFrame(config.Width * config.Height, 0, 0, 0, 100UL));
 
         var baselineComposer = new MatrixFrameRasterComposer();
         baselineComposer.Configure(config);
-        var baseline = baselineComposer.Compose(CreateSolidFrame(config.Width * config.Height, 0, 0, 0, 200));
+        var baseline = baselineComposer.Compose(CreateSolidFrame(config.Width * config.Height, 0, 0, 0, 200UL));
 
         Assert.Equal(ComputeHash(baseline.Pixels), ComputeHash(decayed.Pixels));
     }
