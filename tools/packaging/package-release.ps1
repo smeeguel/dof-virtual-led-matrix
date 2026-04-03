@@ -39,8 +39,8 @@ if (Test-Path -LiteralPath $stagingDir) {
 }
 New-Item -ItemType Directory -Path $stagingDir | Out-Null
 
-Write-Host "Copying publish output from $publishDir to $stagingDir"
-Copy-Item -Path (Join-Path $publishDir '*') -Destination $stagingDir -Recurse -Force
+Write-Host "Staging directory initialized at $stagingDir"
+Write-Host "Manifest is authoritative; only mapped files will be copied."
 
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
 if ($null -eq $manifest.mappings -or $manifest.mappings.Count -eq 0) {
