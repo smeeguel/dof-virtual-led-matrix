@@ -1,5 +1,6 @@
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -55,6 +56,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private int _gpuBloomScaleDivisor;
     private static readonly ID3D11ShaderResourceView[] NullPixelShaderSrvs = [null!, null!, null!];
     private string _gpuBloomStage = "idle";
+    private string _gpuBloomTrace = string.Empty;
+    private ulong _gpuBloomAttemptCount;
+    private ulong _lastOutputSequence;
     private readonly object _gate = new();
     private Image? _host;
     private WriteableBitmap? _fallbackBitmap;
@@ -184,6 +188,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             frame = _stagedFrame;
         }
+        _lastOutputSequence = frame.OutputSequence;
 
         BuildToneMapLutIfNeeded(_style);
         Array.Clear(_bgra, 0, _bgra.Length);
@@ -546,7 +551,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
             catch (Exception ex)
             {
-                AppLogger.Warn($"[renderer] gpu bloom execution failed at stage='{_gpuBloomStage}'; switching to CPU fallback. reason={ex.Message} {TryGetDeviceRemovedReasonText()}");
+                AppLogger.Warn($"[renderer] gpu bloom execution failed at stage='{_gpuBloomStage}'; switching to CPU fallback. reason={ex.Message} {TryGetDeviceRemovedReasonText()} trace={_gpuBloomTrace}");
             }
         }
 
@@ -573,7 +578,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private bool TryApplyGpuBloom(BloomProfile profile)
     {
+        var trace = new StringBuilder(256);
+        var started = DateTime.UtcNow;
+        _gpuBloomAttemptCount++;
+        trace.Append($"attempt={_gpuBloomAttemptCount} seq={_lastOutputSequence} surface={_surfaceWidth}x{_surfaceHeight}");
+        _gpuBloomTrace = trace.ToString();
         _gpuBloomStage = "validate";
+        trace.Append(" stage=validate");
+        _gpuBloomTrace = trace.ToString();
         if (_device is null || _context is null ||
             _gpuBaseTexture is null || _gpuBaseSrv is null ||
             _gpuCompositeTexture is null || _gpuCompositeRtv is null || _gpuReadbackTexture is null ||
@@ -584,6 +596,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         EnsureGpuBloomTargets(profile.ScaleDivisor);
+        trace.Append($" downsample={_downsampleWidth}x{_downsampleHeight} profile(scale={profile.ScaleDivisor},nearRadius={profile.NearRadius},farRadius={profile.FarRadius},nearStrength={profile.NearStrength:F2},farStrength={profile.FarStrength:F2})");
+        _gpuBloomTrace = trace.ToString();
         if (_gpuBrightRtv is null || _gpuBrightSrv is null ||
             _gpuNearPingRtv is null || _gpuNearPingSrv is null ||
             _gpuNearPongRtv is null || _gpuNearPongSrv is null ||
@@ -595,7 +609,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         // Upload the already-rasterized frame so bloom extraction happens from the same visual basis as CPU mode.
         _gpuBloomStage = "upload-base";
+        trace.Append(" ->upload-base");
+        _gpuBloomTrace = trace.ToString();
         var mapped = _context.Map(_gpuBaseTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
+        trace.Append($"(rowPitch={mapped.RowPitch})");
+        _gpuBloomTrace = trace.ToString();
         WriteBgraRows(mapped.DataPointer, mapped.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
         _context.Unmap(_gpuBaseTexture, 0);
 
@@ -603,22 +621,38 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var farRadius = GetEffectiveBloomRadius(profile.FarRadius, profile.ScaleDivisor, _dotSize);
 
         _gpuBloomStage = "bright-pass";
+        trace.Append(" ->bright-pass");
+        _gpuBloomTrace = trace.ToString();
         RunBrightPass(profile);
         _gpuBloomStage = "blur-near";
+        trace.Append(" ->blur-near");
+        _gpuBloomTrace = trace.ToString();
         RunBlurLane(_gpuBrightSrv, _gpuNearPingRtv, _gpuNearPingSrv, _gpuNearPongRtv, _gpuNearPongSrv, nearRadius);
         _gpuBloomStage = "blur-far";
+        trace.Append(" ->blur-far");
+        _gpuBloomTrace = trace.ToString();
         RunBlurLane(_gpuBrightSrv, _gpuFarPingRtv, _gpuFarPingSrv, _gpuFarPongRtv, _gpuFarPongSrv, farRadius);
         _gpuBloomStage = "composite";
+        trace.Append(" ->composite");
+        _gpuBloomTrace = trace.ToString();
         RunCompositePass(profile);
 
         _gpuBloomStage = "copy-readback";
+        trace.Append(" ->copy-readback");
+        _gpuBloomTrace = trace.ToString();
         _context.CopyResource(_gpuReadbackTexture, _gpuCompositeTexture);
         _context.Flush();
         _gpuBloomStage = "map-readback";
+        trace.Append(" ->map-readback");
+        _gpuBloomTrace = trace.ToString();
         var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+        trace.Append($"(rowPitch={readback.RowPitch})");
+        _gpuBloomTrace = trace.ToString();
         ReadBgraRows(readback.DataPointer, readback.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
         _context.Unmap(_gpuReadbackTexture, 0);
         _gpuBloomStage = "done";
+        trace.Append($" ->done elapsedMs={(DateTime.UtcNow - started).TotalMilliseconds:F3}");
+        _gpuBloomTrace = trace.ToString();
         return true;
     }
 
