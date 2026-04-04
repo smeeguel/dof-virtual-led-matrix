@@ -716,7 +716,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             NearStrength = (float)(profile?.NearStrength ?? 0.0),
             FarStrength = (float)(profile?.FarStrength ?? 0.0),
             ScaleDivisor = (float)(profile?.ScaleDivisor ?? Math.Max(1, _gpuBloomScaleDivisor)),
-            Radius = radius,
+            // Conversational note: clamp radius defensively so bad constant data cannot create a runaway shader loop.
+            Radius = Math.Clamp(radius, 0f, 8f),
             DirectionX = directionX,
             DirectionY = directionY,
             SurfaceWidth = _surfaceWidth,
@@ -1314,7 +1315,8 @@ float4 PSBrightPass(VsOut input) : SV_Target
 }
 float4 PSSeparableBlur(VsOut input) : SV_Target
 {
-    float r = max(Radius, 0.0f);
+    float r = clamp(Radius, 0.0f, 8.0f);
+    if (!isfinite(r)) r = 0.0f;
     if (r <= 0.001f) return BaseTexture.Sample(LinearSampler, input.Uv);
     int samples = (int)ceil(r);
     float3 sum = 0;
