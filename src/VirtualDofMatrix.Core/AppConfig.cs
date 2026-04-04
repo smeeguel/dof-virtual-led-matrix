@@ -98,23 +98,25 @@ public sealed class MatrixVisualConfig
 
 public sealed class BloomConfig
 {
-    // Experimental: Bloom is intentionally disabled in the Settings UI due performance cost.
-    // It can still be toggled manually via settings.json for testing.
     public bool Enabled { get; set; } = true;
 
-    public string QualityPreset { get; set; } = "medium";
+    public double Threshold { get; set; } = 0.72;
 
-    public double Threshold { get; set; } = 0.98;
+    // Width of the smooth transition above threshold where bloom starts to ramp in.
+    public double SoftKnee { get; set; } = 0.18;
 
-    public int SmallRadius { get; set; } = 1;
+    // Screen-space downsample factor used by bloom buffers.
+    public int DownsampleDivisor { get; set; } = 2;
 
-    public int WideRadius { get; set; } = 1;
+    // Tight, near-field glow radius in final rendered pixels.
+    public int NearRadiusPx { get; set; } = 3;
 
-    public double SmallStrength { get; set; } = 0.1;
+    // Wide, lower-intensity halo radius in final rendered pixels.
+    public int FarRadiusPx { get; set; } = 9;
 
-    public double WideStrength { get; set; } = 0.0;
+    public double NearStrength { get; set; } = 0.42;
 
-    public int BufferScaleDivisor { get; set; } = 2;
+    public double FarStrength { get; set; } = 0.12;
 }
 
 public sealed class WindowConfig

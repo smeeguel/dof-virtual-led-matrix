@@ -15,7 +15,6 @@ public sealed class WriteableBitmapRendererSnapshotTests
         config.DotShape = "circle";
         config.ToneMapping.Enabled = true;
         config.Bloom.Enabled = true;
-        config.Bloom.QualityPreset = "medium";
         config.Bloom.Threshold = 0.25;
         config.TemporalSmoothing.Enabled = true;
         config.TemporalSmoothing.RiseAlpha = 0.65;

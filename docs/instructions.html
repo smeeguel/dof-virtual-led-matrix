@@ -29,7 +29,7 @@
       <p class="meta">Rendered from <code>instructions_content.md</code> for double-click offline viewing.</p>
       <p id="status" class="status">Rendering markdown...</p>
       <article id="content"></article>
-      <p class="footer">Last updated: 2026-04-03</p>
+      <p class="footer">Last updated: 2026-04-04</p>
     </main>
   </div>
 
@@ -369,20 +369,20 @@ Below is every supported section/field and what it does.
 ### `matrix.bloom`
 - `enabled`
   - Enables bloom post-effect.
-- `qualityPreset`
-  - Bloom quality profile string.
 - `threshold`
   - Brightness threshold that triggers bloom.
-- `smallRadius`
-  - Radius for tighter blur pass.
-- `wideRadius`
-  - Radius for wider blur pass.
-- `smallStrength`
-  - Intensity for tight bloom.
-- `wideStrength`
-  - Intensity for wide bloom.
-- `bufferScaleDivisor`
+- `softKnee`
+  - Soft transition range above threshold so bloom fades in smoothly.
+- `downsampleDivisor`
   - Downscale factor used for bloom buffers.
+- `nearRadiusPx`
+  - Radius (in rendered pixels) for tight near-field glow.
+- `farRadiusPx`
+  - Radius (in rendered pixels) for wider halo.
+- `nearStrength`
+  - Intensity for near-field glow.
+- `farStrength`
+  - Intensity for wide halo.
 
 ## `window`
 - `alwaysOnTop`

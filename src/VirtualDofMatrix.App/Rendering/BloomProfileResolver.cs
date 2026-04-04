@@ -6,32 +6,38 @@ internal static class BloomProfileResolver
 {
     public static BloomProfile Resolve(BloomConfig bloom)
     {
+        // If bloom is off, we can bail out early and skip any buffer work.
         if (!bloom.Enabled)
         {
             return BloomProfile.Disabled;
         }
 
-        var preset = bloom.QualityPreset.Trim().ToLowerInvariant();
-        var profile = preset switch
-        {
-            "low" => new BloomProfile(true, 2, 1, 2, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
-            "medium" => new BloomProfile(true, 2, 2, 4, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
-            "high" => new BloomProfile(true, 1, 3, 6, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
-            "off" or "" => BloomProfile.Disabled,
-            _ => new BloomProfile(true, bloom.BufferScaleDivisor, bloom.SmallRadius, bloom.WideRadius, bloom.Threshold, bloom.SmallStrength, bloom.WideStrength),
-        };
+        // We clamp the knobs here so downstream rendering code can stay lean and trust the profile.
+        var scaleDivisor = Math.Clamp(bloom.DownsampleDivisor, 1, 4);
+        var nearRadius = Math.Clamp(bloom.NearRadiusPx / scaleDivisor, 1, 16);
+        var farRadius = Math.Clamp(bloom.FarRadiusPx / scaleDivisor, nearRadius, 32);
 
-        return profile with
-        {
-            ScaleDivisor = Math.Clamp(profile.ScaleDivisor, 1, 4),
-            SmallRadius = Math.Clamp(profile.SmallRadius, 1, 8),
-            WideRadius = Math.Clamp(profile.WideRadius, Math.Max(1, profile.SmallRadius), 16),
-            Threshold = Math.Clamp(profile.Threshold, 0.0, 1.0),
-        };
+        return new BloomProfile(
+            true,
+            scaleDivisor,
+            Math.Clamp(bloom.Threshold, 0.0, 1.0),
+            Math.Clamp(bloom.SoftKnee, 0.0, 1.0),
+            nearRadius,
+            farRadius,
+            Math.Clamp(bloom.NearStrength, 0.0, 2.0),
+            Math.Clamp(bloom.FarStrength, 0.0, 2.0));
     }
 }
 
-internal sealed record BloomProfile(bool Enabled, int ScaleDivisor, int SmallRadius, int WideRadius, double Threshold, double SmallStrength, double WideStrength)
+internal sealed record BloomProfile(
+    bool Enabled,
+    int ScaleDivisor,
+    double Threshold,
+    double SoftKnee,
+    int NearRadius,
+    int FarRadius,
+    double NearStrength,
+    double FarStrength)
 {
-    public static BloomProfile Disabled => new(false, 1, 0, 0, 1.0, 0.0, 0.0);
+    public static BloomProfile Disabled => new(false, 1, 1.0, 0.0, 0, 0, 0.0, 0.0);
 }

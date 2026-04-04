@@ -35,13 +35,13 @@
     },
     "bloom": {
       "enabled": true,
-      "qualityPreset": "medium",
-      "threshold": 0.98,
-      "smallRadius": 1,
-      "wideRadius": 1,
-      "smallStrength": 0.1,
-      "wideStrength": 0.0,
-      "bufferScaleDivisor": 2
+      "threshold": 0.72,
+      "softKnee": 0.18,
+      "downsampleDivisor": 2,
+      "nearRadiusPx": 3,
+      "farRadiusPx": 9,
+      "nearStrength": 0.42,
+      "farStrength": 0.12
     }
   },
   "window": {

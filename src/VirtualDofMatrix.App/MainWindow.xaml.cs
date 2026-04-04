@@ -188,7 +188,7 @@ public partial class MainWindow : Window
             effectiveMatrixConfig.TemporalSmoothing,
             effectiveMatrixConfig.Bloom,
             effectiveMatrixConfig.Bloom.Enabled,
-            effectiveMatrixConfig.Bloom.SmallStrength);
+            effectiveMatrixConfig.Bloom.NearStrength);
         _matrixRenderer.Initialize(new MatrixRendererSurface(MatrixCanvas, MatrixImage), effectiveMatrixConfig.Width, effectiveMatrixConfig.Height, dotStyle);
         _matrixRenderer.Resize(MatrixViewportBorder.ActualWidth, MatrixViewportBorder.ActualHeight);
 
@@ -258,13 +258,13 @@ public partial class MainWindow : Window
             Bloom = new BloomConfig
             {
                 Enabled = _config.Matrix.Bloom.Enabled,
-                QualityPreset = _config.Matrix.Bloom.QualityPreset,
                 Threshold = _config.Matrix.Bloom.Threshold,
-                SmallRadius = _config.Matrix.Bloom.SmallRadius,
-                WideRadius = _config.Matrix.Bloom.WideRadius,
-                SmallStrength = _config.Matrix.Bloom.SmallStrength,
-                WideStrength = _config.Matrix.Bloom.WideStrength,
-                BufferScaleDivisor = _config.Matrix.Bloom.BufferScaleDivisor,
+                SoftKnee = _config.Matrix.Bloom.SoftKnee,
+                DownsampleDivisor = _config.Matrix.Bloom.DownsampleDivisor,
+                NearRadiusPx = _config.Matrix.Bloom.NearRadiusPx,
+                FarRadiusPx = _config.Matrix.Bloom.FarRadiusPx,
+                NearStrength = _config.Matrix.Bloom.NearStrength,
+                FarStrength = _config.Matrix.Bloom.FarStrength,
             },
         };
     }

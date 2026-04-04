@@ -38,10 +38,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private byte[] _bgra = Array.Empty<byte>();
     private float[] _smoothedRgb = Array.Empty<float>();
     private float[] _workingRgb = Array.Empty<float>();
-    private float[] _thresholdRgb = Array.Empty<float>();
-    private float[] _smallBlurRgb = Array.Empty<float>();
-    private float[] _wideBlurRgb = Array.Empty<float>();
-    private float[] _blurScratchRgb = Array.Empty<float>();
+    private float[] _screenBloomSourceRgb = Array.Empty<float>();
+    private float[] _screenBloomNearRgb = Array.Empty<float>();
+    private float[] _screenBloomFarRgb = Array.Empty<float>();
+    private float[] _screenBloomScratchRgb = Array.Empty<float>();
     private int _downsampleWidth;
     private int _downsampleHeight;
     private readonly byte[] _toneMapLut = new byte[256];
@@ -70,10 +70,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _bgra = new byte[checked(_surfaceWidth * _surfaceHeight * 4)];
         _smoothedRgb = new float[checked(width * height * Channels)];
         _workingRgb = new float[checked(width * height * Channels)];
-        _thresholdRgb = new float[checked(width * height * Channels)];
-        _smallBlurRgb = Array.Empty<float>();
-        _wideBlurRgb = Array.Empty<float>();
-        _blurScratchRgb = Array.Empty<float>();
+        _screenBloomSourceRgb = Array.Empty<float>();
+        _screenBloomNearRgb = Array.Empty<float>();
+        _screenBloomFarRgb = Array.Empty<float>();
+        _screenBloomScratchRgb = Array.Empty<float>();
         _downsampleWidth = 0;
         _downsampleHeight = 0;
 
@@ -120,7 +120,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         Console.WriteLine($"[renderer] gpu initialized fastpath leds={width * height} surface={_surfaceWidth}x{_surfaceHeight}");
         var bloomProfile = BloomProfileResolver.Resolve(dotStyleConfig.Bloom);
-        Console.WriteLine($"[renderer] gpu bloom enabled={bloomProfile.Enabled} preset={dotStyleConfig.Bloom.QualityPreset} threshold={bloomProfile.Threshold:F2} scale={bloomProfile.ScaleDivisor} smallRadius={bloomProfile.SmallRadius} wideRadius={bloomProfile.WideRadius} smallStrength={bloomProfile.SmallStrength:F2} wideStrength={bloomProfile.WideStrength:F2}");
+        Console.WriteLine($"[renderer] gpu bloom enabled={bloomProfile.Enabled} threshold={bloomProfile.Threshold:F2} softKnee={bloomProfile.SoftKnee:F2} scale={bloomProfile.ScaleDivisor} nearRadius={bloomProfile.NearRadius} farRadius={bloomProfile.FarRadius} nearStrength={bloomProfile.NearStrength:F2} farStrength={bloomProfile.FarStrength:F2}");
     }
 
     public void UpdateFrame(FramePresentation presentation)
@@ -179,8 +179,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _workingRgb[rasterOffset + 2] = b;
         }
 
-        ApplyBloomIfEnabled(_style);
-
         for (var raster = 0; raster < _width * _height; raster++)
         {
             var rasterOffset = raster * Channels;
@@ -191,6 +189,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             var baseY = _dotPadding + ((raster / _width) * _dotStride);
             RasterFastDot(baseX, baseY, r, g, b);
         }
+        ApplyBloomIfEnabled(_style);
 
         var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
         Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
@@ -485,73 +484,89 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private void ApplyBloomIfEnabled(DotStyleConfig style)
     {
-        var matrixCapacity = _width * _height;
         var bloomProfile = BloomProfileResolver.Resolve(style.Bloom);
-        if (!bloomProfile.Enabled || (bloomProfile.SmallStrength <= 0.0 && bloomProfile.WideStrength <= 0.0))
+        // If both lanes are effectively off, skip bloom and keep the frame path cheap.
+        if (!bloomProfile.Enabled || (bloomProfile.NearStrength <= 0.0 && bloomProfile.FarStrength <= 0.0))
         {
             return;
         }
 
-        Array.Copy(_workingRgb, _thresholdRgb, matrixCapacity * Channels);
-        if (!ThresholdEmissive(_thresholdRgb, matrixCapacity, bloomProfile.Threshold))
+        // Extract emissive data from the final rasterized surface so bloom feels spatially natural.
+        DownsampleEmissive(_bgra, _surfaceWidth, _surfaceHeight, bloomProfile);
+        if (!HasAnyEmission(_screenBloomSourceRgb))
         {
             return;
         }
 
-        Downsample(_thresholdRgb, _width, _height, bloomProfile.ScaleDivisor);
-        Array.Copy(_smallBlurRgb, _wideBlurRgb, _smallBlurRgb.Length);
-        BoxBlurRgbSeparable(_smallBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.SmallRadius);
-        BoxBlurRgbSeparable(_wideBlurRgb, _downsampleWidth, _downsampleHeight, bloomProfile.WideRadius);
-        CompositeBloom(_workingRgb, _smallBlurRgb, _wideBlurRgb, _width, _height, _downsampleWidth, _downsampleHeight, bloomProfile);
+        // Split into near/far blur lanes so we can shape a tight glow plus a soft halo.
+        Array.Copy(_screenBloomSourceRgb, _screenBloomNearRgb, _screenBloomSourceRgb.Length);
+        Array.Copy(_screenBloomSourceRgb, _screenBloomFarRgb, _screenBloomSourceRgb.Length);
+        BoxBlurRgbSeparable(_screenBloomNearRgb, _downsampleWidth, _downsampleHeight, bloomProfile.NearRadius);
+        BoxBlurRgbSeparable(_screenBloomFarRgb, _downsampleWidth, _downsampleHeight, bloomProfile.FarRadius);
+        CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, bloomProfile);
     }
 
-    private void Downsample(float[] source, int width, int height, int scaleDivisor)
+    private void DownsampleEmissive(byte[] bgra, int width, int height, BloomProfile profile)
     {
+        var scaleDivisor = profile.ScaleDivisor;
         _downsampleWidth = Math.Max(1, width / scaleDivisor);
         _downsampleHeight = Math.Max(1, height / scaleDivisor);
         var downsamplePixels = _downsampleWidth * _downsampleHeight * Channels;
-        if (_smallBlurRgb.Length != downsamplePixels)
+        if (_screenBloomSourceRgb.Length != downsamplePixels)
         {
-            _smallBlurRgb = new float[downsamplePixels];
-            _wideBlurRgb = new float[downsamplePixels];
-            _blurScratchRgb = new float[downsamplePixels];
+            _screenBloomSourceRgb = new float[downsamplePixels];
+            _screenBloomNearRgb = new float[downsamplePixels];
+            _screenBloomFarRgb = new float[downsamplePixels];
+            _screenBloomScratchRgb = new float[downsamplePixels];
         }
 
-        Array.Clear(_smallBlurRgb, 0, _smallBlurRgb.Length);
+        // Reset every frame to avoid carrying stale bloom into subsequent frames.
+        Array.Clear(_screenBloomSourceRgb, 0, _screenBloomSourceRgb.Length);
         for (var y = 0; y < _downsampleHeight; y++)
         {
             for (var x = 0; x < _downsampleWidth; x++)
             {
-                var srcX = Math.Min(width - 1, x * scaleDivisor);
-                var srcY = Math.Min(height - 1, y * scaleDivisor);
-                var srcOffset = ((srcY * width) + srcX) * Channels;
                 var dstOffset = ((y * _downsampleWidth) + x) * Channels;
-                _smallBlurRgb[dstOffset] = source[srcOffset];
-                _smallBlurRgb[dstOffset + 1] = source[srcOffset + 1];
-                _smallBlurRgb[dstOffset + 2] = source[srcOffset + 2];
+                var srcStartX = x * scaleDivisor;
+                var srcStartY = y * scaleDivisor;
+                var srcEndX = Math.Min(width, srcStartX + scaleDivisor);
+                var srcEndY = Math.Min(height, srcStartY + scaleDivisor);
+
+                float sumR = 0f, sumG = 0f, sumB = 0f;
+                var samples = 0;
+                for (var py = srcStartY; py < srcEndY; py++)
+                {
+                    for (var px = srcStartX; px < srcEndX; px++)
+                    {
+                        var srcOffset = (py * width + px) * 4;
+                        var b = bgra[srcOffset];
+                        var g = bgra[srcOffset + 1];
+                        var r = bgra[srcOffset + 2];
+                        // Soft-knee weighting makes bright pixels "fade into" bloom more naturally.
+                        var emissive = EmissiveWeight(r, g, b, profile.Threshold, profile.SoftKnee);
+                        if (emissive <= 0f)
+                        {
+                            continue;
+                        }
+
+                        sumR += r * emissive;
+                        sumG += g * emissive;
+                        sumB += b * emissive;
+                        samples++;
+                    }
+                }
+
+                if (samples <= 0)
+                {
+                    continue;
+                }
+
+                var inv = 1f / samples;
+                _screenBloomSourceRgb[dstOffset] = sumR * inv;
+                _screenBloomSourceRgb[dstOffset + 1] = sumG * inv;
+                _screenBloomSourceRgb[dstOffset + 2] = sumB * inv;
             }
         }
-    }
-
-    private static bool ThresholdEmissive(float[] source, int matrixCapacity, double threshold)
-    {
-        var cutoff = (float)(Math.Clamp(threshold, 0.0, 1.0) * 255.0);
-        var anyActive = false;
-        for (var i = 0; i < matrixCapacity; i++)
-        {
-            var offset = i * Channels;
-            var peak = Math.Max(source[offset], Math.Max(source[offset + 1], source[offset + 2]));
-            if (peak < cutoff)
-            {
-                source[offset] = source[offset + 1] = source[offset + 2] = 0f;
-            }
-            else
-            {
-                anyActive = true;
-            }
-        }
-
-        return anyActive;
     }
 
     private void BoxBlurRgbSeparable(float[] rgb, int width, int height, int radius)
@@ -561,13 +576,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        if (_blurScratchRgb.Length != rgb.Length)
+        if (_screenBloomScratchRgb.Length != rgb.Length)
         {
-            _blurScratchRgb = new float[rgb.Length];
+            _screenBloomScratchRgb = new float[rgb.Length];
         }
 
-        HorizontalBlurRgb(rgb, _blurScratchRgb, width, height, radius);
-        VerticalBlurRgb(_blurScratchRgb, rgb, width, height, radius);
+        HorizontalBlurRgb(rgb, _screenBloomScratchRgb, width, height, radius);
+        VerticalBlurRgb(_screenBloomScratchRgb, rgb, width, height, radius);
     }
 
     private static void HorizontalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
@@ -660,21 +675,70 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private static void CompositeBloom(float[] target, float[] smallBlur, float[] wideBlur, int width, int height, int bloomWidth, int bloomHeight, BloomProfile profile)
+    private static void CompositeBloom(byte[] target, int width, int height, float[] nearBlur, float[] farBlur, int bloomWidth, int bloomHeight, BloomProfile profile)
     {
+        var nearStrength = (float)profile.NearStrength;
+        var farStrength = (float)profile.FarStrength;
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
             {
-                var targetOffset = ((y * width) + x) * Channels;
-                var bloomX = Math.Min(bloomWidth - 1, x / profile.ScaleDivisor);
-                var bloomY = Math.Min(bloomHeight - 1, y / profile.ScaleDivisor);
-                var bloomOffset = ((bloomY * bloomWidth) + bloomX) * Channels;
-                target[targetOffset] = Math.Clamp(target[targetOffset] + (smallBlur[bloomOffset] * (float)profile.SmallStrength) + (wideBlur[bloomOffset] * (float)profile.WideStrength), 0f, 255f);
-                target[targetOffset + 1] = Math.Clamp(target[targetOffset + 1] + (smallBlur[bloomOffset + 1] * (float)profile.SmallStrength) + (wideBlur[bloomOffset + 1] * (float)profile.WideStrength), 0f, 255f);
-                target[targetOffset + 2] = Math.Clamp(target[targetOffset + 2] + (smallBlur[bloomOffset + 2] * (float)profile.SmallStrength) + (wideBlur[bloomOffset + 2] * (float)profile.WideStrength), 0f, 255f);
+                // Bilinear sampling keeps the upsampled bloom field smooth and avoids block stepping.
+                var bloomU = ((x + 0.5f) / profile.ScaleDivisor) - 0.5f;
+                var bloomV = ((y + 0.5f) / profile.ScaleDivisor) - 0.5f;
+                var nearR = SampleBilinear(nearBlur, bloomWidth, bloomHeight, bloomU, bloomV, 0);
+                var nearG = SampleBilinear(nearBlur, bloomWidth, bloomHeight, bloomU, bloomV, 1);
+                var nearB = SampleBilinear(nearBlur, bloomWidth, bloomHeight, bloomU, bloomV, 2);
+                var farR = SampleBilinear(farBlur, bloomWidth, bloomHeight, bloomU, bloomV, 0);
+                var farG = SampleBilinear(farBlur, bloomWidth, bloomHeight, bloomU, bloomV, 1);
+                var farB = SampleBilinear(farBlur, bloomWidth, bloomHeight, bloomU, bloomV, 2);
+
+                var targetOffset = ((y * width) + x) * 4;
+                target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (nearR * nearStrength) + (farR * farStrength), 0f, 255f);
+                target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (nearG * nearStrength) + (farG * farStrength), 0f, 255f);
+                target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (nearB * nearStrength) + (farB * farStrength), 0f, 255f);
             }
         }
+    }
+
+    private static float EmissiveWeight(float r, float g, float b, double threshold, double softKnee)
+    {
+        var luma = ((0.2126f * r) + (0.7152f * g) + (0.0722f * b)) / 255f;
+        var knee = Math.Max(0.0001f, (float)softKnee);
+        var t = (luma - (float)threshold) / knee;
+        return Math.Clamp(t * t * (3f - (2f * t)), 0f, 1f);
+    }
+
+    private static bool HasAnyEmission(float[] values)
+    {
+        for (var i = 0; i < values.Length; i++)
+        {
+            if (values[i] > 0f)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static float SampleBilinear(float[] source, int width, int height, float x, float y, int channel)
+    {
+        var x0 = Math.Clamp((int)Math.Floor(x), 0, width - 1);
+        var y0 = Math.Clamp((int)Math.Floor(y), 0, height - 1);
+        var x1 = Math.Min(width - 1, x0 + 1);
+        var y1 = Math.Min(height - 1, y0 + 1);
+        var tx = x - x0;
+        var ty = y - y0;
+
+        var a = source[((y0 * width + x0) * Channels) + channel];
+        var b = source[((y0 * width + x1) * Channels) + channel];
+        var c = source[((y1 * width + x0) * Channels) + channel];
+        var d = source[((y1 * width + x1) * Channels) + channel];
+
+        var ab = a + ((b - a) * tx);
+        var cd = c + ((d - c) * tx);
+        return ab + ((cd - ab) * ty);
     }
 
     private void DisposeDeviceResources()

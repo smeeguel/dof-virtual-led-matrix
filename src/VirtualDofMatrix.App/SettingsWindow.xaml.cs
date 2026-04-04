@@ -393,13 +393,13 @@ public partial class SettingsWindow : Window
                 Bloom = new BloomConfig
                 {
                     Enabled = config.Matrix.Bloom.Enabled,
-                    QualityPreset = config.Matrix.Bloom.QualityPreset,
                     Threshold = config.Matrix.Bloom.Threshold,
-                    SmallRadius = config.Matrix.Bloom.SmallRadius,
-                    WideRadius = config.Matrix.Bloom.WideRadius,
-                    SmallStrength = config.Matrix.Bloom.SmallStrength,
-                    WideStrength = config.Matrix.Bloom.WideStrength,
-                    BufferScaleDivisor = config.Matrix.Bloom.BufferScaleDivisor,
+                    SoftKnee = config.Matrix.Bloom.SoftKnee,
+                    DownsampleDivisor = config.Matrix.Bloom.DownsampleDivisor,
+                    NearRadiusPx = config.Matrix.Bloom.NearRadiusPx,
+                    FarRadiusPx = config.Matrix.Bloom.FarRadiusPx,
+                    NearStrength = config.Matrix.Bloom.NearStrength,
+                    FarStrength = config.Matrix.Bloom.FarStrength,
                 },
             },
             Window = new WindowConfig
