@@ -308,14 +308,12 @@ internal sealed class MatrixFrameRasterComposer
             return;
         }
 
-        // Duplicate the extracted source so near and far blur lanes can diverge independently.
-        Array.Copy(_screenBloomSourceRgb, _screenBloomNearRgb, _screenBloomSourceRgb.Length);
-        Array.Copy(_screenBloomSourceRgb, _screenBloomFarRgb, _screenBloomSourceRgb.Length);
         var effectiveNearRadius = GetEffectiveBloomRadius(bloomProfile.NearRadius, bloomProfile.ScaleDivisor, _config.DotSize);
         var effectiveFarRadius = GetEffectiveBloomRadius(bloomProfile.FarRadius, bloomProfile.ScaleDivisor, _config.DotSize);
-        // Near bloom uses a smooth blur so tiny radii don't hard-light an entire adjacent dot.
-        BoxBlurRgbSeparable(_screenBloomNearRgb, _downsampleWidth, _downsampleHeight, effectiveNearRadius);
-        BoxBlurRgbSeparable(_screenBloomFarRgb, _downsampleWidth, _downsampleHeight, effectiveFarRadius);
+        // Keep source immutable per frame; each lane writes into its own destination buffer.
+        // This avoids near/far aliasing bugs where one blur pass accidentally feeds the other lane.
+        BloomBlurStrategy.BlurFromImmutableSource(_screenBloomSourceRgb, _screenBloomNearRgb, _screenBloomScratchRgb, _downsampleWidth, _downsampleHeight, effectiveNearRadius);
+        BloomBlurStrategy.BlurFromImmutableSource(_screenBloomSourceRgb, _screenBloomFarRgb, _screenBloomScratchRgb, _downsampleWidth, _downsampleHeight, effectiveFarRadius);
         var effectiveNearStrength = (float)bloomProfile.NearStrength;
         var effectiveFarStrength = (float)bloomProfile.FarStrength;
         CompositeBloom(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, effectiveNearStrength, effectiveFarStrength, bloomProfile);
@@ -393,112 +391,6 @@ internal sealed class MatrixFrameRasterComposer
             }
         }
         return any;
-    }
-
-    private void BoxBlurRgbSeparable(float[] rgb, int width, int height, int radius)
-    {
-        if (radius <= 0)
-        {
-            return;
-        }
-
-        if (_screenBloomScratchRgb.Length != rgb.Length)
-        {
-            _screenBloomScratchRgb = new float[rgb.Length];
-        }
-
-        HorizontalBlurRgb(rgb, _screenBloomScratchRgb, width, height, radius);
-        VerticalBlurRgb(_screenBloomScratchRgb, rgb, width, height, radius);
-    }
-
-    private static void HorizontalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
-    {
-        for (var y = 0; y < height; y++)
-        {
-            float sumR = 0, sumG = 0, sumB = 0;
-            var samples = 0;
-            for (var sx = 0; sx <= Math.Min(width - 1, radius); sx++)
-            {
-                var sampleOffset = ((y * width) + sx) * 3;
-                sumR += source[sampleOffset];
-                sumG += source[sampleOffset + 1];
-                sumB += source[sampleOffset + 2];
-                samples++;
-            }
-
-            for (var x = 0; x < width; x++)
-            {
-                var dstOffset = ((y * width) + x) * 3;
-                destination[dstOffset] = sumR / Math.Max(1, samples);
-                destination[dstOffset + 1] = sumG / Math.Max(1, samples);
-                destination[dstOffset + 2] = sumB / Math.Max(1, samples);
-
-                var removeX = x - radius;
-                if (removeX >= 0)
-                {
-                    var removeOffset = ((y * width) + removeX) * 3;
-                    sumR -= source[removeOffset];
-                    sumG -= source[removeOffset + 1];
-                    sumB -= source[removeOffset + 2];
-                    samples--;
-                }
-
-                var addX = x + radius + 1;
-                if (addX < width)
-                {
-                    var addOffset = ((y * width) + addX) * 3;
-                    sumR += source[addOffset];
-                    sumG += source[addOffset + 1];
-                    sumB += source[addOffset + 2];
-                    samples++;
-                }
-            }
-        }
-    }
-
-    private static void VerticalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
-    {
-        for (var x = 0; x < width; x++)
-        {
-            float sumR = 0, sumG = 0, sumB = 0;
-            var samples = 0;
-            for (var sy = 0; sy <= Math.Min(height - 1, radius); sy++)
-            {
-                var sampleOffset = ((sy * width) + x) * 3;
-                sumR += source[sampleOffset];
-                sumG += source[sampleOffset + 1];
-                sumB += source[sampleOffset + 2];
-                samples++;
-            }
-
-            for (var y = 0; y < height; y++)
-            {
-                var dstOffset = ((y * width) + x) * 3;
-                destination[dstOffset] = sumR / Math.Max(1, samples);
-                destination[dstOffset + 1] = sumG / Math.Max(1, samples);
-                destination[dstOffset + 2] = sumB / Math.Max(1, samples);
-
-                var removeY = y - radius;
-                if (removeY >= 0)
-                {
-                    var removeOffset = ((removeY * width) + x) * 3;
-                    sumR -= source[removeOffset];
-                    sumG -= source[removeOffset + 1];
-                    sumB -= source[removeOffset + 2];
-                    samples--;
-                }
-
-                var addY = y + radius + 1;
-                if (addY < height)
-                {
-                    var addOffset = ((addY * width) + x) * 3;
-                    sumR += source[addOffset];
-                    sumG += source[addOffset + 1];
-                    sumB += source[addOffset + 2];
-                    samples++;
-                }
-            }
-        }
     }
 
     private static void CompositeBloom(byte[] target, int width, int height, float[] nearBlur, float[] farBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, int effectiveNearRadius, int effectiveFarRadius, float effectiveNearStrength, float effectiveFarStrength, BloomProfile profile)
