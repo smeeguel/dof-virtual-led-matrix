@@ -19,8 +19,8 @@
     },
     "temporalSmoothing": {
       "enabled": true,
-      "riseAlpha": 0.5,
-      "fallAlpha": 0.3
+      "riseAlpha": 0.9,
+      "fallAlpha": 0.9
     },
     "visual": {
       "flatShading": false,

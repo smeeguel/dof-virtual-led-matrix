@@ -68,9 +68,9 @@ public sealed class TemporalSmoothingConfig
 {
     public bool Enabled { get; set; } = true;
 
-    public double RiseAlpha { get; set; } = 0.5;
+    public double RiseAlpha { get; set; } = 0.9;
 
-    public double FallAlpha { get; set; } = 0.3;
+    public double FallAlpha { get; set; } = 0.9;
 }
 
 public sealed class MatrixVisualConfig
