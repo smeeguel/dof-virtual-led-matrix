@@ -53,6 +53,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private bool _gpuBloomSupported;
     private bool _useCpuBloomFallback;
     private int _gpuBloomScaleDivisor;
+    private static readonly ID3D11ShaderResourceView?[] NullPixelShaderSrvs = new ID3D11ShaderResourceView?[3];
     private readonly object _gate = new();
     private Image? _host;
     private WriteableBitmap? _fallbackBitmap;
@@ -533,9 +534,19 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         // We prefer shader-driven bloom, but keep CPU fallback alive so unsupported GPUs still render correctly.
-        if (!_useCpuBloomFallback && _gpuBloomSupported && TryApplyGpuBloom(bloomProfile))
+        if (!_useCpuBloomFallback && _gpuBloomSupported)
         {
-            return;
+            try
+            {
+                if (TryApplyGpuBloom(bloomProfile))
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warn($"[renderer] gpu bloom execution failed; switching to CPU fallback. reason={ex.Message}");
+            }
         }
 
         _useCpuBloomFallback = true;
@@ -611,11 +622,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.OMSetRenderTargets(_gpuBrightRtv);
         _context.RSSetViewport(new Viewport(0, 0, _downsampleWidth, _downsampleHeight, 0f, 1f));
         _context.VSSetShader(_fullscreenVertexShader);
+        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.PSSetShader(_brightPassShader);
         _context.PSSetShaderResource(0, _gpuBaseSrv);
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
+        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
     }
 
     private void RunBlurLane(
@@ -638,11 +651,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.OMSetRenderTargets(pingRtv);
         _context.RSSetViewport(new Viewport(0, 0, _downsampleWidth, _downsampleHeight, 0f, 1f));
         _context.VSSetShader(_fullscreenVertexShader);
+        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.PSSetShader(_blurPassShader);
         _context.PSSetShaderResource(0, sourceSrv);
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
+        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
 
         SetBloomConstants(null, radius, 0f, texelY);
         _context.OMSetRenderTargets(pongRtv);
@@ -651,6 +666,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
+        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
     }
 
     private void RunCompositePass(BloomProfile profile)
@@ -664,6 +680,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.OMSetRenderTargets(_gpuCompositeRtv);
         _context.RSSetViewport(new Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
         _context.VSSetShader(_fullscreenVertexShader);
+        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.PSSetShader(_compositeShader);
         _context.PSSetShaderResource(0, _gpuBaseSrv);
         _context.PSSetShaderResource(1, _gpuNearPongSrv);
@@ -671,6 +688,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
+        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
     }
 
     private void SetBloomConstants(BloomProfile? profile, float radius, float directionX, float directionY)
