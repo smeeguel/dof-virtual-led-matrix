@@ -382,8 +382,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        _idleOffPresentation ??= BuildIdleOffPresentation();
-        _matrixRenderer.UpdateFrame(_idleOffPresentation);
+        // Conversational note: when DOF goes quiet we hard-reset renderer state so temporal smoothing
+        // and bloom history cannot keep the previous table frame visible underneath the "off" dots.
+        _matrixRenderer.Clear();
         _matrixRenderer.Render();
         _idleCleared = true;
     }
