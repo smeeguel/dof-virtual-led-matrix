@@ -1357,9 +1357,21 @@ struct VsOut
 VsOut VSMain(uint vertexId : SV_VertexID)
 {
     VsOut output;
-    float2 uv = float2((vertexId << 1) & 2, vertexId & 2);
-    output.Uv = uv;
-    output.Position = float4((uv * float2(2, -2)) + float2(-1, 1), 0, 1);
+    // Conversational note: explicit full-screen triangle vertices are friendlier across drivers than bit-manipulated UV generation.
+    float2 positions[3] =
+    {
+        float2(-1.0f, -1.0f),
+        float2(-1.0f,  3.0f),
+        float2( 3.0f, -1.0f)
+    };
+    float2 uvs[3] =
+    {
+        float2(0.0f, 1.0f),
+        float2(0.0f,-1.0f),
+        float2(2.0f, 1.0f)
+    };
+    output.Position = float4(positions[vertexId], 0, 1);
+    output.Uv = uvs[vertexId];
     return output;
 }
 float SoftKneeWeight(float3 color)
