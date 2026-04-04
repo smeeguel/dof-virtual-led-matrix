@@ -7,13 +7,14 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Vortice.D3DCompiler;
 using Vortice.Direct3D;
-using Vortice.Direct3D9;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.Mathematics;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 using static Vortice.Direct3D11.D3D11;
+using D3D9 = Vortice.Direct3D9;
+using DxgiFormat = Vortice.DXGI.Format;
 
 namespace VirtualDofMatrix.App.Rendering;
 
@@ -59,10 +60,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11ShaderResourceView? _gpuCompositeSrv;
     private ID3D11Texture2D? _gpuReadbackTexture;
     private D3DImage? _directPresentImage;
-    private IDirect3D9Ex? _d3d9Ex;
-    private IDirect3DDevice9Ex? _d3d9Device;
-    private IDirect3DTexture9? _d3d9SharedTexture;
-    private IDirect3DSurface9? _d3d9SharedSurface;
+    private D3D9.IDirect3D9Ex? _d3d9Ex;
+    private D3D9.IDirect3DDevice9Ex? _d3d9Device;
+    private D3D9.IDirect3DTexture9? _d3d9SharedTexture;
+    private D3D9.IDirect3DSurface9? _d3d9SharedSurface;
     private bool _directPresentEnabled;
     private bool _directPresentRequested;
     private bool _directPresentStatusLogged;
@@ -166,7 +167,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, _surfaceHeight),
             ArraySize = 1,
             MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
+            Format = DxgiFormat.R8G8B8A8_UNorm,
             BindFlags = BindFlags.ShaderResource,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Dynamic,
@@ -825,7 +826,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         SetBloomConstants(null, radius: _dotSize, directionX: _dotStride, directionY: _dotPadding);
         _context.OMSetRenderTargets(_gpuBaseRtv);
-        _context.RSSetViewport(new Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
+        _context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
         _context.VSSetShader(_fullscreenVertexShader);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.PSSetShader(_dotPassShader);
@@ -915,7 +916,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         SetBloomConstants(profile, radius: 0f, directionX: 0f, directionY: 0f);
         _context.OMSetRenderTargets(_gpuBrightRtv);
-        _context.RSSetViewport(new Viewport(0, 0, _downsampleWidth, _downsampleHeight, 0f, 1f));
+        _context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, _downsampleWidth, _downsampleHeight, 0f, 1f));
         _context.VSSetShader(_fullscreenVertexShader);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.PSSetShader(_brightPassShader);
@@ -944,7 +945,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         SetBloomConstants(null, radius, texelX, 0f);
         _context.OMSetRenderTargets(pingRtv);
-        _context.RSSetViewport(new Viewport(0, 0, _downsampleWidth, _downsampleHeight, 0f, 1f));
+        _context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, _downsampleWidth, _downsampleHeight, 0f, 1f));
         _context.VSSetShader(_fullscreenVertexShader);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.PSSetShader(_blurPassShader);
@@ -973,7 +974,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         SetBloomConstants(profile, radius: 0f, directionX: 0f, directionY: 0f);
         _context.OMSetRenderTargets(_gpuCompositeRtv);
-        _context.RSSetViewport(new Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
+        _context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
         _context.VSSetShader(_fullscreenVertexShader);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.PSSetShader(_compositeShader);
@@ -1414,29 +1415,36 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 return;
             }
 
-            Direct3DCreate9Ex(out _d3d9Ex).CheckError();
-            var presentParameters = new PresentParameters
+            _d3d9Ex = D3D9.D3D9.Direct3DCreate9Ex();
+            if (_d3d9Ex is null)
+            {
+                _directPresentStatus = "disabled:d3d9ex-create-failed";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            var presentParameters = new D3D9.PresentParameters
             {
                 Windowed = true,
-                SwapEffect = SwapEffect.Discard,
+                SwapEffect = D3D9.SwapEffect.Discard,
                 DeviceWindowHandle = IntPtr.Zero,
-                PresentationInterval = PresentInterval.Default,
+                PresentationInterval = D3D9.PresentInterval.Default,
             };
 
             _d3d9Device = _d3d9Ex!.CreateDeviceEx(
                 0,
-                DeviceType.Hardware,
+                D3D9.DeviceType.Hardware,
                 IntPtr.Zero,
-                CreateFlags.HardwareVertexProcessing | CreateFlags.Multithreaded | CreateFlags.FpuPreserve,
+                D3D9.CreateFlags.HardwareVertexProcessing | D3D9.CreateFlags.Multithreaded | D3D9.CreateFlags.FpuPreserve,
                 presentParameters);
 
             _d3d9SharedTexture = _d3d9Device.CreateTexture(
                 (uint)Math.Max(1, _surfaceWidth),
                 (uint)Math.Max(1, _surfaceHeight),
                 1,
-                Usage.RenderTarget,
-                Vortice.Direct3D9.Format.A8R8G8B8,
-                Pool.Default,
+                D3D9.Usage.RenderTarget,
+                D3D9.Format.A8R8G8B8,
+                D3D9.Pool.Default,
                 ref sharedHandle);
 
             _d3d9SharedSurface = _d3d9SharedTexture.GetSurfaceLevel(0);
@@ -1515,7 +1523,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, _height),
             ArraySize = 1,
             MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
+            Format = DxgiFormat.R8G8B8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Dynamic,
             BindFlags = BindFlags.None,
@@ -1536,12 +1544,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, _surfaceHeight),
             ArraySize = 1,
             MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
+            Format = DxgiFormat.R8G8B8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Default,
             BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
             CPUAccessFlags = CpuAccessFlags.None,
-            OptionFlags = _directPresentRequested ? ResourceOptionFlags.Shared : ResourceOptionFlags.None,
+            MiscFlags = _directPresentRequested ? ResourceOptionFlags.Shared : ResourceOptionFlags.None,
         };
         _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
         _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
@@ -1573,7 +1581,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, height),
             ArraySize = 1,
             MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
+            Format = DxgiFormat.R8G8B8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Default,
             BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
