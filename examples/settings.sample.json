@@ -18,7 +18,7 @@
       "strength": 0.55
     },
     "temporalSmoothing": {
-      "enabled": false,
+      "enabled": true,
       "riseAlpha": 0.5,
       "fallAlpha": 0.3
     },
@@ -38,10 +38,10 @@
       "threshold": 0.72,
       "softKnee": 0.18,
       "downsampleDivisor": 2,
-      "nearRadiusPx": 3,
-      "farRadiusPx": 9,
-      "nearStrength": 0.42,
-      "farStrength": 0.12
+      "nearRadiusPx": 2,
+      "farRadiusPx": 10,
+      "nearStrength": 1.0,
+      "farStrength": 0.2
     }
   },
   "window": {

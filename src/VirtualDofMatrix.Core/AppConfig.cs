@@ -66,7 +66,7 @@ public sealed class ToneMappingConfig
 
 public sealed class TemporalSmoothingConfig
 {
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; } = true;
 
     public double RiseAlpha { get; set; } = 0.5;
 
@@ -109,14 +109,14 @@ public sealed class BloomConfig
     public int DownsampleDivisor { get; set; } = 2;
 
     // Tight, near-field glow radius in final rendered pixels.
-    public int NearRadiusPx { get; set; } = 3;
+    public int NearRadiusPx { get; set; } = 2;
 
     // Wide, lower-intensity halo radius in final rendered pixels.
-    public int FarRadiusPx { get; set; } = 9;
+    public int FarRadiusPx { get; set; } = 10;
 
-    public double NearStrength { get; set; } = 0.42;
+    public double NearStrength { get; set; } = 1.0;
 
-    public double FarStrength { get; set; } = 0.12;
+    public double FarStrength { get; set; } = 0.2;
 }
 
 public sealed class WindowConfig
