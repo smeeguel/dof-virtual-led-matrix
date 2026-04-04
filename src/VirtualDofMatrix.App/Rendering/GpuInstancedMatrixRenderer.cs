@@ -698,7 +698,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private unsafe bool TryApplyGpuBloom(BloomProfile profile)
+    private bool TryApplyGpuBloom(BloomProfile profile)
     {
         if (_context is null ||
             _frameSrv is null ||
