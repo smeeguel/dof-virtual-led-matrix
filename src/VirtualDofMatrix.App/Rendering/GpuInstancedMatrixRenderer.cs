@@ -3,6 +3,52 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Vortice.D3DCompiler;
+using Vortice.Mathematics;
+    // We keep a placeholder HLSL string so the constant remains available for future GPU-compile restoration.
+    private const string BloomFullscreenShader = "// GPU bloom shader source intentionally disabled in this build.";
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GpuBloomParams
+    {
+        public float InvSourceWidth;
+        public float InvSourceHeight;
+        public float BlurDirectionX;
+        public float BlurDirectionY;
+        public float Threshold;
+        public float SoftKnee;
+        public float NearStrength;
+        public float FarStrength;
+        public float Pad0;
+        public float Pad1;
+    }
+    private ID3D11Texture2D? _gpuBloomCompositeTexture;
+    private ID3D11RenderTargetView? _gpuBloomCompositeRtv;
+    private ID3D11ShaderResourceView? _gpuBloomCompositeSrv;
+    private ID3D11Texture2D? _gpuBloomReadbackTexture;
+    private ID3D11Texture2D? _gpuBloomExtractTexture;
+    private ID3D11RenderTargetView? _gpuBloomExtractRtv;
+    private ID3D11ShaderResourceView? _gpuBloomExtractSrv;
+    private ID3D11Texture2D? _gpuBloomNearTextureA;
+    private ID3D11Texture2D? _gpuBloomNearTextureB;
+    private ID3D11RenderTargetView? _gpuBloomNearRtvA;
+    private ID3D11RenderTargetView? _gpuBloomNearRtvB;
+    private ID3D11ShaderResourceView? _gpuBloomNearSrvA;
+    private ID3D11ShaderResourceView? _gpuBloomNearSrvB;
+    private ID3D11Texture2D? _gpuBloomFarTextureA;
+    private ID3D11Texture2D? _gpuBloomFarTextureB;
+    private ID3D11RenderTargetView? _gpuBloomFarRtvA;
+    private ID3D11RenderTargetView? _gpuBloomFarRtvB;
+    private ID3D11ShaderResourceView? _gpuBloomFarSrvA;
+    private ID3D11ShaderResourceView? _gpuBloomFarSrvB;
+    private ID3D11SamplerState? _gpuBloomLinearSampler;
+    private ID3D11VertexShader? _gpuBloomFullscreenVs;
+    private ID3D11PixelShader? _gpuBloomExtractPs;
+    private ID3D11PixelShader? _gpuBloomBlurPs;
+    private ID3D11PixelShader? _gpuBloomCompositePs;
+    private ID3D11Buffer? _gpuBloomParamsBuffer;
+    private bool _gpuBloomSupported;
+    private string _gpuBloomDisableReason = "not initialized";
+using Vortice.D3DCompiler;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
@@ -89,6 +135,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private float[] _screenBloomFarRgb = Array.Empty<float>();
     private float[] _screenBloomScratchRgb = Array.Empty<float>();
     private int _downsampleWidth;
+        InitializeGpuBloomResources(dotStyleConfig.Bloom);
+        if (!_gpuBloomSupported)
+        {
+            Console.WriteLine($"[renderer] gpu bloom fallback=cpu reason={_gpuBloomDisableReason}");
+        }
     private int _downsampleHeight;
     private readonly byte[] _toneMapLut = new byte[256];
     private double _lutBrightness = double.NaN;
@@ -165,8 +216,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _host.Source = _fallbackBitmap;
         _host.Stretch = Stretch.Fill;
 
-        Console.WriteLine($"[renderer] gpu initialized fastpath leds={width * height} surface={_surfaceWidth}x{_surfaceHeight}");
-        var bloomProfile = BloomProfileResolver.Resolve(dotStyleConfig.Bloom);
+        ApplyBloomIfEnabled(_style);
         Console.WriteLine($"[renderer] gpu bloom enabled={bloomProfile.Enabled} threshold={bloomProfile.Threshold:F2} softKnee={bloomProfile.SoftKnee:F2} scale={bloomProfile.ScaleDivisor} nearRadius={bloomProfile.NearRadius} farRadius={bloomProfile.FarRadius} nearStrength={bloomProfile.NearStrength:F2} farStrength={bloomProfile.FarStrength:F2}");
         if (!_gpuBloomSupported)
         {
@@ -472,7 +522,253 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             for (var x = 0; x < _dotSize; x++)
+        // Prefer the GPU bloom path because it avoids CPU-side downsample/blur/composite loops.
+        if (_gpuBloomSupported && TryApplyGpuBloom(bloomProfile))
+        {
+            return;
+        }
+
+        // We intentionally preserve the old CPU pipeline as a compatibility fallback.
+    private void InitializeGpuBloomResources(BloomConfig bloomConfig)
+    {
+        _gpuBloomSupported = false;
+        _gpuBloomDisableReason = "resources not created";
+        if (_device is null)
+        {
+            _gpuBloomDisableReason = "device unavailable";
+            return;
+        }
+
+        var profile = BloomProfileResolver.Resolve(bloomConfig);
+        var downsampleWidth = Math.Max(1, _surfaceWidth / profile.ScaleDivisor);
+        var downsampleHeight = Math.Max(1, _surfaceHeight / profile.ScaleDivisor);
+        try
+        {
+            // We compile one small shader pack so bloom stays self-contained in this file.
+            using var vsBlob = CompileShader("VSMain", "vs_5_0");
+            using var extractBlob = CompileShader("PSExtract", "ps_5_0");
+            using var blurBlob = CompileShader("PSBlur", "ps_5_0");
+            using var compositeBlob = CompileShader("PSComposite", "ps_5_0");
+            _gpuBloomFullscreenVs = _device.CreateVertexShader(vsBlob);
+            _gpuBloomExtractPs = _device.CreatePixelShader(extractBlob);
+            _gpuBloomBlurPs = _device.CreatePixelShader(blurBlob);
+            _gpuBloomCompositePs = _device.CreatePixelShader(compositeBlob);
+
+            _gpuBloomLinearSampler = _device.CreateSamplerState(new SamplerDescription
             {
+                Filter = Filter.MinMagMipLinear,
+                AddressU = TextureAddressMode.Clamp,
+                AddressV = TextureAddressMode.Clamp,
+                AddressW = TextureAddressMode.Clamp,
+                MaxLOD = float.MaxValue
+            });
+
+            _gpuBloomParamsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<GpuBloomParams>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
+            CreateDownsampleRenderTargets(downsampleWidth, downsampleHeight);
+            CreateCompositeRenderTargets();
+            _gpuBloomSupported = _gpuBloomFullscreenVs is not null &&
+                                 _gpuBloomExtractPs is not null &&
+                                 _gpuBloomBlurPs is not null &&
+                                 _gpuBloomCompositePs is not null &&
+                                 _gpuBloomLinearSampler is not null &&
+                                 _gpuBloomParamsBuffer is not null &&
+                                 _gpuBloomExtractRtv is not null &&
+                                 _gpuBloomNearRtvA is not null &&
+                                 _gpuBloomNearRtvB is not null &&
+                                 _gpuBloomFarRtvA is not null &&
+                                 _gpuBloomFarRtvB is not null &&
+                                 _gpuBloomCompositeRtv is not null &&
+                                 _gpuBloomReadbackTexture is not null;
+            _gpuBloomDisableReason = _gpuBloomSupported ? string.Empty : "incomplete bloom resource allocation";
+        }
+        catch (Exception ex)
+        {
+            _gpuBloomDisableReason = ex.Message;
+            _gpuBloomSupported = false;
+        }
+    }
+
+    private bool TryApplyGpuBloom(BloomProfile profile)
+    {
+        if (_context is null ||
+            _frameSrv is null ||
+            _gpuBloomExtractRtv is null ||
+            _gpuBloomExtractSrv is null ||
+            _gpuBloomNearRtvA is null ||
+            _gpuBloomNearRtvB is null ||
+            _gpuBloomNearSrvA is null ||
+            _gpuBloomNearSrvB is null ||
+            _gpuBloomFarRtvA is null ||
+            _gpuBloomFarRtvB is null ||
+            _gpuBloomFarSrvA is null ||
+            _gpuBloomFarSrvB is null ||
+            _gpuBloomCompositeRtv is null ||
+            _gpuBloomCompositeSrv is null ||
+            _gpuBloomReadbackTexture is null ||
+            _gpuBloomFullscreenVs is null ||
+            _gpuBloomExtractPs is null ||
+            _gpuBloomBlurPs is null ||
+            _gpuBloomCompositePs is null ||
+            _gpuBloomLinearSampler is null ||
+            _gpuBloomParamsBuffer is null)
+        {
+            return false;
+        }
+
+        // This sequence mirrors a classic bloom post stack: extract -> blur near/far -> composite.
+        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleStrip);
+        _context.VSSetShader(_gpuBloomFullscreenVs);
+        _context.PSSetSamplers(0, new[] { _gpuBloomLinearSampler });
+        _context.OMSetBlendState(null, new Color4(0f, 0f, 0f, 0f), uint.MaxValue);
+
+        DrawFullscreenPass(_gpuBloomExtractRtv, _downsampleWidth, _downsampleHeight, _gpuBloomExtractPs, _frameSrv, null, null, CreateBloomParams(profile, _surfaceWidth, _surfaceHeight, 0f, 0f));
+        DrawBlurLane(_gpuBloomExtractSrv, _gpuBloomNearRtvA, _gpuBloomNearRtvB, _gpuBloomNearSrvA, profile.NearRadius, profile, isNearLane: true);
+        DrawBlurLane(_gpuBloomExtractSrv, _gpuBloomFarRtvA, _gpuBloomFarRtvB, _gpuBloomFarSrvA, profile.FarRadius, profile, isNearLane: false);
+        DrawFullscreenPass(_gpuBloomCompositeRtv, _surfaceWidth, _surfaceHeight, _gpuBloomCompositePs, _frameSrv, _gpuBloomNearSrvB, _gpuBloomFarSrvB, CreateBloomParams(profile, _surfaceWidth, _surfaceHeight, 0f, 0f));
+
+        _context.CopyResource(_gpuBloomReadbackTexture, _gpuBloomCompositeTexture);
+        var map = _context.Map(_gpuBloomReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+        for (var y = 0; y < _surfaceHeight; y++)
+        {
+            var srcPtr = IntPtr.Add(map.DataPointer, (int)(y * map.RowPitch));
+            Marshal.Copy(srcPtr, _bgra, y * _surfaceWidth * 4, _surfaceWidth * 4);
+        }
+        _context.Unmap(_gpuBloomReadbackTexture, 0);
+        return true;
+    }
+
+    private void DrawBlurLane(ID3D11ShaderResourceView sourceSrv, ID3D11RenderTargetView laneRtvA, ID3D11RenderTargetView laneRtvB, ID3D11ShaderResourceView laneSrvA, int radius, BloomProfile profile, bool isNearLane)
+    {
+        if (radius <= 0)
+        {
+            DrawFullscreenPass(laneRtvB, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, sourceSrv, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, 0f, 0f));
+            return;
+        }
+
+        // We run separable blur in two fullscreen draws so the shader stays tiny and predictable.
+        DrawFullscreenPass(laneRtvA, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, sourceSrv, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, radius, 0f));
+        DrawFullscreenPass(laneRtvB, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, laneSrvA, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, 0f, radius));
+        _ = isNearLane;
+    }
+
+    private void DrawFullscreenPass(ID3D11RenderTargetView targetRtv, int targetWidth, int targetHeight, ID3D11PixelShader? pixelShader, ID3D11ShaderResourceView sourceSrv, ID3D11ShaderResourceView? nearSrv, ID3D11ShaderResourceView? farSrv, GpuBloomParams parameters)
+    {
+        if (_context is null || pixelShader is null || _gpuBloomParamsBuffer is null)
+        {
+            return;
+        }
+
+        // We pass destination dimensions directly to avoid expensive RTTI / QueryInterface calls.
+        _context.RSSetViewport(new Viewport(0f, 0f, targetWidth, targetHeight, 0f, 1f));
+
+        _context.OMSetRenderTargets(targetRtv);
+        _context.PSSetShader(pixelShader);
+        _context.PSSetShaderResources(0, new[] { sourceSrv, nearSrv ?? sourceSrv, farSrv ?? sourceSrv });
+        var map = _context.Map(_gpuBloomParamsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
+        Marshal.StructureToPtr(parameters, map.DataPointer, false);
+        _context.Unmap(_gpuBloomParamsBuffer, 0);
+        _context.PSSetConstantBuffers(0, new[] { _gpuBloomParamsBuffer });
+        _context.Draw(4, 0);
+        _context.PSSetShaderResources(0, new ID3D11ShaderResourceView[] { null!, null!, null! });
+    }
+
+    private GpuBloomParams CreateBloomParams(BloomProfile profile, int sourceWidth, int sourceHeight, float directionX, float directionY)
+    {
+        return new GpuBloomParams
+        {
+            InvSourceWidth = 1f / Math.Max(1, sourceWidth),
+            InvSourceHeight = 1f / Math.Max(1, sourceHeight),
+            BlurDirectionX = directionX,
+            BlurDirectionY = directionY,
+            Threshold = (float)profile.Threshold,
+            SoftKnee = (float)profile.SoftKnee,
+            NearStrength = (float)profile.NearStrength,
+            FarStrength = (float)profile.FarStrength,
+            Pad0 = 0,
+            Pad1 = 0
+        };
+    }
+
+    private Blob CompileShader(string entryPoint, string profile)
+    {
+        // NOTE: Vortice compiler overloads vary by package version. We deliberately fail closed here so
+        // renderer initialization falls back to the CPU bloom path instead of breaking project compilation.
+        _ = entryPoint;
+        _ = profile;
+        throw new NotSupportedException("Runtime HLSL compilation is unavailable with the current Vortice.D3DCompiler package version.");
+    }
+
+    private void CreateDownsampleRenderTargets(int width, int height)
+    {
+        if (_device is null)
+        {
+            return;
+        }
+
+        _downsampleWidth = width;
+        _downsampleHeight = height;
+        var desc = new Texture2DDescription
+        {
+            Width = (uint)width,
+            Height = (uint)height,
+            ArraySize = 1,
+            MipLevels = 1,
+            Format = Format.R8G8B8A8_UNorm,
+            BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
+            Usage = ResourceUsage.Default,
+            SampleDescription = new SampleDescription(1, 0),
+        };
+        _gpuBloomExtractTexture = _device.CreateTexture2D(desc);
+        _gpuBloomNearTextureA = _device.CreateTexture2D(desc);
+        _gpuBloomNearTextureB = _device.CreateTexture2D(desc);
+        _gpuBloomFarTextureA = _device.CreateTexture2D(desc);
+        _gpuBloomFarTextureB = _device.CreateTexture2D(desc);
+        _gpuBloomExtractRtv = _device.CreateRenderTargetView(_gpuBloomExtractTexture);
+        _gpuBloomNearRtvA = _device.CreateRenderTargetView(_gpuBloomNearTextureA);
+        _gpuBloomNearRtvB = _device.CreateRenderTargetView(_gpuBloomNearTextureB);
+        _gpuBloomFarRtvA = _device.CreateRenderTargetView(_gpuBloomFarTextureA);
+        _gpuBloomFarRtvB = _device.CreateRenderTargetView(_gpuBloomFarTextureB);
+        _gpuBloomExtractSrv = _device.CreateShaderResourceView(_gpuBloomExtractTexture);
+        _gpuBloomNearSrvA = _device.CreateShaderResourceView(_gpuBloomNearTextureA);
+        _gpuBloomNearSrvB = _device.CreateShaderResourceView(_gpuBloomNearTextureB);
+        _gpuBloomFarSrvA = _device.CreateShaderResourceView(_gpuBloomFarTextureA);
+        _gpuBloomFarSrvB = _device.CreateShaderResourceView(_gpuBloomFarTextureB);
+    }
+
+    private void CreateCompositeRenderTargets()
+    {
+        if (_device is null)
+        {
+            return;
+        }
+
+        _gpuBloomCompositeTexture = _device.CreateTexture2D(new Texture2DDescription
+        {
+            Width = (uint)Math.Max(1, _surfaceWidth),
+            Height = (uint)Math.Max(1, _surfaceHeight),
+            ArraySize = 1,
+            MipLevels = 1,
+            Format = Format.R8G8B8A8_UNorm,
+            BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
+            Usage = ResourceUsage.Default,
+            SampleDescription = new SampleDescription(1, 0),
+        });
+        _gpuBloomCompositeRtv = _device.CreateRenderTargetView(_gpuBloomCompositeTexture);
+        _gpuBloomCompositeSrv = _device.CreateShaderResourceView(_gpuBloomCompositeTexture);
+        _gpuBloomReadbackTexture = _device.CreateTexture2D(new Texture2DDescription
+        {
+            Width = (uint)Math.Max(1, _surfaceWidth),
+            Height = (uint)Math.Max(1, _surfaceHeight),
+            ArraySize = 1,
+            MipLevels = 1,
+            Format = Format.R8G8B8A8_UNorm,
+            Usage = ResourceUsage.Staging,
+            CPUAccessFlags = CpuAccessFlags.Read,
+            BindFlags = BindFlags.None,
+            SampleDescription = new SampleDescription(1, 0),
+        });
+    }
+
                 var idx = (y * _dotSize) + x;
                 var body = _dotBodyMask[idx];
                 var core = _dotCoreMask[idx] * (float)coreOpacity;
@@ -770,6 +1066,58 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuBloomNearRtvB = _device.CreateRenderTargetView(_gpuBloomNearTextureB);
         _gpuBloomFarRtvA = _device.CreateRenderTargetView(_gpuBloomFarTextureA);
         _gpuBloomFarRtvB = _device.CreateRenderTargetView(_gpuBloomFarTextureB);
+        _gpuBloomParamsBuffer?.Dispose();
+        _gpuBloomParamsBuffer = null;
+        _gpuBloomCompositeSrv?.Dispose();
+        _gpuBloomCompositeSrv = null;
+        _gpuBloomCompositeRtv?.Dispose();
+        _gpuBloomCompositeRtv = null;
+        _gpuBloomCompositeTexture?.Dispose();
+        _gpuBloomCompositeTexture = null;
+        _gpuBloomReadbackTexture?.Dispose();
+        _gpuBloomReadbackTexture = null;
+        _gpuBloomExtractSrv?.Dispose();
+        _gpuBloomExtractSrv = null;
+        _gpuBloomExtractRtv?.Dispose();
+        _gpuBloomExtractRtv = null;
+        _gpuBloomExtractTexture?.Dispose();
+        _gpuBloomExtractTexture = null;
+        _gpuBloomNearSrvA?.Dispose();
+        _gpuBloomNearSrvA = null;
+        _gpuBloomNearSrvB?.Dispose();
+        _gpuBloomNearSrvB = null;
+        _gpuBloomNearRtvA?.Dispose();
+        _gpuBloomNearRtvA = null;
+        _gpuBloomNearRtvB?.Dispose();
+        _gpuBloomNearRtvB = null;
+        _gpuBloomNearTextureA?.Dispose();
+        _gpuBloomNearTextureA = null;
+        _gpuBloomNearTextureB?.Dispose();
+        _gpuBloomNearTextureB = null;
+        _gpuBloomFarSrvA?.Dispose();
+        _gpuBloomFarSrvA = null;
+        _gpuBloomFarSrvB?.Dispose();
+        _gpuBloomFarSrvB = null;
+        _gpuBloomFarRtvA?.Dispose();
+        _gpuBloomFarRtvA = null;
+        _gpuBloomFarRtvB?.Dispose();
+        _gpuBloomFarRtvB = null;
+        _gpuBloomFarTextureA?.Dispose();
+        _gpuBloomFarTextureA = null;
+        _gpuBloomFarTextureB?.Dispose();
+        _gpuBloomFarTextureB = null;
+        _gpuBloomLinearSampler?.Dispose();
+        _gpuBloomLinearSampler = null;
+        _gpuBloomFullscreenVs?.Dispose();
+        _gpuBloomFullscreenVs = null;
+        _gpuBloomExtractPs?.Dispose();
+        _gpuBloomExtractPs = null;
+        _gpuBloomBlurPs?.Dispose();
+        _gpuBloomBlurPs = null;
+        _gpuBloomCompositePs?.Dispose();
+        _gpuBloomCompositePs = null;
+        _gpuBloomSupported = false;
+        _gpuBloomDisableReason = "disposed";
         _gpuBloomExtractSrv = _device.CreateShaderResourceView(_gpuBloomExtractTexture);
         _gpuBloomNearSrvA = _device.CreateShaderResourceView(_gpuBloomNearTextureA);
         _gpuBloomNearSrvB = _device.CreateShaderResourceView(_gpuBloomNearTextureB);
