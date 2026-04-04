@@ -536,14 +536,15 @@ internal sealed class MatrixFrameRasterComposer
 
     private static float EmissiveWeight(float r, float g, float b, double threshold, double softKnee)
     {
-        var luma = ((0.2126f * r) + (0.7152f * g) + (0.0722f * b)) / 255f;
+        // We key bloom off peak channel brightness so saturated colors (e.g. pure green) bloom like white highlights.
+        var peak = Math.Max(r, Math.Max(g, b)) / 255f;
         if (softKnee <= 0.0001)
         {
-            return luma >= threshold ? 1f : 0f;
+            return peak >= threshold ? 1f : 0f;
         }
 
         var knee = Math.Max(0.0001f, (float)softKnee);
-        var t = Math.Clamp((luma - (float)threshold) / knee, 0f, 1f);
+        var t = Math.Clamp((peak - (float)threshold) / knee, 0f, 1f);
         return t * t * (3f - (2f * t));
     }
 
