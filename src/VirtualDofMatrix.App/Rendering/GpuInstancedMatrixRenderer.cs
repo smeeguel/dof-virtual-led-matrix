@@ -1040,7 +1040,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // Radius is interpreted as pure spill distance in screen pixels (mapped to bloom space), not dot-size inflated.
         _ = dotSize;
         _ = scaleDivisor;
-        return Math.Max(0, configuredRadius);
+        return Math.Clamp(configuredRadius, 0, 8);
     }
 
     private static void EnsureOpaqueBackground(byte[] bgra)
@@ -1384,9 +1384,30 @@ float SoftKneeWeight(float3 color)
 }
 float4 PSBrightPass(VsOut input) : SV_Target
 {
-    float3 baseColor = BaseTexture.Sample(LinearSampler, input.Uv).rgb;
-    float emissive = SoftKneeWeight(baseColor);
-    return float4(baseColor * emissive, 1.0f);
+    // Conversational note: match CPU bloom extraction by averaging over the downsample footprint
+    // and only counting emissive contributors.
+    int scale = max(1, (int)round(ScaleDivisor));
+    float2 texel = 1.0f / max(SurfaceSize, float2(1.0f, 1.0f));
+    float2 footprint = float2(scale, scale);
+    float2 start = input.Uv - ((footprint * 0.5f - 0.5f) * texel);
+    float3 sum = 0;
+    float samples = 0;
+    [loop]
+    for (int y = 0; y < scale; y++)
+    {
+        [loop]
+        for (int x = 0; x < scale; x++)
+        {
+            float2 uv = start + float2(x, y) * texel;
+            float3 c = BaseTexture.Sample(LinearSampler, uv).rgb;
+            float e = SoftKneeWeight(c);
+            if (e <= 0.0f) continue;
+            sum += c * e;
+            samples += 1.0f;
+        }
+    }
+    if (samples <= 0.0f) return float4(0, 0, 0, 1);
+    return float4(sum / samples, 1.0f);
 }
 float4 PSSeparableBlur(VsOut input) : SV_Target
 {
