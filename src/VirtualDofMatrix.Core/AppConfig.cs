@@ -78,6 +78,9 @@ public sealed class MatrixVisualConfig
     // When true, force the renderer to keep CPU dot rasterization for maximum compatibility.
     public bool ForceCpuDotRasterFallback { get; set; } = false;
 
+    // Runtime capability switch for the shared-surface present bridge (D3D11 -> D3D9Ex -> D3DImage).
+    public bool EnableZeroReadbackPresent { get; set; } = true;
+
     // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
     public bool FlatShading { get; set; } = false;
 

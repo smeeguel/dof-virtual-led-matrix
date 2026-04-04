@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Vortice.D3DCompiler;
 using Vortice.Direct3D;
+using Vortice.Direct3D9;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.Mathematics;
@@ -58,7 +59,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11ShaderResourceView? _gpuCompositeSrv;
     private ID3D11Texture2D? _gpuReadbackTexture;
     private D3DImage? _directPresentImage;
+    private IDirect3D9Ex? _d3d9Ex;
+    private IDirect3DDevice9Ex? _d3d9Device;
+    private IDirect3DTexture9? _d3d9SharedTexture;
+    private IDirect3DSurface9? _d3d9SharedSurface;
     private bool _directPresentEnabled;
+    private bool _directPresentRequested;
+    private bool _directPresentStatusLogged;
     private bool _directPresentParityValidated;
     private string _directPresentStatus = "uninitialized";
     private bool _gpuBloomSupported;
@@ -172,6 +179,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _host.Stretch = Stretch.Fill;
         _directPresentImage = null;
         _directPresentEnabled = false;
+        _directPresentRequested = dotStyleConfig.Visual.EnableZeroReadbackPresent;
+        _directPresentStatusLogged = false;
         _directPresentParityValidated = false;
         _directPresentStatus = "waiting-for-bloom-init";
         InitializeGpuBloomPipeline();
@@ -717,11 +726,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             try
             {
                 _context.Flush();
-                _host.Source = _directPresentImage;
                 _directPresentImage.Lock();
                 _directPresentImage.AddDirtyRect(new System.Windows.Int32Rect(0, 0, Math.Max(1, _surfaceWidth), Math.Max(1, _surfaceHeight)));
                 _directPresentImage.Unlock();
                 trace.Append(" direct-present");
+                LogDirectPresentModeIfNeeded();
 
                 // We keep one parity sample through the old readback path to verify image-equivalent output shape.
                 if (!_directPresentParityValidated)
@@ -735,6 +744,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             {
                 _directPresentEnabled = false;
                 _directPresentStatus = $"disabled:present-failed:{ex.GetType().Name}";
+                _directPresentStatusLogged = false;
                 AppLogger.Warn($"[renderer] gpu direct present disabled during frame; falling back to readback. reason={ex.Message}");
             }
         }
@@ -847,6 +857,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuBloomTrace = trace.ToString();
         ReadBgraRows(readback.DataPointer, readback.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
         _context.Unmap(_gpuReadbackTexture, 0);
+        LogDirectPresentModeIfNeeded();
         return true;
     }
 
@@ -1373,8 +1384,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private void TryInitializeDirectPresentSurface()
     {
+        DisposeDirectPresentResources();
         _directPresentEnabled = false;
         _directPresentImage = null;
+
+        if (!_directPresentRequested)
+        {
+            _directPresentStatus = "disabled:runtime-switch-off";
+            AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+            return;
+        }
 
         if (_gpuCompositeTexture is null || _host is null)
         {
@@ -1385,17 +1404,56 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         try
         {
-            // Conversational note: D3DImage expects a D3D9 surface pointer. Our D3D11-only build cannot bind it directly yet.
-            // We still centralize this initialization so the renderer cleanly falls back today and can be upgraded in one place.
+            // Conversational note: the D3D11 composite target is exposed as a DXGI shared handle, then opened on a D3D9Ex texture for D3DImage.
+            using var dxgiResource = _gpuCompositeTexture.QueryInterface<IDXGIResource>();
+            var sharedHandle = dxgiResource.SharedHandle;
+            if (sharedHandle == IntPtr.Zero)
+            {
+                _directPresentStatus = "disabled:no-shared-handle";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            Direct3DCreate9Ex(out _d3d9Ex).CheckError();
+            var presentParameters = new PresentParameters
+            {
+                Windowed = true,
+                SwapEffect = SwapEffect.Discard,
+                DeviceWindowHandle = IntPtr.Zero,
+                PresentationInterval = PresentInterval.Default,
+            };
+
+            _d3d9Device = _d3d9Ex!.CreateDeviceEx(
+                0,
+                DeviceType.Hardware,
+                IntPtr.Zero,
+                CreateFlags.HardwareVertexProcessing | CreateFlags.Multithreaded | CreateFlags.FpuPreserve,
+                presentParameters);
+
+            _d3d9SharedTexture = _d3d9Device.CreateTexture(
+                (uint)Math.Max(1, _surfaceWidth),
+                (uint)Math.Max(1, _surfaceHeight),
+                1,
+                Usage.RenderTarget,
+                Vortice.Direct3D9.Format.A8R8G8B8,
+                Pool.Default,
+                ref sharedHandle);
+
+            _d3d9SharedSurface = _d3d9SharedTexture.GetSurfaceLevel(0);
             _directPresentImage = new D3DImage();
-            _directPresentEnabled = false;
-            _directPresentStatus = "disabled:d3d11-d3dimage-bridge-unavailable";
-            AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+            _directPresentImage.Lock();
+            _directPresentImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, _d3d9SharedSurface.NativePointer, true);
+            _directPresentImage.Unlock();
+            _host.Source = _directPresentImage;
+            _host.Stretch = Stretch.Fill;
+            _directPresentEnabled = true;
+            _directPresentStatus = "active:zero-readback";
+            AppLogger.Info("[renderer] gpu direct present enabled with shared-surface bridge (zero-readback mode active).");
         }
         catch (Exception ex)
         {
             _directPresentEnabled = false;
-            _directPresentImage = null;
+            DisposeDirectPresentResources();
             _directPresentStatus = $"disabled:init-exception:{ex.GetType().Name}";
             AppLogger.Warn($"[renderer] gpu direct present disabled. reason={ex.Message}");
         }
@@ -1483,6 +1541,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Usage = ResourceUsage.Default,
             BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
             CPUAccessFlags = CpuAccessFlags.None,
+            OptionFlags = _directPresentRequested ? ResourceOptionFlags.Shared : ResourceOptionFlags.None,
         };
         _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
         _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
@@ -1539,6 +1598,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private void DisposeGpuBloomResources()
     {
+        DisposeDirectPresentResources();
         DisposeBloomIntermediateTargets();
         _gpuReadbackTexture?.Dispose();
         _gpuReadbackTexture = null;
@@ -1574,6 +1634,36 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _brightPassShader = null;
         _fullscreenVertexShader?.Dispose();
         _fullscreenVertexShader = null;
+    }
+
+    private void DisposeDirectPresentResources()
+    {
+        _d3d9SharedSurface?.Dispose();
+        _d3d9SharedSurface = null;
+        _d3d9SharedTexture?.Dispose();
+        _d3d9SharedTexture = null;
+        _d3d9Device?.Dispose();
+        _d3d9Device = null;
+        _d3d9Ex?.Dispose();
+        _d3d9Ex = null;
+        _directPresentImage = null;
+    }
+
+    private void LogDirectPresentModeIfNeeded()
+    {
+        if (_directPresentStatusLogged)
+        {
+            return;
+        }
+
+        _directPresentStatusLogged = true;
+        if (_directPresentEnabled)
+        {
+            AppLogger.Info("[renderer] frame present path=zero-readback-shared-surface.");
+            return;
+        }
+
+        AppLogger.Info($"[renderer] frame present path=fallback-readback status={_directPresentStatus}");
     }
 
     private void DisposeBloomIntermediateTargets()
