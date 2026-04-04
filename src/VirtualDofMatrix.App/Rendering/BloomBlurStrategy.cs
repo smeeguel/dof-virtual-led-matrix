@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace VirtualDofMatrix.App.Rendering;
 
-// Conversational overview: blur helpers are shared by CPU/GPU bloom prep paths and keep radius math in one place.
+// Overview: blur helpers are shared by CPU/GPU bloom prep paths and keep radius math in one place.
 internal static class BloomBlurStrategy
 {
     internal static void BlurFromImmutableSource(float[] sourceRgb, float[] destinationRgb, float[] scratchRgb, int width, int height, int radius)

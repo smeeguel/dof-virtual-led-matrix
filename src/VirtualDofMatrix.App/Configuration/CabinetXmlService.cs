@@ -3,7 +3,7 @@ using System.IO;
 
 namespace VirtualDofMatrix.App.Configuration;
 
-// Conversational overview: CabinetXmlService keeps Cabinet.xml discovery and toy resolution edits in one place for safer automation.
+// Overview: CabinetXmlService keeps Cabinet.xml discovery and toy resolution edits in one place for safer automation.
 public sealed class CabinetXmlService
 {
     public const int SafeMaxLedTotal = 8800;

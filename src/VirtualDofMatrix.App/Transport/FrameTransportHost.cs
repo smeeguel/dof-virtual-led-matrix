@@ -5,7 +5,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Transport;
 
-// Conversational overview: FrameTransportHost listens for serialized frame presentations and republishes them as app-level events.
+// Overview: FrameTransportHost listens for serialized frame presentations and republishes them as app-level events.
 public sealed class FrameTransportHost
 {
     private readonly AppConfig _config;

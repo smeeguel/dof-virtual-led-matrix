@@ -7,7 +7,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Rendering;
 
-// Conversational overview: CPU renderer composes frames off-thread and only marshals final bitmap updates back to WPF.
+// Overview: CPU renderer composes frames off-thread and only marshals final bitmap updates back to WPF.
 public sealed class CpuMatrixRenderer : IMatrixRenderer
 {
     private readonly MatrixFrameRasterComposer _composer = new();

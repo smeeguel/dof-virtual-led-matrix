@@ -2,7 +2,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Rendering;
 
-// Conversational overview: resolve once, clamp once, then renderers can consume a trusted bloom profile directly.
+// Overview: resolve once, clamp once, then renderers can consume a trusted bloom profile directly.
 internal static class BloomProfileResolver
 {
     public static BloomProfile Resolve(BloomConfig bloom)

@@ -12,7 +12,7 @@ using System.Text.Json;
 
 namespace VirtualDofMatrix.App;
 
-// Conversational overview: App wires together config loading, transport startup, UI lifecycle, and local control commands.
+// Overview: App wires together config loading, transport startup, UI lifecycle, and local control commands.
 public partial class App : Application
 {
     private const string ConfigFilePath = "settings.json";

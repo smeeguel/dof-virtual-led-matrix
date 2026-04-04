@@ -4,7 +4,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Configuration;
 
-// Conversational overview: this store keeps settings.json compatible across schema tweaks by applying defaults after deserialize.
+// Overview: this store keeps settings.json compatible across schema tweaks by applying defaults after deserialize.
 public sealed class AppConfigurationStore
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()

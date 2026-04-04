@@ -2,7 +2,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Configuration;
 
-// Conversational overview: quality profiles are intentionally conservative presets layered on top of explicit user numeric tuning.
+// Overview: quality profiles are intentionally conservative presets layered on top of explicit user numeric tuning.
 public static class VisualQualityProfiles
 {
     public const string Low = "Low";
@@ -13,7 +13,7 @@ public static class VisualQualityProfiles
 
     public static void ApplyPreset(MatrixConfig matrix, string preset)
     {
-        // Conversational note: quality presets should only toggle feature flags, not overwrite user-tuned numeric knobs.
+        // Note: quality presets should only toggle feature flags, not overwrite user-tuned numeric knobs.
         switch (preset)
         {
             case Low:

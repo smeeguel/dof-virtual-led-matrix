@@ -3,7 +3,7 @@ using System.Text;
 
 namespace VirtualDofMatrix.App.Logging;
 
-// Conversational overview: AppLogger is intentionally tiny and file-based so protocol debugging works even on end-user cabinets.
+// Overview: AppLogger is intentionally tiny and file-based so protocol debugging works even on end-user cabinets.
 internal static class AppLogger
 {
     private static readonly object Gate = new();
@@ -17,7 +17,7 @@ internal static class AppLogger
             _logFilePath = Path.Combine(AppContext.BaseDirectory, "debug.log");
             Directory.CreateDirectory(Path.GetDirectoryName(_logFilePath) ?? AppContext.BaseDirectory);
 
-            // Conversational note: we wipe the prior session so each app launch starts with a clean debug.log.
+            // Note: we wipe the prior session so each app launch starts with a clean debug.log.
             File.WriteAllText(_logFilePath, string.Empty, Encoding.UTF8);
         }
     }
@@ -33,7 +33,7 @@ internal static class AppLogger
                 return;
             }
 
-            // Conversational note: we stamp a session marker so people can quickly tell when a new app run started.
+            // Note: we stamp a session marker so people can quickly tell when a new app run started.
             AppendLine($"--- logging enabled (pid={Environment.ProcessId}) ---");
         }
     }

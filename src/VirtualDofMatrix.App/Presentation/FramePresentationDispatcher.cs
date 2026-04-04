@@ -5,7 +5,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Presentation;
 
-// Conversational overview: this dispatcher coalesces fast transport updates into UI-thread-safe frame notifications.
+// Overview: this dispatcher coalesces fast transport updates into UI-thread-safe frame notifications.
 public sealed class FramePresentationDispatcher : IDisposable
 {
     private readonly Dispatcher _dispatcher;

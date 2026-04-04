@@ -8,7 +8,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
 
-// Conversational overview: SettingsWindow is a working-copy editor that applies runtime-safe changes without mutating the live config until confirmed.
+// Overview: SettingsWindow is a working-copy editor that applies runtime-safe changes without mutating the live config until confirmed.
 public partial class SettingsWindow : Window
 {
     private const string CustomResolution = "Custom";

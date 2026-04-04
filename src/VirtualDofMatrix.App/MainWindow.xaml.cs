@@ -9,7 +9,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
 
-// Conversational overview: MainWindow owns viewport behavior (always-on-top/borderless/aspect lock) and forwards frames to the active renderer.
+// Overview: MainWindow owns viewport behavior (always-on-top/borderless/aspect lock) and forwards frames to the active renderer.
 public partial class MainWindow : Window
 {
     private enum AspectLockAxis
@@ -387,7 +387,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Conversational note: when DOF goes quiet we hard-reset renderer state so temporal smoothing
+        // Note: when DOF goes quiet we hard-reset renderer state so temporal smoothing
         // and bloom history cannot keep the previous table frame visible underneath the "off" dots.
         _matrixRenderer.Clear();
         _matrixRenderer.Render();

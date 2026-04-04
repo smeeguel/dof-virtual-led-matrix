@@ -18,7 +18,7 @@ using DxgiFormat = Vortice.DXGI.Format;
 
 namespace VirtualDofMatrix.App.Rendering;
 
-// Conversational overview: GPU renderer owns D3D device resources and composes matrix dots/bloom in shader passes.
+// Overview: GPU renderer owns D3D device resources and composes matrix dots/bloom in shader passes.
 public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 {
     private const int Channels = 3;
@@ -252,7 +252,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var useGpuDotPass = ShouldUseGpuDotPass(_style);
         if (useGpuDotPass)
         {
-            // Conversational note: this path uploads mapped LED colors and lets the GPU shade dot geometry per pixel.
+            // Note: this path uploads mapped LED colors and lets the GPU shade dot geometry per pixel.
             UploadLogicalLedBufferToGpu();
             if (!RenderGpuDotsToBaseTexture())
             {
@@ -262,7 +262,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         if (!useGpuDotPass)
         {
-            // Conversational note: compatibility path keeps the original CPU dot raster behavior exactly intact.
+            // Note: compatibility path keeps the original CPU dot raster behavior exactly intact.
             Array.Clear(_bgra, 0, _bgra.Length);
             EnsureOpaqueBackground(_bgra);
             for (var raster = 0; raster < _width * _height; raster++)
@@ -283,10 +283,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
         _context.Unmap(_frameTexture, 0);
 
-        // Conversational note: when direct-present is online we skip CPU bitmap uploads entirely.
+        // Note: when direct-present is online we skip CPU bitmap uploads entirely.
         if (!_directPresentEnabled)
         {
-            // Conversational note: this renderer presents via WriteableBitmap in fallback mode.
+            // Note: this renderer presents via WriteableBitmap in fallback mode.
             _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
         }
     }
@@ -600,7 +600,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
             catch (Exception ex)
             {
-                // Conversational note: if GPU bloom faults mid-frame, we rebuild bloom resources once before dropping to CPU fallback.
+                // Note: if GPU bloom faults mid-frame, we rebuild bloom resources once before dropping to CPU fallback.
                 TryRecoverGpuBloomPipeline(ex);
                 AppLogger.Warn($"[renderer] gpu bloom execution failed at stage='{_gpuBloomStage}'; switching to CPU fallback. reason={ex.Message} {TryGetDeviceRemovedReasonText()} trace={_gpuBloomTrace}");
             }
@@ -610,7 +610,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         if (baseFrameIsGpuRendered && _context is not null && _gpuBaseTexture is not null && _gpuReadbackTexture is not null)
         {
-            // Conversational note: CPU bloom expects a CPU-side BGRA surface, so we read back only when GPU dots were used.
+            // Note: CPU bloom expects a CPU-side BGRA surface, so we read back only when GPU dots were used.
             _context.CopyResource(_gpuReadbackTexture, _gpuBaseTexture);
             var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
             ReadBgraRows(readback.DataPointer, readback.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
@@ -667,7 +667,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         if (!baseFrameIsGpuRendered)
         {
-            // Conversational note: CPU dots still render into _bgra, so we upload that only for the fallback dot path.
+            // Note: CPU dots still render into _bgra, so we upload that only for the fallback dot path.
             _gpuBloomStage = "upload-base";
             trace.Append(" ->upload-base");
             _gpuBloomTrace = trace.ToString();
@@ -681,7 +681,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         trace.Append(" ->bright-pass");
         _gpuBloomTrace = trace.ToString();
         RunBrightPass(profile);
-        // Conversational note: we only run one separable blur lane, then derive the second glow lane in composite.
+        // Note: we only run one separable blur lane, then derive the second glow lane in composite.
         var sharedRadius = Math.Min(nearRadius, farRadius);
         if (nearRadius <= 0)
         {
@@ -713,7 +713,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuBloomTrace = trace.ToString();
         RunCompositePass(profile, derivedRadius, baseRepresentsNear);
 
-        // Conversational note: explicitly switch away from the composite RTV before CopyResource.
+        // Note: explicitly switch away from the composite RTV before CopyResource.
         _gpuBloomStage = "unbind-composite";
         trace.Append(" ->unbind-composite");
         _gpuBloomTrace = trace.ToString();
@@ -739,7 +739,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
-        // Conversational note: when direct present is online, we intentionally avoid GPU->CPU readback.
+        // Note: when direct present is online, we intentionally avoid GPU->CPU readback.
         if (_directPresentEnabled && _directPresentImage is not null && _host is not null)
         {
             try
@@ -887,7 +887,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
-        // Conversational note: this is a one-time sample to validate the legacy fallback path still sees the same composed frame.
+        // Note: this is a one-time sample to validate the legacy fallback path still sees the same composed frame.
         _context.CopyResource(_gpuReadbackTexture, _gpuCompositeTexture);
         _context.Flush();
         var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
@@ -1018,7 +1018,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             NearStrength = (float)(profile?.NearStrength ?? 0.0),
             FarStrength = (float)(profile?.FarStrength ?? 0.0),
             ScaleDivisor = (float)(profile?.ScaleDivisor ?? Math.Max(1, _gpuBloomScaleDivisor)),
-            // Conversational note: clamp radius defensively so bad constant data cannot create a runaway shader loop.
+            // Note: clamp radius defensively so bad constant data cannot create a runaway shader loop.
             Radius = Math.Clamp(radius, 0f, 8f),
             DirectionX = directionX,
             DirectionY = directionY,
@@ -1422,7 +1422,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         try
         {
-            // Conversational note: the D3D11 composite target is exposed as a DXGI shared handle, then opened on a D3D9Ex texture for D3DImage.
+            // Note: the D3D11 composite target is exposed as a DXGI shared handle, then opened on a D3D9Ex texture for D3DImage.
             using var dxgiResource = _gpuCompositeTexture.QueryInterface<IDXGIResource>();
             var sharedHandle = dxgiResource.SharedHandle;
             if (sharedHandle == IntPtr.Zero)
@@ -1486,7 +1486,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private static Blob CompileShaderOrThrow(string entryPoint, string shaderProfile)
     {
-        // Conversational note: CompileFromFile is the most deterministic overload in Vortice across SDK bindings.
+        // Note: CompileFromFile is the most deterministic overload in Vortice across SDK bindings.
         var shaderPath = Path.Combine(Path.GetTempPath(), "VirtualDofMatrix.BloomShaders.hlsl");
         File.WriteAllText(shaderPath, BloomShaders.Source);
         var compileResult = Compiler.CompileFromFile(
@@ -1736,7 +1736,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float Radius;
         public float DirectionX;
         public float DirectionY;
-        // Conversational note: composite uses Direction as mode flags (base lane tag) and Radius as derive radius.
+        // Note: composite uses Direction as mode flags (base lane tag) and Radius as derive radius.
         public float SurfaceWidth;
         public float SurfaceHeight;
         public float BloomWidth;
@@ -1769,7 +1769,7 @@ struct VsOut
 VsOut VSMain(uint vertexId : SV_VertexID)
 {
     VsOut output;
-    // Conversational note: explicit full-screen triangle vertices are friendlier across drivers than bit-manipulated UV generation.
+    // Note: explicit full-screen triangle vertices are friendlier across drivers than bit-manipulated UV generation.
     float2 positions[3] =
     {
         float2(-1.0f, -1.0f),
@@ -1788,7 +1788,7 @@ VsOut VSMain(uint vertexId : SV_VertexID)
 }
 float4 PSDotPass(VsOut input) : SV_Target
 {
-    // Conversational note: Direction.x carries stride and Direction.y carries padding for the dot pass.
+    // Note: Direction.x carries stride and Direction.y carries padding for the dot pass.
     float stride = max(Direction.x, 1.0f);
     float padding = max(Direction.y, 0.0f);
     float2 pixel = input.Uv * SurfaceSize;
@@ -1811,7 +1811,7 @@ float SoftKneeWeight(float3 color)
 }
 float4 PSBrightPass(VsOut input) : SV_Target
 {
-    // Conversational note: match CPU bloom extraction by averaging over the downsample footprint
+    // Note: match CPU bloom extraction by averaging over the downsample footprint
     // and only counting emissive contributors.
     int scale = max(1, (int)round(ScaleDivisor));
     float2 texel = 1.0f / max(SurfaceSize, float2(1.0f, 1.0f));
@@ -1842,7 +1842,7 @@ float4 PSSeparableBlur(VsOut input) : SV_Target
     if (r <= 0.001f) return BaseTexture.Sample(LinearSampler, input.Uv);
     float3 sum = 0;
     float weightSum = 0;
-    // Conversational note: fixed bounds + unroll avoids driver issues with dynamic loop trip counts.
+    // Note: fixed bounds + unroll avoids driver issues with dynamic loop trip counts.
     [unroll]
     for (int i = -8; i <= 8; i++)
     {
@@ -1884,7 +1884,7 @@ float4 PSComposite(VsOut input) : SV_Target
     float2 bloomTexel = 1.0f / max(BloomSize, float2(1.0f, 1.0f));
     float3 derivedColor = SampleTent(SharedBlurTexture, input.Uv, bloomTexel, Radius);
 
-    // Conversational note: Direction.x == 1 means shared lane is near; Direction.y == 1 means shared lane is far.
+    // Note: Direction.x == 1 means shared lane is near; Direction.y == 1 means shared lane is far.
     float sharedIsNear = step(0.5f, Direction.x);
     float sharedIsFar = step(0.5f, Direction.y);
     float3 nearColor = (sharedColor * sharedIsNear) + (derivedColor * sharedIsFar);
