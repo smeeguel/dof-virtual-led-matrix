@@ -63,7 +63,7 @@ internal sealed class MatrixFrameRasterComposer
         }
 
         // Tables can stop/restart without recreating the renderer; reset temporal state across big gaps/session flips.
-        TryResetForSessionBoundary(framePresentation.PresentedAt);
+        TryResetForSessionBoundary(framePresentation.PresentedAtUtc);
 
         var matrixCapacity = _config.Width * _config.Height;
         EnsureWorkingBuffers(matrixCapacity);
@@ -105,7 +105,8 @@ internal sealed class MatrixFrameRasterComposer
         }
         ApplyBloomIfEnabled();
 
-        var fullFrameWrite = _forceFullFrameWrite || !TryBuildDirtyRects(out var dirtyRects);
+        IReadOnlyList<DirtyRect> dirtyRects = Array.Empty<DirtyRect>();
+        var fullFrameWrite = _forceFullFrameWrite || !TryBuildDirtyRects(out dirtyRects);
         _forceFullFrameWrite = false;
         Buffer.BlockCopy(_surfaceBgra, 0, _previousSurfaceBgra, 0, _surfaceBgra.Length);
         return (_surfaceWidth, _surfaceHeight, _stride, _surfaceBgra, dirtyRects, fullFrameWrite);
