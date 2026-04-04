@@ -4,16 +4,40 @@ internal static class BloomBlurStrategy
 {
     internal static void BlurFromImmutableSource(float[] sourceRgb, float[] destinationRgb, float[] scratchRgb, int width, int height, int radius)
     {
+        BlurFromImmutableSource(sourceRgb, destinationRgb, scratchRgb, width, height, radius, 0, 0, width - 1, height - 1);
+    }
+
+    internal static void BlurFromImmutableSource(float[] sourceRgb, float[] destinationRgb, float[] scratchRgb, int width, int height, int radius, int minX, int minY, int maxX, int maxY)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        minX = Math.Clamp(minX, 0, width - 1);
+        minY = Math.Clamp(minY, 0, height - 1);
+        maxX = Math.Clamp(maxX, 0, width - 1);
+        maxY = Math.Clamp(maxY, 0, height - 1);
+        if (minX > maxX || minY > maxY)
+        {
+            return;
+        }
+
         // This lane always treats sourceRgb as read-only so sibling lanes can reuse it safely.
         if (radius <= 0)
         {
-            Array.Copy(sourceRgb, destinationRgb, sourceRgb.Length);
+            for (var y = minY; y <= maxY; y++)
+            {
+                var rowOffset = ((y * width) + minX) * 3;
+                var length = ((maxX - minX) + 1) * 3;
+                Array.Copy(sourceRgb, rowOffset, destinationRgb, rowOffset, length);
+            }
             return;
         }
 
         EnsureScratchSize(sourceRgb, scratchRgb);
-        HorizontalBlurRgb(sourceRgb, scratchRgb, width, height, radius);
-        VerticalBlurRgb(scratchRgb, destinationRgb, width, height, radius);
+        HorizontalBlurRgb(sourceRgb, scratchRgb, width, height, radius, minX, minY, maxX, maxY);
+        VerticalBlurRgb(scratchRgb, destinationRgb, width, height, radius, minX, minY, maxX, maxY);
     }
 
     internal static void BlurWithLegacyCopyPath(float[] sourceRgb, float[] destinationRgb, float[] scratchRgb, int width, int height, int radius)
@@ -38,13 +62,15 @@ internal static class BloomBlurStrategy
         }
     }
 
-    private static void HorizontalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
+    private static void HorizontalBlurRgb(float[] source, float[] destination, int width, int height, int radius, int minX, int minY, int maxX, int maxY)
     {
-        for (var y = 0; y < height; y++)
+        for (var y = minY; y <= maxY; y++)
         {
             float sumR = 0, sumG = 0, sumB = 0;
             var samples = 0;
-            for (var sx = 0; sx <= Math.Min(width - 1, radius); sx++)
+            var startSampleX = Math.Max(0, minX - radius);
+            var endSampleX = Math.Min(width - 1, minX + radius);
+            for (var sx = startSampleX; sx <= endSampleX; sx++)
             {
                 var sampleOffset = ((y * width) + sx) * 3;
                 sumR += source[sampleOffset];
@@ -53,7 +79,7 @@ internal static class BloomBlurStrategy
                 samples++;
             }
 
-            for (var x = 0; x < width; x++)
+            for (var x = minX; x <= maxX; x++)
             {
                 var dstOffset = ((y * width) + x) * 3;
                 destination[dstOffset] = sumR / Math.Max(1, samples);
@@ -83,13 +109,15 @@ internal static class BloomBlurStrategy
         }
     }
 
-    private static void VerticalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
+    private static void VerticalBlurRgb(float[] source, float[] destination, int width, int height, int radius, int minX, int minY, int maxX, int maxY)
     {
-        for (var x = 0; x < width; x++)
+        for (var x = minX; x <= maxX; x++)
         {
             float sumR = 0, sumG = 0, sumB = 0;
             var samples = 0;
-            for (var sy = 0; sy <= Math.Min(height - 1, radius); sy++)
+            var startSampleY = Math.Max(0, minY - radius);
+            var endSampleY = Math.Min(height - 1, minY + radius);
+            for (var sy = startSampleY; sy <= endSampleY; sy++)
             {
                 var sampleOffset = ((sy * width) + x) * 3;
                 sumR += source[sampleOffset];
@@ -98,7 +126,7 @@ internal static class BloomBlurStrategy
                 samples++;
             }
 
-            for (var y = 0; y < height; y++)
+            for (var y = minY; y <= maxY; y++)
             {
                 var dstOffset = ((y * width) + x) * 3;
                 destination[dstOffset] = sumR / Math.Max(1, samples);
