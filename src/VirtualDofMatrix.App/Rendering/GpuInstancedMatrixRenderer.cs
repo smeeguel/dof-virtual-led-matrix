@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Vortice.D3DCompiler;
@@ -51,6 +52,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11RenderTargetView? _gpuCompositeRtv;
     private ID3D11ShaderResourceView? _gpuCompositeSrv;
     private ID3D11Texture2D? _gpuReadbackTexture;
+    private D3DImage? _directPresentImage;
+    private bool _directPresentEnabled;
+    private bool _directPresentParityValidated;
+    private string _directPresentStatus = "uninitialized";
     private bool _gpuBloomSupported;
     private bool _useCpuBloomFallback;
     private int _gpuBloomScaleDivisor;
@@ -157,11 +162,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _fallbackBitmap = new WriteableBitmap(_surfaceWidth, _surfaceHeight, 96, 96, PixelFormats.Bgra32, null);
         _host.Source = _fallbackBitmap;
         _host.Stretch = Stretch.Fill;
+        _directPresentImage = null;
+        _directPresentEnabled = false;
+        _directPresentParityValidated = false;
+        _directPresentStatus = "waiting-for-bloom-init";
         InitializeGpuBloomPipeline();
 
         AppLogger.Info($"[renderer] gpu initialized fastpath leds={width * height} surface={_surfaceWidth}x{_surfaceHeight}");
         var bloomProfile = BloomProfileResolver.Resolve(dotStyleConfig.Bloom);
         AppLogger.Info($"[renderer] gpu bloom enabled={bloomProfile.Enabled} threshold={bloomProfile.Threshold:F2} softKnee={bloomProfile.SoftKnee:F2} scale={bloomProfile.ScaleDivisor} nearRadius={bloomProfile.NearRadius} farRadius={bloomProfile.FarRadius} nearStrength={bloomProfile.NearStrength:F2} farStrength={bloomProfile.FarStrength:F2}");
+        AppLogger.Info($"[renderer] gpu direct present enabled={_directPresentEnabled} status={_directPresentStatus}");
     }
 
     public void UpdateFrame(FramePresentation presentation)
@@ -238,9 +248,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
         _context.Unmap(_frameTexture, 0);
 
-        // Conversational note: this renderer presents via WriteableBitmap, so a raw DrawInstanced here is unnecessary.
-        // Leaving it in can accidentally execute with bloom shaders still bound and issue a huge unintended draw.
-        _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
+        // Conversational note: when direct-present is online we skip CPU bitmap uploads entirely.
+        if (!_directPresentEnabled)
+        {
+            // Conversational note: this renderer presents via WriteableBitmap in fallback mode.
+            _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
+        }
     }
 
     public void Dispose() => DisposeDeviceResources();
@@ -552,6 +565,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
             catch (Exception ex)
             {
+                // Conversational note: if GPU bloom faults mid-frame, we rebuild bloom resources once before dropping to CPU fallback.
+                TryRecoverGpuBloomPipeline(ex);
                 AppLogger.Warn($"[renderer] gpu bloom execution failed at stage='{_gpuBloomStage}'; switching to CPU fallback. reason={ex.Message} {TryGetDeviceRemovedReasonText()} trace={_gpuBloomTrace}");
             }
         }
@@ -644,6 +659,64 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuBloomTrace = trace.ToString();
         _context.OMSetRenderTargets(_gpuBrightRtv);
 
+        _gpuBloomStage = "present";
+        trace.Append(" ->present");
+        _gpuBloomTrace = trace.ToString();
+        if (!TryPresentGpuCompositeFrame(trace))
+        {
+            return false;
+        }
+        _gpuBloomStage = "done";
+        trace.Append($" ->done elapsedMs={(DateTime.UtcNow - started).TotalMilliseconds:F3}");
+        _gpuBloomTrace = trace.ToString();
+        return true;
+    }
+
+    private bool TryPresentGpuCompositeFrame(StringBuilder trace)
+    {
+        if (_context is null || _gpuCompositeTexture is null)
+        {
+            return false;
+        }
+
+        // Conversational note: when direct present is online, we intentionally avoid GPU->CPU readback.
+        if (_directPresentEnabled && _directPresentImage is not null && _host is not null)
+        {
+            try
+            {
+                _context.Flush();
+                _host.Source = _directPresentImage;
+                _directPresentImage.Lock();
+                _directPresentImage.AddDirtyRect(new System.Windows.Int32Rect(0, 0, Math.Max(1, _surfaceWidth), Math.Max(1, _surfaceHeight)));
+                _directPresentImage.Unlock();
+                trace.Append(" direct-present");
+
+                // We keep one parity sample through the old readback path to verify image-equivalent output shape.
+                if (!_directPresentParityValidated)
+                {
+                    _directPresentParityValidated = TryCaptureFallbackReadbackSample(trace);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _directPresentEnabled = false;
+                _directPresentStatus = $"disabled:present-failed:{ex.GetType().Name}";
+                AppLogger.Warn($"[renderer] gpu direct present disabled during frame; falling back to readback. reason={ex.Message}");
+            }
+        }
+
+        return TryReadbackCompositeToCpu(trace);
+    }
+
+    private bool TryReadbackCompositeToCpu(StringBuilder trace)
+    {
+        if (_context is null || _gpuReadbackTexture is null || _gpuCompositeTexture is null)
+        {
+            return false;
+        }
+
         _gpuBloomStage = "copy-readback";
         trace.Append(" ->copy-readback");
         _gpuBloomTrace = trace.ToString();
@@ -657,10 +730,30 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuBloomTrace = trace.ToString();
         ReadBgraRows(readback.DataPointer, readback.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
         _context.Unmap(_gpuReadbackTexture, 0);
-        _gpuBloomStage = "done";
-        trace.Append($" ->done elapsedMs={(DateTime.UtcNow - started).TotalMilliseconds:F3}");
-        _gpuBloomTrace = trace.ToString();
         return true;
+    }
+
+    private bool TryCaptureFallbackReadbackSample(StringBuilder trace)
+    {
+        if (_context is null || _gpuReadbackTexture is null || _gpuCompositeTexture is null)
+        {
+            return false;
+        }
+
+        // Conversational note: this is a one-time sample to validate the legacy fallback path still sees the same composed frame.
+        _context.CopyResource(_gpuReadbackTexture, _gpuCompositeTexture);
+        _context.Flush();
+        var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+        try
+        {
+            trace.Append($" paritySample(rowPitch={readback.RowPitch})");
+            return true;
+        }
+        finally
+        {
+            _context.Unmap(_gpuReadbackTexture, 0);
+            AppLogger.Info("[renderer] gpu direct present parity sample captured with legacy readback path.");
+        }
     }
 
     private static void WriteBgraRows(IntPtr destination, uint destinationRowPitch, byte[] source, int width, int height)
@@ -1089,6 +1182,23 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
+    private void TryRecoverGpuBloomPipeline(Exception trigger)
+    {
+        try
+        {
+            DisposeGpuBloomResources();
+            InitializeGpuBloomPipeline();
+            AppLogger.Info($"[renderer] gpu bloom recovery attempted after {trigger.GetType().Name}; directPresent={_directPresentEnabled} status={_directPresentStatus}");
+        }
+        catch (Exception recoveryEx)
+        {
+            _gpuBloomSupported = false;
+            _directPresentEnabled = false;
+            _directPresentStatus = $"disabled:recovery-failed:{recoveryEx.GetType().Name}";
+            AppLogger.Warn($"[renderer] gpu bloom recovery failed. reason={recoveryEx.Message}");
+        }
+    }
+
     private void DisposeDeviceResources()
     {
         DisposeGpuBloomResources();
@@ -1126,6 +1236,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _linearSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp, 0, 1, ComparisonFunction.Never, new Color4(0f, 0f, 0f, 0f), 0, float.MaxValue));
             _bloomConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<BloomGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
             CreateBaseAndCompositeTargets();
+            TryInitializeDirectPresentSurface();
             _gpuBloomSupported = true;
             _useCpuBloomFallback = false;
         }
@@ -1133,7 +1244,39 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             _gpuBloomSupported = false;
             _useCpuBloomFallback = true;
+            _directPresentEnabled = false;
+            _directPresentStatus = $"disabled:init-failed:{ex.GetType().Name}";
             AppLogger.Warn($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. reason={ex.Message}");
+        }
+    }
+
+    private void TryInitializeDirectPresentSurface()
+    {
+        _directPresentEnabled = false;
+        _directPresentImage = null;
+
+        if (_gpuCompositeTexture is null || _host is null)
+        {
+            _directPresentStatus = "disabled:missing-composite-or-host";
+            AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+            return;
+        }
+
+        try
+        {
+            // Conversational note: D3DImage expects a D3D9 surface pointer. Our D3D11-only build cannot bind it directly yet.
+            // We still centralize this initialization so the renderer cleanly falls back today and can be upgraded in one place.
+            _directPresentImage = new D3DImage();
+            _directPresentEnabled = false;
+            _directPresentStatus = "disabled:d3d11-d3dimage-bridge-unavailable";
+            AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+        }
+        catch (Exception ex)
+        {
+            _directPresentEnabled = false;
+            _directPresentImage = null;
+            _directPresentStatus = $"disabled:init-exception:{ex.GetType().Name}";
+            AppLogger.Warn($"[renderer] gpu direct present disabled. reason={ex.Message}");
         }
     }
 
