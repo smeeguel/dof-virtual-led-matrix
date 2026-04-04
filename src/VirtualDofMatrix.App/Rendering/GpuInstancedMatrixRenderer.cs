@@ -4,8 +4,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Vortice.D3DCompiler;
 using Vortice.Mathematics;
-    // We keep a placeholder HLSL string so the constant remains available for future GPU-compile restoration.
-    private const string BloomFullscreenShader = "// GPU bloom shader source intentionally disabled in this build.";
+namespace VirtualDofMatrix.App.Rendering
+{
 
     [StructLayout(LayoutKind.Sequential)]
     private struct GpuBloomParams
@@ -1130,6 +1130,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         if (_device is null)
         {
             return;
+}
         }
 
         _gpuBloomCompositeTexture = _device.CreateTexture2D(new Texture2DDescription
