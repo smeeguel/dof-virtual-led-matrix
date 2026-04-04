@@ -505,9 +505,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // Split into near/far blur lanes so we can shape a tight glow plus a soft halo.
         Array.Copy(_screenBloomSourceRgb, _screenBloomNearRgb, _screenBloomSourceRgb.Length);
         Array.Copy(_screenBloomSourceRgb, _screenBloomFarRgb, _screenBloomSourceRgb.Length);
-        BoxBlurRgbSeparable(_screenBloomNearRgb, _downsampleWidth, _downsampleHeight, bloomProfile.NearRadius);
-        BoxBlurRgbSeparable(_screenBloomFarRgb, _downsampleWidth, _downsampleHeight, bloomProfile.FarRadius);
-        CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, bloomProfile);
+        var effectiveNearRadius = GetEffectiveBloomRadius(bloomProfile.NearRadius, bloomProfile.ScaleDivisor, _dotSize);
+        var effectiveFarRadius = GetEffectiveBloomRadius(bloomProfile.FarRadius, bloomProfile.ScaleDivisor, _dotSize);
+        BoxBlurRgbSeparable(_screenBloomNearRgb, _downsampleWidth, _downsampleHeight, effectiveNearRadius);
+        BoxBlurRgbSeparable(_screenBloomFarRgb, _downsampleWidth, _downsampleHeight, effectiveFarRadius);
+        CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, bloomProfile);
     }
 
     private bool DownsampleEmissive(byte[] bgra, int width, int height, BloomProfile profile, out int minBloomX, out int minBloomY, out int maxBloomX, out int maxBloomY)
@@ -691,12 +693,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private static void CompositeBloom(byte[] target, int width, int height, float[] nearBlur, float[] farBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, BloomProfile profile)
+    private static void CompositeBloom(byte[] target, int width, int height, float[] nearBlur, float[] farBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, int effectiveNearRadius, int effectiveFarRadius, BloomProfile profile)
     {
         var nearStrength = (float)profile.NearStrength;
         var farStrength = (float)profile.FarStrength;
         // We only composite inside the active emissive neighborhood to avoid wasting cycles on black pixels.
-        var pad = Math.Max(profile.NearRadius, profile.FarRadius) + 1;
+        var pad = Math.Max(effectiveNearRadius, effectiveFarRadius) + 1;
         var startX = Math.Max(0, (minBloomX - pad) * profile.ScaleDivisor);
         var startY = Math.Max(0, (minBloomY - pad) * profile.ScaleDivisor);
         var endX = Math.Min(width - 1, ((maxBloomX + pad + 1) * profile.ScaleDivisor) - 1);
@@ -748,6 +750,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         return false;
+    }
+
+    private static int GetEffectiveBloomRadius(int configuredRadius, int scaleDivisor, int dotSize)
+    {
+        // We include dot radius so bloom spills outside the rendered dot even with tiny configured values.
+        var dotRadiusPx = Math.Max(1, (int)Math.Ceiling(dotSize * 0.5));
+        var dotRadiusInBloomPixels = Math.Max(1, (int)Math.Ceiling(dotRadiusPx / (double)Math.Max(1, scaleDivisor)));
+        return Math.Max(1, configuredRadius + dotRadiusInBloomPixels);
     }
 
     private static float SampleBilinear(float[] source, int width, int height, float x, float y, int channel)
