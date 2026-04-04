@@ -614,7 +614,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
-        _context.PSSetShaderResource(0, null);
     }
 
     private void RunBlurLane(
@@ -642,7 +641,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
-        _context.PSSetShaderResource(0, null);
 
         SetBloomConstants(null, radius, 0f, texelY);
         _context.OMSetRenderTargets(pongRtv);
@@ -651,7 +649,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
-        _context.PSSetShaderResource(0, null);
     }
 
     private void RunCompositePass(BloomProfile profile)
@@ -672,9 +669,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
-        _context.PSSetShaderResource(0, null);
-        _context.PSSetShaderResource(1, null);
-        _context.PSSetShaderResource(2, null);
     }
 
     private void SetBloomConstants(BloomProfile? profile, float radius, float directionX, float directionY)
@@ -1008,15 +1002,15 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         try
         {
             // We keep shaders inline for now so deployment stays single-binary and easier for community sharing.
-            using var vsBlob = Compiler.Compile(BloomShaders.Source, "VSMain", "vs_5_0");
-            using var brightBlob = Compiler.Compile(BloomShaders.Source, "PSBrightPass", "ps_5_0");
-            using var blurBlob = Compiler.Compile(BloomShaders.Source, "PSSeparableBlur", "ps_5_0");
-            using var compositeBlob = Compiler.Compile(BloomShaders.Source, "PSComposite", "ps_5_0");
+            using var vsBlob = CompileShaderOrThrow("VSMain", "vs_5_0");
+            using var brightBlob = CompileShaderOrThrow("PSBrightPass", "ps_5_0");
+            using var blurBlob = CompileShaderOrThrow("PSSeparableBlur", "ps_5_0");
+            using var compositeBlob = CompileShaderOrThrow("PSComposite", "ps_5_0");
             _fullscreenVertexShader = _device.CreateVertexShader(vsBlob);
             _brightPassShader = _device.CreatePixelShader(brightBlob);
             _blurPassShader = _device.CreatePixelShader(blurBlob);
             _compositeShader = _device.CreatePixelShader(compositeBlob);
-            _linearSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp, 0, 1, ComparisonFunction.Never, Color4.Black, 0, float.MaxValue));
+            _linearSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp, 0, 1, ComparisonFunction.Never, new Color4(0f, 0f, 0f, 0f), 0, float.MaxValue));
             _bloomConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<BloomGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
             CreateBaseAndCompositeTargets();
             _gpuBloomSupported = true;
@@ -1028,6 +1022,28 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _useCpuBloomFallback = true;
             Console.WriteLine($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. reason={ex.Message}");
         }
+    }
+
+    private static Blob CompileShaderOrThrow(string entryPoint, string shaderProfile)
+    {
+        var compileResult = Compiler.Compile(
+            BloomShaders.Source,
+            "GpuInstancedMatrixRenderer.Bloom.hlsl",
+            null,
+            null,
+            entryPoint,
+            shaderProfile,
+            ShaderFlags.OptimizationLevel3,
+            EffectFlags.None,
+            out var shaderBlob,
+            out var errorBlob);
+        if (compileResult.Failure || shaderBlob is null)
+        {
+            var errors = errorBlob is null ? "unknown shader compile failure" : Marshal.PtrToStringAnsi(errorBlob.BufferPointer, (int)errorBlob.BufferSize);
+            throw new InvalidOperationException($"Failed to compile bloom shader {entryPoint}/{shaderProfile}: {errors}");
+        }
+
+        return shaderBlob;
     }
 
     private void EnsureGpuBloomTargets(int scaleDivisor)
