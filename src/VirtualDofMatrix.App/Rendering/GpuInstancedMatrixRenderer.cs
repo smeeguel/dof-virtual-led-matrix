@@ -1028,7 +1028,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     {
         var compileResult = Compiler.Compile(
             BloomShaders.Source,
-            "GpuInstancedMatrixRenderer.Bloom.hlsl",
             null,
             null,
             entryPoint,
@@ -1039,11 +1038,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             out var errorBlob);
         if (compileResult.Failure || shaderBlob is null)
         {
-            var errors = errorBlob is null ? "unknown shader compile failure" : Marshal.PtrToStringAnsi(errorBlob.BufferPointer, (int)errorBlob.BufferSize);
+            var errors = errorBlob is null ? "unknown shader compile failure" : Marshal.PtrToStringAnsi(errorBlob.BufferPointer);
             throw new InvalidOperationException($"Failed to compile bloom shader {entryPoint}/{shaderProfile}: {errors}");
         }
 
-        return shaderBlob;
+        return shaderBlob!;
     }
 
     private void EnsureGpuBloomTargets(int scaleDivisor)
