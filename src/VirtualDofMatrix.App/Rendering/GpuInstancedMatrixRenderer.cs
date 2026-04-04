@@ -596,7 +596,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // Upload the already-rasterized frame so bloom extraction happens from the same visual basis as CPU mode.
         _gpuBloomStage = "upload-base";
         var mapped = _context.Map(_gpuBaseTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
-        Marshal.Copy(_bgra, 0, mapped.DataPointer, _bgra.Length);
+        WriteBgraRows(mapped.DataPointer, mapped.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
         _context.Unmap(_gpuBaseTexture, 0);
 
         var nearRadius = GetEffectiveBloomRadius(profile.NearRadius, profile.ScaleDivisor, _dotSize);
@@ -616,10 +616,32 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.Flush();
         _gpuBloomStage = "map-readback";
         var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
-        Marshal.Copy(readback.DataPointer, _bgra, 0, _bgra.Length);
+        ReadBgraRows(readback.DataPointer, readback.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
         _context.Unmap(_gpuReadbackTexture, 0);
         _gpuBloomStage = "done";
         return true;
+    }
+
+    private static void WriteBgraRows(IntPtr destination, int destinationRowPitch, byte[] source, int width, int height)
+    {
+        var rowBytes = width * 4;
+        for (var y = 0; y < height; y++)
+        {
+            var srcOffset = y * rowBytes;
+            var dstRow = IntPtr.Add(destination, y * destinationRowPitch);
+            Marshal.Copy(source, srcOffset, dstRow, rowBytes);
+        }
+    }
+
+    private static void ReadBgraRows(IntPtr source, int sourceRowPitch, byte[] destination, int width, int height)
+    {
+        var rowBytes = width * 4;
+        for (var y = 0; y < height; y++)
+        {
+            var dstOffset = y * rowBytes;
+            var srcRow = IntPtr.Add(source, y * sourceRowPitch);
+            Marshal.Copy(srcRow, destination, dstOffset, rowBytes);
+        }
     }
 
     private void RunBrightPass(BloomProfile profile)
