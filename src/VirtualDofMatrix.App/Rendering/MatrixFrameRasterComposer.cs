@@ -316,8 +316,8 @@ internal sealed class MatrixFrameRasterComposer
         // Near bloom uses a smooth blur so tiny radii don't hard-light an entire adjacent dot.
         BoxBlurRgbSeparable(_screenBloomNearRgb, _downsampleWidth, _downsampleHeight, effectiveNearRadius);
         BoxBlurRgbSeparable(_screenBloomFarRgb, _downsampleWidth, _downsampleHeight, effectiveFarRadius);
-        var effectiveNearStrength = (float)(bloomProfile.NearStrength * 2.4);
-        var effectiveFarStrength = (float)(bloomProfile.FarStrength * 1.8);
+        var effectiveNearStrength = (float)bloomProfile.NearStrength;
+        var effectiveFarStrength = (float)bloomProfile.FarStrength;
         CompositeBloom(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, effectiveNearStrength, effectiveFarStrength, bloomProfile);
     }
 
