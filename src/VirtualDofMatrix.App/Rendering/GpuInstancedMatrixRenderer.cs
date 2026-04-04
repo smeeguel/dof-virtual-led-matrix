@@ -622,24 +622,24 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         return true;
     }
 
-    private static void WriteBgraRows(IntPtr destination, int destinationRowPitch, byte[] source, int width, int height)
+    private static void WriteBgraRows(IntPtr destination, uint destinationRowPitch, byte[] source, int width, int height)
     {
         var rowBytes = width * 4;
         for (var y = 0; y < height; y++)
         {
             var srcOffset = y * rowBytes;
-            var dstRow = IntPtr.Add(destination, y * destinationRowPitch);
+            var dstRow = IntPtr.Add(destination, checked(y * (int)destinationRowPitch));
             Marshal.Copy(source, srcOffset, dstRow, rowBytes);
         }
     }
 
-    private static void ReadBgraRows(IntPtr source, int sourceRowPitch, byte[] destination, int width, int height)
+    private static void ReadBgraRows(IntPtr source, uint sourceRowPitch, byte[] destination, int width, int height)
     {
         var rowBytes = width * 4;
         for (var y = 0; y < height; y++)
         {
             var dstOffset = y * rowBytes;
-            var srcRow = IntPtr.Add(source, y * sourceRowPitch);
+            var srcRow = IntPtr.Add(source, checked(y * (int)sourceRowPitch));
             Marshal.Copy(srcRow, destination, dstOffset, rowBytes);
         }
     }
