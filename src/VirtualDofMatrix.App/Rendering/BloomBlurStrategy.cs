@@ -50,8 +50,9 @@ internal static class BloomBlurStrategy
         }
 
         EnsureScratchSize(sourceRgb, scratchRgb);
-        HorizontalBlurRgb(destinationRgb, scratchRgb, width, height, radius);
-        VerticalBlurRgb(scratchRgb, destinationRgb, width, height, radius);
+        // Legacy helper still runs full-frame so tests can compare against the historical algorithm exactly.
+        HorizontalBlurRgb(destinationRgb, scratchRgb, width, height, radius, 0, 0, width - 1, height - 1);
+        VerticalBlurRgb(scratchRgb, destinationRgb, width, height, radius, 0, 0, width - 1, height - 1);
     }
 
     private static void EnsureScratchSize(float[] sourceRgb, float[] scratchRgb)
