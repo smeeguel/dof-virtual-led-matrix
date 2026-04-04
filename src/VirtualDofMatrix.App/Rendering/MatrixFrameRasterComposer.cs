@@ -313,8 +313,8 @@ internal sealed class MatrixFrameRasterComposer
         Array.Copy(_screenBloomSourceRgb, _screenBloomFarRgb, _screenBloomSourceRgb.Length);
         var effectiveNearRadius = GetEffectiveBloomRadius(bloomProfile.NearRadius, bloomProfile.ScaleDivisor, _config.DotSize);
         var effectiveFarRadius = GetEffectiveBloomRadius(bloomProfile.FarRadius, bloomProfile.ScaleDivisor, _config.DotSize);
-        // Near bloom uses a max-filter so bright dots hold a stronger plateau before falloff.
-        MaxBlurRgbSeparable(_screenBloomNearRgb, _downsampleWidth, _downsampleHeight, effectiveNearRadius);
+        // Near bloom uses a smooth blur so tiny radii don't hard-light an entire adjacent dot.
+        BoxBlurRgbSeparable(_screenBloomNearRgb, _downsampleWidth, _downsampleHeight, effectiveNearRadius);
         BoxBlurRgbSeparable(_screenBloomFarRgb, _downsampleWidth, _downsampleHeight, effectiveFarRadius);
         CompositeBloom(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, bloomProfile);
     }
@@ -409,22 +409,6 @@ internal sealed class MatrixFrameRasterComposer
         VerticalBlurRgb(_screenBloomScratchRgb, rgb, width, height, radius);
     }
 
-    private void MaxBlurRgbSeparable(float[] rgb, int width, int height, int radius)
-    {
-        if (radius <= 0)
-        {
-            return;
-        }
-
-        if (_screenBloomScratchRgb.Length != rgb.Length)
-        {
-            _screenBloomScratchRgb = new float[rgb.Length];
-        }
-
-        MaxHorizontalBlurRgb(rgb, _screenBloomScratchRgb, width, height, radius);
-        MaxVerticalBlurRgb(_screenBloomScratchRgb, rgb, width, height, radius);
-    }
-
     private static void HorizontalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
     {
         for (var y = 0; y < height; y++)
@@ -511,56 +495,6 @@ internal sealed class MatrixFrameRasterComposer
                     sumB += source[addOffset + 2];
                     samples++;
                 }
-            }
-        }
-    }
-
-    private static void MaxHorizontalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
-    {
-        for (var y = 0; y < height; y++)
-        {
-            for (var x = 0; x < width; x++)
-            {
-                float maxR = 0f, maxG = 0f, maxB = 0f;
-                var sx0 = Math.Max(0, x - radius);
-                var sx1 = Math.Min(width - 1, x + radius);
-                for (var sx = sx0; sx <= sx1; sx++)
-                {
-                    var sampleOffset = ((y * width) + sx) * 3;
-                    maxR = Math.Max(maxR, source[sampleOffset]);
-                    maxG = Math.Max(maxG, source[sampleOffset + 1]);
-                    maxB = Math.Max(maxB, source[sampleOffset + 2]);
-                }
-
-                var dstOffset = ((y * width) + x) * 3;
-                destination[dstOffset] = maxR;
-                destination[dstOffset + 1] = maxG;
-                destination[dstOffset + 2] = maxB;
-            }
-        }
-    }
-
-    private static void MaxVerticalBlurRgb(float[] source, float[] destination, int width, int height, int radius)
-    {
-        for (var x = 0; x < width; x++)
-        {
-            for (var y = 0; y < height; y++)
-            {
-                float maxR = 0f, maxG = 0f, maxB = 0f;
-                var sy0 = Math.Max(0, y - radius);
-                var sy1 = Math.Min(height - 1, y + radius);
-                for (var sy = sy0; sy <= sy1; sy++)
-                {
-                    var sampleOffset = ((sy * width) + x) * 3;
-                    maxR = Math.Max(maxR, source[sampleOffset]);
-                    maxG = Math.Max(maxG, source[sampleOffset + 1]);
-                    maxB = Math.Max(maxB, source[sampleOffset + 2]);
-                }
-
-                var dstOffset = ((y * width) + x) * 3;
-                destination[dstOffset] = maxR;
-                destination[dstOffset + 1] = maxG;
-                destination[dstOffset + 2] = maxB;
             }
         }
     }
