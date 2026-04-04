@@ -637,6 +637,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuBloomTrace = trace.ToString();
         RunCompositePass(profile);
 
+        // Conversational note: explicitly switch away from the composite RTV before CopyResource.
+        _gpuBloomStage = "unbind-composite";
+        trace.Append(" ->unbind-composite");
+        _gpuBloomTrace = trace.ToString();
+        _context.OMSetRenderTargets(_gpuBrightRtv);
+
         _gpuBloomStage = "copy-readback";
         trace.Append(" ->copy-readback");
         _gpuBloomTrace = trace.ToString();
