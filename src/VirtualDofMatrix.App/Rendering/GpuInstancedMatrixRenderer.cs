@@ -53,7 +53,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private bool _gpuBloomSupported;
     private bool _useCpuBloomFallback;
     private int _gpuBloomScaleDivisor;
-    private static readonly ID3D11ShaderResourceView?[] NullPixelShaderSrvs = new ID3D11ShaderResourceView?[3];
+    private static readonly ID3D11ShaderResourceView[] NullPixelShaderSrvs = [null!, null!, null!];
     private readonly object _gate = new();
     private Image? _host;
     private WriteableBitmap? _fallbackBitmap;
@@ -545,7 +545,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
             catch (Exception ex)
             {
-                AppLogger.Warn($"[renderer] gpu bloom execution failed; switching to CPU fallback. reason={ex.Message}");
+                AppLogger.Warn($"[renderer] gpu bloom execution failed; switching to CPU fallback. reason={ex.Message} {TryGetDeviceRemovedReasonText()}");
             }
         }
 
@@ -994,6 +994,24 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var ab = a + ((b - a) * tx);
         var cd = c + ((d - c) * tx);
         return ab + ((cd - ab) * ty);
+    }
+
+    private string TryGetDeviceRemovedReasonText()
+    {
+        if (_device is null)
+        {
+            return "deviceReason=unavailable";
+        }
+
+        try
+        {
+            var reason = _device.GetDeviceRemovedReason();
+            return $"deviceReason=0x{reason.Code:X8}";
+        }
+        catch
+        {
+            return "deviceReason=unavailable";
+        }
     }
 
     private void DisposeDeviceResources()
