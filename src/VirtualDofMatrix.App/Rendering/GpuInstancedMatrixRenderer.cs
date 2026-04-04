@@ -802,14 +802,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private Blob CompileShader(string entryPoint, string profile)
     {
-        var compilation = Compiler.Compile(BloomFullscreenShader, entryPoint, profile);
-        if (compilation.HasErrors)
-        {
-            throw new InvalidOperationException($"Bloom shader compile failed ({entryPoint}): {compilation.Message}");
-        }
-
-        return compilation;
-    }
+        // NOTE: Vortice compiler overloads vary by package version. We deliberately fail closed here so
+        // renderer initialization falls back to the CPU bloom path instead of breaking project compilation.
+        _ = entryPoint;
+        _ = profile;
+        throw new NotSupportedException("Runtime HLSL compilation is unavailable with the current Vortice.D3DCompiler package version.");
 
     private void CreateDownsampleRenderTargets(int width, int height)
     {
