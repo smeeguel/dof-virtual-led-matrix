@@ -14,8 +14,8 @@ internal static class BloomProfileResolver
 
         // We clamp the knobs here so downstream rendering code can stay lean and trust the profile.
         var scaleDivisor = Math.Clamp(bloom.DownsampleDivisor, 1, 4);
-        var nearRadius = Math.Clamp(bloom.NearRadiusPx / scaleDivisor, 1, 16);
-        var farRadius = Math.Clamp(bloom.FarRadiusPx / scaleDivisor, nearRadius, 32);
+        var nearRadius = Math.Clamp((int)Math.Ceiling(bloom.NearRadiusPx / (double)scaleDivisor), 0, 32);
+        var farRadius = Math.Clamp((int)Math.Ceiling(bloom.FarRadiusPx / (double)scaleDivisor), 0, 64);
 
         return new BloomProfile(
             true,
