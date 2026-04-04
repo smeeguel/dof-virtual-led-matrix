@@ -70,6 +70,7 @@ internal sealed class MatrixFrameRasterComposer
         BuildColorLutIfNeeded(_config);
         ApplyColorTransforms(_config, matrixCapacity);
         Array.Clear(_surfaceBgra, 0, _surfaceBgra.Length);
+        EnsureOpaqueBackground(_surfaceBgra);
         for (var y = 0; y < _config.Height; y++)
         {
             for (var x = 0; x < _config.Width; x++)
@@ -629,6 +630,15 @@ internal sealed class MatrixFrameRasterComposer
         var dotRadiusPx = Math.Max(1, (int)Math.Ceiling(dotSize * 0.5));
         var dotRadiusInBloomPixels = Math.Max(1, (int)Math.Ceiling(dotRadiusPx / (double)Math.Max(1, scaleDivisor)));
         return Math.Max(1, configuredRadius + dotRadiusInBloomPixels);
+    }
+
+    private static void EnsureOpaqueBackground(byte[] bgra)
+    {
+        // We keep the whole surface opaque black so bloom in "empty" spacing pixels remains visible.
+        for (var i = 3; i < bgra.Length; i += 4)
+        {
+            bgra[i] = 255;
+        }
     }
 
     private static float SampleBilinear(float[] source, int width, int height, float x, float y, int channel)

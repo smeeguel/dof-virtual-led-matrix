@@ -150,6 +150,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         BuildToneMapLutIfNeeded(_style);
         Array.Clear(_bgra, 0, _bgra.Length);
+        EnsureOpaqueBackground(_bgra);
         Array.Clear(_workingRgb, 0, _workingRgb.Length);
 
         var rgb = frame.RgbMemory.Span;
@@ -825,6 +826,15 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var dotRadiusPx = Math.Max(1, (int)Math.Ceiling(dotSize * 0.5));
         var dotRadiusInBloomPixels = Math.Max(1, (int)Math.Ceiling(dotRadiusPx / (double)Math.Max(1, scaleDivisor)));
         return Math.Max(1, configuredRadius + dotRadiusInBloomPixels);
+    }
+
+    private static void EnsureOpaqueBackground(byte[] bgra)
+    {
+        // We keep the surface opaque black so bloom in the spacing between dots can actually be seen.
+        for (var i = 3; i < bgra.Length; i += 4)
+        {
+            bgra[i] = 255;
+        }
     }
 
     private static float SampleBilinear(float[] source, int width, int height, float x, float y, int channel)
