@@ -6,6 +6,7 @@ using Vortice.D3DCompiler;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
+using Vortice.Mathematics;
 using VirtualDofMatrix.Core;
 using static Vortice.Direct3D11.D3D11;
 
@@ -729,12 +730,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleStrip);
         _context.VSSetShader(_gpuBloomFullscreenVs);
         _context.PSSetSamplers(0, new[] { _gpuBloomLinearSampler });
-        _context.OMSetBlendState(null, default, uint.MaxValue);
+        _context.OMSetBlendState(null, new Color4(0f, 0f, 0f, 0f), uint.MaxValue);
 
-        DrawFullscreenPass(_gpuBloomExtractRtv, _gpuBloomExtractPs, _frameSrv, null, null, CreateBloomParams(profile, _surfaceWidth, _surfaceHeight, 0f, 0f));
+        DrawFullscreenPass(_gpuBloomExtractRtv, _downsampleWidth, _downsampleHeight, _gpuBloomExtractPs, _frameSrv, null, null, CreateBloomParams(profile, _surfaceWidth, _surfaceHeight, 0f, 0f));
         DrawBlurLane(_gpuBloomExtractSrv, _gpuBloomNearRtvA, _gpuBloomNearRtvB, _gpuBloomNearSrvA, profile.NearRadius, profile, isNearLane: true);
         DrawBlurLane(_gpuBloomExtractSrv, _gpuBloomFarRtvA, _gpuBloomFarRtvB, _gpuBloomFarSrvA, profile.FarRadius, profile, isNearLane: false);
-        DrawFullscreenPass(_gpuBloomCompositeRtv, _gpuBloomCompositePs, _frameSrv, _gpuBloomNearSrvB, _gpuBloomFarSrvB, CreateBloomParams(profile, _surfaceWidth, _surfaceHeight, 0f, 0f));
+        DrawFullscreenPass(_gpuBloomCompositeRtv, _surfaceWidth, _surfaceHeight, _gpuBloomCompositePs, _frameSrv, _gpuBloomNearSrvB, _gpuBloomFarSrvB, CreateBloomParams(profile, _surfaceWidth, _surfaceHeight, 0f, 0f));
 
         _context.CopyResource(_gpuBloomReadbackTexture, _gpuBloomCompositeTexture);
         var map = _context.Map(_gpuBloomReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
@@ -751,40 +752,35 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     {
         if (radius <= 0)
         {
-            DrawFullscreenPass(laneRtvB, _gpuBloomBlurPs, sourceSrv, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, 0f, 0f));
+            DrawFullscreenPass(laneRtvB, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, sourceSrv, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, 0f, 0f));
             return;
         }
 
         // We run separable blur in two fullscreen draws so the shader stays tiny and predictable.
-        DrawFullscreenPass(laneRtvA, _gpuBloomBlurPs, sourceSrv, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, radius, 0f));
-        DrawFullscreenPass(laneRtvB, _gpuBloomBlurPs, laneSrvA, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, 0f, radius));
+        DrawFullscreenPass(laneRtvA, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, sourceSrv, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, radius, 0f));
+        DrawFullscreenPass(laneRtvB, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, laneSrvA, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, 0f, radius));
         _ = isNearLane;
     }
 
-    private void DrawFullscreenPass(ID3D11RenderTargetView targetRtv, ID3D11PixelShader? pixelShader, ID3D11ShaderResourceView sourceSrv, ID3D11ShaderResourceView? nearSrv, ID3D11ShaderResourceView? farSrv, GpuBloomParams parameters)
+    private void DrawFullscreenPass(ID3D11RenderTargetView targetRtv, int targetWidth, int targetHeight, ID3D11PixelShader? pixelShader, ID3D11ShaderResourceView sourceSrv, ID3D11ShaderResourceView? nearSrv, ID3D11ShaderResourceView? farSrv, GpuBloomParams parameters)
     {
         if (_context is null || pixelShader is null || _gpuBloomParamsBuffer is null)
         {
             return;
         }
 
-        // We always set a viewport that exactly matches the destination texture dimensions.
-        targetRtv.Resource.QueryInterface<ID3D11Texture2D>(out var targetTexture);
-        using (targetTexture)
-        {
-            var desc = targetTexture!.Description;
-            _context.RSSetViewport(new Viewport(0, 0, desc.Width, desc.Height, 0, 1));
-        }
+        // We pass destination dimensions directly to avoid expensive RTTI / QueryInterface calls.
+        _context.RSSetViewport(new Viewport(0f, 0f, targetWidth, targetHeight, 0f, 1f));
 
         _context.OMSetRenderTargets(targetRtv);
         _context.PSSetShader(pixelShader);
-        _context.PSSetShaderResources(0, new[] { sourceSrv, nearSrv, farSrv });
+        _context.PSSetShaderResources(0, new[] { sourceSrv, nearSrv ?? sourceSrv, farSrv ?? sourceSrv });
         var map = _context.Map(_gpuBloomParamsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
         Marshal.StructureToPtr(parameters, map.DataPointer, false);
         _context.Unmap(_gpuBloomParamsBuffer, 0);
         _context.PSSetConstantBuffers(0, new[] { _gpuBloomParamsBuffer });
         _context.Draw(4, 0);
-        _context.PSSetShaderResources(0, new ID3D11ShaderResourceView?[] { null, null, null });
+        _context.PSSetShaderResources(0, new ID3D11ShaderResourceView[] { null!, null!, null! });
     }
 
     private GpuBloomParams CreateBloomParams(BloomProfile profile, int sourceWidth, int sourceHeight, float directionX, float directionY)
@@ -806,7 +802,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private Blob CompileShader(string entryPoint, string profile)
     {
-        var compilation = Compiler.Compile(BloomFullscreenShader, entryPoint, profile, ShaderFlags.OptimizationLevel3);
+        var compilation = Compiler.Compile(BloomFullscreenShader, entryPoint, profile);
         if (compilation.HasErrors)
         {
             throw new InvalidOperationException($"Bloom shader compile failed ({entryPoint}): {compilation.Message}");
