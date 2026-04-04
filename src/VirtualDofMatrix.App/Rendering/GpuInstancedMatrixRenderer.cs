@@ -492,8 +492,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         // Extract emissive data from the final rasterized surface so bloom feels spatially natural.
-        DownsampleEmissive(_bgra, _surfaceWidth, _surfaceHeight, bloomProfile);
-        if (!HasAnyEmission(_screenBloomSourceRgb))
+        if (!DownsampleEmissive(_bgra, _surfaceWidth, _surfaceHeight, bloomProfile, out var minBloomX, out var minBloomY, out var maxBloomX, out var maxBloomY))
         {
             return;
         }
@@ -503,10 +502,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         Array.Copy(_screenBloomSourceRgb, _screenBloomFarRgb, _screenBloomSourceRgb.Length);
         BoxBlurRgbSeparable(_screenBloomNearRgb, _downsampleWidth, _downsampleHeight, bloomProfile.NearRadius);
         BoxBlurRgbSeparable(_screenBloomFarRgb, _downsampleWidth, _downsampleHeight, bloomProfile.FarRadius);
-        CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, bloomProfile);
+        CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, bloomProfile);
     }
 
-    private void DownsampleEmissive(byte[] bgra, int width, int height, BloomProfile profile)
+    private bool DownsampleEmissive(byte[] bgra, int width, int height, BloomProfile profile, out int minBloomX, out int minBloomY, out int maxBloomX, out int maxBloomY)
     {
         var scaleDivisor = profile.ScaleDivisor;
         _downsampleWidth = Math.Max(1, width / scaleDivisor);
@@ -522,6 +521,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         // Reset every frame to avoid carrying stale bloom into subsequent frames.
         Array.Clear(_screenBloomSourceRgb, 0, _screenBloomSourceRgb.Length);
+        var any = false;
+        minBloomX = _downsampleWidth;
+        minBloomY = _downsampleHeight;
+        maxBloomX = -1;
+        maxBloomY = -1;
         for (var y = 0; y < _downsampleHeight; y++)
         {
             for (var x = 0; x < _downsampleWidth; x++)
@@ -565,8 +569,15 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 _screenBloomSourceRgb[dstOffset] = sumR * inv;
                 _screenBloomSourceRgb[dstOffset + 1] = sumG * inv;
                 _screenBloomSourceRgb[dstOffset + 2] = sumB * inv;
+                any = true;
+                minBloomX = Math.Min(minBloomX, x);
+                minBloomY = Math.Min(minBloomY, y);
+                maxBloomX = Math.Max(maxBloomX, x);
+                maxBloomY = Math.Max(maxBloomY, y);
             }
         }
+
+        return any;
     }
 
     private void BoxBlurRgbSeparable(float[] rgb, int width, int height, int radius)
@@ -675,13 +686,20 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private static void CompositeBloom(byte[] target, int width, int height, float[] nearBlur, float[] farBlur, int bloomWidth, int bloomHeight, BloomProfile profile)
+    private static void CompositeBloom(byte[] target, int width, int height, float[] nearBlur, float[] farBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, BloomProfile profile)
     {
         var nearStrength = (float)profile.NearStrength;
         var farStrength = (float)profile.FarStrength;
-        for (var y = 0; y < height; y++)
+        // We only composite inside the active emissive neighborhood to avoid wasting cycles on black pixels.
+        var pad = Math.Max(profile.NearRadius, profile.FarRadius) + 1;
+        var startX = Math.Max(0, (minBloomX - pad) * profile.ScaleDivisor);
+        var startY = Math.Max(0, (minBloomY - pad) * profile.ScaleDivisor);
+        var endX = Math.Min(width - 1, ((maxBloomX + pad + 1) * profile.ScaleDivisor) - 1);
+        var endY = Math.Min(height - 1, ((maxBloomY + pad + 1) * profile.ScaleDivisor) - 1);
+
+        for (var y = startY; y <= endY; y++)
         {
-            for (var x = 0; x < width; x++)
+            for (var x = startX; x <= endX; x++)
             {
                 // Bilinear sampling keeps the upsampled bloom field smooth and avoids block stepping.
                 var bloomU = ((x + 0.5f) / profile.ScaleDivisor) - 0.5f;
@@ -707,19 +725,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var knee = Math.Max(0.0001f, (float)softKnee);
         var t = (luma - (float)threshold) / knee;
         return Math.Clamp(t * t * (3f - (2f * t)), 0f, 1f);
-    }
-
-    private static bool HasAnyEmission(float[] values)
-    {
-        for (var i = 0; i < values.Length; i++)
-        {
-            if (values[i] > 0f)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static float SampleBilinear(float[] source, int width, int height, float x, float y, int channel)
