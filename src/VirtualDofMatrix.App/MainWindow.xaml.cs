@@ -95,7 +95,7 @@ public partial class MainWindow : Window
         PayloadLengthText.Text = $"Payload bytes: {presentation.RgbBytes.Length}";
 
         _matrixRenderer.UpdateFrame(presentation);
-        // We intentionally throttle render frequency so high-ingress frame bursts can't pin the UI thread.
+        // Render() is intentionally lightweight now (CPU compose happens off-thread), so ApplyPresentation stays responsive.
         var now = DateTimeOffset.UtcNow;
         if ((now - _lastRenderUtc) >= MinRenderInterval)
         {
