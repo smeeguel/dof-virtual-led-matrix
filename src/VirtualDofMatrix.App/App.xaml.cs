@@ -32,6 +32,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        AppLogger.ClearForNewLaunch();
         _config = _configurationStore.Load(ConfigFilePath);
         _configurationStore.Save(ConfigFilePath, _config);
         AppLogger.Configure(_config.Debug.LogProtocol);

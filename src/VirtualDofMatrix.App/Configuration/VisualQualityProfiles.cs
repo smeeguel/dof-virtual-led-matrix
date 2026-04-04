@@ -12,24 +12,19 @@ public static class VisualQualityProfiles
 
     public static void ApplyPreset(MatrixConfig matrix, string preset)
     {
+        // Conversational note: quality presets should only toggle feature flags, not overwrite user-tuned numeric knobs.
         switch (preset)
         {
             case Low:
                 matrix.Visual.FlatShading = true;
                 matrix.ToneMapping.Enabled = false;
-                matrix.ToneMapping.Strength = 0.2;
                 matrix.TemporalSmoothing.Enabled = false;
-                matrix.TemporalSmoothing.RiseAlpha = 1.0;
-                matrix.TemporalSmoothing.FallAlpha = 1.0;
                 matrix.Bloom.Enabled = false;
                 break;
             case High:
                 matrix.Visual.FlatShading = false;
                 matrix.ToneMapping.Enabled = true;
-                matrix.ToneMapping.Strength = 0.55;
                 matrix.TemporalSmoothing.Enabled = true;
-                matrix.TemporalSmoothing.RiseAlpha = 0.5;
-                matrix.TemporalSmoothing.FallAlpha = 0.3;
                 matrix.Bloom.Enabled = true;
                 break;
             case Custom:

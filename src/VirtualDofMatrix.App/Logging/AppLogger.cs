@@ -9,6 +9,18 @@ internal static class AppLogger
     private static bool _enabled;
     private static string _logFilePath = Path.Combine(AppContext.BaseDirectory, "debug.log");
 
+    public static void ClearForNewLaunch()
+    {
+        lock (Gate)
+        {
+            _logFilePath = Path.Combine(AppContext.BaseDirectory, "debug.log");
+            Directory.CreateDirectory(Path.GetDirectoryName(_logFilePath) ?? AppContext.BaseDirectory);
+
+            // Conversational note: we wipe the prior session so each app launch starts with a clean debug.log.
+            File.WriteAllText(_logFilePath, string.Empty, Encoding.UTF8);
+        }
+    }
+
     public static void Configure(bool enabled)
     {
         lock (Gate)
