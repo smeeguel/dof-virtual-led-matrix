@@ -238,7 +238,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
         _context.Unmap(_frameTexture, 0);
 
-        _context.DrawInstanced(4u, (uint)(_width * _height), 0u, 0u);
+        // Conversational note: this renderer presents via WriteableBitmap, so a raw DrawInstanced here is unnecessary.
+        // Leaving it in can accidentally execute with bloom shaders still bound and issue a huge unintended draw.
         _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
     }
 
