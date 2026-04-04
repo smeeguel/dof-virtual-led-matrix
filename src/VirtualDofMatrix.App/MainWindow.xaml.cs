@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     private const int WmEnterSizeMove = 0x0231;
     private const int WmExitSizeMove = 0x0232;
     private const int HardMinimumDotSpacing = 2;
+    private static readonly TimeSpan MinRenderInterval = TimeSpan.FromMilliseconds(33);
     private readonly AppConfig _config;
     private IMatrixRenderer _matrixRenderer;
     private bool _isApplyingAspectLock;
@@ -33,6 +34,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _idleClearTimer;
     private readonly DispatcherTimer _fpsTimer;
     private DateTimeOffset _lastFrameUtc = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastRenderUtc = DateTimeOffset.MinValue;
     private bool _idleCleared;
     private FramePresentation? _idleOffPresentation;
     private int _framesSinceFpsSample;
@@ -93,7 +95,13 @@ public partial class MainWindow : Window
         PayloadLengthText.Text = $"Payload bytes: {presentation.RgbBytes.Length}";
 
         _matrixRenderer.UpdateFrame(presentation);
-        _matrixRenderer.Render();
+        // We intentionally throttle render frequency so high-ingress frame bursts can't pin the UI thread.
+        var now = DateTimeOffset.UtcNow;
+        if ((now - _lastRenderUtc) >= MinRenderInterval)
+        {
+            _matrixRenderer.Render();
+            _lastRenderUtc = now;
+        }
         _framesSinceFpsSample++;
     }
 
@@ -191,6 +199,7 @@ public partial class MainWindow : Window
             effectiveMatrixConfig.Bloom.NearStrength);
         _matrixRenderer.Initialize(new MatrixRendererSurface(MatrixCanvas, MatrixImage), effectiveMatrixConfig.Width, effectiveMatrixConfig.Height, dotStyle);
         _matrixRenderer.Resize(MatrixViewportBorder.ActualWidth, MatrixViewportBorder.ActualHeight);
+        _lastRenderUtc = DateTimeOffset.MinValue;
 
         DotShapeText.Text = $"Dot shape: {effectiveMatrixConfig.DotShape}";
         DotSizeText.Text = $"Dot size: auto ({effectiveMatrixConfig.DotSize})";
