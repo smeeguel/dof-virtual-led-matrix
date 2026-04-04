@@ -332,17 +332,20 @@ internal sealed class MatrixFrameRasterComposer
 
         var effectiveNearRadius = GetEffectiveBloomRadius(bloomProfile.NearRadius, bloomProfile.ScaleDivisor, _config.DotSize);
         var effectiveFarRadius = GetEffectiveBloomRadius(bloomProfile.FarRadius, bloomProfile.ScaleDivisor, _config.DotSize);
+        var compositeRadius = Math.Max(effectiveNearRadius, effectiveFarRadius) + 1;
+        ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, compositeRadius, _downsampleWidth, _downsampleHeight, out var compositeMinX, out var compositeMinY, out var compositeMaxX, out var compositeMaxY);
+        // We always clear the full composite ROI so stale lane values can't leak as edge tint lines.
+        ClearBloomRoi(_screenBloomNearRgb, _downsampleWidth, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY);
+        ClearBloomRoi(_screenBloomFarRgb, _downsampleWidth, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY);
         // We expand blur input bounds by per-lane radius so edge taps still see neighbors outside the emissive core.
-        ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, _downsampleWidth, _downsampleHeight, out var nearMinX, out var nearMinY, out var nearMaxX, out var nearMaxY);
-        ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveFarRadius, _downsampleWidth, _downsampleHeight, out var farMinX, out var farMinY, out var farMaxX, out var farMaxY);
+        ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius + 1, _downsampleWidth, _downsampleHeight, out var nearMinX, out var nearMinY, out var nearMaxX, out var nearMaxY);
+        ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveFarRadius + 1, _downsampleWidth, _downsampleHeight, out var farMinX, out var farMinY, out var farMaxX, out var farMaxY);
         // Keep source immutable per frame; each lane writes into its own destination buffer.
         // This avoids near/far aliasing bugs where one blur pass accidentally feeds the other lane.
         BloomBlurStrategy.BlurFromImmutableSource(_screenBloomSourceRgb, _screenBloomNearRgb, _screenBloomScratchRgb, _downsampleWidth, _downsampleHeight, effectiveNearRadius, nearMinX, nearMinY, nearMaxX, nearMaxY);
         BloomBlurStrategy.BlurFromImmutableSource(_screenBloomSourceRgb, _screenBloomFarRgb, _screenBloomScratchRgb, _downsampleWidth, _downsampleHeight, effectiveFarRadius, farMinX, farMinY, farMaxX, farMaxY);
         var effectiveNearStrength = (float)bloomProfile.NearStrength;
         var effectiveFarStrength = (float)bloomProfile.FarStrength;
-        var compositeRadius = Math.Max(effectiveNearRadius, effectiveFarRadius) + 1;
-        ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, compositeRadius, _downsampleWidth, _downsampleHeight, out var compositeMinX, out var compositeMinY, out var compositeMaxX, out var compositeMaxY);
         CompositeBloom(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveNearStrength, effectiveFarStrength, bloomProfile);
     }
 
@@ -364,8 +367,9 @@ internal sealed class MatrixFrameRasterComposer
         var emissiveMinTileY = Math.Clamp(emissiveMinY / scaleDivisor, 0, _downsampleHeight - 1);
         var emissiveMaxTileX = Math.Clamp(emissiveMaxX / scaleDivisor, 0, _downsampleWidth - 1);
         var emissiveMaxTileY = Math.Clamp(emissiveMaxY / scaleDivisor, 0, _downsampleHeight - 1);
-        // We expand downsample evaluation by max blur radius so convolution taps never read stale tiles at ROI borders.
-        var blurPadding = Math.Max(GetEffectiveBloomRadius(profile.NearRadius, profile.ScaleDivisor, _config?.DotSize ?? 1), GetEffectiveBloomRadius(profile.FarRadius, profile.ScaleDivisor, _config?.DotSize ?? 1));
+        // Separable blur can read up to 2*radius beyond the emissive core, plus one extra tile for bilinear upsample continuity.
+        var maxBlurRadius = Math.Max(GetEffectiveBloomRadius(profile.NearRadius, profile.ScaleDivisor, _config?.DotSize ?? 1), GetEffectiveBloomRadius(profile.FarRadius, profile.ScaleDivisor, _config?.DotSize ?? 1));
+        var blurPadding = (maxBlurRadius * 2) + 1;
         var processMinX = Math.Max(0, emissiveMinTileX - blurPadding);
         var processMinY = Math.Max(0, emissiveMinTileY - blurPadding);
         var processMaxX = Math.Min(_downsampleWidth - 1, emissiveMaxTileX + blurPadding);
@@ -589,6 +593,16 @@ internal sealed class MatrixFrameRasterComposer
         expandedMinY = Math.Max(0, minY - expandBy);
         expandedMaxX = Math.Min(width - 1, maxX + expandBy);
         expandedMaxY = Math.Min(height - 1, maxY + expandBy);
+    }
+
+    private static void ClearBloomRoi(float[] rgb, int width, int minX, int minY, int maxX, int maxY)
+    {
+        for (var y = minY; y <= maxY; y++)
+        {
+            var offset = ((y * width) + minX) * 3;
+            var length = ((maxX - minX) + 1) * 3;
+            Array.Clear(rgb, offset, length);
+        }
     }
 
     private sealed class DotKernel
