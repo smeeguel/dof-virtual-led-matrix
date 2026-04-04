@@ -7,13 +7,13 @@ internal sealed class MatrixFrameRasterComposer
     private const int HardMinimumDotSpacing = 2;
     private const float TemporalSmoothingOffSnapThreshold = 1.0f;
     private readonly byte[] _colorLut = new byte[256];
-    private float[] _mappedRgb = Array.Empty<float>();
-    private float[] _workingRgb = Array.Empty<float>();
-    private float[] _smoothedRgb = Array.Empty<float>();
-    private float[] _screenBloomSourceRgb = Array.Empty<float>();
-    private float[] _screenBloomNearRgb = Array.Empty<float>();
-    private float[] _screenBloomFarRgb = Array.Empty<float>();
-    private float[] _screenBloomScratchRgb = Array.Empty<float>();
+    private readonly RgbPlaneBuffer _mappedRgb = new();
+    private readonly RgbPlaneBuffer _workingRgb = new();
+    private readonly RgbPlaneBuffer _smoothedRgb = new();
+    private readonly RgbPlaneBuffer _screenBloomSourceRgb = new();
+    private readonly RgbPlaneBuffer _screenBloomNearRgb = new();
+    private readonly RgbPlaneBuffer _screenBloomFarRgb = new();
+    private readonly RgbPlaneBuffer _screenBloomScratchRgb = new();
     private int _downsampleWidth;
     private int _downsampleHeight;
     private MatrixConfig? _config;
@@ -55,7 +55,7 @@ internal sealed class MatrixFrameRasterComposer
 
         var matrixCapacity = _config.Width * _config.Height;
         EnsureWorkingBuffers(matrixCapacity);
-        Array.Clear(_mappedRgb, 0, _mappedRgb.Length);
+        _mappedRgb.Clear();
 
         var rgb = framePresentation.RgbMemory.Span;
         var requestedLedCount = Math.Max(framePresentation.HighestLedWritten, framePresentation.LedsPerChannel);
@@ -65,10 +65,10 @@ internal sealed class MatrixFrameRasterComposer
         {
             var rgbOffset = logicalIndex * 3;
             var mapped = MatrixMapper.MapLinearIndex(logicalIndex, _config.Width, _config.Height, _config.Mapping);
-            var mappedOffset = ((mapped.Y * _config.Width) + mapped.X) * 3;
-            _mappedRgb[mappedOffset] = rgb[rgbOffset];
-            _mappedRgb[mappedOffset + 1] = rgb[rgbOffset + 1];
-            _mappedRgb[mappedOffset + 2] = rgb[rgbOffset + 2];
+            var mappedIndex = (mapped.Y * _config.Width) + mapped.X;
+            _mappedRgb.R[mappedIndex] = rgb[rgbOffset];
+            _mappedRgb.G[mappedIndex] = rgb[rgbOffset + 1];
+            _mappedRgb.B[mappedIndex] = rgb[rgbOffset + 2];
         }
 
         BuildColorLutIfNeeded(_config);
@@ -81,10 +81,9 @@ internal sealed class MatrixFrameRasterComposer
             for (var x = 0; x < _config.Width; x++)
             {
                 var matrixIndex = (y * _config.Width) + x;
-                var colorOffset = matrixIndex * 3;
-                var r = ToByte(_workingRgb[colorOffset] / 255.0);
-                var g = ToByte(_workingRgb[colorOffset + 1] / 255.0);
-                var b = ToByte(_workingRgb[colorOffset + 2] / 255.0);
+                var r = ToByte(_workingRgb.R[matrixIndex] / 255.0);
+                var g = ToByte(_workingRgb.G[matrixIndex] / 255.0);
+                var b = ToByte(_workingRgb.B[matrixIndex] / 255.0);
                 var intensity = Math.Max(r, Math.Max(g, b)) / 255.0;
 
                 var dstX = _dotSpacing + (x * _dotStride);
@@ -99,13 +98,13 @@ internal sealed class MatrixFrameRasterComposer
 
     public void Reset()
     {
-        Array.Clear(_mappedRgb, 0, _mappedRgb.Length);
-        Array.Clear(_workingRgb, 0, _workingRgb.Length);
-        Array.Clear(_smoothedRgb, 0, _smoothedRgb.Length);
-        Array.Clear(_screenBloomSourceRgb, 0, _screenBloomSourceRgb.Length);
-        Array.Clear(_screenBloomNearRgb, 0, _screenBloomNearRgb.Length);
-        Array.Clear(_screenBloomFarRgb, 0, _screenBloomFarRgb.Length);
-        Array.Clear(_screenBloomScratchRgb, 0, _screenBloomScratchRgb.Length);
+        _mappedRgb.Clear();
+        _workingRgb.Clear();
+        _smoothedRgb.Clear();
+        _screenBloomSourceRgb.Clear();
+        _screenBloomNearRgb.Clear();
+        _screenBloomFarRgb.Clear();
+        _screenBloomScratchRgb.Clear();
     }
 
     private void RasterDot(int originX, int originY, byte r, byte g, byte b, double intensity, MatrixVisualConfig visual)
@@ -229,28 +228,27 @@ internal sealed class MatrixFrameRasterComposer
         var fallAlpha = Clamp01(smoothing.FallAlpha);
         for (var i = 0; i < matrixCapacity; i++)
         {
-            var offset = i * 3;
-            ApplyChannelTransform(offset, riseAlpha, fallAlpha, smoothingEnabled);
-            ApplyChannelTransform(offset + 1, riseAlpha, fallAlpha, smoothingEnabled);
-            ApplyChannelTransform(offset + 2, riseAlpha, fallAlpha, smoothingEnabled);
+            ApplyChannelTransform(_mappedRgb.R, _smoothedRgb.R, _workingRgb.R, i, riseAlpha, fallAlpha, smoothingEnabled);
+            ApplyChannelTransform(_mappedRgb.G, _smoothedRgb.G, _workingRgb.G, i, riseAlpha, fallAlpha, smoothingEnabled);
+            ApplyChannelTransform(_mappedRgb.B, _smoothedRgb.B, _workingRgb.B, i, riseAlpha, fallAlpha, smoothingEnabled);
         }
     }
 
-    private void ApplyChannelTransform(int channelOffset, double riseAlpha, double fallAlpha, bool smoothingEnabled)
+    private void ApplyChannelTransform(float[] mappedChannel, float[] smoothedChannel, float[] workingChannel, int pixelIndex, double riseAlpha, double fallAlpha, bool smoothingEnabled)
     {
-        var target = _colorLut[(byte)_mappedRgb[channelOffset]];
+        var target = _colorLut[(byte)mappedChannel[pixelIndex]];
         if (!smoothingEnabled)
         {
-            _smoothedRgb[channelOffset] = target;
-            _workingRgb[channelOffset] = target;
+            smoothedChannel[pixelIndex] = target;
+            workingChannel[pixelIndex] = target;
             return;
         }
 
-        var current = _smoothedRgb[channelOffset];
+        var current = smoothedChannel[pixelIndex];
         if (target == byte.MaxValue)
         {
-            _smoothedRgb[channelOffset] = byte.MaxValue;
-            _workingRgb[channelOffset] = byte.MaxValue;
+            smoothedChannel[pixelIndex] = byte.MaxValue;
+            workingChannel[pixelIndex] = byte.MaxValue;
             return;
         }
 
@@ -262,8 +260,8 @@ internal sealed class MatrixFrameRasterComposer
             next = 0f;
         }
 
-        _smoothedRgb[channelOffset] = next;
-        _workingRgb[channelOffset] = next;
+        smoothedChannel[pixelIndex] = next;
+        workingChannel[pixelIndex] = next;
     }
 
     private void BuildColorLutIfNeeded(MatrixConfig config)
@@ -291,12 +289,11 @@ internal sealed class MatrixFrameRasterComposer
 
     private void EnsureWorkingBuffers(int matrixCapacity)
     {
-        var channelCapacity = matrixCapacity * 3;
-        if (_workingRgb.Length != channelCapacity)
+        if (_workingRgb.Length != matrixCapacity)
         {
-            _mappedRgb = new float[channelCapacity];
-            _workingRgb = new float[channelCapacity];
-            _smoothedRgb = new float[channelCapacity];
+            _mappedRgb.EnsureSize(matrixCapacity);
+            _workingRgb.EnsureSize(matrixCapacity);
+            _smoothedRgb.EnsureSize(matrixCapacity);
         }
     }
 
@@ -354,13 +351,13 @@ internal sealed class MatrixFrameRasterComposer
         var scaleDivisor = profile.ScaleDivisor;
         _downsampleWidth = Math.Max(1, width / scaleDivisor);
         _downsampleHeight = Math.Max(1, height / scaleDivisor);
-        var downsamplePixels = _downsampleWidth * _downsampleHeight * 3;
+        var downsamplePixels = _downsampleWidth * _downsampleHeight;
         if (_screenBloomSourceRgb.Length != downsamplePixels)
         {
-            _screenBloomSourceRgb = new float[downsamplePixels];
-            _screenBloomNearRgb = new float[downsamplePixels];
-            _screenBloomFarRgb = new float[downsamplePixels];
-            _screenBloomScratchRgb = new float[downsamplePixels];
+            _screenBloomSourceRgb.EnsureSize(downsamplePixels);
+            _screenBloomNearRgb.EnsureSize(downsamplePixels);
+            _screenBloomFarRgb.EnsureSize(downsamplePixels);
+            _screenBloomScratchRgb.EnsureSize(downsamplePixels);
         }
 
         var emissiveMinTileX = Math.Clamp(emissiveMinX / scaleDivisor, 0, _downsampleWidth - 1);
@@ -384,10 +381,10 @@ internal sealed class MatrixFrameRasterComposer
         {
             for (var x = processMinX; x <= processMaxX; x++)
             {
-                var dstOffset = ((y * _downsampleWidth) + x) * 3;
-                _screenBloomSourceRgb[dstOffset] = 0f;
-                _screenBloomSourceRgb[dstOffset + 1] = 0f;
-                _screenBloomSourceRgb[dstOffset + 2] = 0f;
+                var dstOffset = (y * _downsampleWidth) + x;
+                _screenBloomSourceRgb.R[dstOffset] = 0f;
+                _screenBloomSourceRgb.G[dstOffset] = 0f;
+                _screenBloomSourceRgb.B[dstOffset] = 0f;
                 var srcStartX = x * scaleDivisor;
                 var srcStartY = y * scaleDivisor;
                 var srcEndX = Math.Min(width, srcStartX + scaleDivisor);
@@ -423,9 +420,9 @@ internal sealed class MatrixFrameRasterComposer
                 }
 
                 var inv = 1f / samples;
-                _screenBloomSourceRgb[dstOffset] = sumR * inv;
-                _screenBloomSourceRgb[dstOffset + 1] = sumG * inv;
-                _screenBloomSourceRgb[dstOffset + 2] = sumB * inv;
+                _screenBloomSourceRgb.R[dstOffset] = sumR * inv;
+                _screenBloomSourceRgb.G[dstOffset] = sumG * inv;
+                _screenBloomSourceRgb.B[dstOffset] = sumB * inv;
                 any = true;
                 minBloomX = Math.Min(minBloomX, x);
                 minBloomY = Math.Min(minBloomY, y);
@@ -436,7 +433,7 @@ internal sealed class MatrixFrameRasterComposer
         return any;
     }
 
-    private static void CompositeBloom(byte[] target, int width, int height, float[] nearBlur, float[] farBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, float effectiveNearStrength, float effectiveFarStrength, BloomProfile profile)
+    private static void CompositeBloom(byte[] target, int width, int height, RgbPlaneBuffer nearBlur, RgbPlaneBuffer farBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, float effectiveNearStrength, float effectiveFarStrength, BloomProfile profile)
     {
         var nearStrength = effectiveNearStrength;
         var farStrength = effectiveFarStrength;
@@ -453,17 +450,13 @@ internal sealed class MatrixFrameRasterComposer
                 // Bilinear fetch keeps bloom smooth when upsampling from the downsampled buffers.
                 var bloomU = ((x + 0.5f) / profile.ScaleDivisor) - 0.5f;
                 var bloomV = ((y + 0.5f) / profile.ScaleDivisor) - 0.5f;
-                var nearR = SampleBilinear(nearBlur, bloomWidth, bloomHeight, bloomU, bloomV, 0);
-                var nearG = SampleBilinear(nearBlur, bloomWidth, bloomHeight, bloomU, bloomV, 1);
-                var nearB = SampleBilinear(nearBlur, bloomWidth, bloomHeight, bloomU, bloomV, 2);
-                var farR = SampleBilinear(farBlur, bloomWidth, bloomHeight, bloomU, bloomV, 0);
-                var farG = SampleBilinear(farBlur, bloomWidth, bloomHeight, bloomU, bloomV, 1);
-                var farB = SampleBilinear(farBlur, bloomWidth, bloomHeight, bloomU, bloomV, 2);
+                var near = SampleBilinear(nearBlur, bloomWidth, bloomHeight, bloomU, bloomV);
+                var far = SampleBilinear(farBlur, bloomWidth, bloomHeight, bloomU, bloomV);
 
                 var targetOffset = ((y * width) + x) * 4;
-                target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (nearR * nearStrength) + (farR * farStrength), 0f, 255f);
-                target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (nearG * nearStrength) + (farG * farStrength), 0f, 255f);
-                target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (nearB * nearStrength) + (farB * farStrength), 0f, 255f);
+                target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (near.R * nearStrength) + (far.R * farStrength), 0f, 255f);
+                target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (near.G * nearStrength) + (far.G * farStrength), 0f, 255f);
+                target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (near.B * nearStrength) + (far.B * farStrength), 0f, 255f);
             }
         }
     }
@@ -482,11 +475,11 @@ internal sealed class MatrixFrameRasterComposer
         return t * t * (3f - (2f * t));
     }
 
-    private static bool HasAnyLitLed(float[] rgb)
+    private static bool HasAnyLitLed(RgbPlaneBuffer rgb)
     {
-        for (var i = 0; i < rgb.Length; i += 3)
+        for (var i = 0; i < rgb.Length; i++)
         {
-            if (rgb[i] > 0.5f || rgb[i + 1] > 0.5f || rgb[i + 2] > 0.5f)
+            if (rgb.R[i] > 0.5f || rgb.G[i] > 0.5f || rgb.B[i] > 0.5f)
             {
                 return true;
             }
@@ -512,7 +505,7 @@ internal sealed class MatrixFrameRasterComposer
         }
     }
 
-    private static float SampleBilinear(float[] source, int width, int height, float x, float y, int channel)
+    private static RgbSample SampleBilinear(RgbPlaneBuffer source, int width, int height, float x, float y)
     {
         var x0 = Math.Clamp((int)Math.Floor(x), 0, width - 1);
         var y0 = Math.Clamp((int)Math.Floor(y), 0, height - 1);
@@ -521,14 +514,39 @@ internal sealed class MatrixFrameRasterComposer
         var tx = x - x0;
         var ty = y - y0;
 
-        var a = source[((y0 * width + x0) * 3) + channel];
-        var b = source[((y0 * width + x1) * 3) + channel];
-        var c = source[((y1 * width + x0) * 3) + channel];
-        var d = source[((y1 * width + x1) * 3) + channel];
+        var topLeft = (y0 * width) + x0;
+        var topRight = (y0 * width) + x1;
+        var bottomLeft = (y1 * width) + x0;
+        var bottomRight = (y1 * width) + x1;
 
-        var ab = a + ((b - a) * tx);
-        var cd = c + ((d - c) * tx);
-        return ab + ((cd - ab) * ty);
+        // We run RGB through one SIMD batch so interpolation arithmetic stays in lockstep per channel.
+        Span<float> a = stackalloc float[System.Numerics.Vector<float>.Count];
+        Span<float> b = stackalloc float[System.Numerics.Vector<float>.Count];
+        Span<float> c = stackalloc float[System.Numerics.Vector<float>.Count];
+        Span<float> d = stackalloc float[System.Numerics.Vector<float>.Count];
+        a[0] = source.R[topLeft];
+        a[1] = source.G[topLeft];
+        a[2] = source.B[topLeft];
+        b[0] = source.R[topRight];
+        b[1] = source.G[topRight];
+        b[2] = source.B[topRight];
+        c[0] = source.R[bottomLeft];
+        c[1] = source.G[bottomLeft];
+        c[2] = source.B[bottomLeft];
+        d[0] = source.R[bottomRight];
+        d[1] = source.G[bottomRight];
+        d[2] = source.B[bottomRight];
+
+        var va = new System.Numerics.Vector<float>(a);
+        var vb = new System.Numerics.Vector<float>(b);
+        var vc = new System.Numerics.Vector<float>(c);
+        var vd = new System.Numerics.Vector<float>(d);
+        var vtx = new System.Numerics.Vector<float>(tx);
+        var vty = new System.Numerics.Vector<float>(ty);
+        var vab = va + ((vb - va) * vtx);
+        var vcd = vc + ((vd - vc) * vtx);
+        var sample = vab + ((vcd - vab) * vty);
+        return new RgbSample(sample[0], sample[1], sample[2]);
     }
 
     private static byte ApplyToneMap(byte channel, double brightness, double gamma, ToneMappingConfig toneMapping)
@@ -595,15 +613,19 @@ internal sealed class MatrixFrameRasterComposer
         expandedMaxY = Math.Min(height - 1, maxY + expandBy);
     }
 
-    private static void ClearBloomRoi(float[] rgb, int width, int minX, int minY, int maxX, int maxY)
+    private static void ClearBloomRoi(RgbPlaneBuffer rgb, int width, int minX, int minY, int maxX, int maxY)
     {
         for (var y = minY; y <= maxY; y++)
         {
-            var offset = ((y * width) + minX) * 3;
-            var length = ((maxX - minX) + 1) * 3;
-            Array.Clear(rgb, offset, length);
+            var offset = (y * width) + minX;
+            var length = (maxX - minX) + 1;
+            Array.Clear(rgb.R, offset, length);
+            Array.Clear(rgb.G, offset, length);
+            Array.Clear(rgb.B, offset, length);
         }
     }
+
+    private readonly record struct RgbSample(float R, float G, float B);
 
     private sealed class DotKernel
     {
