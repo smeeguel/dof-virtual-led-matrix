@@ -1005,7 +1005,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         try
         {
-            var reason = _device.GetDeviceRemovedReason();
+            var reason = _device.DeviceRemovedReason;
             return $"deviceReason=0x{reason.Code:X8}";
         }
         catch
