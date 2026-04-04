@@ -7,6 +7,7 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.Mathematics;
+using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 using static Vortice.Direct3D11.D3D11;
 
@@ -151,9 +152,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _host.Stretch = Stretch.Fill;
         InitializeGpuBloomPipeline();
 
-        Console.WriteLine($"[renderer] gpu initialized fastpath leds={width * height} surface={_surfaceWidth}x{_surfaceHeight}");
+        AppLogger.Info($"[renderer] gpu initialized fastpath leds={width * height} surface={_surfaceWidth}x{_surfaceHeight}");
         var bloomProfile = BloomProfileResolver.Resolve(dotStyleConfig.Bloom);
-        Console.WriteLine($"[renderer] gpu bloom enabled={bloomProfile.Enabled} threshold={bloomProfile.Threshold:F2} softKnee={bloomProfile.SoftKnee:F2} scale={bloomProfile.ScaleDivisor} nearRadius={bloomProfile.NearRadius} farRadius={bloomProfile.FarRadius} nearStrength={bloomProfile.NearStrength:F2} farStrength={bloomProfile.FarStrength:F2}");
+        AppLogger.Info($"[renderer] gpu bloom enabled={bloomProfile.Enabled} threshold={bloomProfile.Threshold:F2} softKnee={bloomProfile.SoftKnee:F2} scale={bloomProfile.ScaleDivisor} nearRadius={bloomProfile.NearRadius} farRadius={bloomProfile.FarRadius} nearStrength={bloomProfile.NearStrength:F2} farStrength={bloomProfile.FarStrength:F2}");
     }
 
     public void UpdateFrame(FramePresentation presentation)
@@ -1020,7 +1021,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             _gpuBloomSupported = false;
             _useCpuBloomFallback = true;
-            Console.WriteLine($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. reason={ex.Message}");
+            AppLogger.Warn($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. reason={ex.Message}");
         }
     }
 

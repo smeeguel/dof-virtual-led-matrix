@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using VirtualDofMatrix.App.Configuration;
+using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.App.Presentation;
 using VirtualDofMatrix.App.Transport;
 using VirtualDofMatrix.Core;
@@ -33,6 +34,7 @@ public partial class App : Application
 
         _config = _configurationStore.Load(ConfigFilePath);
         _configurationStore.Save(ConfigFilePath, _config);
+        AppLogger.Configure(_config.Debug.LogProtocol);
 
         if (TryHandleControlClientMode(e.Args, _config))
         {
@@ -142,6 +144,7 @@ public partial class App : Application
         var originalHeight = _config.Matrix.Height;
 
         CopyConfig(updated, _config);
+        AppLogger.SetEnabled(_config.Debug.LogProtocol);
 
         if (_config.Settings.AutoUpdateCabinetOnResolutionChange
             && (originalWidth != _config.Matrix.Width || originalHeight != _config.Matrix.Height))
@@ -357,7 +360,7 @@ public partial class App : Application
 
         if (_config?.Debug.LogProtocol == true)
         {
-            Console.WriteLine($"[{DateTimeOffset.UtcNow:O}] Control visibility='{(visible ? "visible" : "hidden")}' reason='{reason}'.");
+            AppLogger.Info($"Control visibility='{(visible ? "visible" : "hidden")}' reason='{reason}'.");
         }
     }
 

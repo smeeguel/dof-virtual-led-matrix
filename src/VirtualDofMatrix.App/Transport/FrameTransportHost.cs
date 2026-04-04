@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Pipes;
+using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Transport;
@@ -83,14 +84,14 @@ public sealed class FrameTransportHost
 
             if (_config.Debug.LogProtocol)
             {
-                Console.WriteLine($"[{DateTimeOffset.UtcNow:O}] Waiting for named pipe client on '{pipeName}'...");
+                AppLogger.Info($"Waiting for named pipe client on '{pipeName}'...");
             }
 
             await pipe.WaitForConnectionAsync(cancellationToken);
 
             if (_config.Debug.LogProtocol)
             {
-                Console.WriteLine($"[{DateTimeOffset.UtcNow:O}] Named pipe client connected on '{pipeName}'.");
+                AppLogger.Info($"Named pipe client connected on '{pipeName}'.");
             }
 
             try
@@ -128,7 +129,7 @@ public sealed class FrameTransportHost
 
                     if (_config.Debug.LogProtocol)
                     {
-                        Console.WriteLine($"[{DateTimeOffset.UtcNow:O}] Pipe frame seq={sequence}, payload={payloadLength} bytes.");
+                        AppLogger.Info($"Pipe frame seq={sequence}, payload={payloadLength} bytes.");
                     }
 
                     if (!_isActive)
@@ -158,12 +159,15 @@ public sealed class FrameTransportHost
             {
                 if (_config.Debug.LogProtocol)
                 {
-                    Console.WriteLine($"[{DateTimeOffset.UtcNow:O}] Named pipe IO warning: {ioEx.Message}");
+                    AppLogger.Warn($"Named pipe IO warning: {ioEx.Message}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[{DateTimeOffset.UtcNow:O}] Named pipe error: {ex.Message}");
+                if (_config.Debug.LogProtocol)
+                {
+                    AppLogger.Error($"Named pipe error: {ex.Message}");
+                }
             }
         }
     }
