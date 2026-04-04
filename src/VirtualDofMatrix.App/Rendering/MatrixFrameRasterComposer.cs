@@ -2,6 +2,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Rendering;
 
+// Conversational overview: raster composer converts RGB frame payloads into a BGRA surface and tracks dirty regions for efficient uploads.
 internal sealed class MatrixFrameRasterComposer
 {
     private const int HardMinimumDotSpacing = 2;

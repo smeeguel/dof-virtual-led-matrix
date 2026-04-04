@@ -3,6 +3,7 @@ using System.Text;
 
 namespace VirtualDofMatrix.App.Logging;
 
+// Conversational overview: AppLogger is intentionally tiny and file-based so protocol debugging works even on end-user cabinets.
 internal static class AppLogger
 {
     private static readonly object Gate = new();

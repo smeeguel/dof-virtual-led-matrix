@@ -12,6 +12,7 @@ using System.Text.Json;
 
 namespace VirtualDofMatrix.App;
 
+// Conversational overview: App wires together config loading, transport startup, UI lifecycle, and local control commands.
 public partial class App : Application
 {
     private const string ConfigFilePath = "settings.json";
@@ -32,6 +33,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Start each launch from a predictable baseline so logs/config-backed defaults are deterministic.
         AppLogger.ClearForNewLaunch();
         _config = _configurationStore.Load(ConfigFilePath);
         _configurationStore.Save(ConfigFilePath, _config);
@@ -81,6 +83,7 @@ public partial class App : Application
 
     protected override async void OnExit(ExitEventArgs e)
     {
+        // Shutdown is ordered so background control/transport tasks stop before WPF tears down.
         if (_controlCts is not null)
         {
             _controlCts.Cancel();

@@ -5,6 +5,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Presentation;
 
+// Conversational overview: this dispatcher coalesces fast transport updates into UI-thread-safe frame notifications.
 public sealed class FramePresentationDispatcher : IDisposable
 {
     private readonly Dispatcher _dispatcher;
@@ -34,6 +35,7 @@ public sealed class FramePresentationDispatcher : IDisposable
 
     private void OnFramePresentedFromHost(object? sender, FramePresentation frame)
     {
+        // We keep only the newest frame so UI never falls behind when transport bursts.
         lock (_gate)
         {
             _latestFrame = frame;

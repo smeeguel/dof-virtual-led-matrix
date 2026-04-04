@@ -3,6 +3,7 @@ using System.IO;
 
 namespace VirtualDofMatrix.App.Configuration;
 
+// Conversational overview: CabinetXmlService keeps Cabinet.xml discovery and toy resolution edits in one place for safer automation.
 public sealed class CabinetXmlService
 {
     public const int SafeMaxLedTotal = 8800;
@@ -33,6 +34,7 @@ public sealed class CabinetXmlService
 
     public void UpdateLedStripResolution(string cabinetXmlPath, string toyName, int width, int height)
     {
+        // We validate aggressively before touching XML so accidental bad UI values cannot corrupt cabinet config.
         if (width <= 0 || height <= 0)
         {
             throw new InvalidOperationException("Width and height must be positive values.");

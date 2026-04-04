@@ -9,6 +9,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
 
+// Conversational overview: MainWindow owns viewport behavior (always-on-top/borderless/aspect lock) and forwards frames to the active renderer.
 public partial class MainWindow : Window
 {
     private enum AspectLockAxis
@@ -86,6 +87,7 @@ public partial class MainWindow : Window
 
     public void ApplyPresentation(FramePresentation presentation)
     {
+        // Keep lightweight UI metadata updates here; heavy composition is delegated to the renderer implementation.
         _latestPresentation = presentation;
         _lastFrameUtc = DateTimeOffset.UtcNow;
         _idleCleared = false;
@@ -181,6 +183,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Reinitialize on viewport changes so dot pitch and render targets match the new window geometry.
         var effectiveMatrixConfig = BuildViewportAdaptiveMatrixConfig();
         MatrixImage.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Visible : Visibility.Collapsed;
         MatrixCanvas.Visibility = _matrixRenderer.UsesImageHost ? Visibility.Collapsed : Visibility.Visible;

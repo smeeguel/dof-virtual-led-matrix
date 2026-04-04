@@ -8,6 +8,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
 
+// Conversational overview: SettingsWindow is a working-copy editor that applies runtime-safe changes without mutating the live config until confirmed.
 public partial class SettingsWindow : Window
 {
     private const string CustomResolution = "Custom";
@@ -34,6 +35,7 @@ public partial class SettingsWindow : Window
 
     private void PopulateControls()
     {
+        // Keep choice lists centralized so we don't drift between XAML defaults and runtime options.
         ResolutionPresetCombo.ItemsSource = new[] { "SD (32x8)", "HD (64x16)", "Ultra (128x32)", CustomResolution };
         QualityCombo.ItemsSource = VisualQualityProfiles.Names;
         DotShapeCombo.ItemsSource = new[] { "circle", "square" };

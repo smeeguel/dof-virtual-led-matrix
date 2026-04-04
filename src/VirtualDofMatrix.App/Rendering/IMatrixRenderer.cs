@@ -3,6 +3,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Rendering;
 
+// Conversational overview: these contracts isolate window logic from renderer backend details (CPU/GPU/etc).
 public sealed record DotStyleConfig(
     string DotShape,
     string Mapping,

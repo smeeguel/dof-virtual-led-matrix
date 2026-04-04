@@ -2,6 +2,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Configuration;
 
+// Conversational overview: quality profiles are intentionally conservative presets layered on top of explicit user numeric tuning.
 public static class VisualQualityProfiles
 {
     public const string Low = "Low";

@@ -4,6 +4,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Configuration;
 
+// Conversational overview: this store keeps settings.json compatible across schema tweaks by applying defaults after deserialize.
 public sealed class AppConfigurationStore
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -32,7 +33,7 @@ public sealed class AppConfigurationStore
 
     private static AppConfig ApplyLegacyDefaults(AppConfig config)
     {
-
+        // Backfill nested objects so older config files can still load without null-check noise everywhere else.
         if (config.Settings is null)
         {
             config.Settings = new SettingsConfig();

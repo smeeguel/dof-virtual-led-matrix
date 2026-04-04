@@ -18,6 +18,7 @@ using DxgiFormat = Vortice.DXGI.Format;
 
 namespace VirtualDofMatrix.App.Rendering;
 
+// Conversational overview: GPU renderer owns D3D device resources and composes matrix dots/bloom in shader passes.
 public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 {
     private const int Channels = 3;

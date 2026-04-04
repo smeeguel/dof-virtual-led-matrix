@@ -5,6 +5,7 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Transport;
 
+// Conversational overview: FrameTransportHost listens for serialized frame presentations and republishes them as app-level events.
 public sealed class FrameTransportHost
 {
     private readonly AppConfig _config;
@@ -27,6 +28,7 @@ public sealed class FrameTransportHost
 
     public Task StartAsync()
     {
+        // Fire-and-forget loop: callers just need idempotent startup semantics.
         if (_runTask is not null)
         {
             return Task.CompletedTask;
