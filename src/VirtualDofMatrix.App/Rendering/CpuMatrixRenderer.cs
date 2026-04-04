@@ -163,7 +163,7 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
                 continue;
             }
 
-            (int Width, int Height, int Stride, byte[] Pixels) composed;
+            (int Width, int Height, int Stride, byte[] Pixels, IReadOnlyList<DirtyRect> DirtyRects, bool UseFullFrameWrite) composed;
             await _composeMutex.WaitAsync(_composeCts.Token).ConfigureAwait(false);
             try
             {
@@ -188,20 +188,40 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private void ApplyComposedFrame(Image bitmapHost, (int Width, int Height, int Stride, byte[] Pixels) composed)
+    private void ApplyComposedFrame(Image bitmapHost, (int Width, int Height, int Stride, byte[] Pixels, IReadOnlyList<DirtyRect> DirtyRects, bool UseFullFrameWrite) composed)
     {
         if (_isDisposed)
         {
             return;
         }
 
+        var needsFullFrameWrite = composed.UseFullFrameWrite;
         if (_bitmap is null || _bitmap.PixelWidth != composed.Width || _bitmap.PixelHeight != composed.Height)
         {
             _bitmap = new WriteableBitmap(composed.Width, composed.Height, 96, 96, PixelFormats.Bgra32, null);
             bitmapHost.Source = _bitmap;
+            // Fresh bitmaps have no valid backing pixels yet, so we always prime them with a full upload once.
+            needsFullFrameWrite = true;
         }
 
-        _bitmap.WritePixels(new System.Windows.Int32Rect(0, 0, composed.Width, composed.Height), composed.Pixels, composed.Stride, 0);
+        if (needsFullFrameWrite)
+        {
+            _bitmap.WritePixels(new System.Windows.Int32Rect(0, 0, composed.Width, composed.Height), composed.Pixels, composed.Stride, 0);
+            return;
+        }
+
+        if (composed.DirtyRects.Count == 0)
+        {
+            return;
+        }
+
+        // Dirty rows come from the composer and let us avoid uploading untouched portions of the backbuffer.
+        foreach (var dirtyRect in composed.DirtyRects)
+        {
+            var rect = new System.Windows.Int32Rect(dirtyRect.X, dirtyRect.Y, dirtyRect.Width, dirtyRect.Height);
+            var sourceOffset = (dirtyRect.Y * composed.Stride) + (dirtyRect.X * 4);
+            _bitmap.WritePixels(rect, composed.Pixels, composed.Stride, sourceOffset);
+        }
     }
 
     private static MatrixConfig BuildConfig(int width, int height, DotStyleConfig dotStyleConfig)

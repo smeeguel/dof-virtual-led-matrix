@@ -6,6 +6,8 @@ internal sealed class MatrixFrameRasterComposer
 {
     private const int HardMinimumDotSpacing = 2;
     private const float TemporalSmoothingOffSnapThreshold = 1.0f;
+    private const int DirtyRectComplexityThreshold = 128;
+    private const double DirtyCoverageFullUploadThreshold = 0.65;
     private readonly byte[] _colorLut = new byte[256];
     private readonly RgbPlaneBuffer _mappedRgb = new();
     private readonly RgbPlaneBuffer _workingRgb = new();
@@ -33,6 +35,8 @@ internal sealed class MatrixFrameRasterComposer
     private int _rasterEmissiveMinY;
     private int _rasterEmissiveMaxX;
     private int _rasterEmissiveMaxY;
+    private byte[] _previousSurfaceBgra = Array.Empty<byte>();
+    private readonly List<DirtyRect> _dirtyRectScratch = new();
 
     public void Configure(MatrixConfig config)
     {
@@ -43,10 +47,11 @@ internal sealed class MatrixFrameRasterComposer
         _surfaceHeight = (config.Height * _dotStride) + _dotSpacing;
         _stride = _surfaceWidth * 4;
         _surfaceBgra = new byte[_stride * _surfaceHeight];
+        _previousSurfaceBgra = new byte[_surfaceBgra.Length];
         _kernel = DotKernel.Create(config.DotSize, config.DotShape, config.Visual);
     }
 
-    public (int Width, int Height, int Stride, byte[] Pixels) Compose(FramePresentation framePresentation)
+    public (int Width, int Height, int Stride, byte[] Pixels, IReadOnlyList<DirtyRect> DirtyRects, bool UseFullFrameWrite) Compose(FramePresentation framePresentation)
     {
         if (_config is null || _kernel is null)
         {
@@ -93,7 +98,9 @@ internal sealed class MatrixFrameRasterComposer
         }
         ApplyBloomIfEnabled();
 
-        return (_surfaceWidth, _surfaceHeight, _stride, _surfaceBgra);
+        var fullFrameWrite = !TryBuildDirtyRects(out var dirtyRects);
+        Buffer.BlockCopy(_surfaceBgra, 0, _previousSurfaceBgra, 0, _surfaceBgra.Length);
+        return (_surfaceWidth, _surfaceHeight, _stride, _surfaceBgra, dirtyRects, fullFrameWrite);
     }
 
     public void Reset()
@@ -105,6 +112,78 @@ internal sealed class MatrixFrameRasterComposer
         _screenBloomNearRgb.Clear();
         _screenBloomFarRgb.Clear();
         _screenBloomScratchRgb.Clear();
+        _previousSurfaceBgra = Array.Empty<byte>();
+        _dirtyRectScratch.Clear();
+    }
+
+    private bool TryBuildDirtyRects(out IReadOnlyList<DirtyRect> dirtyRects)
+    {
+        _dirtyRectScratch.Clear();
+        if (_previousSurfaceBgra.Length != _surfaceBgra.Length)
+        {
+            dirtyRects = Array.Empty<DirtyRect>();
+            return false;
+        }
+
+        var totalPixels = _surfaceWidth * _surfaceHeight;
+        var dirtyPixels = 0;
+        // We intentionally scan by rows so the renderer can push horizontal strips with WritePixels.
+        for (var y = 0; y < _surfaceHeight; y++)
+        {
+            var rowStart = y * _stride;
+            var runStartX = -1;
+            for (var x = 0; x < _surfaceWidth; x++)
+            {
+                var pixelOffset = rowStart + (x * 4);
+                var changed =
+                    _surfaceBgra[pixelOffset] != _previousSurfaceBgra[pixelOffset] ||
+                    _surfaceBgra[pixelOffset + 1] != _previousSurfaceBgra[pixelOffset + 1] ||
+                    _surfaceBgra[pixelOffset + 2] != _previousSurfaceBgra[pixelOffset + 2] ||
+                    _surfaceBgra[pixelOffset + 3] != _previousSurfaceBgra[pixelOffset + 3];
+                if (changed)
+                {
+                    runStartX = runStartX < 0 ? x : runStartX;
+                    continue;
+                }
+
+                if (runStartX >= 0)
+                {
+                    var runWidth = x - runStartX;
+                    dirtyPixels += runWidth;
+                    _dirtyRectScratch.Add(new DirtyRect(runStartX, y, runWidth, 1));
+                    runStartX = -1;
+                }
+            }
+
+            if (runStartX >= 0)
+            {
+                var runWidth = _surfaceWidth - runStartX;
+                dirtyPixels += runWidth;
+                _dirtyRectScratch.Add(new DirtyRect(runStartX, y, runWidth, 1));
+            }
+
+            // Too many row strips means the update is fragmented; full-frame upload is cheaper and simpler.
+            if (_dirtyRectScratch.Count > DirtyRectComplexityThreshold)
+            {
+                dirtyRects = Array.Empty<DirtyRect>();
+                return false;
+            }
+        }
+
+        if (_dirtyRectScratch.Count == 0)
+        {
+            dirtyRects = Array.Empty<DirtyRect>();
+            return true;
+        }
+
+        if (dirtyPixels >= (int)(totalPixels * DirtyCoverageFullUploadThreshold))
+        {
+            dirtyRects = Array.Empty<DirtyRect>();
+            return false;
+        }
+
+        dirtyRects = _dirtyRectScratch.ToArray();
+        return true;
     }
 
     private void RasterDot(int originX, int originY, byte r, byte g, byte b, double intensity, MatrixVisualConfig visual)
@@ -715,3 +794,5 @@ internal sealed class MatrixFrameRasterComposer
         }
     }
 }
+
+internal readonly record struct DirtyRect(int X, int Y, int Width, int Height);
