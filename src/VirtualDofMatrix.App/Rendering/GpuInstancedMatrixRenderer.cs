@@ -659,9 +659,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuBloomTrace = trace.ToString();
         if (_gpuBrightRtv is null || _gpuBrightSrv is null ||
             _gpuNearPingRtv is null || _gpuNearPingSrv is null ||
-            _gpuNearPongRtv is null || _gpuNearPongSrv is null ||
-            _gpuFarPingRtv is null || _gpuFarPingSrv is null ||
-            _gpuFarPongRtv is null || _gpuFarPongSrv is null)
+            _gpuNearPongRtv is null || _gpuNearPongSrv is null)
         {
             return false;
         }
@@ -682,18 +680,37 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         trace.Append(" ->bright-pass");
         _gpuBloomTrace = trace.ToString();
         RunBrightPass(profile);
-        _gpuBloomStage = "blur-near";
-        trace.Append(" ->blur-near");
+        // Conversational note: we only run one separable blur lane, then derive the second glow lane in composite.
+        var sharedRadius = Math.Min(nearRadius, farRadius);
+        if (nearRadius <= 0)
+        {
+            sharedRadius = Math.Max(0, farRadius);
+        }
+        else if (farRadius <= 0)
+        {
+            sharedRadius = Math.Max(0, nearRadius);
+        }
+
+        var baseRepresentsNear = nearRadius <= farRadius;
+        if (nearRadius <= 0 && farRadius > 0)
+        {
+            baseRepresentsNear = false;
+        }
+        else if (farRadius <= 0 && nearRadius > 0)
+        {
+            baseRepresentsNear = true;
+        }
+
+        var derivedRadius = Math.Max(0, Math.Abs(farRadius - nearRadius));
+
+        _gpuBloomStage = "blur-shared";
+        trace.Append($" ->blur-shared(r={sharedRadius})");
         _gpuBloomTrace = trace.ToString();
-        RunBlurLane(_gpuBrightSrv, _gpuNearPingRtv, _gpuNearPingSrv, _gpuNearPongRtv, _gpuNearPongSrv, nearRadius);
-        _gpuBloomStage = "blur-far";
-        trace.Append(" ->blur-far");
-        _gpuBloomTrace = trace.ToString();
-        RunBlurLane(_gpuBrightSrv, _gpuFarPingRtv, _gpuFarPingSrv, _gpuFarPongRtv, _gpuFarPongSrv, farRadius);
+        RunBlurLane(_gpuBrightSrv, _gpuNearPingRtv, _gpuNearPingSrv, _gpuNearPongRtv, _gpuNearPongSrv, sharedRadius);
         _gpuBloomStage = "composite";
-        trace.Append(" ->composite");
+        trace.Append($" ->composite(derive={derivedRadius},baseNear={baseRepresentsNear})");
         _gpuBloomTrace = trace.ToString();
-        RunCompositePass(profile);
+        RunCompositePass(profile, derivedRadius, baseRepresentsNear);
 
         // Conversational note: explicitly switch away from the composite RTV before CopyResource.
         _gpuBloomStage = "unbind-composite";
@@ -965,14 +982,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.PSSetShaderResources(0, NullPixelShaderSrvs);
     }
 
-    private void RunCompositePass(BloomProfile profile)
+    private void RunCompositePass(BloomProfile profile, int derivedRadius, bool baseRepresentsNear)
     {
-        if (_context is null || _compositeShader is null || _gpuCompositeRtv is null || _gpuBaseSrv is null || _gpuNearPongSrv is null || _gpuFarPongSrv is null)
+        if (_context is null || _compositeShader is null || _gpuCompositeRtv is null || _gpuBaseSrv is null || _gpuNearPongSrv is null)
         {
             return;
         }
 
-        SetBloomConstants(profile, radius: 0f, directionX: 0f, directionY: 0f);
+        SetBloomConstants(profile, radius: Math.Max(0, derivedRadius), directionX: baseRepresentsNear ? 1f : 0f, directionY: baseRepresentsNear ? 0f : 1f);
         _context.OMSetRenderTargets(_gpuCompositeRtv);
         _context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
         _context.VSSetShader(_fullscreenVertexShader);
@@ -980,7 +997,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.PSSetShader(_compositeShader);
         _context.PSSetShaderResource(0, _gpuBaseSrv);
         _context.PSSetShaderResource(1, _gpuNearPongSrv);
-        _context.PSSetShaderResource(2, _gpuFarPongSrv);
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
@@ -1719,6 +1735,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float Radius;
         public float DirectionX;
         public float DirectionY;
+        // Conversational note: composite uses Direction as mode flags (base lane tag) and Radius as derive radius.
         public float SurfaceWidth;
         public float SurfaceHeight;
         public float BloomWidth;
@@ -1741,8 +1758,7 @@ cbuffer BloomConstants : register(b0)
     float2 BloomSize;
 }
 Texture2D BaseTexture : register(t0);
-Texture2D NearTexture : register(t1);
-Texture2D FarTexture : register(t2);
+Texture2D SharedBlurTexture : register(t1);
 SamplerState LinearSampler : register(s0);
 struct VsOut
 {
@@ -1837,11 +1853,42 @@ float4 PSSeparableBlur(VsOut input) : SV_Target
     }
     return float4(sum / max(weightSum, 0.0001f), 1.0f);
 }
+float3 SampleTent(Texture2D tex, float2 uv, float2 texel, float radius)
+{
+    float r = clamp(radius, 0.0f, 8.0f);
+    if (r <= 0.001f) return tex.Sample(LinearSampler, uv).rgb;
+    float3 sum = 0;
+    float wsum = 0;
+    [unroll]
+    for (int y = -8; y <= 8; y++)
+    {
+        if (abs((float)y) > r) continue;
+        [unroll]
+        for (int x = -8; x <= 8; x++)
+        {
+            if (abs((float)x) > r) continue;
+            float wx = 1.0f - abs((float)x) / (r + 1.0f);
+            float wy = 1.0f - abs((float)y) / (r + 1.0f);
+            float w = wx * wy;
+            sum += tex.Sample(LinearSampler, uv + float2(x, y) * texel).rgb * w;
+            wsum += w;
+        }
+    }
+    return sum / max(wsum, 0.0001f);
+}
 float4 PSComposite(VsOut input) : SV_Target
 {
     float3 baseColor = BaseTexture.Sample(LinearSampler, input.Uv).rgb;
-    float3 nearColor = NearTexture.Sample(LinearSampler, input.Uv).rgb;
-    float3 farColor = FarTexture.Sample(LinearSampler, input.Uv).rgb;
+    float3 sharedColor = SharedBlurTexture.Sample(LinearSampler, input.Uv).rgb;
+    float2 bloomTexel = 1.0f / max(BloomSize, float2(1.0f, 1.0f));
+    float3 derivedColor = SampleTent(SharedBlurTexture, input.Uv, bloomTexel, Radius);
+
+    // Conversational note: Direction.x == 1 means shared lane is near; Direction.y == 1 means shared lane is far.
+    float sharedIsNear = step(0.5f, Direction.x);
+    float sharedIsFar = step(0.5f, Direction.y);
+    float3 nearColor = (sharedColor * sharedIsNear) + (derivedColor * sharedIsFar);
+    float3 farColor = (sharedColor * sharedIsFar) + (derivedColor * sharedIsNear);
+
     float3 outColor = saturate(baseColor + (nearColor * NearStrength) + (farColor * FarStrength));
     return float4(outColor, 1.0f);
 }
