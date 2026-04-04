@@ -1029,8 +1029,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     {
         var compileResult = Compiler.Compile(
             BloomShaders.Source,
-            null,
-            null,
+            null!,
+            null!,
             "GpuInstancedMatrixRenderer.Bloom.hlsl",
             entryPoint,
             shaderProfile,
