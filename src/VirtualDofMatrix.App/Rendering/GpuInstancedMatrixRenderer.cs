@@ -16,76 +16,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 {
     private const int Channels = 3;
     private const float TemporalSmoothingOffSnapThreshold = 1.0f;
-    private const string BloomFullscreenShader = """
-                                                struct VSOut
-                                                {
-                                                    float4 Position : SV_POSITION;
-                                                    float2 UV : TEXCOORD0;
-                                                };
-
-                                                VSOut VSMain(uint vertexId : SV_VertexID)
-                                                {
-                                                    VSOut output;
-                                                    float2 uv = float2((vertexId << 1) & 2, vertexId & 2);
-                                                    output.UV = uv;
-                                                    output.Position = float4((uv * float2(2, -2)) + float2(-1, 1), 0, 1);
-                                                    return output;
-                                                }
-
-                                                cbuffer BloomParams : register(b0)
-                                                {
-                                                    float2 InvSourceSize;
-                                                    float2 BlurDirection;
-                                                    float Threshold;
-                                                    float SoftKnee;
-                                                    float NearStrength;
-                                                    float FarStrength;
-                                                    float2 Pad;
-                                                };
-
-                                                Texture2D SourceTex : register(t0);
-                                                Texture2D NearTex : register(t1);
-                                                Texture2D FarTex : register(t2);
-                                                SamplerState LinearSampler : register(s0);
-
-                                                float EmissiveWeight(float3 rgb)
-                                                {
-                                                    float peak = max(rgb.r, max(rgb.g, rgb.b));
-                                                    if (SoftKnee <= 0.0001)
-                                                    {
-                                                        return peak >= Threshold ? 1.0 : 0.0;
-                                                    }
-
-                                                    float t = saturate((peak - Threshold) / max(SoftKnee, 0.0001));
-                                                    return t * t * (3.0 - (2.0 * t));
-                                                }
-
-                                                float4 PSExtract(VSOut input) : SV_TARGET
-                                                {
-                                                    float3 color = SourceTex.Sample(LinearSampler, input.UV).rgb;
-                                                    float weight = EmissiveWeight(color);
-                                                    return float4(color * weight, 1.0);
-                                                }
-
-                                                float4 PSBlur(VSOut input) : SV_TARGET
-                                                {
-                                                    float2 offset = BlurDirection * InvSourceSize;
-                                                    float3 center = SourceTex.Sample(LinearSampler, input.UV).rgb * 0.4;
-                                                    float3 nearA = SourceTex.Sample(LinearSampler, input.UV + offset * 1.0).rgb * 0.25;
-                                                    float3 nearB = SourceTex.Sample(LinearSampler, input.UV - offset * 1.0).rgb * 0.25;
-                                                    float3 farA = SourceTex.Sample(LinearSampler, input.UV + offset * 2.5).rgb * 0.05;
-                                                    float3 farB = SourceTex.Sample(LinearSampler, input.UV - offset * 2.5).rgb * 0.05;
-                                                    return float4(center + nearA + nearB + farA + farB, 1.0);
-                                                }
-
-                                                float4 PSComposite(VSOut input) : SV_TARGET
-                                                {
-                                                    float3 baseColor = SourceTex.Sample(LinearSampler, input.UV).rgb;
-                                                    float3 nearColor = NearTex.Sample(LinearSampler, input.UV).rgb * NearStrength;
-                                                    float3 farColor = FarTex.Sample(LinearSampler, input.UV).rgb * FarStrength;
-                                                    return float4(saturate(baseColor + nearColor + farColor), 1.0);
-                                                }
-                                                """;
+    // We keep a placeholder HLSL string so the constant remains available for future GPU-compile restoration.
+    private const string BloomFullscreenShader = "// GPU bloom shader source intentionally disabled in this build.";
 
     [StructLayout(LayoutKind.Sequential)]
     private struct GpuBloomParams
