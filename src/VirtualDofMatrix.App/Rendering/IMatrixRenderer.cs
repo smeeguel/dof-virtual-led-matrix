@@ -14,6 +14,7 @@ public sealed record DotStyleConfig(
     ToneMappingConfig ToneMapping,
     TemporalSmoothingConfig TemporalSmoothing,
     BloomConfig Bloom,
+    bool ForceCpuDotRasterFallback,
     bool GlowEnabled,
     double GlowIntensity);
 

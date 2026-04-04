@@ -75,6 +75,9 @@ public sealed class TemporalSmoothingConfig
 
 public sealed class MatrixVisualConfig
 {
+    // When true, force the renderer to keep CPU dot rasterization for maximum compatibility.
+    public bool ForceCpuDotRasterFallback { get; set; } = false;
+
     // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
     public bool FlatShading { get; set; } = false;
 

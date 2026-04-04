@@ -195,6 +195,7 @@ public partial class MainWindow : Window
             effectiveMatrixConfig.ToneMapping,
             effectiveMatrixConfig.TemporalSmoothing,
             effectiveMatrixConfig.Bloom,
+            effectiveMatrixConfig.Visual.ForceCpuDotRasterFallback,
             effectiveMatrixConfig.Bloom.Enabled,
             effectiveMatrixConfig.Bloom.NearStrength);
         _matrixRenderer.Initialize(new MatrixRendererSurface(MatrixCanvas, MatrixImage), effectiveMatrixConfig.Width, effectiveMatrixConfig.Height, dotStyle);
@@ -254,6 +255,7 @@ public partial class MainWindow : Window
             },
             Visual = new MatrixVisualConfig
             {
+                ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                 FlatShading = _config.Matrix.Visual.FlatShading,
                 FullBrightnessRadiusMinPct = _config.Matrix.Visual.FullBrightnessRadiusMinPct,
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,

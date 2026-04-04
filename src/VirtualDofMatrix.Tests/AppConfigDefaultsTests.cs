@@ -14,4 +14,11 @@ public sealed class AppConfigDefaultsTests
         Assert.Equal(0.9, config.Matrix.TemporalSmoothing.RiseAlpha);
         Assert.Equal(0.9, config.Matrix.TemporalSmoothing.FallAlpha);
     }
+
+    [Fact]
+    public void VisualDefaults_ShouldPreferGpuDotPass()
+    {
+        var config = new AppConfig();
+        Assert.False(config.Matrix.Visual.ForceCpuDotRasterFallback);
+    }
 }

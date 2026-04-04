@@ -35,4 +35,28 @@ public sealed class GpuRendererBoundaryTests
         Assert.Equal((byte)0, bgra[2]);
         Assert.Equal((byte)255, bgra[3]);
     }
+
+    [Theory]
+    [InlineData(32, 8)]
+    [InlineData(128, 32)]
+    [InlineData(128, 64)]
+    public void BuildBgraFrame_ShouldHandleBoundaryMatrixSizes_WithoutOutOfRangeWrites(int width, int height)
+    {
+        var ledCount = checked(width * height);
+        var leds = new Rgb24[ledCount];
+        for (var i = 0; i < ledCount; i++)
+        {
+            leds[i] = new Rgb24((byte)(i % 256), (byte)((i * 3) % 256), (byte)((i * 7) % 256));
+        }
+
+        var map = MatrixFrameIndexMap.BuildLogicalToRasterMap(width, height, "TopDownAlternateRightLeft");
+        // Conversational note: add a deliberate invalid index to prove out-of-range map values are skipped safely.
+        if (map.Length > 0)
+        {
+            map[0] = ledCount + 10;
+        }
+
+        var bgra = GpuFrameUpload.BuildBgraFrame(leds, map, width, height);
+        Assert.Equal(checked(width * height * 4), bgra.Length);
+    }
 }

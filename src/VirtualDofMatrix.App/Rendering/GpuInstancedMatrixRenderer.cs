@@ -25,13 +25,18 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11Buffer? _instanceBuffer;
     private ID3D11Texture2D? _frameTexture;
     private ID3D11ShaderResourceView? _frameSrv;
+    private ID3D11Texture2D? _gpuLedColorTexture;
+    private ID3D11ShaderResourceView? _gpuLedColorSrv;
+    private ID3D11Texture2D? _gpuLedUploadTexture;
     private ID3D11SamplerState? _linearSampler;
     private ID3D11VertexShader? _fullscreenVertexShader;
+    private ID3D11PixelShader? _dotPassShader;
     private ID3D11PixelShader? _brightPassShader;
     private ID3D11PixelShader? _blurPassShader;
     private ID3D11PixelShader? _compositeShader;
     private ID3D11Buffer? _bloomConstantsBuffer;
     private ID3D11Texture2D? _gpuBaseTexture;
+    private ID3D11RenderTargetView? _gpuBaseRtv;
     private ID3D11ShaderResourceView? _gpuBaseSrv;
     private ID3D11Texture2D? _gpuBrightTexture;
     private ID3D11RenderTargetView? _gpuBrightRtv;
@@ -57,6 +62,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private bool _directPresentParityValidated;
     private string _directPresentStatus = "uninitialized";
     private bool _gpuBloomSupported;
+    private bool _gpuDotPassSupported;
     private bool _useCpuBloomFallback;
     private int _gpuBloomScaleDivisor;
     private static readonly ID3D11ShaderResourceView[] NullPixelShaderSrvs = [null!, null!, null!];
@@ -80,6 +86,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private float[] _dotBodyMask = Array.Empty<float>();
     private float[] _dotCoreMask = Array.Empty<float>();
     private float[] _dotSpecularMask = Array.Empty<float>();
+    private byte[] _ledBgra = Array.Empty<byte>();
     private byte[] _bgra = Array.Empty<byte>();
     private float[] _smoothedRgb = Array.Empty<float>();
     private float[] _workingRgb = Array.Empty<float>();
@@ -112,6 +119,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _style = dotStyleConfig;
         _logicalToRaster = MatrixFrameIndexMap.BuildLogicalToRasterMap(width, height, dotStyleConfig.Mapping);
         ConfigureDotSurface(dotStyleConfig, width, height);
+        _ledBgra = new byte[checked(width * height * 4)];
         _bgra = new byte[checked(_surfaceWidth * _surfaceHeight * 4)];
         _smoothedRgb = new float[checked(width * height * Channels)];
         _workingRgb = new float[checked(width * height * Channels)];
@@ -201,8 +209,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _lastOutputSequence = frame.OutputSequence;
 
         BuildToneMapLutIfNeeded(_style);
-        Array.Clear(_bgra, 0, _bgra.Length);
-        EnsureOpaqueBackground(_bgra);
         Array.Clear(_workingRgb, 0, _workingRgb.Length);
 
         var rgb = frame.RgbMemory.Span;
@@ -232,17 +238,35 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _workingRgb[rasterOffset + 2] = b;
         }
 
-        for (var raster = 0; raster < _width * _height; raster++)
+        var useGpuDotPass = ShouldUseGpuDotPass(_style);
+        if (useGpuDotPass)
         {
-            var rasterOffset = raster * Channels;
-            var r = _workingRgb[rasterOffset];
-            var g = _workingRgb[rasterOffset + 1];
-            var b = _workingRgb[rasterOffset + 2];
-            var baseX = _dotPadding + ((raster % _width) * _dotStride);
-            var baseY = _dotPadding + ((raster / _width) * _dotStride);
-            RasterFastDot(baseX, baseY, r, g, b);
+            // Conversational note: this path uploads mapped LED colors and lets the GPU shade dot geometry per pixel.
+            UploadLogicalLedBufferToGpu();
+            if (!RenderGpuDotsToBaseTexture())
+            {
+                useGpuDotPass = false;
+            }
         }
-        ApplyBloomIfEnabled(_style);
+
+        if (!useGpuDotPass)
+        {
+            // Conversational note: compatibility path keeps the original CPU dot raster behavior exactly intact.
+            Array.Clear(_bgra, 0, _bgra.Length);
+            EnsureOpaqueBackground(_bgra);
+            for (var raster = 0; raster < _width * _height; raster++)
+            {
+                var rasterOffset = raster * Channels;
+                var r = _workingRgb[rasterOffset];
+                var g = _workingRgb[rasterOffset + 1];
+                var b = _workingRgb[rasterOffset + 2];
+                var baseX = _dotPadding + ((raster % _width) * _dotStride);
+                var baseY = _dotPadding + ((raster / _width) * _dotStride);
+                RasterFastDot(baseX, baseY, r, g, b);
+            }
+        }
+
+        ApplyBloomIfEnabled(_style, useGpuDotPass);
 
         var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
         Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
@@ -539,7 +563,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private void ApplyBloomIfEnabled(DotStyleConfig style)
+    private void ApplyBloomIfEnabled(DotStyleConfig style, bool baseFrameIsGpuRendered)
     {
         var bloomProfile = BloomProfileResolver.Resolve(style.Bloom);
         // If both lanes are effectively off, skip bloom and keep the frame path cheap.
@@ -558,7 +582,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             try
             {
-                if (TryApplyGpuBloom(bloomProfile))
+                if (TryApplyGpuBloom(bloomProfile, baseFrameIsGpuRendered))
                 {
                     return;
                 }
@@ -572,6 +596,15 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         _useCpuBloomFallback = true;
+
+        if (baseFrameIsGpuRendered && _context is not null && _gpuBaseTexture is not null && _gpuReadbackTexture is not null)
+        {
+            // Conversational note: CPU bloom expects a CPU-side BGRA surface, so we read back only when GPU dots were used.
+            _context.CopyResource(_gpuReadbackTexture, _gpuBaseTexture);
+            var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+            ReadBgraRows(readback.DataPointer, readback.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
+            _context.Unmap(_gpuReadbackTexture, 0);
+        }
 
         // Extract emissive data from the final rasterized surface so bloom feels spatially natural.
         if (!DownsampleEmissive(_bgra, _surfaceWidth, _surfaceHeight, bloomProfile, out var minBloomX, out var minBloomY, out var maxBloomX, out var maxBloomY))
@@ -592,7 +625,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, effectiveNearStrength, effectiveFarStrength, bloomProfile);
     }
 
-    private bool TryApplyGpuBloom(BloomProfile profile)
+    private bool TryApplyGpuBloom(BloomProfile profile, bool baseFrameIsGpuRendered)
     {
         var trace = new StringBuilder(256);
         var started = DateTime.UtcNow;
@@ -623,15 +656,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
-        // Upload the already-rasterized frame so bloom extraction happens from the same visual basis as CPU mode.
-        _gpuBloomStage = "upload-base";
-        trace.Append(" ->upload-base");
-        _gpuBloomTrace = trace.ToString();
-        var mapped = _context.Map(_gpuBaseTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
-        trace.Append($"(rowPitch={mapped.RowPitch})");
-        _gpuBloomTrace = trace.ToString();
-        WriteBgraRows(mapped.DataPointer, mapped.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
-        _context.Unmap(_gpuBaseTexture, 0);
+        if (!baseFrameIsGpuRendered)
+        {
+            // Conversational note: CPU dots still render into _bgra, so we upload that only for the fallback dot path.
+            _gpuBloomStage = "upload-base";
+            trace.Append(" ->upload-base");
+            _gpuBloomTrace = trace.ToString();
+            UploadCpuSurfaceToGpuBase();
+        }
 
         var nearRadius = GetEffectiveBloomRadius(profile.NearRadius, profile.ScaleDivisor, _dotSize);
         var farRadius = GetEffectiveBloomRadius(profile.FarRadius, profile.ScaleDivisor, _dotSize);
@@ -708,6 +740,91 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         return TryReadbackCompositeToCpu(trace);
+    }
+
+    private bool ShouldUseGpuDotPass(DotStyleConfig style)
+    {
+        if (style.ForceCpuDotRasterFallback)
+        {
+            return false;
+        }
+
+        return _gpuDotPassSupported &&
+               _context is not null &&
+               _gpuLedUploadTexture is not null &&
+               _gpuLedColorTexture is not null &&
+               _gpuLedColorSrv is not null &&
+               _gpuBaseRtv is not null &&
+               _gpuBaseSrv is not null &&
+               _dotPassShader is not null;
+    }
+
+    private void UploadCpuSurfaceToGpuBase()
+    {
+        if (_context is null || _gpuBaseTexture is null)
+        {
+            return;
+        }
+
+        var handle = GCHandle.Alloc(_bgra, GCHandleType.Pinned);
+        try
+        {
+            _context.UpdateSubresource(_gpuBaseTexture, 0, null, handle.AddrOfPinnedObject(), (uint)(_surfaceWidth * 4), 0);
+        }
+        finally
+        {
+            handle.Free();
+        }
+    }
+
+    private void UploadLogicalLedBufferToGpu()
+    {
+        if (_context is null || _gpuLedUploadTexture is null || _gpuLedColorTexture is null)
+        {
+            return;
+        }
+
+        for (var raster = 0; raster < _width * _height; raster++)
+        {
+            var rgbOffset = raster * Channels;
+            var bgraOffset = raster * 4;
+            _ledBgra[bgraOffset] = (byte)Math.Clamp(_workingRgb[rgbOffset + 2], 0f, 255f);
+            _ledBgra[bgraOffset + 1] = (byte)Math.Clamp(_workingRgb[rgbOffset + 1], 0f, 255f);
+            _ledBgra[bgraOffset + 2] = (byte)Math.Clamp(_workingRgb[rgbOffset], 0f, 255f);
+            _ledBgra[bgraOffset + 3] = 255;
+        }
+
+        var handle = GCHandle.Alloc(_ledBgra, GCHandleType.Pinned);
+        try
+        {
+            _context.UpdateSubresource(_gpuLedUploadTexture, 0, null, handle.AddrOfPinnedObject(), (uint)(_width * 4), 0);
+            _context.CopyResource(_gpuLedColorTexture, _gpuLedUploadTexture);
+        }
+        finally
+        {
+            handle.Free();
+        }
+    }
+
+    private bool RenderGpuDotsToBaseTexture()
+    {
+        if (_context is null || _dotPassShader is null || _fullscreenVertexShader is null || _linearSampler is null || _bloomConstantsBuffer is null || _gpuBaseRtv is null || _gpuLedColorSrv is null)
+        {
+            return false;
+        }
+
+        SetBloomConstants(null, radius: _dotSize, directionX: _dotStride, directionY: _dotPadding);
+        _context.OMSetRenderTargets(_gpuBaseRtv);
+        _context.RSSetViewport(new Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
+        _context.VSSetShader(_fullscreenVertexShader);
+        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _context.PSSetShader(_dotPassShader);
+        _context.PSSetShaderResource(0, _gpuLedColorSrv);
+        _context.PSSetSampler(0, _linearSampler);
+        _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
+        _context.Draw(3, 0);
+        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
+        return true;
     }
 
     private bool TryReadbackCompositeToCpu(StringBuilder trace)
@@ -878,8 +995,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             DirectionY = directionY,
             SurfaceWidth = _surfaceWidth,
             SurfaceHeight = _surfaceHeight,
-            BloomWidth = _downsampleWidth,
-            BloomHeight = _downsampleHeight,
+            BloomWidth = profile is null ? _width : _downsampleWidth,
+            BloomHeight = profile is null ? _height : _downsampleHeight,
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -1226,10 +1343,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             // We keep shaders inline for now so deployment stays single-binary and easier for community sharing.
             using var vsBlob = CompileShaderOrThrow("VSMain", "vs_5_0");
+            using var dotBlob = CompileShaderOrThrow("PSDotPass", "ps_5_0");
             using var brightBlob = CompileShaderOrThrow("PSBrightPass", "ps_5_0");
             using var blurBlob = CompileShaderOrThrow("PSSeparableBlur", "ps_5_0");
             using var compositeBlob = CompileShaderOrThrow("PSComposite", "ps_5_0");
             _fullscreenVertexShader = _device.CreateVertexShader(vsBlob);
+            _dotPassShader = _device.CreatePixelShader(dotBlob);
             _brightPassShader = _device.CreatePixelShader(brightBlob);
             _blurPassShader = _device.CreatePixelShader(blurBlob);
             _compositeShader = _device.CreatePixelShader(compositeBlob);
@@ -1238,11 +1357,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             CreateBaseAndCompositeTargets();
             TryInitializeDirectPresentSurface();
             _gpuBloomSupported = true;
+            _gpuDotPassSupported = true;
             _useCpuBloomFallback = false;
         }
         catch (Exception ex)
         {
             _gpuBloomSupported = false;
+            _gpuDotPassSupported = false;
             _useCpuBloomFallback = true;
             _directPresentEnabled = false;
             _directPresentStatus = $"disabled:init-failed:{ex.GetType().Name}";
@@ -1330,6 +1451,27 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        var ledUploadDesc = new Texture2DDescription
+        {
+            Width = (uint)Math.Max(1, _width),
+            Height = (uint)Math.Max(1, _height),
+            ArraySize = 1,
+            MipLevels = 1,
+            Format = Format.R8G8B8A8_UNorm,
+            SampleDescription = new SampleDescription(1, 0),
+            Usage = ResourceUsage.Dynamic,
+            BindFlags = BindFlags.None,
+            CPUAccessFlags = CpuAccessFlags.Write,
+        };
+        _gpuLedUploadTexture = _device.CreateTexture2D(ledUploadDesc);
+
+        var ledSrvDesc = ledUploadDesc;
+        ledSrvDesc.Usage = ResourceUsage.Default;
+        ledSrvDesc.BindFlags = BindFlags.ShaderResource;
+        ledSrvDesc.CPUAccessFlags = CpuAccessFlags.None;
+        _gpuLedColorTexture = _device.CreateTexture2D(ledSrvDesc);
+        _gpuLedColorSrv = _device.CreateShaderResourceView(_gpuLedColorTexture);
+
         var fullDesc = new Texture2DDescription
         {
             Width = (uint)Math.Max(1, _surfaceWidth),
@@ -1338,12 +1480,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             MipLevels = 1,
             Format = Format.R8G8B8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Dynamic,
-            BindFlags = BindFlags.ShaderResource,
-            CPUAccessFlags = CpuAccessFlags.Write,
+            Usage = ResourceUsage.Default,
+            BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
+            CPUAccessFlags = CpuAccessFlags.None,
         };
         _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
         _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
+        _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
 
         fullDesc.Usage = ResourceUsage.Default;
         fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
@@ -1405,6 +1548,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuCompositeRtv = null;
         _gpuCompositeTexture?.Dispose();
         _gpuCompositeTexture = null;
+        _gpuLedColorSrv?.Dispose();
+        _gpuLedColorSrv = null;
+        _gpuLedColorTexture?.Dispose();
+        _gpuLedColorTexture = null;
+        _gpuLedUploadTexture?.Dispose();
+        _gpuLedUploadTexture = null;
+        _gpuBaseRtv?.Dispose();
+        _gpuBaseRtv = null;
         _gpuBaseSrv?.Dispose();
         _gpuBaseSrv = null;
         _gpuBaseTexture?.Dispose();
@@ -1415,6 +1566,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _linearSampler = null;
         _compositeShader?.Dispose();
         _compositeShader = null;
+        _dotPassShader?.Dispose();
+        _dotPassShader = null;
         _blurPassShader?.Dispose();
         _blurPassShader = null;
         _brightPassShader?.Dispose();
@@ -1517,6 +1670,22 @@ VsOut VSMain(uint vertexId : SV_VertexID)
     output.Position = float4(positions[vertexId], 0, 1);
     output.Uv = uvs[vertexId];
     return output;
+}
+float4 PSDotPass(VsOut input) : SV_Target
+{
+    // Conversational note: Direction.x carries stride and Direction.y carries padding for the dot pass.
+    float stride = max(Direction.x, 1.0f);
+    float padding = max(Direction.y, 0.0f);
+    float2 pixel = input.Uv * SurfaceSize;
+    float2 local = pixel - float2(padding, padding);
+    if (local.x < 0.0f || local.y < 0.0f) return float4(0, 0, 0, 1);
+    float2 ledCoord = floor(local / stride);
+    if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(0, 0, 0, 1);
+    float2 within = frac(local / stride) * stride;
+    if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
+    float2 ledUv = (ledCoord + 0.5f) / max(BloomSize, float2(1.0f, 1.0f));
+    float3 ledColor = BaseTexture.SampleLevel(LinearSampler, ledUv, 0).rgb;
+    return float4(ledColor, 1.0f);
 }
 float SoftKneeWeight(float3 color)
 {

@@ -23,6 +23,7 @@
       "fallAlpha": 0.9
     },
     "visual": {
+      "forceCpuDotRasterFallback": false,
       "flatShading": false,
       "fullBrightnessRadiusMinPct": 0.8,
       "offStateTintR": 20,
