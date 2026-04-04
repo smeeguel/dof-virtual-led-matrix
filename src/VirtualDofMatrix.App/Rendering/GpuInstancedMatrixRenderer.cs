@@ -1027,11 +1027,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private static Blob CompileShaderOrThrow(string entryPoint, string shaderProfile)
     {
-        var compileResult = Compiler.Compile(
-            BloomShaders.Source,
+        // Conversational note: CompileFromFile is the most deterministic overload in Vortice across SDK bindings.
+        var shaderPath = Path.Combine(Path.GetTempPath(), "VirtualDofMatrix.BloomShaders.hlsl");
+        File.WriteAllText(shaderPath, BloomShaders.Source);
+        var compileResult = Compiler.CompileFromFile(
+            shaderPath,
             null!,
             null!,
-            "GpuInstancedMatrixRenderer.Bloom.hlsl",
             entryPoint,
             shaderProfile,
             ShaderFlags.OptimizationLevel3,
