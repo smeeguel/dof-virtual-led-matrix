@@ -511,8 +511,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // Near bloom uses a smooth blur so tiny radii don't hard-light an entire adjacent dot.
         BoxBlurRgbSeparable(_screenBloomNearRgb, _downsampleWidth, _downsampleHeight, effectiveNearRadius);
         BoxBlurRgbSeparable(_screenBloomFarRgb, _downsampleWidth, _downsampleHeight, effectiveFarRadius);
-        var effectiveNearStrength = (float)(bloomProfile.NearStrength * GetRadiusCompensation(effectiveNearRadius));
-        var effectiveFarStrength = (float)(bloomProfile.FarStrength * GetRadiusCompensation(effectiveFarRadius) * 0.65);
+        var effectiveNearStrength = (float)(bloomProfile.NearStrength * 2.4);
+        var effectiveFarStrength = (float)(bloomProfile.FarStrength * 1.8);
         CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, effectiveNearStrength, effectiveFarStrength, bloomProfile);
     }
 
@@ -762,12 +762,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var dotRadiusPx = Math.Max(1, (int)Math.Ceiling(dotSize * 0.5));
         var dotRadiusInBloomPixels = Math.Max(1, (int)Math.Ceiling(dotRadiusPx / (double)Math.Max(1, scaleDivisor)));
         return Math.Max(1, configuredRadius + dotRadiusInBloomPixels);
-    }
-
-    private static double GetRadiusCompensation(int radius)
-    {
-        // Box blur averages energy out; this gently compensates so larger radii still read as visible bloom.
-        return Math.Clamp(Math.Sqrt(Math.Max(1, radius)), 1.0, 6.0);
     }
 
     private static void EnsureOpaqueBackground(byte[] bgra)
