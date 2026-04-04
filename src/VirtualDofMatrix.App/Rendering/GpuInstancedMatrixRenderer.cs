@@ -54,6 +54,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private bool _useCpuBloomFallback;
     private int _gpuBloomScaleDivisor;
     private static readonly ID3D11ShaderResourceView[] NullPixelShaderSrvs = [null!, null!, null!];
+    private string _gpuBloomStage = "idle";
     private readonly object _gate = new();
     private Image? _host;
     private WriteableBitmap? _fallbackBitmap;
@@ -545,7 +546,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
             catch (Exception ex)
             {
-                AppLogger.Warn($"[renderer] gpu bloom execution failed; switching to CPU fallback. reason={ex.Message} {TryGetDeviceRemovedReasonText()}");
+                AppLogger.Warn($"[renderer] gpu bloom execution failed at stage='{_gpuBloomStage}'; switching to CPU fallback. reason={ex.Message} {TryGetDeviceRemovedReasonText()}");
             }
         }
 
@@ -572,6 +573,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private bool TryApplyGpuBloom(BloomProfile profile)
     {
+        _gpuBloomStage = "validate";
         if (_device is null || _context is null ||
             _gpuBaseTexture is null || _gpuBaseSrv is null ||
             _gpuCompositeTexture is null || _gpuCompositeRtv is null || _gpuReadbackTexture is null ||
@@ -592,6 +594,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         // Upload the already-rasterized frame so bloom extraction happens from the same visual basis as CPU mode.
+        _gpuBloomStage = "upload-base";
         var mapped = _context.Map(_gpuBaseTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
         Marshal.Copy(_bgra, 0, mapped.DataPointer, _bgra.Length);
         _context.Unmap(_gpuBaseTexture, 0);
@@ -599,15 +602,23 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var nearRadius = GetEffectiveBloomRadius(profile.NearRadius, profile.ScaleDivisor, _dotSize);
         var farRadius = GetEffectiveBloomRadius(profile.FarRadius, profile.ScaleDivisor, _dotSize);
 
+        _gpuBloomStage = "bright-pass";
         RunBrightPass(profile);
+        _gpuBloomStage = "blur-near";
         RunBlurLane(_gpuBrightSrv, _gpuNearPingRtv, _gpuNearPingSrv, _gpuNearPongRtv, _gpuNearPongSrv, nearRadius);
+        _gpuBloomStage = "blur-far";
         RunBlurLane(_gpuBrightSrv, _gpuFarPingRtv, _gpuFarPingSrv, _gpuFarPongRtv, _gpuFarPongSrv, farRadius);
+        _gpuBloomStage = "composite";
         RunCompositePass(profile);
 
+        _gpuBloomStage = "copy-readback";
         _context.CopyResource(_gpuReadbackTexture, _gpuCompositeTexture);
+        _context.Flush();
+        _gpuBloomStage = "map-readback";
         var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         Marshal.Copy(readback.DataPointer, _bgra, 0, _bgra.Length);
         _context.Unmap(_gpuReadbackTexture, 0);
+        _gpuBloomStage = "done";
         return true;
     }
 
