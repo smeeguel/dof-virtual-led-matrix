@@ -490,6 +490,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             return;
         }
+        // If there are no lit LEDs in this frame, we skip bloom so "off bulb" shading stays clean.
+        if (!HasAnyLitLed(_workingRgb))
+        {
+            return;
+        }
 
         // Extract emissive data from the final rasterized surface so bloom feels spatially natural.
         if (!DownsampleEmissive(_bgra, _surfaceWidth, _surfaceHeight, bloomProfile, out var minBloomX, out var minBloomY, out var maxBloomX, out var maxBloomY))
@@ -722,9 +727,27 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private static float EmissiveWeight(float r, float g, float b, double threshold, double softKnee)
     {
         var luma = ((0.2126f * r) + (0.7152f * g) + (0.0722f * b)) / 255f;
+        if (softKnee <= 0.0001)
+        {
+            return luma >= threshold ? 1f : 0f;
+        }
+
         var knee = Math.Max(0.0001f, (float)softKnee);
-        var t = (luma - (float)threshold) / knee;
-        return Math.Clamp(t * t * (3f - (2f * t)), 0f, 1f);
+        var t = Math.Clamp((luma - (float)threshold) / knee, 0f, 1f);
+        return t * t * (3f - (2f * t));
+    }
+
+    private static bool HasAnyLitLed(float[] rgb)
+    {
+        for (var i = 0; i < rgb.Length; i += Channels)
+        {
+            if (rgb[i] > 0.5f || rgb[i + 1] > 0.5f || rgb[i + 2] > 0.5f)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static float SampleBilinear(float[] source, int width, int height, float x, float y, int channel)

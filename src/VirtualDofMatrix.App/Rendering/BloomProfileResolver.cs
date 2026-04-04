@@ -24,8 +24,8 @@ internal static class BloomProfileResolver
             Math.Clamp(bloom.SoftKnee, 0.0, 1.0),
             nearRadius,
             farRadius,
-            Math.Clamp(bloom.NearStrength, 0.0, 2.0),
-            Math.Clamp(bloom.FarStrength, 0.0, 2.0));
+            Math.Clamp(bloom.NearStrength, 0.0, 1.0),
+            Math.Clamp(bloom.FarStrength, 0.0, 1.0));
     }
 }
 
