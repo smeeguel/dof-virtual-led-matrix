@@ -1316,16 +1316,16 @@ float4 PSBrightPass(VsOut input) : SV_Target
 float4 PSSeparableBlur(VsOut input) : SV_Target
 {
     float r = clamp(Radius, 0.0f, 8.0f);
-    if (!isfinite(r)) r = 0.0f;
     if (r <= 0.001f) return BaseTexture.Sample(LinearSampler, input.Uv);
-    int samples = (int)ceil(r);
     float3 sum = 0;
     float weightSum = 0;
-    [loop]
-    for (int i = -samples; i <= samples; i++)
+    // Conversational note: fixed bounds + unroll avoids driver issues with dynamic loop trip counts.
+    [unroll]
+    for (int i = -8; i <= 8; i++)
     {
+        if (abs((float)i) > r) continue;
         float2 uv = input.Uv + (Direction * (float)i);
-        float w = 1.0f - abs((float)i) / (samples + 1.0f);
+        float w = 1.0f - abs((float)i) / (r + 1.0f);
         sum += BaseTexture.Sample(LinearSampler, uv).rgb * w;
         weightSum += w;
     }
