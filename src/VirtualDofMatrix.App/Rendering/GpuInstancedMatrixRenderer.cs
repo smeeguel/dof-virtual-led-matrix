@@ -1030,6 +1030,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             BloomShaders.Source,
             null,
             null,
+            "GpuInstancedMatrixRenderer.Bloom.hlsl",
             entryPoint,
             shaderProfile,
             ShaderFlags.OptimizationLevel3,
