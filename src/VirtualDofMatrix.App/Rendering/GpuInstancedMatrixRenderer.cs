@@ -759,10 +759,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private static int GetEffectiveBloomRadius(int configuredRadius, int scaleDivisor, int dotSize)
     {
-        // We include dot radius so bloom spills outside the rendered dot even with tiny configured values.
-        var dotRadiusPx = Math.Max(1, (int)Math.Ceiling(dotSize * 0.5));
-        var dotRadiusInBloomPixels = Math.Max(1, (int)Math.Ceiling(dotRadiusPx / (double)Math.Max(1, scaleDivisor)));
-        return Math.Max(1, configuredRadius + dotRadiusInBloomPixels);
+        // Radius is interpreted as pure spill distance in screen pixels (mapped to bloom space), not dot-size inflated.
+        _ = dotSize;
+        _ = scaleDivisor;
+        return Math.Max(0, configuredRadius);
     }
 
     private static void EnsureOpaqueBackground(byte[] bgra)

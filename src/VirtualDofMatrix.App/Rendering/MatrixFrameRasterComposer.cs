@@ -563,10 +563,10 @@ internal sealed class MatrixFrameRasterComposer
 
     private static int GetEffectiveBloomRadius(int configuredRadius, int scaleDivisor, int dotSize)
     {
-        // We include dot radius so bloom always extends beyond the physical dot body.
-        var dotRadiusPx = Math.Max(1, (int)Math.Ceiling(dotSize * 0.5));
-        var dotRadiusInBloomPixels = Math.Max(1, (int)Math.Ceiling(dotRadiusPx / (double)Math.Max(1, scaleDivisor)));
-        return Math.Max(1, configuredRadius + dotRadiusInBloomPixels);
+        // Radius is interpreted as pure spill distance in screen pixels (mapped to bloom space), not dot-size inflated.
+        _ = dotSize;
+        _ = scaleDivisor;
+        return Math.Max(0, configuredRadius);
     }
 
     private static void EnsureOpaqueBackground(byte[] bgra)
