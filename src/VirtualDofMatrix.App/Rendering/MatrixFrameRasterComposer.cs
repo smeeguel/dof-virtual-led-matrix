@@ -8,6 +8,7 @@ internal sealed class MatrixFrameRasterComposer
     private const float TemporalSmoothingOffSnapThreshold = 1.0f;
     private const int DirtyRectComplexityThreshold = 128;
     private const double DirtyCoverageFullUploadThreshold = 0.65;
+    private static readonly TimeSpan SessionGapResetThreshold = TimeSpan.FromMilliseconds(750);
     private readonly byte[] _colorLut = new byte[256];
     private readonly RgbPlaneBuffer _mappedRgb = new();
     private readonly RgbPlaneBuffer _workingRgb = new();
@@ -37,6 +38,8 @@ internal sealed class MatrixFrameRasterComposer
     private int _rasterEmissiveMaxY;
     private byte[] _previousSurfaceBgra = Array.Empty<byte>();
     private readonly List<DirtyRect> _dirtyRectScratch = new();
+    private DateTimeOffset _lastPresentedAt = DateTimeOffset.UnixEpoch;
+    private bool _forceFullFrameWrite = true;
 
     public void Configure(MatrixConfig config)
     {
@@ -48,6 +51,7 @@ internal sealed class MatrixFrameRasterComposer
         _stride = _surfaceWidth * 4;
         _surfaceBgra = new byte[_stride * _surfaceHeight];
         _previousSurfaceBgra = new byte[_surfaceBgra.Length];
+        _forceFullFrameWrite = true;
         _kernel = DotKernel.Create(config.DotSize, config.DotShape, config.Visual);
     }
 
@@ -57,6 +61,9 @@ internal sealed class MatrixFrameRasterComposer
         {
             throw new InvalidOperationException("Composer must be configured before composition.");
         }
+
+        // Tables can stop/restart without recreating the renderer; reset temporal state across big gaps/session flips.
+        TryResetForSessionBoundary(framePresentation.PresentedAt);
 
         var matrixCapacity = _config.Width * _config.Height;
         EnsureWorkingBuffers(matrixCapacity);
@@ -98,7 +105,8 @@ internal sealed class MatrixFrameRasterComposer
         }
         ApplyBloomIfEnabled();
 
-        var fullFrameWrite = !TryBuildDirtyRects(out var dirtyRects);
+        var fullFrameWrite = _forceFullFrameWrite || !TryBuildDirtyRects(out var dirtyRects);
+        _forceFullFrameWrite = false;
         Buffer.BlockCopy(_surfaceBgra, 0, _previousSurfaceBgra, 0, _surfaceBgra.Length);
         return (_surfaceWidth, _surfaceHeight, _stride, _surfaceBgra, dirtyRects, fullFrameWrite);
     }
@@ -112,8 +120,42 @@ internal sealed class MatrixFrameRasterComposer
         _screenBloomNearRgb.Clear();
         _screenBloomFarRgb.Clear();
         _screenBloomScratchRgb.Clear();
-        _previousSurfaceBgra = Array.Empty<byte>();
+        if (_previousSurfaceBgra.Length > 0)
+        {
+            Array.Clear(_previousSurfaceBgra, 0, _previousSurfaceBgra.Length);
+        }
         _dirtyRectScratch.Clear();
+        _lastPresentedAt = DateTimeOffset.UnixEpoch;
+        _forceFullFrameWrite = true;
+    }
+
+    private void TryResetForSessionBoundary(DateTimeOffset presentedAt)
+    {
+        if (_lastPresentedAt == DateTimeOffset.UnixEpoch)
+        {
+            _lastPresentedAt = presentedAt;
+            return;
+        }
+
+        var movedBackward = presentedAt < _lastPresentedAt;
+        var gapExceeded = presentedAt - _lastPresentedAt > SessionGapResetThreshold;
+        _lastPresentedAt = presentedAt;
+        if (!movedBackward && !gapExceeded)
+        {
+            return;
+        }
+
+        // Reset only temporal/raster history so new sessions start clean without "stuck dim" carry-over.
+        _mappedRgb.Clear();
+        _workingRgb.Clear();
+        _smoothedRgb.Clear();
+        _dirtyRectScratch.Clear();
+        if (_previousSurfaceBgra.Length > 0)
+        {
+            Array.Clear(_previousSurfaceBgra, 0, _previousSurfaceBgra.Length);
+        }
+
+        _forceFullFrameWrite = true;
     }
 
     private bool TryBuildDirtyRects(out IReadOnlyList<DirtyRect> dirtyRects)
