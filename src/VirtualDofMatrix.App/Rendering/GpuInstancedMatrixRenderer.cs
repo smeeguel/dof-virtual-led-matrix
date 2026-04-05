@@ -583,11 +583,21 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // If both lanes are effectively off, skip bloom and keep the frame path cheap.
         if (!bloomProfile.Enabled || (bloomProfile.NearStrength <= 0.0 && bloomProfile.FarStrength <= 0.0))
         {
+            if (baseFrameIsGpuRendered)
+            {
+                // Conversational note: when bloom is disabled, we still need to present the GPU dot base frame so off-state bulbs stay visible.
+                TryPresentGpuBaseWithoutBloom("bloom-disabled");
+            }
             return;
         }
         // If there are no lit LEDs in this frame, we skip bloom so "off bulb" shading stays clean.
         if (!HasAnyLitLed(_workingRgb))
         {
+            if (baseFrameIsGpuRendered)
+            {
+                // Conversational note: no emissive pixels still means we should show off-state bulbs from the GPU dot pass.
+                TryPresentGpuBaseWithoutBloom("no-emissive-leds");
+            }
             return;
         }
 
@@ -637,6 +647,18 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var effectiveNearStrength = (float)bloomProfile.NearStrength;
         var effectiveFarStrength = (float)bloomProfile.FarStrength;
         CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, effectiveNearStrength, effectiveFarStrength, bloomProfile);
+    }
+
+    private void TryPresentGpuBaseWithoutBloom(string reason)
+    {
+        if (_context is null || _gpuBaseTexture is null || _gpuCompositeTexture is null)
+        {
+            return;
+        }
+
+        _context.CopyResource(_gpuCompositeTexture, _gpuBaseTexture);
+        var trace = new StringBuilder($"base-present:{reason}");
+        TryPresentGpuCompositeFrame(trace);
     }
 
     private bool TryApplyGpuBloom(BloomProfile profile, bool baseFrameIsGpuRendered)
