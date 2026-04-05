@@ -779,6 +779,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
+        // Conversational note: current GPU dot shader is a fast flat pass; high-quality circle/lens treatment stays on CPU raster for parity.
+        if (!style.Visual.FlatShading || style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         return _gpuDotPassSupported &&
                _context is not null &&
                _gpuLedUploadTexture is not null &&
