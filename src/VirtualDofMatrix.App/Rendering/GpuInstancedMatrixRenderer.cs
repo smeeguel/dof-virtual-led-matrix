@@ -1467,9 +1467,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        var interopStage = "start";
         try
         {
             // Conversational note: WPF's D3DImage only accepts a D3D9 surface, so we bridge from our D3D11 composite texture via a shared handle.
+            interopStage = "query-dxgi-resource";
             using var dxgiResource = _gpuCompositeTexture.QueryInterfaceOrNull<IDXGIResource>();
             if (dxgiResource is null)
             {
@@ -1486,6 +1488,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 return;
             }
 
+            interopStage = "create-d3d9ex";
             _direct3D9Ex = D3D9.Direct3DCreate9Ex();
             if (_direct3D9Ex is null)
             {
@@ -1494,6 +1497,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 return;
             }
 
+            interopStage = "resolve-host-hwnd";
             var hostHandle = (PresentationSource.FromVisual(_host) as HwndSource)?.Handle ?? IntPtr.Zero;
             if (hostHandle == IntPtr.Zero)
             {
@@ -1510,6 +1514,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 PresentationInterval = PresentInterval.Immediate,
             };
 
+            interopStage = "create-d3d9-device";
             _direct3D9Device = _direct3D9Ex.CreateDeviceEx(
                 0,
                 DeviceType.Hardware,
@@ -1525,6 +1530,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 return;
             }
 
+            interopStage = "open-shared-texture";
             _direct3D9SharedTexture = _direct3D9Device.CreateTexture(
                 (uint)Math.Max(1, _surfaceWidth),
                 (uint)Math.Max(1, _surfaceHeight),
@@ -1541,6 +1547,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 return;
             }
 
+            interopStage = "get-shared-surface";
             _direct3D9SharedSurface = _direct3D9SharedTexture.GetSurfaceLevel(0);
             if (_direct3D9SharedSurface is null)
             {
@@ -1549,6 +1556,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 return;
             }
 
+            interopStage = "bind-d3dimage-backbuffer";
             _directPresentImage = new D3DImage();
             _directPresentImage.Lock();
             _directPresentImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, _direct3D9SharedSurface.NativePointer, enableSoftwareFallback: true);
@@ -1572,8 +1580,20 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _direct3D9Device = null;
             _direct3D9Ex?.Dispose();
             _direct3D9Ex = null;
-            _directPresentStatus = $"disabled:interop-init-exception:{ex.GetType().Name}";
-            AppLogger.Warn($"[renderer] gpu direct present disabled. reason={ex.Message}");
+            var hr = ex.HResult;
+            var hrText = $"0x{hr:X8}";
+            var expectedUnsupported = hr == unchecked((int)0x8876086C) || hr == unchecked((int)0x80070057);
+            _directPresentStatus = expectedUnsupported
+                ? $"disabled:interop-unsupported:{interopStage}:{hrText}"
+                : $"disabled:interop-init-exception:{interopStage}:{ex.GetType().Name}:{hrText}";
+            if (expectedUnsupported)
+            {
+                AppLogger.Info($"[renderer] gpu direct present unsupported on this adapter/driver; using readback fallback. stage={interopStage} hresult={hrText}");
+            }
+            else
+            {
+                AppLogger.Warn($"[renderer] gpu direct present disabled. stage={interopStage} reason={ex.Message} hresult={hrText}");
+            }
         }
     }
 
