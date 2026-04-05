@@ -1472,7 +1472,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 hostHandle,
                 CreateFlags.HardwareVertexProcessing | CreateFlags.Multithreaded | CreateFlags.FpuPreserve,
                 presentParameters,
-                null);
+                new DisplayModeEx());
 
             if (_direct3D9Device is null)
             {
@@ -1482,8 +1482,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             _direct3D9SharedTexture = _direct3D9Device.CreateTexture(
-                Math.Max(1, _surfaceWidth),
-                Math.Max(1, _surfaceHeight),
+                (uint)Math.Max(1, _surfaceWidth),
+                (uint)Math.Max(1, _surfaceHeight),
                 1,
                 D3D9Usage.RenderTarget,
                 D3D9Format.A8R8G8B8,
