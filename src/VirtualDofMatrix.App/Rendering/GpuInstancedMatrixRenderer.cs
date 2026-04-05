@@ -1499,8 +1499,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             interopStage = "create-swapchain";
             var desc = new SwapChainDescription1
             {
-                Width = Math.Max(1, _surfaceWidth),
-                Height = Math.Max(1, _surfaceHeight),
+                Width = (uint)Math.Max(1, _surfaceWidth),
+                Height = (uint)Math.Max(1, _surfaceHeight),
                 Format = DxgiFormat.R8G8B8A8_UNorm,
                 Stereo = false,
                 SampleDescription = new SampleDescription(1, 0),
