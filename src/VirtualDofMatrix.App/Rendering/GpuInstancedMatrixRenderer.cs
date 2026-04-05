@@ -85,6 +85,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private string _gpuBloomTrace = string.Empty;
     private ulong _gpuBloomAttemptCount;
     private ulong _lastOutputSequence;
+    private bool _isGpuPrimaryPath;
     private readonly object _gate = new();
     private Image? _host;
     private WriteableBitmap? _fallbackBitmap;
@@ -230,12 +231,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
         }
 
+        _isGpuPrimaryPath = useGpuDotPass && !_useCpuBloomFallback;
+
         if (!useGpuDotPass)
         {
             // Conversational note: compatibility path keeps the original CPU dot raster behavior exactly intact.
             Array.Clear(_bgra, 0, _bgra.Length);
             EnsureOpaqueBackground(_bgra);
-            if (!TryReadProcessedLedsToCpu())
+            if (!TryReadProcessedLedsToCpu("cpu-dot-fallback"))
             {
                 return;
             }
@@ -252,7 +255,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
         }
 
-        ApplyBloomIfEnabled(_style, useGpuDotPass);
+        ApplyBloomIfEnabled(_style, useGpuDotPass, _isGpuPrimaryPath);
 
         if (!_directPresentEnabled)
         {
@@ -366,13 +369,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.CSSetShader(null);
     }
 
-    private bool TryReadProcessedLedsToCpu()
+    private bool TryReadProcessedLedsToCpu(string reason)
     {
         if (_context is null || _gpuLedColorTexture is null || _gpuLedReadbackTexture is null)
         {
             return false;
         }
 
+        AppLogger.Info($"[renderer] gpu led readback entered reason={reason} seq={_lastOutputSequence} gpuPrimary={_isGpuPrimaryPath}");
         _context.CopyResource(_gpuLedReadbackTexture, _gpuLedColorTexture);
         var mapped = _context.Map(_gpuLedReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         try
@@ -590,7 +594,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private void ApplyBloomIfEnabled(DotStyleConfig style, bool baseFrameIsGpuRendered)
+    private void ApplyBloomIfEnabled(DotStyleConfig style, bool baseFrameIsGpuRendered, bool isGpuPrimaryPath)
     {
         var bloomProfile = BloomProfileResolver.Resolve(style.Bloom);
         // If both lanes are effectively off, skip bloom and keep the frame path cheap.
@@ -604,7 +608,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
         // If there are no lit LEDs in this frame, we skip bloom so "off bulb" shading stays clean.
-        if (!HasAnyLitLed())
+        if (!HasAnyLitLed(allowGpuReadback: !isGpuPrimaryPath))
         {
             if (baseFrameIsGpuRendered)
             {
@@ -1291,9 +1295,15 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         return t * t * (3f - (2f * t));
     }
 
-    private bool HasAnyLitLed()
+    private bool HasAnyLitLed(bool allowGpuReadback)
     {
-        if (!TryReadProcessedLedsToCpu())
+        // Conversational note: healthy GPU-primary frames skip CPU readback entirely and let bloom thresholding reject dark pixels.
+        if (!allowGpuReadback)
+        {
+            return true;
+        }
+
+        if (!TryReadProcessedLedsToCpu("bloom-lit-check-fallback"))
         {
             return true;
         }
