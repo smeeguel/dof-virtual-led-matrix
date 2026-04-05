@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -13,6 +14,8 @@ using Vortice.Mathematics;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 using static Vortice.Direct3D11.D3D11;
+using DxgiFormat = Vortice.DXGI.Format;
+using Viewport = Vortice.Mathematics.Viewport;
 
 namespace VirtualDofMatrix.App.Rendering;
 
@@ -57,10 +60,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11RenderTargetView? _gpuCompositeRtv;
     private ID3D11ShaderResourceView? _gpuCompositeSrv;
     private ID3D11Texture2D? _gpuReadbackTexture;
-    private D3DImage? _directPresentImage;
     private bool _directPresentEnabled;
+    private bool _directPresentInteropAvailable;
     private bool _directPresentParityValidated;
     private string _directPresentStatus = "uninitialized";
+    private IDXGISwapChain1? _directPresentSwapChain;
+    private ID3D11Texture2D? _directPresentBackBuffer;
     private bool _gpuBloomSupported;
     private bool _gpuDotPassSupported;
     private bool _useCpuBloomFallback;
@@ -159,7 +164,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, _surfaceHeight),
             ArraySize = 1,
             MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
+            Format = DxgiFormat.R8G8B8A8_UNorm,
             BindFlags = BindFlags.ShaderResource,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Dynamic,
@@ -170,8 +175,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _fallbackBitmap = new WriteableBitmap(_surfaceWidth, _surfaceHeight, 96, 96, PixelFormats.Bgra32, null);
         _host.Source = _fallbackBitmap;
         _host.Stretch = Stretch.Fill;
-        _directPresentImage = null;
         _directPresentEnabled = false;
+        _directPresentInteropAvailable = false;
         _directPresentParityValidated = false;
         _directPresentStatus = "waiting-for-bloom-init";
         InitializeGpuBloomPipeline();
@@ -268,13 +273,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         ApplyBloomIfEnabled(_style, useGpuDotPass);
 
-        var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
-        Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
-        _context.Unmap(_frameTexture, 0);
-
-        // Conversational note: when direct-present is online we skip CPU bitmap uploads entirely.
         if (!_directPresentEnabled)
         {
+            // Conversational note: legacy bitmap fallback still needs CPU-side frame upload.
+            var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
+            Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
+            _context.Unmap(_frameTexture, 0);
+
             // Conversational note: this renderer presents via WriteableBitmap in fallback mode.
             _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
         }
@@ -569,11 +574,21 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // If both lanes are effectively off, skip bloom and keep the frame path cheap.
         if (!bloomProfile.Enabled || (bloomProfile.NearStrength <= 0.0 && bloomProfile.FarStrength <= 0.0))
         {
+            if (baseFrameIsGpuRendered)
+            {
+                // Conversational note: when bloom is disabled, we still need to present the GPU dot base frame so off-state bulbs stay visible.
+                TryPresentGpuBaseWithoutBloom("bloom-disabled");
+            }
             return;
         }
         // If there are no lit LEDs in this frame, we skip bloom so "off bulb" shading stays clean.
         if (!HasAnyLitLed(_workingRgb))
         {
+            if (baseFrameIsGpuRendered)
+            {
+                // Conversational note: no emissive pixels still means we should show off-state bulbs from the GPU dot pass.
+                TryPresentGpuBaseWithoutBloom("no-emissive-leds");
+            }
             return;
         }
 
@@ -623,6 +638,18 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var effectiveNearStrength = (float)bloomProfile.NearStrength;
         var effectiveFarStrength = (float)bloomProfile.FarStrength;
         CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, effectiveNearStrength, effectiveFarStrength, bloomProfile);
+    }
+
+    private void TryPresentGpuBaseWithoutBloom(string reason)
+    {
+        if (_context is null || _gpuBaseTexture is null || _gpuCompositeTexture is null)
+        {
+            return;
+        }
+
+        _context.CopyResource(_gpuCompositeTexture, _gpuBaseTexture);
+        var trace = new StringBuilder($"base-present:{reason}");
+        TryPresentGpuCompositeFrame(trace);
     }
 
     private bool TryApplyGpuBloom(BloomProfile profile, bool baseFrameIsGpuRendered)
@@ -711,16 +738,25 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
+        if (_style?.Visual.ForceLegacyReadbackPresent is true)
+        {
+            if (_directPresentStatus != "forced:legacy-readback")
+            {
+                // Conversational note: this switch is a user escape hatch for systems where WPF interop is flaky.
+                _directPresentStatus = "forced:legacy-readback";
+                AppLogger.Info("[renderer] gpu direct present bypassed by config; using legacy readback.");
+            }
+
+            return TryReadbackCompositeToCpu(trace);
+        }
+
         // Conversational note: when direct present is online, we intentionally avoid GPU->CPU readback.
-        if (_directPresentEnabled && _directPresentImage is not null && _host is not null)
+        if (_directPresentEnabled && _context is not null && _directPresentSwapChain is not null && _directPresentBackBuffer is not null)
         {
             try
             {
-                _context.Flush();
-                _host.Source = _directPresentImage;
-                _directPresentImage.Lock();
-                _directPresentImage.AddDirtyRect(new System.Windows.Int32Rect(0, 0, Math.Max(1, _surfaceWidth), Math.Max(1, _surfaceHeight)));
-                _directPresentImage.Unlock();
+                _context.CopyResource(_directPresentBackBuffer, _gpuCompositeTexture);
+                _directPresentSwapChain.Present(0, PresentFlags.None);
                 trace.Append(" direct-present");
 
                 // We keep one parity sample through the old readback path to verify image-equivalent output shape.
@@ -734,9 +770,23 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             catch (Exception ex)
             {
                 _directPresentEnabled = false;
-                _directPresentStatus = $"disabled:present-failed:{ex.GetType().Name}";
+                _directPresentStatus = $"disabled:interop-present-failed:{ex.GetType().Name}";
+                if (_host is not null && _fallbackBitmap is not null)
+                {
+                    _host.Source = _fallbackBitmap;
+                }
                 AppLogger.Warn($"[renderer] gpu direct present disabled during frame; falling back to readback. reason={ex.Message}");
             }
+        }
+
+        if (_directPresentInteropAvailable && !_directPresentEnabled)
+        {
+            trace.Append(" interop-disabled-fallback-readback");
+        }
+
+        if (_host is not null && _fallbackBitmap is not null)
+        {
+            _host.Source = _fallbackBitmap;
         }
 
         return TryReadbackCompositeToCpu(trace);
@@ -788,9 +838,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             var rgbOffset = raster * Channels;
             var bgraOffset = raster * 4;
-            _ledBgra[bgraOffset] = (byte)Math.Clamp(_workingRgb[rgbOffset + 2], 0f, 255f);
+            // Conversational note: GPU LED texture is RGBA, so channel upload order must be R,G,B to avoid red/blue swaps.
+            _ledBgra[bgraOffset] = (byte)Math.Clamp(_workingRgb[rgbOffset], 0f, 255f);
             _ledBgra[bgraOffset + 1] = (byte)Math.Clamp(_workingRgb[rgbOffset + 1], 0f, 255f);
-            _ledBgra[bgraOffset + 2] = (byte)Math.Clamp(_workingRgb[rgbOffset], 0f, 255f);
+            _ledBgra[bgraOffset + 2] = (byte)Math.Clamp(_workingRgb[rgbOffset + 2], 0f, 255f);
             _ledBgra[bgraOffset + 3] = 255;
         }
 
@@ -982,6 +1033,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        var visual = _style?.Visual;
         var constants = new BloomGpuConstants
         {
             Threshold = (float)(profile?.Threshold ?? 0.0),
@@ -997,6 +1049,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             SurfaceHeight = _surfaceHeight,
             BloomWidth = profile is null ? _width : _downsampleWidth,
             BloomHeight = profile is null ? _height : _downsampleHeight,
+            DotShapeCircle = _style is not null && _style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) ? 1f : 0f,
+            FlatShading = visual?.FlatShading is true ? 1f : 0f,
+            FullBrightnessRadius = (float)Math.Clamp(visual?.FullBrightnessRadiusMinPct ?? 0.8, 0.0, 1.0),
+            OffStateAlpha = (float)Math.Clamp(visual?.OffStateAlpha ?? 0.0, 0.0, 1.0),
+            OffTintR = (visual?.OffStateTintR ?? 0) / 255f,
+            OffTintG = (visual?.OffStateTintG ?? 0) / 255f,
+            OffTintB = (visual?.OffStateTintB ?? 0) / 255f,
+            LensFalloff = (float)Math.Clamp(visual?.LensFalloff ?? 0.45, 0.0, 1.0),
+            SpecularHotspot = (float)Math.Clamp(visual?.SpecularHotspot ?? 0.28, 0.0, 1.0),
+            RimHighlight = (float)Math.Clamp(visual?.RimHighlight ?? 0.22, 0.0, 1.0),
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -1339,22 +1401,33 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        var initStage = "start";
         try
         {
             // We keep shaders inline for now so deployment stays single-binary and easier for community sharing.
+            initStage = "compile-vs";
             using var vsBlob = CompileShaderOrThrow("VSMain", "vs_5_0");
+            initStage = "compile-dot";
             using var dotBlob = CompileShaderOrThrow("PSDotPass", "ps_5_0");
+            initStage = "compile-bright";
             using var brightBlob = CompileShaderOrThrow("PSBrightPass", "ps_5_0");
+            initStage = "compile-blur";
             using var blurBlob = CompileShaderOrThrow("PSSeparableBlur", "ps_5_0");
+            initStage = "compile-composite";
             using var compositeBlob = CompileShaderOrThrow("PSComposite", "ps_5_0");
+            initStage = "create-shaders";
             _fullscreenVertexShader = _device.CreateVertexShader(vsBlob);
             _dotPassShader = _device.CreatePixelShader(dotBlob);
             _brightPassShader = _device.CreatePixelShader(brightBlob);
             _blurPassShader = _device.CreatePixelShader(blurBlob);
             _compositeShader = _device.CreatePixelShader(compositeBlob);
+            initStage = "create-sampler";
             _linearSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp, 0, 1, ComparisonFunction.Never, new Color4(0f, 0f, 0f, 0f), 0, float.MaxValue));
+            initStage = "create-constants";
             _bloomConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<BloomGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
+            initStage = "create-targets";
             CreateBaseAndCompositeTargets();
+            initStage = "init-direct-present";
             TryInitializeDirectPresentSurface();
             _gpuBloomSupported = true;
             _gpuDotPassSupported = true;
@@ -1366,15 +1439,19 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _gpuDotPassSupported = false;
             _useCpuBloomFallback = true;
             _directPresentEnabled = false;
-            _directPresentStatus = $"disabled:init-failed:{ex.GetType().Name}";
-            AppLogger.Warn($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. reason={ex.Message}");
+            _directPresentStatus = $"disabled:init-failed:{initStage}:{ex.GetType().Name}";
+            AppLogger.Warn($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. stage={initStage} surface={_surfaceWidth}x{_surfaceHeight} reason={ex.Message}");
         }
     }
 
     private void TryInitializeDirectPresentSurface()
     {
         _directPresentEnabled = false;
-        _directPresentImage = null;
+        _directPresentInteropAvailable = false;
+        _directPresentBackBuffer?.Dispose();
+        _directPresentBackBuffer = null;
+        _directPresentSwapChain?.Dispose();
+        _directPresentSwapChain = null;
 
         if (_gpuCompositeTexture is null || _host is null)
         {
@@ -1383,21 +1460,102 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        if (_style?.Visual.PreferD3D11SwapChainPresent is not true)
+        {
+            _directPresentStatus = "disabled:d3d11-swapchain-disabled-by-config";
+            AppLogger.Info("[renderer] gpu direct present disabled by config; using readback fallback.");
+            return;
+        }
+
+        var interopStage = "start";
         try
         {
-            // Conversational note: D3DImage expects a D3D9 surface pointer. Our D3D11-only build cannot bind it directly yet.
-            // We still centralize this initialization so the renderer cleanly falls back today and can be upgraded in one place.
-            _directPresentImage = new D3DImage();
-            _directPresentEnabled = false;
-            _directPresentStatus = "disabled:d3d11-d3dimage-bridge-unavailable";
-            AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+            if (_device is null)
+            {
+                _directPresentStatus = "disabled:missing-d3d11-device";
+                return;
+            }
+
+            interopStage = "resolve-host-hwnd";
+            var hostHandle = (PresentationSource.FromVisual(_host) as HwndSource)?.Handle ?? IntPtr.Zero;
+            if (hostHandle == IntPtr.Zero)
+            {
+                _directPresentStatus = "disabled:interop-missing-hwnd";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            interopStage = "query-dxgi-factory";
+            using var dxgiDevice = _device.QueryInterfaceOrNull<IDXGIDevice>();
+            using var adapter = dxgiDevice?.GetAdapter();
+            using var factory = adapter?.GetParent<IDXGIFactory2>();
+
+            if (factory is null)
+            {
+                _directPresentStatus = "disabled:missing-dxgi-factory";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            interopStage = "create-swapchain";
+            var desc = new SwapChainDescription1
+            {
+                Width = (uint)Math.Max(1, _surfaceWidth),
+                Height = (uint)Math.Max(1, _surfaceHeight),
+                Format = DxgiFormat.R8G8B8A8_UNorm,
+                Stereo = false,
+                SampleDescription = new SampleDescription(1, 0),
+                BufferUsage = Usage.RenderTargetOutput,
+                BufferCount = 2,
+                Scaling = Scaling.Stretch,
+                SwapEffect = SwapEffect.FlipDiscard,
+                AlphaMode = AlphaMode.Ignore,
+                Flags = SwapChainFlags.None,
+            };
+
+            _directPresentSwapChain = factory.CreateSwapChainForHwnd(_device, hostHandle, desc);
+            if (_directPresentSwapChain is null)
+            {
+                _directPresentStatus = "disabled:swapchain-create-failed";
+                return;
+            }
+
+            interopStage = "get-swapchain-backbuffer";
+            _directPresentBackBuffer = _directPresentSwapChain.GetBuffer<ID3D11Texture2D>(0);
+            if (_directPresentBackBuffer is null)
+            {
+                _directPresentStatus = "disabled:swapchain-backbuffer-unavailable";
+                return;
+            }
+
+            _host.Source = null;
+            _directPresentInteropAvailable = true;
+            _directPresentEnabled = true;
+            _directPresentStatus = "enabled:d3d11-swapchain";
+            AppLogger.Info($"[renderer] gpu direct present enabled. status={_directPresentStatus}");
         }
         catch (Exception ex)
         {
             _directPresentEnabled = false;
-            _directPresentImage = null;
-            _directPresentStatus = $"disabled:init-exception:{ex.GetType().Name}";
-            AppLogger.Warn($"[renderer] gpu direct present disabled. reason={ex.Message}");
+            _directPresentInteropAvailable = false;
+            _directPresentBackBuffer?.Dispose();
+            _directPresentBackBuffer = null;
+            _directPresentSwapChain?.Dispose();
+            _directPresentSwapChain = null;
+            var hr = ex.HResult;
+            var hrText = $"0x{hr:X8}";
+            var expectedUnsupported = hr == unchecked((int)0x887A0004) || hr == unchecked((int)0x80070057);
+            _directPresentStatus = expectedUnsupported
+                ? $"disabled:swapchain-unsupported:{interopStage}:{hrText}"
+                : $"disabled:swapchain-init-exception:{interopStage}:{ex.GetType().Name}:{hrText}";
+            if (expectedUnsupported)
+            {
+                AppLogger.Info($"[renderer] gpu d3d11 swapchain present unsupported on this adapter/driver; using readback fallback. stage={interopStage} hresult={hrText}");
+            }
+            else
+            {
+                AppLogger.Warn($"[renderer] gpu d3d11 swapchain present disabled. stage={interopStage} reason={ex.Message} hresult={hrText}");
+            }
         }
     }
 
@@ -1451,54 +1609,88 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        var ledUploadDesc = new Texture2DDescription
+        var createStage = "start";
+        try
         {
-            Width = (uint)Math.Max(1, _width),
-            Height = (uint)Math.Max(1, _height),
-            ArraySize = 1,
-            MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Dynamic,
-            BindFlags = BindFlags.None,
-            CPUAccessFlags = CpuAccessFlags.Write,
-        };
-        _gpuLedUploadTexture = _device.CreateTexture2D(ledUploadDesc);
+            var ledUploadDesc = new Texture2DDescription
+            {
+                Width = (uint)Math.Max(1, _width),
+                Height = (uint)Math.Max(1, _height),
+                ArraySize = 1,
+                MipLevels = 1,
+                Format = DxgiFormat.R8G8B8A8_UNorm,
+                SampleDescription = new SampleDescription(1, 0),
+                // Conversational note: D3D11 rejects Dynamic textures with BindFlags.None; Default works with UpdateSubresource for our upload path.
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.None,
+                CPUAccessFlags = CpuAccessFlags.None,
+            };
+            createStage = "led-upload-texture";
+            _gpuLedUploadTexture = _device.CreateTexture2D(ledUploadDesc);
 
-        var ledSrvDesc = ledUploadDesc;
-        ledSrvDesc.Usage = ResourceUsage.Default;
-        ledSrvDesc.BindFlags = BindFlags.ShaderResource;
-        ledSrvDesc.CPUAccessFlags = CpuAccessFlags.None;
-        _gpuLedColorTexture = _device.CreateTexture2D(ledSrvDesc);
-        _gpuLedColorSrv = _device.CreateShaderResourceView(_gpuLedColorTexture);
+            var ledSrvDesc = ledUploadDesc;
+            ledSrvDesc.Usage = ResourceUsage.Default;
+            ledSrvDesc.BindFlags = BindFlags.ShaderResource;
+            ledSrvDesc.CPUAccessFlags = CpuAccessFlags.None;
+            createStage = "led-color-texture";
+            _gpuLedColorTexture = _device.CreateTexture2D(ledSrvDesc);
+            createStage = "led-color-srv";
+            _gpuLedColorSrv = _device.CreateShaderResourceView(_gpuLedColorTexture);
 
-        var fullDesc = new Texture2DDescription
+            var fullDesc = new Texture2DDescription
+            {
+                Width = (uint)Math.Max(1, _surfaceWidth),
+                Height = (uint)Math.Max(1, _surfaceHeight),
+                ArraySize = 1,
+                MipLevels = 1,
+                Format = DxgiFormat.R8G8B8A8_UNorm,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
+                CPUAccessFlags = CpuAccessFlags.None,
+            };
+            createStage = "base-texture";
+            _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
+            createStage = "base-srv";
+            _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
+            createStage = "base-rtv";
+            _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
+
+            fullDesc.Usage = ResourceUsage.Default;
+            fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
+            fullDesc.CPUAccessFlags = CpuAccessFlags.None;
+            // Conversational note: some drivers reject shared textures for this format/usage, so we gracefully fall back to a non-shared composite target.
+            try
+            {
+                createStage = "composite-shared-texture";
+                fullDesc.MiscFlags = ResourceOptionFlags.Shared;
+                _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
+            }
+            catch (Exception ex)
+            {
+                createStage = "composite-nonshared-fallback";
+                fullDesc.MiscFlags = ResourceOptionFlags.None;
+                _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
+                _directPresentStatus = $"disabled:interop-shared-texture-unsupported:{ex.GetType().Name}";
+                AppLogger.Warn($"[renderer] gpu direct present unavailable; shared composite texture not supported on this device. reason={ex.Message}");
+            }
+
+            createStage = "composite-srv";
+            _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
+            createStage = "composite-rtv";
+            _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
+
+            fullDesc.Usage = ResourceUsage.Staging;
+            fullDesc.BindFlags = BindFlags.None;
+            fullDesc.CPUAccessFlags = CpuAccessFlags.Read;
+            fullDesc.MiscFlags = ResourceOptionFlags.None;
+            createStage = "readback-texture";
+            _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
+        }
+        catch (Exception ex)
         {
-            Width = (uint)Math.Max(1, _surfaceWidth),
-            Height = (uint)Math.Max(1, _surfaceHeight),
-            ArraySize = 1,
-            MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
-            CPUAccessFlags = CpuAccessFlags.None,
-        };
-        _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
-        _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
-        _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
-
-        fullDesc.Usage = ResourceUsage.Default;
-        fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
-        fullDesc.CPUAccessFlags = CpuAccessFlags.None;
-        _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
-        _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
-        _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
-
-        fullDesc.Usage = ResourceUsage.Staging;
-        fullDesc.BindFlags = BindFlags.None;
-        fullDesc.CPUAccessFlags = CpuAccessFlags.Read;
-        _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
+            throw new InvalidOperationException($"CreateBaseAndCompositeTargets failed at stage='{createStage}' width={_surfaceWidth} height={_surfaceHeight}.", ex);
+        }
     }
 
     private void CreateBloomIntermediateTargets(int width, int height)
@@ -1514,7 +1706,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, height),
             ArraySize = 1,
             MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
+            Format = DxgiFormat.R8G8B8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Default,
             BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
@@ -1539,6 +1731,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private void DisposeGpuBloomResources()
     {
+        _directPresentEnabled = false;
+        _directPresentInteropAvailable = false;
+        _directPresentBackBuffer?.Dispose();
+        _directPresentBackBuffer = null;
+        _directPresentSwapChain?.Dispose();
+        _directPresentSwapChain = null;
         DisposeBloomIntermediateTargets();
         _gpuReadbackTexture?.Dispose();
         _gpuReadbackTexture = null;
@@ -1625,6 +1823,19 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float SurfaceHeight;
         public float BloomWidth;
         public float BloomHeight;
+        public float DotShapeCircle;
+        public float FlatShading;
+        public float FullBrightnessRadius;
+        public float OffStateAlpha;
+        public float OffTintR;
+        public float OffTintG;
+        public float OffTintB;
+        public float LensFalloff;
+        public float SpecularHotspot;
+        public float RimHighlight;
+        // Conversational note: D3D11 constant buffers require 16-byte alignment, so we keep explicit padding fields.
+        public float Padding0;
+        public float Padding1;
     }
 
     private static class BloomShaders
@@ -1641,6 +1852,14 @@ cbuffer BloomConstants : register(b0)
     float2 Direction;
     float2 SurfaceSize;
     float2 BloomSize;
+    float DotShapeCircle;
+    float FlatShading;
+    float FullBrightnessRadius;
+    float OffStateAlpha;
+    float3 OffTint;
+    float LensFalloff;
+    float SpecularHotspot;
+    float RimHighlight;
 }
 Texture2D BaseTexture : register(t0);
 Texture2D NearTexture : register(t1);
@@ -1683,9 +1902,54 @@ float4 PSDotPass(VsOut input) : SV_Target
     if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(0, 0, 0, 1);
     float2 within = frac(local / stride) * stride;
     if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
+
+    float radial = 0.0f;
+    float edge = 1.0f;
+    if (DotShapeCircle > 0.5f)
+    {
+        float center = (Radius - 1.0f) * 0.5f;
+        float denom = max(0.5f, Radius * 0.5f);
+        float dx = (within.x - center) / denom;
+        float dy = (within.y - center) / denom;
+        radial = sqrt(dx * dx + dy * dy);
+        if (radial > 1.0f) return float4(0, 0, 0, 1);
+        float fullRadius = saturate(FullBrightnessRadius);
+        float adjusted = max(radial, fullRadius);
+        float normalized = (adjusted - fullRadius) / max(0.0001f, 1.0f - fullRadius);
+        edge = saturate(1.0f - normalized);
+    }
+
     float2 ledUv = (ledCoord + 0.5f) / max(BloomSize, float2(1.0f, 1.0f));
     float3 ledColor = BaseTexture.SampleLevel(LinearSampler, ledUv, 0).rgb;
-    return float4(ledColor, 1.0f);
+    float intensity = saturate(max(ledColor.r, max(ledColor.g, ledColor.b)));
+    float offBlend = 1.0f - (intensity * intensity);
+    float hasOffState = OffStateAlpha > 0.0001f && max(OffTint.r, max(OffTint.g, OffTint.b)) > 0.0f ? 1.0f : 0.0f;
+    if (hasOffState < 0.5f && intensity <= 0.0f) return float4(0, 0, 0, 1);
+
+    if (FlatShading > 0.5f)
+    {
+        float3 flatColor = (OffTint * OffStateAlpha * offBlend) + ledColor;
+        return float4(saturate(flatColor), 1.0f);
+    }
+
+    float rootIntensity = sqrt(intensity);
+    float coreOpacity = intensity > 0.0f ? saturate(0.35f + (rootIntensity * 0.65f)) : 0.0f;
+    float specOpacity = intensity > 0.0f ? saturate((rootIntensity * 0.45f) + 0.08f) : 0.0f;
+    float bodyRaw = OffStateAlpha * ((0.25f + (0.55f * pow(edge, 0.5f + LensFalloff))) + (RimHighlight * 0.08f * (1.0f - edge)));
+    // Conversational note: CPU masks are normalized to max=1, so we mirror that here to keep off-state visibility/specularity in parity.
+    float bodyNorm = saturate(bodyRaw / max(0.0001f, OffStateAlpha * 0.8f));
+    float core = pow(edge, 1.1f + (LensFalloff * 1.6f)) * coreOpacity;
+
+    float hx = (within.x / max(1.0f, Radius - 1.0f)) - 0.50f;
+    float hy = (within.y / max(1.0f, Radius - 1.0f)) - 0.35f;
+    float hotspotDist2 = (hx * hx) + (hy * hy);
+    float specBase = max(0.01f, 0.35f + (0.55f * SpecularHotspot));
+    float specMask = exp(-hotspotDist2 / max(0.01f, 0.02f + (0.12f * SpecularHotspot))) * specBase;
+    float specNorm = saturate(specMask / specBase);
+    float spec = specNorm * specOpacity;
+
+    float3 outColor = (OffTint * bodyNorm * offBlend) + (ledColor * core) + spec.xxx;
+    return float4(saturate(outColor), 1.0f);
 }
 float SoftKneeWeight(float3 color)
 {
