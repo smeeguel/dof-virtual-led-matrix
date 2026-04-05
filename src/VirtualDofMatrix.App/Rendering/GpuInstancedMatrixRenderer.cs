@@ -1383,7 +1383,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _compositeShader = _device.CreatePixelShader(compositeBlob);
             _linearSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp, 0, 1, ComparisonFunction.Never, new Color4(0f, 0f, 0f, 0f), 0, float.MaxValue));
             _bloomConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<BloomGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
-            CreateBaseAndCompositeTargets();
+            CreateBaseAndCompositeTargets(_directPresentRequested);
             TryInitializeDirectPresentSurface();
             _gpuBloomSupported = true;
             _gpuDotPassSupported = true;
@@ -1527,7 +1527,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         CreateBloomIntermediateTargets(_downsampleWidth, _downsampleHeight);
     }
 
-    private void CreateBaseAndCompositeTargets()
+    private void CreateBaseAndCompositeTargets(bool shareCompositeTextureForDirectPresent)
     {
         if (_device is null)
         {
@@ -1559,7 +1559,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             ResourceUsage.Default,
             BindFlags.ShaderResource | BindFlags.RenderTarget,
             CpuAccessFlags.None,
-            _directPresentRequested);
+            allowShared: false,
+            DxgiFormat.R8G8B8A8_UNorm);
         _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
         _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
         _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
@@ -1568,7 +1569,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             ResourceUsage.Default,
             BindFlags.ShaderResource | BindFlags.RenderTarget,
             CpuAccessFlags.None,
-            _directPresentRequested);
+            shareCompositeTextureForDirectPresent,
+            shareCompositeTextureForDirectPresent ? DxgiFormat.B8G8R8A8_UNorm : DxgiFormat.R8G8B8A8_UNorm);
         _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
         _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
         _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
@@ -1578,11 +1580,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             ResourceUsage.Staging,
             BindFlags.None,
             CpuAccessFlags.Read,
-            allowShared: false);
+            allowShared: false,
+            DxgiFormat.R8G8B8A8_UNorm);
         _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
     }
 
-    internal Texture2DDescription CreateFullSurfaceDescription(ResourceUsage usage, BindFlags bindFlags, CpuAccessFlags cpuAccessFlags, bool allowShared)
+    internal Texture2DDescription CreateFullSurfaceDescription(ResourceUsage usage, BindFlags bindFlags, CpuAccessFlags cpuAccessFlags, bool allowShared, DxgiFormat format)
     {
         // Conversational note: this helper centralizes descriptor creation so we can't accidentally carry invalid flag combos.
         var miscFlags = allowShared && usage == ResourceUsage.Default ? ResourceOptionFlags.Shared : ResourceOptionFlags.None;
@@ -1592,7 +1595,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, _surfaceHeight),
             ArraySize = 1,
             MipLevels = 1,
-            Format = DxgiFormat.R8G8B8A8_UNorm,
+            Format = format,
             SampleDescription = new SampleDescription(1, 0),
             Usage = usage,
             BindFlags = bindFlags,
