@@ -22,7 +22,7 @@ namespace VirtualDofMatrix.App.Rendering;
 public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 {
     private const int Channels = 3;
-    private const float TemporalSmoothingOffSnapThreshold = 1.0f;
+    private const float TemporalSmoothingOffSnapThreshold = 4.0f;
     private ID3D11Device? _device;
     private ID3D11DeviceContext? _context;
     private ID3D11Buffer? _instanceBuffer;
@@ -86,6 +86,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ulong _gpuBloomAttemptCount;
     private ulong _lastOutputSequence;
     private bool _isGpuPrimaryPath;
+    private bool _hasAnyRawLitLed;
     private readonly object _gate = new();
     private Image? _host;
     private WriteableBitmap? _fallbackBitmap;
@@ -313,6 +314,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         if (byteCount < _rawRgbUpload.Length)
         {
             Array.Clear(_rawRgbUpload, byteCount, _rawRgbUpload.Length - byteCount);
+        }
+
+        _hasAnyRawLitLed = false;
+        for (var i = 0; i < byteCount; i++)
+        {
+            if (_rawRgbUpload[i] > 0)
+            {
+                _hasAnyRawLitLed = true;
+                break;
+            }
         }
 
         var handle = GCHandle.Alloc(_rawRgbUpload, GCHandleType.Pinned);
@@ -1297,6 +1308,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private bool HasAnyLitLed(bool allowGpuReadback)
     {
+        if (!_hasAnyRawLitLed)
+        {
+            return false;
+        }
+
         // Conversational note: healthy GPU-primary frames skip CPU readback entirely and let bloom thresholding reject dark pixels.
         if (!allowGpuReadback)
         {
