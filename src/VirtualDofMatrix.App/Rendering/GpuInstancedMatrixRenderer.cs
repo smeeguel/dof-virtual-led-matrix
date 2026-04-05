@@ -1936,16 +1936,20 @@ float4 PSDotPass(VsOut input) : SV_Target
     float rootIntensity = sqrt(intensity);
     float coreOpacity = intensity > 0.0f ? saturate(0.35f + (rootIntensity * 0.65f)) : 0.0f;
     float specOpacity = intensity > 0.0f ? saturate((rootIntensity * 0.45f) + 0.08f) : 0.0f;
-    float body = OffStateAlpha * ((0.25f + (0.55f * pow(edge, 0.5f + LensFalloff))) + (RimHighlight * 0.08f * (1.0f - edge)));
+    float bodyRaw = OffStateAlpha * ((0.25f + (0.55f * pow(edge, 0.5f + LensFalloff))) + (RimHighlight * 0.08f * (1.0f - edge)));
+    // Conversational note: CPU masks are normalized to max=1, so we mirror that here to keep off-state visibility/specularity in parity.
+    float bodyNorm = saturate(bodyRaw / max(0.0001f, OffStateAlpha * 0.8f));
     float core = pow(edge, 1.1f + (LensFalloff * 1.6f)) * coreOpacity;
 
     float hx = (within.x / max(1.0f, Radius - 1.0f)) - 0.50f;
     float hy = (within.y / max(1.0f, Radius - 1.0f)) - 0.35f;
     float hotspotDist2 = (hx * hx) + (hy * hy);
-    float specMask = exp(-hotspotDist2 / max(0.01f, 0.02f + (0.12f * SpecularHotspot))) * (0.35f + (0.55f * SpecularHotspot));
-    float spec = specMask * specOpacity;
+    float specBase = max(0.01f, 0.35f + (0.55f * SpecularHotspot));
+    float specMask = exp(-hotspotDist2 / max(0.01f, 0.02f + (0.12f * SpecularHotspot))) * specBase;
+    float specNorm = saturate(specMask / specBase);
+    float spec = specNorm * specOpacity;
 
-    float3 outColor = (OffTint * body * offBlend) + (ledColor * core) + spec.xxx;
+    float3 outColor = (OffTint * bodyNorm * offBlend) + (ledColor * core) + spec.xxx;
     return float4(saturate(outColor), 1.0f);
 }
 float SoftKneeWeight(float3 color)
