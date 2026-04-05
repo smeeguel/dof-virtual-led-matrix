@@ -256,7 +256,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
         }
 
-        ApplyBloomIfEnabled(_style, useGpuDotPass, _isGpuPrimaryPath);
+        ApplyBloomIfEnabled(_style, useGpuDotPass);
 
         if (!_directPresentEnabled)
         {
@@ -605,7 +605,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private void ApplyBloomIfEnabled(DotStyleConfig style, bool baseFrameIsGpuRendered, bool isGpuPrimaryPath)
+    private void ApplyBloomIfEnabled(DotStyleConfig style, bool baseFrameIsGpuRendered)
     {
         var bloomProfile = BloomProfileResolver.Resolve(style.Bloom);
         // If both lanes are effectively off, skip bloom and keep the frame path cheap.
@@ -619,7 +619,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
         // If there are no lit LEDs in this frame, we skip bloom so "off bulb" shading stays clean.
-        if (!HasAnyLitLed(allowGpuReadback: !isGpuPrimaryPath))
+        if (!HasAnyLitLed())
         {
             if (baseFrameIsGpuRendered)
             {
@@ -1306,33 +1306,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         return t * t * (3f - (2f * t));
     }
 
-    private bool HasAnyLitLed(bool allowGpuReadback)
+    private bool HasAnyLitLed()
     {
-        if (!_hasAnyRawLitLed)
-        {
-            return false;
-        }
-
-        // Conversational note: healthy GPU-primary frames skip CPU readback entirely and let bloom thresholding reject dark pixels.
-        if (!allowGpuReadback)
-        {
-            return true;
-        }
-
-        if (!TryReadProcessedLedsToCpu("bloom-lit-check-fallback"))
-        {
-            return true;
-        }
-
-        for (var i = 0; i < _cpuLedReadback.Length; i += 4)
-        {
-            if (_cpuLedReadback[i] > 0 || _cpuLedReadback[i + 1] > 0 || _cpuLedReadback[i + 2] > 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        // Conversational note: bloom gating now uses preprocess input knowledge only, so healthy GPU frames never trigger CPU-side LED scans.
+        return _hasAnyRawLitLed;
     }
 
     private static int GetEffectiveBloomRadius(int configuredRadius, int scaleDivisor, int dotSize)
