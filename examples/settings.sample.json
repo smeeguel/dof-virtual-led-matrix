@@ -23,9 +23,10 @@
       "fallAlpha": 0.9
     },
     "visual": {
-      "preferD3D11SwapChainPresent": true,
+      "gpuPresentMode": "DirectPresentOnly",
       "forceCpuDotRasterFallback": false,
-      "forceLegacyReadbackPresent": false,
+      "enableDirectPresentParitySampling": false,
+      "enableDiagnosticReadbackCapture": false,
       "flatShading": false,
       "fullBrightnessRadiusMinPct": 0.8,
       "offStateTintR": 20,

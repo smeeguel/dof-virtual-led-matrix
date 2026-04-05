@@ -265,9 +265,10 @@ public partial class MainWindow : Window
             },
             Visual = new MatrixVisualConfig
             {
-                PreferD3D11SwapChainPresent = _config.Matrix.Visual.PreferD3D11SwapChainPresent,
+                GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
                 ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
-                ForceLegacyReadbackPresent = _config.Matrix.Visual.ForceLegacyReadbackPresent,
+                EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
+                EnableDiagnosticReadbackCapture = _config.Matrix.Visual.EnableDiagnosticReadbackCapture,
                 FlatShading = _config.Matrix.Visual.FlatShading,
                 FullBrightnessRadiusMinPct = _config.Matrix.Visual.FullBrightnessRadiusMinPct,
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,

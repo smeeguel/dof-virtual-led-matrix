@@ -75,6 +75,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private bool _directPresentEnabled;
     private bool _directPresentInteropAvailable;
     private bool _directPresentParityValidated;
+    private bool _directPresentParitySamplingEnabled;
+    private bool _diagnosticReadbackCaptureEnabled;
     private string _directPresentStatus = "uninitialized";
     private IDXGISwapChain1? _directPresentSwapChain;
     private ID3D11Texture2D? _directPresentBackBuffer;
@@ -86,6 +88,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private string _gpuBloomStage = "idle";
     private string _gpuBloomTrace = string.Empty;
     private ulong _gpuBloomAttemptCount;
+    private ulong _interopDisabledFallbackCount;
+    private ulong _cpuBloomFallbackCount;
+    private ulong _legacyReadbackForcedCount;
     private ulong _lastOutputSequence;
     private RenderLane _renderLane = RenderLane.GpuPrimary;
     private RenderLane? _lastLoggedLane;
@@ -133,6 +138,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _width = width;
         _height = height;
         _style = dotStyleConfig;
+        // Conversational note: cache these booleans once per initialize pass so the render hot-path stays branch-light.
+        _directPresentParitySamplingEnabled = dotStyleConfig.Visual.EnableDirectPresentParitySampling;
+        _diagnosticReadbackCaptureEnabled = dotStyleConfig.Visual.EnableDiagnosticReadbackCapture;
         _logicalToRaster = MatrixFrameIndexMap.BuildLogicalToRasterMap(width, height, dotStyleConfig.Mapping);
         ConfigureDotSurface(dotStyleConfig, width, height);
         _bgra = new byte[checked(_surfaceWidth * _surfaceHeight * 4)];
@@ -194,7 +202,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         AppLogger.Info($"[renderer] gpu initialized fastpath leds={width * height} surface={_surfaceWidth}x{_surfaceHeight}");
         var bloomProfile = BloomProfileResolver.Resolve(dotStyleConfig.Bloom);
         AppLogger.Info($"[renderer] gpu bloom enabled={bloomProfile.Enabled} threshold={bloomProfile.Threshold:F2} softKnee={bloomProfile.SoftKnee:F2} scale={bloomProfile.ScaleDivisor} nearRadius={bloomProfile.NearRadius} farRadius={bloomProfile.FarRadius} nearStrength={bloomProfile.NearStrength:F2} farStrength={bloomProfile.FarStrength:F2}");
-        AppLogger.Info($"[renderer] gpu direct present enabled={_directPresentEnabled} status={_directPresentStatus}");
+        AppLogger.Info($"[renderer] gpu direct present mode={dotStyleConfig.Visual.GpuPresentMode} enabled={_directPresentEnabled} status={_directPresentStatus} paritySampling={_directPresentParitySamplingEnabled} diagnosticCapture={_diagnosticReadbackCaptureEnabled}");
     }
 
     public void UpdateFrame(FramePresentation presentation)
@@ -661,7 +669,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
         }
 
-        _useCpuBloomFallback = true;
+        if (!_useCpuBloomFallback)
+        {
+            _useCpuBloomFallback = true;
+            _cpuBloomFallbackCount++;
+            LogFallbackCounter("cpu bloom fallback", _cpuBloomFallbackCount, $"seq={_lastOutputSequence} stage={_gpuBloomStage}");
+        }
         if (lane != RenderLane.CpuDotFallback)
         {
             _renderLane = RenderLane.CpuBloomFallback;
@@ -794,7 +807,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
-        if (_style?.Visual.ForceLegacyReadbackPresent is true)
+        if (IsLegacyReadbackMode())
         {
             if (_directPresentStatus != "forced:legacy-readback")
             {
@@ -803,6 +816,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 AppLogger.Info("[renderer] gpu direct present bypassed by config; using legacy readback.");
             }
 
+            _legacyReadbackForcedCount++;
+            LogFallbackCounter("legacy readback forced", _legacyReadbackForcedCount, $"seq={_lastOutputSequence}");
             return TryReadbackCompositeToCpu(trace);
         }
 
@@ -815,8 +830,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 _directPresentSwapChain.Present(0, PresentFlags.None);
                 trace.Append(" direct-present");
 
-                // We keep one parity sample through the old readback path to verify image-equivalent output shape.
-                if (!_directPresentParityValidated)
+                // Conversational note: parity readback is opt-in so normal direct present does not touch CPU readback.
+                if (_directPresentParitySamplingEnabled && !_directPresentParityValidated)
                 {
                     _directPresentParityValidated = TryCaptureFallbackReadbackSample(trace);
                 }
@@ -835,8 +850,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
         }
 
-        if (_directPresentInteropAvailable && !_directPresentEnabled)
+        if (!_directPresentEnabled)
         {
+            _interopDisabledFallbackCount++;
+            LogFallbackCounter("interop disabled", _interopDisabledFallbackCount, $"seq={_lastOutputSequence} status={_directPresentStatus}");
             trace.Append(" interop-disabled-fallback-readback");
         }
 
@@ -896,6 +913,21 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _lastLoggedLane = _renderLane;
     }
 
+    private bool IsLegacyReadbackMode()
+    {
+        var mode = _style?.Visual.GpuPresentMode;
+        return mode is not null && mode.Equals("LegacyReadback", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void LogFallbackCounter(string label, ulong count, string detail)
+    {
+        // Conversational note: this throttles noise while still giving clear progression (1,2,4,8...).
+        if (count <= 3 || (count & (count - 1)) == 0)
+        {
+            AppLogger.Info($"[renderer] fallback trigger '{label}' count={count} {detail}");
+        }
+    }
+
     private void UploadCpuSurfaceToGpuBase()
     {
         if (_context is null || _gpuBaseTexture is null)
@@ -946,7 +978,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         trace.Append(" ->copy-readback");
         _gpuBloomTrace = trace.ToString();
         _context.CopyResource(_gpuReadbackTexture, _gpuCompositeTexture);
-        _context.Flush();
         _gpuBloomStage = "map-readback";
         trace.Append(" ->map-readback");
         _gpuBloomTrace = trace.ToString();
@@ -967,7 +998,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         // Conversational note: this is a one-time sample to validate the legacy fallback path still sees the same composed frame.
         _context.CopyResource(_gpuReadbackTexture, _gpuCompositeTexture);
-        _context.Flush();
+        if (_diagnosticReadbackCaptureEnabled)
+        {
+            // Conversational note: explicit diagnostic capture mode is the only place we keep a forced flush.
+            _context.Flush();
+        }
         var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         try
         {
@@ -1492,7 +1527,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             _gpuBloomSupported = false;
             _gpuDotPassSupported = false;
-            _useCpuBloomFallback = true;
+            if (!_useCpuBloomFallback)
+            {
+                _useCpuBloomFallback = true;
+                _cpuBloomFallbackCount++;
+                LogFallbackCounter("cpu bloom fallback", _cpuBloomFallbackCount, $"stage={initStage} reason=init-failed");
+            }
             _directPresentEnabled = false;
             _directPresentStatus = $"disabled:init-failed:{initStage}:{ex.GetType().Name}";
             AppLogger.Warn($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. stage={initStage} surface={_surfaceWidth}x{_surfaceHeight} reason={ex.Message}");
@@ -1515,10 +1555,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        if (_style?.Visual.PreferD3D11SwapChainPresent is not true)
+        if (IsLegacyReadbackMode())
         {
-            _directPresentStatus = "disabled:d3d11-swapchain-disabled-by-config";
-            AppLogger.Info("[renderer] gpu direct present disabled by config; using readback fallback.");
+            _directPresentStatus = "disabled:legacy-readback-mode";
+            AppLogger.Info("[renderer] gpu direct present disabled by config mode=LegacyReadback; using readback fallback.");
             return;
         }
 

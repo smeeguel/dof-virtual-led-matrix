@@ -75,14 +75,47 @@ public sealed class TemporalSmoothingConfig
 
 public sealed class MatrixVisualConfig
 {
-    // Preference flag for the planned all-D3D11 swapchain presentation path.
-    public bool PreferD3D11SwapChainPresent { get; set; } = true;
+    // Conversational note: this explicit mode keeps runtime behavior easy to reason about.
+    // - DirectPresentOnly (default): stay on the swapchain present path whenever interop is available.
+    // - LegacyReadback: opt-in compatibility/debug mode that always uses GPU->CPU readback presentation.
+    public string GpuPresentMode { get; set; } = "DirectPresentOnly";
 
     // When true, force the renderer to keep CPU dot rasterization for maximum compatibility.
     public bool ForceCpuDotRasterFallback { get; set; } = false;
 
-    // When true, force GPU bloom output to use legacy D3D11->CPU readback instead of direct swapchain presentation.
-    public bool ForceLegacyReadbackPresent { get; set; } = false;
+    // When true, keep one diagnostic readback sample for direct-present parity debugging.
+    public bool EnableDirectPresentParitySampling { get; set; } = false;
+
+    // When true, keep explicit context flush in diagnostic capture paths.
+    public bool EnableDiagnosticReadbackCapture { get; set; } = false;
+
+    // Conversational note: keep this alias for older settings.json files so legacy configs still map cleanly.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ForceLegacyReadbackPresent
+    {
+        get => GpuPresentMode.Equals("LegacyReadback", StringComparison.OrdinalIgnoreCase);
+        set
+        {
+            if (value)
+            {
+                GpuPresentMode = "LegacyReadback";
+            }
+        }
+    }
+
+    // Conversational note: old "prefer swapchain" flag now just flips the explicit mode back to direct present.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PreferD3D11SwapChainPresent
+    {
+        get => !GpuPresentMode.Equals("LegacyReadback", StringComparison.OrdinalIgnoreCase);
+        set
+        {
+            if (!value)
+            {
+                GpuPresentMode = "LegacyReadback";
+            }
+        }
+    }
 
     // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
     public bool FlatShading { get; set; } = false;
