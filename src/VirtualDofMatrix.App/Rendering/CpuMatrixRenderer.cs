@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Rendering;
@@ -54,6 +55,7 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
             _bitmap.WritePixels(new System.Windows.Int32Rect(0, 0, composed.Width, composed.Height), composed.Pixels, composed.Stride, 0);
             _bitmapHost.Source = _bitmap;
             _bitmapHost.Stretch = Stretch.Fill;
+            AppLogger.Info($"[renderer] cpu initialized surface={composed.Width}x{composed.Height} leds={width * height}");
         }
         finally
         {
@@ -165,19 +167,19 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
                 continue;
             }
 
-            (int Width, int Height, int Stride, byte[] Pixels, IReadOnlyList<DirtyRect> DirtyRects, bool UseFullFrameWrite) composed;
-            await _composeMutex.WaitAsync(_composeCts.Token).ConfigureAwait(false);
             try
             {
-                composed = _composer.Compose(frame);
-            }
-            finally
-            {
-                _composeMutex.Release();
-            }
+                (int Width, int Height, int Stride, byte[] Pixels, IReadOnlyList<DirtyRect> DirtyRects, bool UseFullFrameWrite) composed;
+                await _composeMutex.WaitAsync(_composeCts.Token).ConfigureAwait(false);
+                try
+                {
+                    composed = _composer.Compose(frame);
+                }
+                finally
+                {
+                    _composeMutex.Release();
+                }
 
-            try
-            {
                 await bitmapHost.Dispatcher.InvokeAsync(
                     () => ApplyComposedFrame(bitmapHost, composed),
                     DispatcherPriority.Render,
@@ -186,6 +188,11 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
             catch (OperationCanceledException)
             {
                 break;
+            }
+            catch (Exception ex)
+            {
+                // Conversational note: keep the compose loop alive across transient backend-switch races instead of freezing the CPU renderer.
+                AppLogger.Warn($"[renderer] cpu compose pass failed; continuing. reason={ex.GetType().Name}: {ex.Message}");
             }
         }
     }
