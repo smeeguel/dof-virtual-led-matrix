@@ -7,7 +7,6 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Vortice.D3DCompiler;
-using Vortice.Direct3D9;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
@@ -15,10 +14,6 @@ using Vortice.Mathematics;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 using static Vortice.Direct3D11.D3D11;
-using D3D9Format = Vortice.Direct3D9.Format;
-using D3D9PresentParameters = Vortice.Direct3D9.PresentParameters;
-using D3D9SwapEffect = Vortice.Direct3D9.SwapEffect;
-using D3D9Usage = Vortice.Direct3D9.Usage;
 using DxgiFormat = Vortice.DXGI.Format;
 using Viewport = Vortice.Mathematics.Viewport;
 
@@ -65,15 +60,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11RenderTargetView? _gpuCompositeRtv;
     private ID3D11ShaderResourceView? _gpuCompositeSrv;
     private ID3D11Texture2D? _gpuReadbackTexture;
-    private D3DImage? _directPresentImage;
     private bool _directPresentEnabled;
     private bool _directPresentInteropAvailable;
     private bool _directPresentParityValidated;
     private string _directPresentStatus = "uninitialized";
-    private IDirect3D9Ex? _direct3D9Ex;
-    private IDirect3DDevice9Ex? _direct3D9Device;
-    private IDirect3DTexture9? _direct3D9SharedTexture;
-    private IDirect3DSurface9? _direct3D9SharedSurface;
+    private IDXGISwapChain1? _directPresentSwapChain;
+    private ID3D11Texture2D? _directPresentBackBuffer;
     private bool _gpuBloomSupported;
     private bool _gpuDotPassSupported;
     private bool _useCpuBloomFallback;
@@ -183,7 +175,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _fallbackBitmap = new WriteableBitmap(_surfaceWidth, _surfaceHeight, 96, 96, PixelFormats.Bgra32, null);
         _host.Source = _fallbackBitmap;
         _host.Stretch = Stretch.Fill;
-        _directPresentImage = null;
         _directPresentEnabled = false;
         _directPresentInteropAvailable = false;
         _directPresentParityValidated = false;
@@ -760,15 +751,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         // Conversational note: when direct present is online, we intentionally avoid GPU->CPU readback.
-        if (_directPresentEnabled && _directPresentImage is not null && _host is not null)
+        if (_directPresentEnabled && _context is not null && _directPresentSwapChain is not null && _directPresentBackBuffer is not null)
         {
             try
             {
-                _context.Flush();
-                _host.Source = _directPresentImage;
-                _directPresentImage.Lock();
-                _directPresentImage.AddDirtyRect(new System.Windows.Int32Rect(0, 0, Math.Max(1, _surfaceWidth), Math.Max(1, _surfaceHeight)));
-                _directPresentImage.Unlock();
+                _context.CopyResource(_directPresentBackBuffer, _gpuCompositeTexture);
+                _directPresentSwapChain.Present(0, PresentFlags.None);
                 trace.Append(" direct-present");
 
                 // We keep one parity sample through the old readback path to verify image-equivalent output shape.
@@ -783,6 +771,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             {
                 _directPresentEnabled = false;
                 _directPresentStatus = $"disabled:interop-present-failed:{ex.GetType().Name}";
+                if (_host is not null && _fallbackBitmap is not null)
+                {
+                    _host.Source = _fallbackBitmap;
+                }
                 AppLogger.Warn($"[renderer] gpu direct present disabled during frame; falling back to readback. reason={ex.Message}");
             }
         }
@@ -790,6 +782,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         if (_directPresentInteropAvailable && !_directPresentEnabled)
         {
             trace.Append(" interop-disabled-fallback-readback");
+        }
+
+        if (_host is not null && _fallbackBitmap is not null)
+        {
+            _host.Source = _fallbackBitmap;
         }
 
         return TryReadbackCompositeToCpu(trace);
@@ -1450,15 +1447,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     {
         _directPresentEnabled = false;
         _directPresentInteropAvailable = false;
-        _directPresentImage = null;
-        _direct3D9SharedSurface?.Dispose();
-        _direct3D9SharedSurface = null;
-        _direct3D9SharedTexture?.Dispose();
-        _direct3D9SharedTexture = null;
-        _direct3D9Device?.Dispose();
-        _direct3D9Device = null;
-        _direct3D9Ex?.Dispose();
-        _direct3D9Ex = null;
+        _directPresentBackBuffer?.Dispose();
+        _directPresentBackBuffer = null;
+        _directPresentSwapChain?.Dispose();
+        _directPresentSwapChain = null;
 
         if (_gpuCompositeTexture is null || _host is null)
         {
@@ -1467,47 +1459,19 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        if (_style?.Visual.PreferD3D11SwapChainPresent is true)
+        if (_style?.Visual.PreferD3D11SwapChainPresent is not true)
         {
-            // Conversational note: we keep this marker explicit so logs show intent during the D3D11 swapchain migration.
-            _directPresentStatus = "pending:d3d11-swapchain-presentation";
-            if (!(_style?.Visual.AllowLegacyD3D9InteropPresent ?? true))
-            {
-                _directPresentStatus = "disabled:legacy-d3d9-interop-blocked-by-config";
-                AppLogger.Info("[renderer] gpu direct present deferred to future D3D11 swapchain path; legacy D3D9 interop disabled by config.");
-                return;
-            }
-
-            AppLogger.Info("[renderer] d3d11 swapchain presentation preferred; using temporary legacy D3D9 interop path until swapchain host is enabled.");
+            _directPresentStatus = "disabled:d3d11-swapchain-disabled-by-config";
+            AppLogger.Info("[renderer] gpu direct present disabled by config; using readback fallback.");
+            return;
         }
 
         var interopStage = "start";
         try
         {
-            // Conversational note: WPF's D3DImage only accepts a D3D9 surface, so we bridge from our D3D11 composite texture via a shared handle.
-            interopStage = "query-dxgi-resource";
-            using var dxgiResource = _gpuCompositeTexture.QueryInterfaceOrNull<IDXGIResource>();
-            if (dxgiResource is null)
+            if (_device is null)
             {
-                _directPresentStatus = "disabled:interop-missing-dxgi-resource";
-                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
-                return;
-            }
-
-            var sharedHandle = dxgiResource.SharedHandle;
-            if (sharedHandle == IntPtr.Zero)
-            {
-                _directPresentStatus = "disabled:interop-missing-shared-handle";
-                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
-                return;
-            }
-
-            interopStage = "create-d3d9ex";
-            _direct3D9Ex = D3D9.Direct3DCreate9Ex();
-            if (_direct3D9Ex is null)
-            {
-                _directPresentStatus = "disabled:interop-d3d9ex-create-failed";
-                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                _directPresentStatus = "disabled:missing-d3d11-device";
                 return;
             }
 
@@ -1520,93 +1484,76 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 return;
             }
 
-            var presentParameters = new D3D9PresentParameters
+            interopStage = "query-dxgi-factory";
+            using var dxgiDevice = _device.QueryInterfaceOrNull<IDXGIDevice>();
+            using var adapter = dxgiDevice?.GetAdapter();
+            using var factory = adapter?.GetParent<IDXGIFactory2>();
+
+            if (factory is null)
             {
-                Windowed = true,
-                SwapEffect = D3D9SwapEffect.Discard,
-                DeviceWindowHandle = hostHandle,
-                PresentationInterval = PresentInterval.Immediate,
+                _directPresentStatus = "disabled:missing-dxgi-factory";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            interopStage = "create-swapchain";
+            var desc = new SwapChainDescription1
+            {
+                Width = Math.Max(1, _surfaceWidth),
+                Height = Math.Max(1, _surfaceHeight),
+                Format = DxgiFormat.R8G8B8A8_UNorm,
+                Stereo = false,
+                SampleDescription = new SampleDescription(1, 0),
+                BufferUsage = Usage.RenderTargetOutput,
+                BufferCount = 2,
+                Scaling = Scaling.Stretch,
+                SwapEffect = SwapEffect.FlipDiscard,
+                AlphaMode = AlphaMode.Ignore,
+                Flags = SwapChainFlags.None,
             };
 
-            interopStage = "create-d3d9-device";
-            _direct3D9Device = _direct3D9Ex.CreateDeviceEx(
-                0,
-                DeviceType.Hardware,
-                hostHandle,
-                CreateFlags.HardwareVertexProcessing | CreateFlags.Multithreaded | CreateFlags.FpuPreserve,
-                presentParameters,
-                new DisplayModeEx());
-
-            if (_direct3D9Device is null)
+            _directPresentSwapChain = factory.CreateSwapChainForHwnd(_device, hostHandle, desc);
+            if (_directPresentSwapChain is null)
             {
-                _directPresentStatus = "disabled:interop-d3d9ex-device-create-failed";
-                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                _directPresentStatus = "disabled:swapchain-create-failed";
                 return;
             }
 
-            interopStage = "open-shared-texture";
-            _direct3D9SharedTexture = _direct3D9Device.CreateTexture(
-                (uint)Math.Max(1, _surfaceWidth),
-                (uint)Math.Max(1, _surfaceHeight),
-                1,
-                D3D9Usage.RenderTarget,
-                D3D9Format.A8R8G8B8,
-                Pool.Default,
-                ref sharedHandle);
-
-            if (_direct3D9SharedTexture is null)
+            interopStage = "get-swapchain-backbuffer";
+            _directPresentBackBuffer = _directPresentSwapChain.GetBuffer<ID3D11Texture2D>(0);
+            if (_directPresentBackBuffer is null)
             {
-                _directPresentStatus = "disabled:interop-shared-texture-open-failed";
-                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                _directPresentStatus = "disabled:swapchain-backbuffer-unavailable";
                 return;
             }
 
-            interopStage = "get-shared-surface";
-            _direct3D9SharedSurface = _direct3D9SharedTexture.GetSurfaceLevel(0);
-            if (_direct3D9SharedSurface is null)
-            {
-                _directPresentStatus = "disabled:interop-shared-surface-unavailable";
-                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
-                return;
-            }
-
-            interopStage = "bind-d3dimage-backbuffer";
-            _directPresentImage = new D3DImage();
-            _directPresentImage.Lock();
-            _directPresentImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, _direct3D9SharedSurface.NativePointer, enableSoftwareFallback: true);
-            _directPresentImage.Unlock();
-            _host.Source = _directPresentImage;
+            _host.Source = null;
             _directPresentInteropAvailable = true;
             _directPresentEnabled = true;
-            _directPresentStatus = "enabled:interop-d3d11-d3d9ex-shared-surface";
+            _directPresentStatus = "enabled:d3d11-swapchain";
             AppLogger.Info($"[renderer] gpu direct present enabled. status={_directPresentStatus}");
         }
         catch (Exception ex)
         {
             _directPresentEnabled = false;
             _directPresentInteropAvailable = false;
-            _directPresentImage = null;
-            _direct3D9SharedSurface?.Dispose();
-            _direct3D9SharedSurface = null;
-            _direct3D9SharedTexture?.Dispose();
-            _direct3D9SharedTexture = null;
-            _direct3D9Device?.Dispose();
-            _direct3D9Device = null;
-            _direct3D9Ex?.Dispose();
-            _direct3D9Ex = null;
+            _directPresentBackBuffer?.Dispose();
+            _directPresentBackBuffer = null;
+            _directPresentSwapChain?.Dispose();
+            _directPresentSwapChain = null;
             var hr = ex.HResult;
             var hrText = $"0x{hr:X8}";
-            var expectedUnsupported = hr == unchecked((int)0x8876086C) || hr == unchecked((int)0x80070057);
+            var expectedUnsupported = hr == unchecked((int)0x887A0004) || hr == unchecked((int)0x80070057);
             _directPresentStatus = expectedUnsupported
-                ? $"disabled:interop-unsupported:{interopStage}:{hrText}"
-                : $"disabled:interop-init-exception:{interopStage}:{ex.GetType().Name}:{hrText}";
+                ? $"disabled:swapchain-unsupported:{interopStage}:{hrText}"
+                : $"disabled:swapchain-init-exception:{interopStage}:{ex.GetType().Name}:{hrText}";
             if (expectedUnsupported)
             {
-                AppLogger.Info($"[renderer] gpu direct present unsupported on this adapter/driver; using readback fallback. stage={interopStage} hresult={hrText}");
+                AppLogger.Info($"[renderer] gpu d3d11 swapchain present unsupported on this adapter/driver; using readback fallback. stage={interopStage} hresult={hrText}");
             }
             else
             {
-                AppLogger.Warn($"[renderer] gpu direct present disabled. stage={interopStage} reason={ex.Message} hresult={hrText}");
+                AppLogger.Warn($"[renderer] gpu d3d11 swapchain present disabled. stage={interopStage} reason={ex.Message} hresult={hrText}");
             }
         }
     }
@@ -1785,15 +1732,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     {
         _directPresentEnabled = false;
         _directPresentInteropAvailable = false;
-        _directPresentImage = null;
-        _direct3D9SharedSurface?.Dispose();
-        _direct3D9SharedSurface = null;
-        _direct3D9SharedTexture?.Dispose();
-        _direct3D9SharedTexture = null;
-        _direct3D9Device?.Dispose();
-        _direct3D9Device = null;
-        _direct3D9Ex?.Dispose();
-        _direct3D9Ex = null;
+        _directPresentBackBuffer?.Dispose();
+        _directPresentBackBuffer = null;
+        _directPresentSwapChain?.Dispose();
+        _directPresentSwapChain = null;
         DisposeBloomIntermediateTargets();
         _gpuReadbackTexture?.Dispose();
         _gpuReadbackTexture = null;

@@ -78,13 +78,10 @@ public sealed class MatrixVisualConfig
     // Preference flag for the planned all-D3D11 swapchain presentation path.
     public bool PreferD3D11SwapChainPresent { get; set; } = true;
 
-    // Temporary compatibility flag: allow legacy D3D9Ex interop while D3D11 swapchain hosting is rolled out.
-    public bool AllowLegacyD3D9InteropPresent { get; set; } = true;
-
     // When true, force the renderer to keep CPU dot rasterization for maximum compatibility.
     public bool ForceCpuDotRasterFallback { get; set; } = false;
 
-    // When true, force GPU bloom output to use legacy D3D11->CPU readback instead of D3DImage interop presentation.
+    // When true, force GPU bloom output to use legacy D3D11->CPU readback instead of direct swapchain presentation.
     public bool ForceLegacyReadbackPresent { get; set; } = false;
 
     // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
