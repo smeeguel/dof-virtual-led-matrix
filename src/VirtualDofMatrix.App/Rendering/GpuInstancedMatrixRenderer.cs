@@ -1834,6 +1834,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float LensFalloff;
         public float SpecularHotspot;
         public float RimHighlight;
+        // Conversational note: D3D11 constant buffers require 16-byte alignment, so we keep explicit padding fields.
+        public float Padding0;
+        public float Padding1;
     }
 
     private static class BloomShaders
