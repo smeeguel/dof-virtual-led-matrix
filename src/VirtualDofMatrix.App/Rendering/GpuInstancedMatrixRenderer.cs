@@ -23,6 +23,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 {
     private const int Channels = 3;
     private const float TemporalSmoothingOffSnapThreshold = 4.0f;
+    private const DxgiFormat LedColorTextureFormat = DxgiFormat.R8G8B8A8_UNorm;
+    private const string LedColorChannelContract = "RGBA";
     private ID3D11Device? _device;
     private ID3D11DeviceContext? _context;
     private ID3D11Buffer? _instanceBuffer;
@@ -392,6 +394,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var mapped = _context.Map(_gpuLedReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         try
         {
+            // Conversational note: `_cpuLedReadback` stores LED bytes in RGBA order (R+0,G+1,B+2), matching the preprocess texture contract.
             ReadBgraRows(mapped.DataPointer, mapped.RowPitch, _cpuLedReadback, _width, _height);
             return true;
         }
@@ -1436,6 +1439,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _gpuPreprocessConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<LedPreprocessGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Default));
             initStage = "create-targets";
             CreateBaseAndCompositeTargets();
+            AppLogger.Info($"[renderer] led preprocess texture contract format={LedColorTextureFormat} channels={LedColorChannelContract}");
             initStage = "init-direct-present";
             TryInitializeDirectPresentSurface();
             _gpuBloomSupported = true;
@@ -1511,7 +1515,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             {
                 Width = (uint)Math.Max(1, _surfaceWidth),
                 Height = (uint)Math.Max(1, _surfaceHeight),
-                Format = DxgiFormat.R8G8B8A8_UNorm,
+                Format = LedColorTextureFormat,
                 Stereo = false,
                 SampleDescription = new SampleDescription(1, 0),
                 BufferUsage = Usage.RenderTargetOutput,
@@ -1627,7 +1631,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 Height = (uint)Math.Max(1, _height),
                 ArraySize = 1,
                 MipLevels = 1,
-                Format = DxgiFormat.R8G8B8A8_UNorm,
+                Format = LedColorTextureFormat,
                 SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default,
                 // Conversational note: preprocess texture is cleared via RTV and consumed via UAV/SRV, so all three bind flags are required.
