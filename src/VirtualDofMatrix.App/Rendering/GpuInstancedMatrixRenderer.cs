@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -14,6 +15,12 @@ using Vortice.Mathematics;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 using static Vortice.Direct3D11.D3D11;
+using D3D9Format = Vortice.Direct3D9.Format;
+using D3D9PresentParameters = Vortice.Direct3D9.PresentParameters;
+using D3D9SwapEffect = Vortice.Direct3D9.SwapEffect;
+using D3D9Usage = Vortice.Direct3D9.Usage;
+using DxgiFormat = Vortice.DXGI.Format;
+using Viewport = Vortice.Mathematics.Viewport;
 
 namespace VirtualDofMatrix.App.Rendering;
 
@@ -165,7 +172,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, _surfaceHeight),
             ArraySize = 1,
             MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
+            Format = DxgiFormat.R8G8B8A8_UNorm,
             BindFlags = BindFlags.ShaderResource,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Dynamic,
@@ -1451,10 +1458,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 return;
             }
 
-            var presentParameters = new PresentParameters
+            var presentParameters = new D3D9PresentParameters
             {
                 Windowed = true,
-                SwapEffect = SwapEffect.Discard,
+                SwapEffect = D3D9SwapEffect.Discard,
                 DeviceWindowHandle = hostHandle,
                 PresentationInterval = PresentInterval.Immediate,
             };
@@ -1478,8 +1485,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 Math.Max(1, _surfaceWidth),
                 Math.Max(1, _surfaceHeight),
                 1,
-                Usage.RenderTarget,
-                Format.A8R8G8B8,
+                D3D9Usage.RenderTarget,
+                D3D9Format.A8R8G8B8,
                 Pool.Default,
                 ref sharedHandle);
 
@@ -1582,7 +1589,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, _height),
             ArraySize = 1,
             MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
+            Format = DxgiFormat.R8G8B8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Dynamic,
             BindFlags = BindFlags.None,
@@ -1603,7 +1610,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, _surfaceHeight),
             ArraySize = 1,
             MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
+            Format = DxgiFormat.R8G8B8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Default,
             BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
@@ -1617,7 +1624,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
         fullDesc.CPUAccessFlags = CpuAccessFlags.None;
         // Conversational note: the composite target is shared so D3D9Ex can open it for D3DImage presentation.
-        fullDesc.OptionFlags = ResourceOptionFlags.Shared;
+        fullDesc.MiscFlags = ResourceOptionFlags.Shared;
         _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
         _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
         _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
@@ -1625,7 +1632,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         fullDesc.Usage = ResourceUsage.Staging;
         fullDesc.BindFlags = BindFlags.None;
         fullDesc.CPUAccessFlags = CpuAccessFlags.Read;
-        fullDesc.OptionFlags = ResourceOptionFlags.None;
+        fullDesc.MiscFlags = ResourceOptionFlags.None;
         _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
     }
 
@@ -1642,7 +1649,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, height),
             ArraySize = 1,
             MipLevels = 1,
-            Format = Format.R8G8B8A8_UNorm,
+            Format = DxgiFormat.R8G8B8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Default,
             BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
