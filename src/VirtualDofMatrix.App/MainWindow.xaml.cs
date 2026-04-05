@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using VirtualDofMatrix.App.Rendering;
+using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App;
@@ -40,6 +41,7 @@ public partial class MainWindow : Window
     private FramePresentation? _idleOffPresentation;
     private int _framesSinceFpsSample;
     private DateTimeOffset _fpsSampleStartUtc = DateTimeOffset.UtcNow;
+    private int _forcedRenderBurstsRemaining;
 
     public event EventHandler? SettingsRequested;
 
@@ -99,10 +101,14 @@ public partial class MainWindow : Window
         _matrixRenderer.UpdateFrame(presentation);
         // Render() is intentionally lightweight now (CPU compose happens off-thread), so ApplyPresentation stays responsive.
         var now = DateTimeOffset.UtcNow;
-        if ((now - _lastRenderUtc) >= MinRenderInterval)
+        if (_forcedRenderBurstsRemaining > 0 || (now - _lastRenderUtc) >= MinRenderInterval)
         {
             _matrixRenderer.Render();
             _lastRenderUtc = now;
+            if (_forcedRenderBurstsRemaining > 0)
+            {
+                _forcedRenderBurstsRemaining--;
+            }
         }
         _framesSinceFpsSample++;
     }
@@ -354,11 +360,14 @@ public partial class MainWindow : Window
 
     public void ApplyRuntimeSettings()
     {
+        var previousRenderer = _matrixRenderer.BackendName;
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
         _idleOffPresentation = null;
         ReplaceRenderer(CreateRenderer(_config));
+        _forcedRenderBurstsRemaining = 6;
+        AppLogger.Info($"[window] renderer-switch {previousRenderer}->{_matrixRenderer.BackendName} seq={_latestPresentation?.OutputSequence ?? 0}");
         ApplyDebugVisibility();
         ReinitializeRendererForViewport();
 
@@ -434,6 +443,7 @@ public partial class MainWindow : Window
         MatrixImage.Source = null;
         MatrixCanvas.Children.Clear();
         _matrixRenderer = nextRenderer;
+        AppLogger.Info($"[window] renderer-replaced backend={_matrixRenderer.BackendName}");
     }
 
 
