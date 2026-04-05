@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -1473,6 +1474,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         try
         {
+            var hostWindowHandle = ResolveHostWindowHandle();
+            if (hostWindowHandle == IntPtr.Zero)
+            {
+                _directPresentStatus = "disabled:no-host-window-handle";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
             // Note: the D3D11 composite target is exposed as a DXGI shared handle, then opened on a D3D9Ex texture for D3DImage.
             using var dxgiResource = _gpuCompositeTexture.QueryInterface<IDXGIResource>();
             var sharedHandle = dxgiResource.SharedHandle;
@@ -1495,15 +1504,15 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             {
                 Windowed = true,
                 SwapEffect = D3D9.SwapEffect.Discard,
-                DeviceWindowHandle = IntPtr.Zero,
+                DeviceWindowHandle = hostWindowHandle,
                 PresentationInterval = D3D9.PresentInterval.Default,
             };
 
             _d3d9Device = _d3d9Ex!.CreateDeviceEx(
                 0,
                 D3D9.DeviceType.Hardware,
-                IntPtr.Zero,
-                D3D9.CreateFlags.HardwareVertexProcessing | D3D9.CreateFlags.Multithreaded | D3D9.CreateFlags.FpuPreserve,
+                hostWindowHandle,
+                D3D9.CreateFlags.SoftwareVertexProcessing | D3D9.CreateFlags.Multithreaded | D3D9.CreateFlags.FpuPreserve,
                 presentParameters);
 
             _d3d9SharedTexture = _d3d9Device.CreateTexture(
@@ -1533,6 +1542,23 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _directPresentStatus = $"disabled:init-exception:{ex.GetType().Name}";
             AppLogger.Warn($"[renderer] gpu direct present disabled. reason={ex.Message}");
         }
+    }
+
+    private IntPtr ResolveHostWindowHandle()
+    {
+        if (_host is null)
+        {
+            return IntPtr.Zero;
+        }
+
+        // Conversational note: D3D9Ex device creation needs a real HWND; IntPtr.Zero tends to fail with D3DERR_INVALIDCALL.
+        var ownerWindow = Window.GetWindow(_host);
+        if (ownerWindow is null)
+        {
+            return IntPtr.Zero;
+        }
+
+        return new WindowInteropHelper(ownerWindow).Handle;
     }
 
     private static Blob CompileShaderOrThrow(string entryPoint, string shaderProfile)
