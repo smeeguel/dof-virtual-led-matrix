@@ -63,6 +63,8 @@ public partial class SettingsWindow : Window
         CabinetPathTextBox.Text = _working.Settings.CabinetXmlPath;
         AutoUpdateCabinetCheckBox.IsChecked = _working.Settings.AutoUpdateCabinetOnResolutionChange;
         DebugCheckBox.IsChecked = _working.Debug.LogProtocol;
+        LogFramesCheckBox.IsChecked = _working.Debug.LogFrames;
+        UpdateAdvancedControlState();
 
         RefreshLedStripList(_working.Settings.CabinetXmlPath);
         UpdateSelectionTooltips();
@@ -107,6 +109,11 @@ public partial class SettingsWindow : Window
 
     private void OnSettingChanged(object sender, RoutedEventArgs e)
     {
+        if (ReferenceEquals(sender, DebugCheckBox))
+        {
+            UpdateAdvancedControlState();
+        }
+
         UpdateSelectionTooltips();
         UpdateSummary();
         UpdateDirtyState();
@@ -252,6 +259,7 @@ public partial class SettingsWindow : Window
         config.Matrix.Renderer = NormalizeRenderer(RendererCombo.SelectedItem?.ToString());
 
         config.Debug.LogProtocol = DebugCheckBox.IsChecked == true;
+        config.Debug.LogFrames = config.Debug.LogProtocol && LogFramesCheckBox.IsChecked == true;
         config.Settings.AutoUpdateCabinetOnResolutionChange = AutoUpdateCabinetCheckBox.IsChecked == true;
         config.Settings.CabinetXmlPath = CabinetPathTextBox.Text.Trim();
         config.Settings.CabinetToyName = string.IsNullOrWhiteSpace(LedStripCombo.Text) ? "Matrix1" : LedStripCombo.Text.Trim();
@@ -294,6 +302,12 @@ public partial class SettingsWindow : Window
             VisualQualityProfiles.Custom => "Custom: respects current values from settings.json as hand-edited.",
             _ => "Select a quality profile for performance versus visual fidelity.",
         };
+    }
+
+    private void UpdateAdvancedControlState()
+    {
+        var debugLoggingEnabled = DebugCheckBox.IsChecked == true;
+        LogFramesCheckBox.IsEnabled = debugLoggingEnabled;
     }
 
     private static string NormalizeRenderer(string? renderer)

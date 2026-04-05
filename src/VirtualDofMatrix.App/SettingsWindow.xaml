@@ -127,6 +127,8 @@
                 <StackPanel Margin="8">
                     <CheckBox x:Name="DebugCheckBox" Content="Debug logging" Checked="OnSettingChanged" Unchecked="OnSettingChanged"
                               ToolTip="Logs detailed protocol and rendering activity for troubleshooting."/>
+                    <CheckBox x:Name="LogFramesCheckBox" Margin="24,6,0,0" Content="Log Frames" Checked="OnSettingChanged" Unchecked="OnSettingChanged"
+                              ToolTip="Logs per-frame named-pipe payload lines (for example: Pipe frame seq=..., payload=... bytes)."/>
                 </StackPanel>
             </TabItem>
         </TabControl>

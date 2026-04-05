@@ -129,7 +129,7 @@ public sealed class FrameTransportHost
                         ? Array.Empty<byte>()
                         : await ReadExactlyAsync(pipe, payloadLength, cancellationToken);
 
-                    if (_config.Debug.LogProtocol)
+                    if (_config.Debug.LogProtocol && _config.Debug.LogFrames)
                     {
                         AppLogger.Info($"Pipe frame seq={sequence}, payload={payloadLength} bytes.");
                     }
