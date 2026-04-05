@@ -129,14 +129,8 @@ public partial class App : Application
             Owner = _window,
         };
 
-        var appliedViaApplyButton = false;
-        dialog.Applied += (_, cfg) =>
-        {
-            appliedViaApplyButton = true;
-            ApplySettings(cfg);
-        };
         var accepted = dialog.ShowDialog();
-        if (accepted == true && dialog.Result is not null && !appliedViaApplyButton)
+        if (accepted == true && dialog.Result is not null)
         {
             ApplySettings(dialog.Result);
         }

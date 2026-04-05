@@ -31,8 +31,6 @@ public partial class SettingsWindow : Window
 
     public AppConfig? Result { get; private set; }
 
-    public event EventHandler<AppConfig>? Applied;
-
     private void PopulateControls()
     {
         // Keep choice lists centralized so we don't drift between XAML defaults and runtime options.
@@ -173,7 +171,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void OnApply(object sender, RoutedEventArgs e)
+    private void OnOk(object sender, RoutedEventArgs e)
     {
         if (!TryBuildConfig(out var config, out var error))
         {
@@ -182,20 +180,8 @@ public partial class SettingsWindow : Window
         }
 
         Result = config;
-        _working = Clone(config);
-        _lastAppliedFingerprint = BuildFingerprint(config);
-        UpdateDirtyState();
-        Applied?.Invoke(this, config);
-    }
-
-    private void OnOk(object sender, RoutedEventArgs e)
-    {
-        OnApply(sender, e);
-        if (Result is not null)
-        {
-            DialogResult = true;
-            Close();
-        }
+        DialogResult = true;
+        Close();
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)
@@ -337,17 +323,10 @@ public partial class SettingsWindow : Window
 
     private void UpdateDirtyState()
     {
-        if (!TryBuildConfig(out var config, out _))
+        if (!TryBuildConfig(out _, out _))
         {
-            ApplyButton.Visibility = Visibility.Collapsed;
-            ApplyHintText.Visibility = Visibility.Collapsed;
             return;
         }
-
-        var fingerprint = BuildFingerprint(config);
-        var isDirty = !string.Equals(fingerprint, _lastAppliedFingerprint, StringComparison.Ordinal);
-        ApplyButton.Visibility = isDirty ? Visibility.Visible : Visibility.Collapsed;
-        ApplyHintText.Visibility = isDirty ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static string BuildFingerprint(AppConfig config) => JsonSerializer.Serialize(config, FingerprintSerializerOptions);
