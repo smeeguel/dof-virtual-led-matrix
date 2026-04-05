@@ -2173,6 +2173,19 @@ float ToneMapChannel(uint rawByte)
 
     return clamp(scaled, 0.0f, 1.0f) * 255.0f;
 }
+float SmoothChannel(float current, float target)
+{
+    if (target >= 255.0f) return 255.0f;
+    float delta = target - current;
+    float alpha = delta >= 0.0f ? RiseAlpha : FallAlpha;
+    float nextValue = current + (alpha * delta);
+    if (target <= 0.0f && nextValue <= OffSnapThreshold)
+    {
+        nextValue = 0.0f;
+    }
+
+    return nextValue;
+}
 [numthreads(64, 1, 1)]
 void CSPreprocessLeds(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
@@ -2190,25 +2203,11 @@ void CSPreprocessLeds(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (SmoothingEnabled > 0)
     {
         float3 current = PrevFrameRgb[logicalCoord].rgb;
-        [unroll]
-        for (int c = 0; c < 3; c++)
-        {
-            if (target[c] >= 255.0f)
-            {
-                smoothed[c] = 255.0f;
-                continue;
-            }
-
-            float delta = target[c] - current[c];
-            float alpha = delta >= 0.0f ? RiseAlpha : FallAlpha;
-            float nextValue = current[c] + (alpha * delta);
-            if (target[c] <= 0.0f && nextValue <= OffSnapThreshold)
-            {
-                nextValue = 0.0f;
-            }
-
-            smoothed[c] = nextValue;
-        }
+        // Conversational note: keep per-channel smoothing explicit to avoid cs_5_0 l-value indexing issues on some drivers.
+        smoothed = float3(
+            SmoothChannel(current.r, target.r),
+            SmoothChannel(current.g, target.g),
+            SmoothChannel(current.b, target.b));
     }
 
     PrevFrameRgb[logicalCoord] = float4(smoothed, 1.0f);
