@@ -1613,12 +1613,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
         _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
 
+        // Keep composite + readback formats identical so CopyResource is valid even if direct present gets disabled later.
+        var compositeFormat = shareCompositeTextureForDirectPresent ? DxgiFormat.B8G8R8A8_UNorm : DxgiFormat.R8G8B8A8_UNorm;
         fullDesc = CreateFullSurfaceDescription(
             ResourceUsage.Default,
             BindFlags.ShaderResource | BindFlags.RenderTarget,
             CpuAccessFlags.None,
             shareCompositeTextureForDirectPresent,
-            shareCompositeTextureForDirectPresent ? DxgiFormat.B8G8R8A8_UNorm : DxgiFormat.R8G8B8A8_UNorm);
+            compositeFormat);
         _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
         _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
         _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
@@ -1629,7 +1631,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             BindFlags.None,
             CpuAccessFlags.Read,
             allowShared: false,
-            DxgiFormat.R8G8B8A8_UNorm);
+            compositeFormat);
         _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
     }
 
