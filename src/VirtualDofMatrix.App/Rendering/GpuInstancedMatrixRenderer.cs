@@ -353,15 +353,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.ClearRenderTargetView(_gpuLedColorRtv, BlackClearColor);
         _context.CSSetShader(_gpuPreprocessShader);
         _context.CSSetConstantBuffer(1, _gpuPreprocessConstantsBuffer);
-        _context.CSSetShaderResource(0, _gpuRawLedSrv);
-        _context.CSSetShaderResource(1, _gpuLogicalToRasterSrv);
+        // Conversational note: preprocess shader intentionally uses t3/t4 so it can coexist with bloom bindings in shared HLSL.
+        _context.CSSetShaderResource(3, _gpuRawLedSrv);
+        _context.CSSetShaderResource(4, _gpuLogicalToRasterSrv);
         _context.CSSetUnorderedAccessView(0, _gpuPrevLedUav);
         _context.CSSetUnorderedAccessView(1, _gpuLedColorUav);
         _context.Dispatch((uint)Math.Max(1, (ledCount + 63) / 64), 1, 1);
         _context.CSSetUnorderedAccessView(0, null);
         _context.CSSetUnorderedAccessView(1, null);
-        _context.CSSetShaderResource(0, null);
-        _context.CSSetShaderResource(1, null);
+        _context.CSSetShaderResource(3, null);
+        _context.CSSetShaderResource(4, null);
         _context.CSSetShader(null);
     }
 
