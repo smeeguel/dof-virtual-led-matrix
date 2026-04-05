@@ -1926,10 +1926,11 @@ float4 PSDotPass(VsOut input) : SV_Target
     if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
     float2 radialUv = ((within + 0.5f) / max(Radius, 1.0f)) * 2.0f - 1.0f;
     float radial = length(radialUv);
-    if (DotIsCircle > 0.5f && radial > 1.0f) return float4(0, 0, 0, 1);
+    if ((DotIsCircle > 0.5f || FlatShading < 0.5f) && radial > 1.0f) return float4(0, 0, 0, 1);
     float2 ledUv = (ledCoord + 0.5f) / max(BloomSize, float2(1.0f, 1.0f));
     float3 ledColor = BaseTexture.SampleLevel(LinearSampler, ledUv, 0).rgb;
-    float3 offColor = saturate(OffColor * max(OffAlpha, 0.0f));
+    // Conversational note: CPU raster keeps off-state bulbs visible by default, so don't dim off tint too aggressively here.
+    float3 offColor = saturate(OffColor * lerp(0.45f, 1.0f, saturate(OffAlpha)));
     float3 baseColor = max(ledColor, offColor);
     if (FlatShading > 0.5f)
     {
