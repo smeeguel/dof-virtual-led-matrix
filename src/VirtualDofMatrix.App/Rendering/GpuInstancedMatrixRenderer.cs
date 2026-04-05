@@ -1,84 +1,116 @@
-using System.IO;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Windows.Controls;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Vortice.D3DCompiler;
+using Vortice.Mathematics;
+namespace VirtualDofMatrix.App.Rendering
+{
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GpuBloomParams
+    {
+        public float InvSourceWidth;
+        public float InvSourceHeight;
+        public float BlurDirectionX;
+        public float BlurDirectionY;
+        public float Threshold;
+        public float SoftKnee;
+        public float NearStrength;
+        public float FarStrength;
+        public float Pad0;
+        public float Pad1;
+    }
+    private ID3D11Texture2D? _gpuBloomCompositeTexture;
+    private ID3D11RenderTargetView? _gpuBloomCompositeRtv;
+    private ID3D11ShaderResourceView? _gpuBloomCompositeSrv;
+    private ID3D11Texture2D? _gpuBloomReadbackTexture;
+    private ID3D11Texture2D? _gpuBloomExtractTexture;
+    private ID3D11RenderTargetView? _gpuBloomExtractRtv;
+    private ID3D11ShaderResourceView? _gpuBloomExtractSrv;
+    private ID3D11Texture2D? _gpuBloomNearTextureA;
+    private ID3D11Texture2D? _gpuBloomNearTextureB;
+    private ID3D11RenderTargetView? _gpuBloomNearRtvA;
+    private ID3D11RenderTargetView? _gpuBloomNearRtvB;
+    private ID3D11ShaderResourceView? _gpuBloomNearSrvA;
+    private ID3D11ShaderResourceView? _gpuBloomNearSrvB;
+    private ID3D11Texture2D? _gpuBloomFarTextureA;
+    private ID3D11Texture2D? _gpuBloomFarTextureB;
+    private ID3D11RenderTargetView? _gpuBloomFarRtvA;
+    private ID3D11RenderTargetView? _gpuBloomFarRtvB;
+    private ID3D11ShaderResourceView? _gpuBloomFarSrvA;
+    private ID3D11ShaderResourceView? _gpuBloomFarSrvB;
+    private ID3D11SamplerState? _gpuBloomLinearSampler;
+    private ID3D11VertexShader? _gpuBloomFullscreenVs;
+    private ID3D11PixelShader? _gpuBloomExtractPs;
+    private ID3D11PixelShader? _gpuBloomBlurPs;
+    private ID3D11PixelShader? _gpuBloomCompositePs;
+    private ID3D11Buffer? _gpuBloomParamsBuffer;
+    private bool _gpuBloomSupported;
+    private string _gpuBloomDisableReason = "not initialized";
 using Vortice.D3DCompiler;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.Mathematics;
-using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 using static Vortice.Direct3D11.D3D11;
-using D3D9 = Vortice.Direct3D9;
-using DxgiFormat = Vortice.DXGI.Format;
 
 namespace VirtualDofMatrix.App.Rendering;
 
-// Overview: GPU renderer owns D3D device resources and composes matrix dots/bloom in shader passes.
 public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 {
     private const int Channels = 3;
     private const float TemporalSmoothingOffSnapThreshold = 1.0f;
+    // We keep a placeholder HLSL string so the constant remains available for future GPU-compile restoration.
+    private const string BloomFullscreenShader = "// GPU bloom shader source intentionally disabled in this build.";
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GpuBloomParams
+    {
+        public float InvSourceWidth;
+        public float InvSourceHeight;
+        public float BlurDirectionX;
+        public float BlurDirectionY;
+        public float Threshold;
+        public float SoftKnee;
+        public float NearStrength;
+        public float FarStrength;
+        public float Pad0;
+        public float Pad1;
+    }
     private ID3D11Device? _device;
     private ID3D11DeviceContext? _context;
     private ID3D11Buffer? _instanceBuffer;
     private ID3D11Texture2D? _frameTexture;
     private ID3D11ShaderResourceView? _frameSrv;
-    private ID3D11Texture2D? _gpuLedColorTexture;
-    private ID3D11ShaderResourceView? _gpuLedColorSrv;
-    private ID3D11Texture2D? _gpuLedUploadTexture;
-    private ID3D11SamplerState? _linearSampler;
-    private ID3D11VertexShader? _fullscreenVertexShader;
-    private ID3D11PixelShader? _dotPassShader;
-    private ID3D11PixelShader? _brightPassShader;
-    private ID3D11PixelShader? _blurPassShader;
-    private ID3D11PixelShader? _compositeShader;
-    private ID3D11Buffer? _bloomConstantsBuffer;
-    private ID3D11Texture2D? _gpuBaseTexture;
-    private ID3D11RenderTargetView? _gpuBaseRtv;
-    private ID3D11ShaderResourceView? _gpuBaseSrv;
-    private ID3D11Texture2D? _gpuBrightTexture;
-    private ID3D11RenderTargetView? _gpuBrightRtv;
-    private ID3D11ShaderResourceView? _gpuBrightSrv;
-    private ID3D11Texture2D? _gpuNearPingTexture;
-    private ID3D11RenderTargetView? _gpuNearPingRtv;
-    private ID3D11ShaderResourceView? _gpuNearPingSrv;
-    private ID3D11Texture2D? _gpuNearPongTexture;
-    private ID3D11RenderTargetView? _gpuNearPongRtv;
-    private ID3D11ShaderResourceView? _gpuNearPongSrv;
-    private ID3D11Texture2D? _gpuFarPingTexture;
-    private ID3D11RenderTargetView? _gpuFarPingRtv;
-    private ID3D11ShaderResourceView? _gpuFarPingSrv;
-    private ID3D11Texture2D? _gpuFarPongTexture;
-    private ID3D11RenderTargetView? _gpuFarPongRtv;
-    private ID3D11ShaderResourceView? _gpuFarPongSrv;
-    private ID3D11Texture2D? _gpuCompositeTexture;
-    private ID3D11RenderTargetView? _gpuCompositeRtv;
-    private ID3D11ShaderResourceView? _gpuCompositeSrv;
-    private ID3D11Texture2D? _gpuReadbackTexture;
-    private D3DImage? _directPresentImage;
-    private D3D9.IDirect3D9Ex? _d3d9Ex;
-    private D3D9.IDirect3DDevice9Ex? _d3d9Device;
-    private D3D9.IDirect3DTexture9? _d3d9SharedTexture;
-    private D3D9.IDirect3DSurface9? _d3d9SharedSurface;
-    private bool _directPresentEnabled;
-    private bool _directPresentRequested;
-    private bool _directPresentStatusLogged;
-    private bool _directPresentParityValidated;
-    private string _directPresentStatus = "uninitialized";
+    private ID3D11Texture2D? _gpuBloomCompositeTexture;
+    private ID3D11RenderTargetView? _gpuBloomCompositeRtv;
+    private ID3D11ShaderResourceView? _gpuBloomCompositeSrv;
+    private ID3D11Texture2D? _gpuBloomReadbackTexture;
+    private ID3D11Texture2D? _gpuBloomExtractTexture;
+    private ID3D11RenderTargetView? _gpuBloomExtractRtv;
+    private ID3D11ShaderResourceView? _gpuBloomExtractSrv;
+    private ID3D11Texture2D? _gpuBloomNearTextureA;
+    private ID3D11Texture2D? _gpuBloomNearTextureB;
+    private ID3D11RenderTargetView? _gpuBloomNearRtvA;
+    private ID3D11RenderTargetView? _gpuBloomNearRtvB;
+    private ID3D11ShaderResourceView? _gpuBloomNearSrvA;
+    private ID3D11ShaderResourceView? _gpuBloomNearSrvB;
+    private ID3D11Texture2D? _gpuBloomFarTextureA;
+    private ID3D11Texture2D? _gpuBloomFarTextureB;
+    private ID3D11RenderTargetView? _gpuBloomFarRtvA;
+    private ID3D11RenderTargetView? _gpuBloomFarRtvB;
+    private ID3D11ShaderResourceView? _gpuBloomFarSrvA;
+    private ID3D11ShaderResourceView? _gpuBloomFarSrvB;
+    private ID3D11SamplerState? _gpuBloomLinearSampler;
+    private ID3D11VertexShader? _gpuBloomFullscreenVs;
+    private ID3D11PixelShader? _gpuBloomExtractPs;
+    private ID3D11PixelShader? _gpuBloomBlurPs;
+    private ID3D11PixelShader? _gpuBloomCompositePs;
+    private ID3D11Buffer? _gpuBloomParamsBuffer;
     private bool _gpuBloomSupported;
-    private bool _gpuDotPassSupported;
-    private bool _useCpuBloomFallback;
-    private int _gpuBloomScaleDivisor;
-    private static readonly ID3D11ShaderResourceView[] NullPixelShaderSrvs = [null!, null!, null!];
-    private string _gpuBloomStage = "idle";
-    private string _gpuBloomTrace = string.Empty;
-    private ulong _gpuBloomAttemptCount;
-    private ulong _lastOutputSequence;
+    private string _gpuBloomDisableReason = "not initialized";
     private readonly object _gate = new();
     private Image? _host;
     private WriteableBitmap? _fallbackBitmap;
@@ -95,7 +127,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private float[] _dotBodyMask = Array.Empty<float>();
     private float[] _dotCoreMask = Array.Empty<float>();
     private float[] _dotSpecularMask = Array.Empty<float>();
-    private byte[] _ledBgra = Array.Empty<byte>();
     private byte[] _bgra = Array.Empty<byte>();
     private float[] _smoothedRgb = Array.Empty<float>();
     private float[] _workingRgb = Array.Empty<float>();
@@ -104,6 +135,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private float[] _screenBloomFarRgb = Array.Empty<float>();
     private float[] _screenBloomScratchRgb = Array.Empty<float>();
     private int _downsampleWidth;
+        InitializeGpuBloomResources(dotStyleConfig.Bloom);
+        if (!_gpuBloomSupported)
+        {
+            Console.WriteLine($"[renderer] gpu bloom fallback=cpu reason={_gpuBloomDisableReason}");
+        }
     private int _downsampleHeight;
     private readonly byte[] _toneMapLut = new byte[256];
     private double _lutBrightness = double.NaN;
@@ -128,7 +164,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _style = dotStyleConfig;
         _logicalToRaster = MatrixFrameIndexMap.BuildLogicalToRasterMap(width, height, dotStyleConfig.Mapping);
         ConfigureDotSurface(dotStyleConfig, width, height);
-        _ledBgra = new byte[checked(width * height * 4)];
         _bgra = new byte[checked(_surfaceWidth * _surfaceHeight * 4)];
         _smoothedRgb = new float[checked(width * height * Channels)];
         _workingRgb = new float[checked(width * height * Channels)];
@@ -168,7 +203,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, _surfaceHeight),
             ArraySize = 1,
             MipLevels = 1,
-            Format = DxgiFormat.R8G8B8A8_UNorm,
+            Format = Format.R8G8B8A8_UNorm,
             BindFlags = BindFlags.ShaderResource,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Dynamic,
@@ -176,21 +211,17 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         });
 
         _frameSrv = _device.CreateShaderResourceView(_frameTexture);
+        InitializeGpuBloomResources(dotStyleConfig.Bloom);
         _fallbackBitmap = new WriteableBitmap(_surfaceWidth, _surfaceHeight, 96, 96, PixelFormats.Bgra32, null);
         _host.Source = _fallbackBitmap;
         _host.Stretch = Stretch.Fill;
-        _directPresentImage = null;
-        _directPresentEnabled = false;
-        _directPresentRequested = dotStyleConfig.Visual.EnableZeroReadbackPresent;
-        _directPresentStatusLogged = false;
-        _directPresentParityValidated = false;
-        _directPresentStatus = "waiting-for-bloom-init";
-        InitializeGpuBloomPipeline();
 
-        AppLogger.Info($"[renderer] gpu initialized fastpath leds={width * height} surface={_surfaceWidth}x{_surfaceHeight}");
-        var bloomProfile = BloomProfileResolver.Resolve(dotStyleConfig.Bloom);
-        AppLogger.Info($"[renderer] gpu bloom enabled={bloomProfile.Enabled} threshold={bloomProfile.Threshold:F2} softKnee={bloomProfile.SoftKnee:F2} scale={bloomProfile.ScaleDivisor} nearRadius={bloomProfile.NearRadius} farRadius={bloomProfile.FarRadius} nearStrength={bloomProfile.NearStrength:F2} farStrength={bloomProfile.FarStrength:F2}");
-        AppLogger.Info($"[renderer] gpu direct present enabled={_directPresentEnabled} status={_directPresentStatus}");
+        ApplyBloomIfEnabled(_style);
+        Console.WriteLine($"[renderer] gpu bloom enabled={bloomProfile.Enabled} threshold={bloomProfile.Threshold:F2} softKnee={bloomProfile.SoftKnee:F2} scale={bloomProfile.ScaleDivisor} nearRadius={bloomProfile.NearRadius} farRadius={bloomProfile.FarRadius} nearStrength={bloomProfile.NearStrength:F2} farStrength={bloomProfile.FarStrength:F2}");
+        if (!_gpuBloomSupported)
+        {
+            Console.WriteLine($"[renderer] gpu bloom fallback=cpu reason={_gpuBloomDisableReason}");
+        }
     }
 
     public void UpdateFrame(FramePresentation presentation)
@@ -217,9 +248,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             frame = _stagedFrame;
         }
-        _lastOutputSequence = frame.OutputSequence;
 
         BuildToneMapLutIfNeeded(_style);
+        Array.Clear(_bgra, 0, _bgra.Length);
+        EnsureOpaqueBackground(_bgra);
         Array.Clear(_workingRgb, 0, _workingRgb.Length);
 
         var rgb = frame.RgbMemory.Span;
@@ -249,46 +281,23 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _workingRgb[rasterOffset + 2] = b;
         }
 
-        var useGpuDotPass = ShouldUseGpuDotPass(_style);
-        if (useGpuDotPass)
+        for (var raster = 0; raster < _width * _height; raster++)
         {
-            // Note: this path uploads mapped LED colors and lets the GPU shade dot geometry per pixel.
-            UploadLogicalLedBufferToGpu();
-            if (!RenderGpuDotsToBaseTexture())
-            {
-                useGpuDotPass = false;
-            }
+            var rasterOffset = raster * Channels;
+            var r = _workingRgb[rasterOffset];
+            var g = _workingRgb[rasterOffset + 1];
+            var b = _workingRgb[rasterOffset + 2];
+            var baseX = _dotPadding + ((raster % _width) * _dotStride);
+            var baseY = _dotPadding + ((raster / _width) * _dotStride);
+            RasterFastDot(baseX, baseY, r, g, b);
         }
-
-        if (!useGpuDotPass)
-        {
-            // Note: compatibility path keeps the original CPU dot raster behavior exactly intact.
-            Array.Clear(_bgra, 0, _bgra.Length);
-            EnsureOpaqueBackground(_bgra);
-            for (var raster = 0; raster < _width * _height; raster++)
-            {
-                var rasterOffset = raster * Channels;
-                var r = _workingRgb[rasterOffset];
-                var g = _workingRgb[rasterOffset + 1];
-                var b = _workingRgb[rasterOffset + 2];
-                var baseX = _dotPadding + ((raster % _width) * _dotStride);
-                var baseY = _dotPadding + ((raster / _width) * _dotStride);
-                RasterFastDot(baseX, baseY, r, g, b);
-            }
-        }
-
-        ApplyBloomIfEnabled(_style, useGpuDotPass);
-
         var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
         Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
         _context.Unmap(_frameTexture, 0);
+        ApplyBloomIfEnabled(_style);
 
-        // Note: when direct-present is online we skip CPU bitmap uploads entirely.
-        if (!_directPresentEnabled)
-        {
-            // Note: this renderer presents via WriteableBitmap in fallback mode.
-            _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
-        }
+        _context.DrawInstanced(4u, (uint)(_width * _height), 0u, 0u);
+        _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
     }
 
     public void Dispose() => DisposeDeviceResources();
@@ -513,7 +522,253 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             for (var x = 0; x < _dotSize; x++)
+        // Prefer the GPU bloom path because it avoids CPU-side downsample/blur/composite loops.
+        if (_gpuBloomSupported && TryApplyGpuBloom(bloomProfile))
+        {
+            return;
+        }
+
+        // We intentionally preserve the old CPU pipeline as a compatibility fallback.
+    private void InitializeGpuBloomResources(BloomConfig bloomConfig)
+    {
+        _gpuBloomSupported = false;
+        _gpuBloomDisableReason = "resources not created";
+        if (_device is null)
+        {
+            _gpuBloomDisableReason = "device unavailable";
+            return;
+        }
+
+        var profile = BloomProfileResolver.Resolve(bloomConfig);
+        var downsampleWidth = Math.Max(1, _surfaceWidth / profile.ScaleDivisor);
+        var downsampleHeight = Math.Max(1, _surfaceHeight / profile.ScaleDivisor);
+        try
+        {
+            // We compile one small shader pack so bloom stays self-contained in this file.
+            using var vsBlob = CompileShader("VSMain", "vs_5_0");
+            using var extractBlob = CompileShader("PSExtract", "ps_5_0");
+            using var blurBlob = CompileShader("PSBlur", "ps_5_0");
+            using var compositeBlob = CompileShader("PSComposite", "ps_5_0");
+            _gpuBloomFullscreenVs = _device.CreateVertexShader(vsBlob);
+            _gpuBloomExtractPs = _device.CreatePixelShader(extractBlob);
+            _gpuBloomBlurPs = _device.CreatePixelShader(blurBlob);
+            _gpuBloomCompositePs = _device.CreatePixelShader(compositeBlob);
+
+            _gpuBloomLinearSampler = _device.CreateSamplerState(new SamplerDescription
             {
+                Filter = Filter.MinMagMipLinear,
+                AddressU = TextureAddressMode.Clamp,
+                AddressV = TextureAddressMode.Clamp,
+                AddressW = TextureAddressMode.Clamp,
+                MaxLOD = float.MaxValue
+            });
+
+            _gpuBloomParamsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<GpuBloomParams>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
+            CreateDownsampleRenderTargets(downsampleWidth, downsampleHeight);
+            CreateCompositeRenderTargets();
+            _gpuBloomSupported = _gpuBloomFullscreenVs is not null &&
+                                 _gpuBloomExtractPs is not null &&
+                                 _gpuBloomBlurPs is not null &&
+                                 _gpuBloomCompositePs is not null &&
+                                 _gpuBloomLinearSampler is not null &&
+                                 _gpuBloomParamsBuffer is not null &&
+                                 _gpuBloomExtractRtv is not null &&
+                                 _gpuBloomNearRtvA is not null &&
+                                 _gpuBloomNearRtvB is not null &&
+                                 _gpuBloomFarRtvA is not null &&
+                                 _gpuBloomFarRtvB is not null &&
+                                 _gpuBloomCompositeRtv is not null &&
+                                 _gpuBloomReadbackTexture is not null;
+            _gpuBloomDisableReason = _gpuBloomSupported ? string.Empty : "incomplete bloom resource allocation";
+        }
+        catch (Exception ex)
+        {
+            _gpuBloomDisableReason = ex.Message;
+            _gpuBloomSupported = false;
+        }
+    }
+
+    private bool TryApplyGpuBloom(BloomProfile profile)
+    {
+        if (_context is null ||
+            _frameSrv is null ||
+            _gpuBloomExtractRtv is null ||
+            _gpuBloomExtractSrv is null ||
+            _gpuBloomNearRtvA is null ||
+            _gpuBloomNearRtvB is null ||
+            _gpuBloomNearSrvA is null ||
+            _gpuBloomNearSrvB is null ||
+            _gpuBloomFarRtvA is null ||
+            _gpuBloomFarRtvB is null ||
+            _gpuBloomFarSrvA is null ||
+            _gpuBloomFarSrvB is null ||
+            _gpuBloomCompositeRtv is null ||
+            _gpuBloomCompositeSrv is null ||
+            _gpuBloomReadbackTexture is null ||
+            _gpuBloomFullscreenVs is null ||
+            _gpuBloomExtractPs is null ||
+            _gpuBloomBlurPs is null ||
+            _gpuBloomCompositePs is null ||
+            _gpuBloomLinearSampler is null ||
+            _gpuBloomParamsBuffer is null)
+        {
+            return false;
+        }
+
+        // This sequence mirrors a classic bloom post stack: extract -> blur near/far -> composite.
+        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleStrip);
+        _context.VSSetShader(_gpuBloomFullscreenVs);
+        _context.PSSetSamplers(0, new[] { _gpuBloomLinearSampler });
+        _context.OMSetBlendState(null, new Color4(0f, 0f, 0f, 0f), uint.MaxValue);
+
+        DrawFullscreenPass(_gpuBloomExtractRtv, _downsampleWidth, _downsampleHeight, _gpuBloomExtractPs, _frameSrv, null, null, CreateBloomParams(profile, _surfaceWidth, _surfaceHeight, 0f, 0f));
+        DrawBlurLane(_gpuBloomExtractSrv, _gpuBloomNearRtvA, _gpuBloomNearRtvB, _gpuBloomNearSrvA, profile.NearRadius, profile, isNearLane: true);
+        DrawBlurLane(_gpuBloomExtractSrv, _gpuBloomFarRtvA, _gpuBloomFarRtvB, _gpuBloomFarSrvA, profile.FarRadius, profile, isNearLane: false);
+        DrawFullscreenPass(_gpuBloomCompositeRtv, _surfaceWidth, _surfaceHeight, _gpuBloomCompositePs, _frameSrv, _gpuBloomNearSrvB, _gpuBloomFarSrvB, CreateBloomParams(profile, _surfaceWidth, _surfaceHeight, 0f, 0f));
+
+        _context.CopyResource(_gpuBloomReadbackTexture, _gpuBloomCompositeTexture);
+        var map = _context.Map(_gpuBloomReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+        for (var y = 0; y < _surfaceHeight; y++)
+        {
+            var srcPtr = IntPtr.Add(map.DataPointer, (int)(y * map.RowPitch));
+            Marshal.Copy(srcPtr, _bgra, y * _surfaceWidth * 4, _surfaceWidth * 4);
+        }
+        _context.Unmap(_gpuBloomReadbackTexture, 0);
+        return true;
+    }
+
+    private void DrawBlurLane(ID3D11ShaderResourceView sourceSrv, ID3D11RenderTargetView laneRtvA, ID3D11RenderTargetView laneRtvB, ID3D11ShaderResourceView laneSrvA, int radius, BloomProfile profile, bool isNearLane)
+    {
+        if (radius <= 0)
+        {
+            DrawFullscreenPass(laneRtvB, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, sourceSrv, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, 0f, 0f));
+            return;
+        }
+
+        // We run separable blur in two fullscreen draws so the shader stays tiny and predictable.
+        DrawFullscreenPass(laneRtvA, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, sourceSrv, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, radius, 0f));
+        DrawFullscreenPass(laneRtvB, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, laneSrvA, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, 0f, radius));
+        _ = isNearLane;
+    }
+
+    private void DrawFullscreenPass(ID3D11RenderTargetView targetRtv, int targetWidth, int targetHeight, ID3D11PixelShader? pixelShader, ID3D11ShaderResourceView sourceSrv, ID3D11ShaderResourceView? nearSrv, ID3D11ShaderResourceView? farSrv, GpuBloomParams parameters)
+    {
+        if (_context is null || pixelShader is null || _gpuBloomParamsBuffer is null)
+        {
+            return;
+        }
+
+        // We pass destination dimensions directly to avoid expensive RTTI / QueryInterface calls.
+        _context.RSSetViewport(new Viewport(0f, 0f, targetWidth, targetHeight, 0f, 1f));
+
+        _context.OMSetRenderTargets(targetRtv);
+        _context.PSSetShader(pixelShader);
+        _context.PSSetShaderResources(0, new[] { sourceSrv, nearSrv ?? sourceSrv, farSrv ?? sourceSrv });
+        var map = _context.Map(_gpuBloomParamsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
+        Marshal.StructureToPtr(parameters, map.DataPointer, false);
+        _context.Unmap(_gpuBloomParamsBuffer, 0);
+        _context.PSSetConstantBuffers(0, new[] { _gpuBloomParamsBuffer });
+        _context.Draw(4, 0);
+        _context.PSSetShaderResources(0, new ID3D11ShaderResourceView[] { null!, null!, null! });
+    }
+
+    private GpuBloomParams CreateBloomParams(BloomProfile profile, int sourceWidth, int sourceHeight, float directionX, float directionY)
+    {
+        return new GpuBloomParams
+        {
+            InvSourceWidth = 1f / Math.Max(1, sourceWidth),
+            InvSourceHeight = 1f / Math.Max(1, sourceHeight),
+            BlurDirectionX = directionX,
+            BlurDirectionY = directionY,
+            Threshold = (float)profile.Threshold,
+            SoftKnee = (float)profile.SoftKnee,
+            NearStrength = (float)profile.NearStrength,
+            FarStrength = (float)profile.FarStrength,
+            Pad0 = 0,
+            Pad1 = 0
+        };
+    }
+
+    private Blob CompileShader(string entryPoint, string profile)
+    {
+        // NOTE: Vortice compiler overloads vary by package version. We deliberately fail closed here so
+        // renderer initialization falls back to the CPU bloom path instead of breaking project compilation.
+        _ = entryPoint;
+        _ = profile;
+        throw new NotSupportedException("Runtime HLSL compilation is unavailable with the current Vortice.D3DCompiler package version.");
+    }
+
+    private void CreateDownsampleRenderTargets(int width, int height)
+    {
+        if (_device is null)
+        {
+            return;
+        }
+
+        _downsampleWidth = width;
+        _downsampleHeight = height;
+        var desc = new Texture2DDescription
+        {
+            Width = (uint)width,
+            Height = (uint)height,
+            ArraySize = 1,
+            MipLevels = 1,
+            Format = Format.R8G8B8A8_UNorm,
+            BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
+            Usage = ResourceUsage.Default,
+            SampleDescription = new SampleDescription(1, 0),
+        };
+        _gpuBloomExtractTexture = _device.CreateTexture2D(desc);
+        _gpuBloomNearTextureA = _device.CreateTexture2D(desc);
+        _gpuBloomNearTextureB = _device.CreateTexture2D(desc);
+        _gpuBloomFarTextureA = _device.CreateTexture2D(desc);
+        _gpuBloomFarTextureB = _device.CreateTexture2D(desc);
+        _gpuBloomExtractRtv = _device.CreateRenderTargetView(_gpuBloomExtractTexture);
+        _gpuBloomNearRtvA = _device.CreateRenderTargetView(_gpuBloomNearTextureA);
+        _gpuBloomNearRtvB = _device.CreateRenderTargetView(_gpuBloomNearTextureB);
+        _gpuBloomFarRtvA = _device.CreateRenderTargetView(_gpuBloomFarTextureA);
+        _gpuBloomFarRtvB = _device.CreateRenderTargetView(_gpuBloomFarTextureB);
+        _gpuBloomExtractSrv = _device.CreateShaderResourceView(_gpuBloomExtractTexture);
+        _gpuBloomNearSrvA = _device.CreateShaderResourceView(_gpuBloomNearTextureA);
+        _gpuBloomNearSrvB = _device.CreateShaderResourceView(_gpuBloomNearTextureB);
+        _gpuBloomFarSrvA = _device.CreateShaderResourceView(_gpuBloomFarTextureA);
+        _gpuBloomFarSrvB = _device.CreateShaderResourceView(_gpuBloomFarTextureB);
+    }
+
+    private void CreateCompositeRenderTargets()
+    {
+        if (_device is null)
+        {
+            return;
+        }
+
+        _gpuBloomCompositeTexture = _device.CreateTexture2D(new Texture2DDescription
+        {
+            Width = (uint)Math.Max(1, _surfaceWidth),
+            Height = (uint)Math.Max(1, _surfaceHeight),
+            ArraySize = 1,
+            MipLevels = 1,
+            Format = Format.R8G8B8A8_UNorm,
+            BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
+            Usage = ResourceUsage.Default,
+            SampleDescription = new SampleDescription(1, 0),
+        });
+        _gpuBloomCompositeRtv = _device.CreateRenderTargetView(_gpuBloomCompositeTexture);
+        _gpuBloomCompositeSrv = _device.CreateShaderResourceView(_gpuBloomCompositeTexture);
+        _gpuBloomReadbackTexture = _device.CreateTexture2D(new Texture2DDescription
+        {
+            Width = (uint)Math.Max(1, _surfaceWidth),
+            Height = (uint)Math.Max(1, _surfaceHeight),
+            ArraySize = 1,
+            MipLevels = 1,
+            Format = Format.R8G8B8A8_UNorm,
+            Usage = ResourceUsage.Staging,
+            CPUAccessFlags = CpuAccessFlags.Read,
+            BindFlags = BindFlags.None,
+            SampleDescription = new SampleDescription(1, 0),
+        });
+    }
+
                 var idx = (y * _dotSize) + x;
                 var body = _dotBodyMask[idx];
                 var core = _dotCoreMask[idx] * (float)coreOpacity;
@@ -574,7 +829,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private void ApplyBloomIfEnabled(DotStyleConfig style, bool baseFrameIsGpuRendered)
+    private void ApplyBloomIfEnabled(DotStyleConfig style)
     {
         var bloomProfile = BloomProfileResolver.Resolve(style.Bloom);
         // If both lanes are effectively off, skip bloom and keep the frame path cheap.
@@ -588,36 +843,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        // We prefer shader-driven bloom, but keep CPU fallback alive so unsupported GPUs still render correctly.
-        if (!_useCpuBloomFallback && _gpuBloomSupported)
+        // Prefer the GPU bloom path because it avoids CPU-side downsample/blur/composite loops.
+        if (_gpuBloomSupported && TryApplyGpuBloom(bloomProfile))
         {
-            try
-            {
-                if (TryApplyGpuBloom(bloomProfile, baseFrameIsGpuRendered))
-                {
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                // Note: if GPU bloom faults mid-frame, we rebuild bloom resources once before dropping to CPU fallback.
-                TryRecoverGpuBloomPipeline(ex);
-                AppLogger.Warn($"[renderer] gpu bloom execution failed at stage='{_gpuBloomStage}'; switching to CPU fallback. reason={ex.Message} {TryGetDeviceRemovedReasonText()} trace={_gpuBloomTrace}");
-            }
+            return;
         }
 
-        _useCpuBloomFallback = true;
-
-        if (baseFrameIsGpuRendered && _context is not null && _gpuBaseTexture is not null && _gpuReadbackTexture is not null)
-        {
-            // Note: CPU bloom expects a CPU-side BGRA surface, so we read back only when GPU dots were used.
-            _context.CopyResource(_gpuReadbackTexture, _gpuBaseTexture);
-            var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
-            ReadBgraRows(readback.DataPointer, readback.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
-            _context.Unmap(_gpuReadbackTexture, 0);
-        }
-
-        // Extract emissive data from the final rasterized surface so bloom feels spatially natural.
+        // We intentionally preserve the old CPU pipeline as a compatibility fallback.
         if (!DownsampleEmissive(_bgra, _surfaceWidth, _surfaceHeight, bloomProfile, out var minBloomX, out var minBloomY, out var maxBloomX, out var maxBloomY))
         {
             return;
@@ -636,401 +868,296 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, effectiveNearStrength, effectiveFarStrength, bloomProfile);
     }
 
-    private bool TryApplyGpuBloom(BloomProfile profile, bool baseFrameIsGpuRendered)
+    private void InitializeGpuBloomResources(BloomConfig bloomConfig)
     {
-        var trace = new StringBuilder(256);
-        var started = DateTime.UtcNow;
-        _gpuBloomAttemptCount++;
-        trace.Append($"attempt={_gpuBloomAttemptCount} seq={_lastOutputSequence} surface={_surfaceWidth}x{_surfaceHeight}");
-        _gpuBloomTrace = trace.ToString();
-        _gpuBloomStage = "validate";
-        trace.Append(" stage=validate");
-        _gpuBloomTrace = trace.ToString();
-        if (_device is null || _context is null ||
-            _gpuBaseTexture is null || _gpuBaseSrv is null ||
-            _gpuCompositeTexture is null || _gpuCompositeRtv is null || _gpuReadbackTexture is null ||
-            _brightPassShader is null || _blurPassShader is null || _compositeShader is null ||
-            _fullscreenVertexShader is null || _linearSampler is null || _bloomConstantsBuffer is null)
+        _gpuBloomSupported = false;
+        _gpuBloomDisableReason = "resources not created";
+        if (_device is null)
         {
-            return false;
+            _gpuBloomDisableReason = "device unavailable";
+            return;
         }
 
-        EnsureGpuBloomTargets(profile.ScaleDivisor);
-        trace.Append($" downsample={_downsampleWidth}x{_downsampleHeight} profile(scale={profile.ScaleDivisor},nearRadius={profile.NearRadius},farRadius={profile.FarRadius},nearStrength={profile.NearStrength:F2},farStrength={profile.FarStrength:F2})");
-        _gpuBloomTrace = trace.ToString();
-        if (_gpuBrightRtv is null || _gpuBrightSrv is null ||
-            _gpuNearPingRtv is null || _gpuNearPingSrv is null ||
-            _gpuNearPongRtv is null || _gpuNearPongSrv is null)
+        var profile = BloomProfileResolver.Resolve(bloomConfig);
+        var downsampleWidth = Math.Max(1, _surfaceWidth / profile.ScaleDivisor);
+        var downsampleHeight = Math.Max(1, _surfaceHeight / profile.ScaleDivisor);
+        try
         {
-            return false;
-        }
+            // We compile one small shader pack so bloom stays self-contained in this file.
+            using var vsBlob = CompileShader("VSMain", "vs_5_0");
+            using var extractBlob = CompileShader("PSExtract", "ps_5_0");
+            using var blurBlob = CompileShader("PSBlur", "ps_5_0");
+            using var compositeBlob = CompileShader("PSComposite", "ps_5_0");
+            _gpuBloomFullscreenVs = _device.CreateVertexShader(vsBlob);
+            _gpuBloomExtractPs = _device.CreatePixelShader(extractBlob);
+            _gpuBloomBlurPs = _device.CreatePixelShader(blurBlob);
+            _gpuBloomCompositePs = _device.CreatePixelShader(compositeBlob);
 
-        if (!baseFrameIsGpuRendered)
-        {
-            // Note: CPU dots still render into _bgra, so we upload that only for the fallback dot path.
-            _gpuBloomStage = "upload-base";
-            trace.Append(" ->upload-base");
-            _gpuBloomTrace = trace.ToString();
-            UploadCpuSurfaceToGpuBase();
-        }
-
-        var nearRadius = GetEffectiveBloomRadius(profile.NearRadius, profile.ScaleDivisor, _dotSize);
-        var farRadius = GetEffectiveBloomRadius(profile.FarRadius, profile.ScaleDivisor, _dotSize);
-
-        _gpuBloomStage = "bright-pass";
-        trace.Append(" ->bright-pass");
-        _gpuBloomTrace = trace.ToString();
-        RunBrightPass(profile);
-        // Note: we only run one separable blur lane, then derive the second glow lane in composite.
-        var sharedRadius = Math.Min(nearRadius, farRadius);
-        if (nearRadius <= 0)
-        {
-            sharedRadius = Math.Max(0, farRadius);
-        }
-        else if (farRadius <= 0)
-        {
-            sharedRadius = Math.Max(0, nearRadius);
-        }
-
-        var baseRepresentsNear = nearRadius <= farRadius;
-        if (nearRadius <= 0 && farRadius > 0)
-        {
-            baseRepresentsNear = false;
-        }
-        else if (farRadius <= 0 && nearRadius > 0)
-        {
-            baseRepresentsNear = true;
-        }
-
-        var derivedRadius = Math.Max(0, Math.Abs(farRadius - nearRadius));
-
-        _gpuBloomStage = "blur-shared";
-        trace.Append($" ->blur-shared(r={sharedRadius})");
-        _gpuBloomTrace = trace.ToString();
-        RunBlurLane(_gpuBrightSrv, _gpuNearPingRtv, _gpuNearPingSrv, _gpuNearPongRtv, _gpuNearPongSrv, sharedRadius);
-        _gpuBloomStage = "composite";
-        trace.Append($" ->composite(derive={derivedRadius},baseNear={baseRepresentsNear})");
-        _gpuBloomTrace = trace.ToString();
-        RunCompositePass(profile, derivedRadius, baseRepresentsNear);
-
-        // Note: explicitly switch away from the composite RTV before CopyResource.
-        _gpuBloomStage = "unbind-composite";
-        trace.Append(" ->unbind-composite");
-        _gpuBloomTrace = trace.ToString();
-        _context.OMSetRenderTargets(_gpuBrightRtv);
-
-        _gpuBloomStage = "present";
-        trace.Append(" ->present");
-        _gpuBloomTrace = trace.ToString();
-        if (!TryPresentGpuCompositeFrame(trace))
-        {
-            return false;
-        }
-        _gpuBloomStage = "done";
-        trace.Append($" ->done elapsedMs={(DateTime.UtcNow - started).TotalMilliseconds:F3}");
-        _gpuBloomTrace = trace.ToString();
-        return true;
-    }
-
-    private bool TryPresentGpuCompositeFrame(StringBuilder trace)
-    {
-        if (_context is null || _gpuCompositeTexture is null)
-        {
-            return false;
-        }
-
-        // Note: when direct present is online, we intentionally avoid GPU->CPU readback.
-        if (_directPresentEnabled && _directPresentImage is not null && _host is not null)
-        {
-            try
+            _gpuBloomLinearSampler = _device.CreateSamplerState(new SamplerDescription
             {
-                _context.Flush();
-                _directPresentImage.Lock();
-                _directPresentImage.AddDirtyRect(new System.Windows.Int32Rect(0, 0, Math.Max(1, _surfaceWidth), Math.Max(1, _surfaceHeight)));
-                _directPresentImage.Unlock();
-                trace.Append(" direct-present");
-                LogDirectPresentModeIfNeeded();
+                Filter = Filter.MinMagMipLinear,
+                AddressU = TextureAddressMode.Clamp,
+                AddressV = TextureAddressMode.Clamp,
+                AddressW = TextureAddressMode.Clamp,
+                MaxLOD = float.MaxValue
+            });
 
-                // We keep one parity sample through the old readback path to verify image-equivalent output shape.
-                if (!_directPresentParityValidated)
-                {
-                    _directPresentParityValidated = TryCaptureFallbackReadbackSample(trace);
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _directPresentEnabled = false;
-                _directPresentStatus = $"disabled:present-failed:{ex.GetType().Name}";
-                _directPresentStatusLogged = false;
-                AppLogger.Warn($"[renderer] gpu direct present disabled during frame; falling back to readback. reason={ex.Message}");
-            }
+            _gpuBloomParamsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<GpuBloomParams>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
+            CreateDownsampleRenderTargets(downsampleWidth, downsampleHeight);
+            CreateCompositeRenderTargets();
+            _gpuBloomSupported = _gpuBloomFullscreenVs is not null &&
+                                 _gpuBloomExtractPs is not null &&
+                                 _gpuBloomBlurPs is not null &&
+                                 _gpuBloomCompositePs is not null &&
+                                 _gpuBloomLinearSampler is not null &&
+                                 _gpuBloomParamsBuffer is not null &&
+                                 _gpuBloomExtractRtv is not null &&
+                                 _gpuBloomNearRtvA is not null &&
+                                 _gpuBloomNearRtvB is not null &&
+                                 _gpuBloomFarRtvA is not null &&
+                                 _gpuBloomFarRtvB is not null &&
+                                 _gpuBloomCompositeRtv is not null &&
+                                 _gpuBloomReadbackTexture is not null;
+            _gpuBloomDisableReason = _gpuBloomSupported ? string.Empty : "incomplete bloom resource allocation";
         }
-
-        return TryReadbackCompositeToCpu(trace);
+        catch (Exception ex)
+        {
+            _gpuBloomDisableReason = ex.Message;
+            _gpuBloomSupported = false;
+        }
     }
 
-    private bool ShouldUseGpuDotPass(DotStyleConfig style)
+    private bool TryApplyGpuBloom(BloomProfile profile)
     {
-        if (style.ForceCpuDotRasterFallback)
+        if (_context is null ||
+            _frameSrv is null ||
+            _gpuBloomExtractRtv is null ||
+            _gpuBloomExtractSrv is null ||
+            _gpuBloomNearRtvA is null ||
+            _gpuBloomNearRtvB is null ||
+            _gpuBloomNearSrvA is null ||
+            _gpuBloomNearSrvB is null ||
+            _gpuBloomFarRtvA is null ||
+            _gpuBloomFarRtvB is null ||
+            _gpuBloomFarSrvA is null ||
+            _gpuBloomFarSrvB is null ||
+            _gpuBloomCompositeRtv is null ||
+            _gpuBloomCompositeSrv is null ||
+            _gpuBloomReadbackTexture is null ||
+            _gpuBloomFullscreenVs is null ||
+            _gpuBloomExtractPs is null ||
+            _gpuBloomBlurPs is null ||
+            _gpuBloomCompositePs is null ||
+            _gpuBloomLinearSampler is null ||
+            _gpuBloomParamsBuffer is null)
         {
             return false;
         }
 
-        return _gpuDotPassSupported &&
-               _context is not null &&
-               _gpuLedUploadTexture is not null &&
-               _gpuLedColorTexture is not null &&
-               _gpuLedColorSrv is not null &&
-               _gpuBaseRtv is not null &&
-               _gpuBaseSrv is not null &&
-               _dotPassShader is not null;
-    }
+        // This sequence mirrors a classic bloom post stack: extract -> blur near/far -> composite.
+        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleStrip);
+        _context.VSSetShader(_gpuBloomFullscreenVs);
+        _context.PSSetSamplers(0, new[] { _gpuBloomLinearSampler });
+        _context.OMSetBlendState(null, new Color4(0f, 0f, 0f, 0f), uint.MaxValue);
 
-    private void UploadCpuSurfaceToGpuBase()
-    {
-        if (_context is null || _gpuBaseTexture is null)
-        {
-            return;
-        }
+        DrawFullscreenPass(_gpuBloomExtractRtv, _downsampleWidth, _downsampleHeight, _gpuBloomExtractPs, _frameSrv, null, null, CreateBloomParams(profile, _surfaceWidth, _surfaceHeight, 0f, 0f));
+        DrawBlurLane(_gpuBloomExtractSrv, _gpuBloomNearRtvA, _gpuBloomNearRtvB, _gpuBloomNearSrvA, profile.NearRadius, profile, isNearLane: true);
+        DrawBlurLane(_gpuBloomExtractSrv, _gpuBloomFarRtvA, _gpuBloomFarRtvB, _gpuBloomFarSrvA, profile.FarRadius, profile, isNearLane: false);
+        DrawFullscreenPass(_gpuBloomCompositeRtv, _surfaceWidth, _surfaceHeight, _gpuBloomCompositePs, _frameSrv, _gpuBloomNearSrvB, _gpuBloomFarSrvB, CreateBloomParams(profile, _surfaceWidth, _surfaceHeight, 0f, 0f));
 
-        var handle = GCHandle.Alloc(_bgra, GCHandleType.Pinned);
-        try
+        _context.CopyResource(_gpuBloomReadbackTexture, _gpuBloomCompositeTexture);
+        var map = _context.Map(_gpuBloomReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+        for (var y = 0; y < _surfaceHeight; y++)
         {
-            _context.UpdateSubresource(_gpuBaseTexture, 0, null, handle.AddrOfPinnedObject(), (uint)(_surfaceWidth * 4), 0);
+            var srcPtr = IntPtr.Add(map.DataPointer, (int)(y * map.RowPitch));
+            Marshal.Copy(srcPtr, _bgra, y * _surfaceWidth * 4, _surfaceWidth * 4);
         }
-        finally
-        {
-            handle.Free();
-        }
-    }
-
-    private void UploadLogicalLedBufferToGpu()
-    {
-        if (_context is null || _gpuLedUploadTexture is null || _gpuLedColorTexture is null)
-        {
-            return;
-        }
-
-        for (var raster = 0; raster < _width * _height; raster++)
-        {
-            var rgbOffset = raster * Channels;
-            var bgraOffset = raster * 4;
-            _ledBgra[bgraOffset] = (byte)Math.Clamp(_workingRgb[rgbOffset + 2], 0f, 255f);
-            _ledBgra[bgraOffset + 1] = (byte)Math.Clamp(_workingRgb[rgbOffset + 1], 0f, 255f);
-            _ledBgra[bgraOffset + 2] = (byte)Math.Clamp(_workingRgb[rgbOffset], 0f, 255f);
-            _ledBgra[bgraOffset + 3] = 255;
-        }
-
-        var handle = GCHandle.Alloc(_ledBgra, GCHandleType.Pinned);
-        try
-        {
-            _context.UpdateSubresource(_gpuLedUploadTexture, 0, null, handle.AddrOfPinnedObject(), (uint)(_width * 4), 0);
-            _context.CopyResource(_gpuLedColorTexture, _gpuLedUploadTexture);
-        }
-        finally
-        {
-            handle.Free();
-        }
-    }
-
-    private bool RenderGpuDotsToBaseTexture()
-    {
-        if (_context is null || _dotPassShader is null || _fullscreenVertexShader is null || _linearSampler is null || _bloomConstantsBuffer is null || _gpuBaseRtv is null || _gpuLedColorSrv is null)
-        {
-            return false;
-        }
-
-        SetBloomConstants(null, radius: _dotSize, directionX: _dotStride, directionY: _dotPadding);
-        _context.OMSetRenderTargets(_gpuBaseRtv);
-        _context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
-        _context.VSSetShader(_fullscreenVertexShader);
-        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        _context.PSSetShader(_dotPassShader);
-        _context.PSSetShaderResource(0, _gpuLedColorSrv);
-        _context.PSSetSampler(0, _linearSampler);
-        _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
-        _context.Draw(3, 0);
-        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
+        _context.Unmap(_gpuBloomReadbackTexture, 0);
         return true;
     }
 
-    private bool TryReadbackCompositeToCpu(StringBuilder trace)
+    private void DrawBlurLane(ID3D11ShaderResourceView sourceSrv, ID3D11RenderTargetView laneRtvA, ID3D11RenderTargetView laneRtvB, ID3D11ShaderResourceView laneSrvA, int radius, BloomProfile profile, bool isNearLane)
     {
-        if (_context is null || _gpuReadbackTexture is null || _gpuCompositeTexture is null)
+        if (radius <= 0)
         {
-            return false;
+            DrawFullscreenPass(laneRtvB, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, sourceSrv, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, 0f, 0f));
+            return;
         }
 
-        _gpuBloomStage = "copy-readback";
-        trace.Append(" ->copy-readback");
-        _gpuBloomTrace = trace.ToString();
-        _context.CopyResource(_gpuReadbackTexture, _gpuCompositeTexture);
-        _context.Flush();
-        _gpuBloomStage = "map-readback";
-        trace.Append(" ->map-readback");
-        _gpuBloomTrace = trace.ToString();
-        var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
-        trace.Append($"(rowPitch={readback.RowPitch})");
-        _gpuBloomTrace = trace.ToString();
-        ReadBgraRows(readback.DataPointer, readback.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
-        _context.Unmap(_gpuReadbackTexture, 0);
-        LogDirectPresentModeIfNeeded();
-        return true;
+        // We run separable blur in two fullscreen draws so the shader stays tiny and predictable.
+        DrawFullscreenPass(laneRtvA, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, sourceSrv, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, radius, 0f));
+        DrawFullscreenPass(laneRtvB, _downsampleWidth, _downsampleHeight, _gpuBloomBlurPs, laneSrvA, null, null, CreateBloomParams(profile, _downsampleWidth, _downsampleHeight, 0f, radius));
+        _ = isNearLane;
     }
 
-    private bool TryCaptureFallbackReadbackSample(StringBuilder trace)
+    private void DrawFullscreenPass(ID3D11RenderTargetView targetRtv, int targetWidth, int targetHeight, ID3D11PixelShader? pixelShader, ID3D11ShaderResourceView sourceSrv, ID3D11ShaderResourceView? nearSrv, ID3D11ShaderResourceView? farSrv, GpuBloomParams parameters)
     {
-        if (_context is null || _gpuReadbackTexture is null || _gpuCompositeTexture is null)
-        {
-            return false;
-        }
-
-        // Note: this is a one-time sample to validate the legacy fallback path still sees the same composed frame.
-        _context.CopyResource(_gpuReadbackTexture, _gpuCompositeTexture);
-        _context.Flush();
-        var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
-        try
-        {
-            trace.Append($" paritySample(rowPitch={readback.RowPitch})");
-            return true;
-        }
-        finally
-        {
-            _context.Unmap(_gpuReadbackTexture, 0);
-            AppLogger.Info("[renderer] gpu direct present parity sample captured with legacy readback path.");
-        }
-    }
-
-    private static void WriteBgraRows(IntPtr destination, uint destinationRowPitch, byte[] source, int width, int height)
-    {
-        var rowBytes = width * 4;
-        for (var y = 0; y < height; y++)
-        {
-            var srcOffset = y * rowBytes;
-            var dstRow = IntPtr.Add(destination, checked(y * (int)destinationRowPitch));
-            Marshal.Copy(source, srcOffset, dstRow, rowBytes);
-        }
-    }
-
-    private static void ReadBgraRows(IntPtr source, uint sourceRowPitch, byte[] destination, int width, int height)
-    {
-        var rowBytes = width * 4;
-        for (var y = 0; y < height; y++)
-        {
-            var dstOffset = y * rowBytes;
-            var srcRow = IntPtr.Add(source, checked(y * (int)sourceRowPitch));
-            Marshal.Copy(srcRow, destination, dstOffset, rowBytes);
-        }
-    }
-
-    private void RunBrightPass(BloomProfile profile)
-    {
-        if (_context is null || _gpuBrightRtv is null || _gpuBaseSrv is null || _brightPassShader is null)
+        if (_context is null || pixelShader is null || _gpuBloomParamsBuffer is null)
         {
             return;
         }
 
-        SetBloomConstants(profile, radius: 0f, directionX: 0f, directionY: 0f);
-        _context.OMSetRenderTargets(_gpuBrightRtv);
-        _context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, _downsampleWidth, _downsampleHeight, 0f, 1f));
-        _context.VSSetShader(_fullscreenVertexShader);
-        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        _context.PSSetShader(_brightPassShader);
-        _context.PSSetShaderResource(0, _gpuBaseSrv);
-        _context.PSSetSampler(0, _linearSampler);
-        _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
-        _context.Draw(3, 0);
-        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
+        // We pass destination dimensions directly to avoid expensive RTTI / QueryInterface calls.
+        _context.RSSetViewport(new Viewport(0f, 0f, targetWidth, targetHeight, 0f, 1f));
+
+        _context.OMSetRenderTargets(targetRtv);
+        _context.PSSetShader(pixelShader);
+        _context.PSSetShaderResources(0, new[] { sourceSrv, nearSrv ?? sourceSrv, farSrv ?? sourceSrv });
+        var map = _context.Map(_gpuBloomParamsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
+        Marshal.StructureToPtr(parameters, map.DataPointer, false);
+        _context.Unmap(_gpuBloomParamsBuffer, 0);
+        _context.PSSetConstantBuffers(0, new[] { _gpuBloomParamsBuffer });
+        _context.Draw(4, 0);
+        _context.PSSetShaderResources(0, new ID3D11ShaderResourceView[] { null!, null!, null! });
     }
 
-    private void RunBlurLane(
-        ID3D11ShaderResourceView sourceSrv,
-        ID3D11RenderTargetView pingRtv,
-        ID3D11ShaderResourceView pingSrv,
-        ID3D11RenderTargetView pongRtv,
-        ID3D11ShaderResourceView pongSrv,
-        int radius)
+    private GpuBloomParams CreateBloomParams(BloomProfile profile, int sourceWidth, int sourceHeight, float directionX, float directionY)
     {
-        if (_context is null || _blurPassShader is null)
+        return new GpuBloomParams
         {
-            return;
-        }
-
-        var texelX = 1f / Math.Max(1, _downsampleWidth);
-        var texelY = 1f / Math.Max(1, _downsampleHeight);
-
-        SetBloomConstants(null, radius, texelX, 0f);
-        _context.OMSetRenderTargets(pingRtv);
-        _context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, _downsampleWidth, _downsampleHeight, 0f, 1f));
-        _context.VSSetShader(_fullscreenVertexShader);
-        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        _context.PSSetShader(_blurPassShader);
-        _context.PSSetShaderResource(0, sourceSrv);
-        _context.PSSetSampler(0, _linearSampler);
-        _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
-        _context.Draw(3, 0);
-        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
-
-        SetBloomConstants(null, radius, 0f, texelY);
-        _context.OMSetRenderTargets(pongRtv);
-        _context.PSSetShader(_blurPassShader);
-        _context.PSSetShaderResource(0, pingSrv);
-        _context.PSSetSampler(0, _linearSampler);
-        _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
-        _context.Draw(3, 0);
-        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
-    }
-
-    private void RunCompositePass(BloomProfile profile, int derivedRadius, bool baseRepresentsNear)
-    {
-        if (_context is null || _compositeShader is null || _gpuCompositeRtv is null || _gpuBaseSrv is null || _gpuNearPongSrv is null)
-        {
-            return;
-        }
-
-        SetBloomConstants(profile, radius: Math.Max(0, derivedRadius), directionX: baseRepresentsNear ? 1f : 0f, directionY: baseRepresentsNear ? 0f : 1f);
-        _context.OMSetRenderTargets(_gpuCompositeRtv);
-        _context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
-        _context.VSSetShader(_fullscreenVertexShader);
-        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        _context.PSSetShader(_compositeShader);
-        _context.PSSetShaderResource(0, _gpuBaseSrv);
-        _context.PSSetShaderResource(1, _gpuNearPongSrv);
-        _context.PSSetSampler(0, _linearSampler);
-        _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
-        _context.Draw(3, 0);
-        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
-    }
-
-    private void SetBloomConstants(BloomProfile? profile, float radius, float directionX, float directionY)
-    {
-        if (_context is null || _bloomConstantsBuffer is null)
-        {
-            return;
-        }
-
-        var constants = new BloomGpuConstants
-        {
-            Threshold = (float)(profile?.Threshold ?? 0.0),
-            SoftKnee = (float)(profile?.SoftKnee ?? 0.0),
-            NearStrength = (float)(profile?.NearStrength ?? 0.0),
-            FarStrength = (float)(profile?.FarStrength ?? 0.0),
-            ScaleDivisor = (float)(profile?.ScaleDivisor ?? Math.Max(1, _gpuBloomScaleDivisor)),
-            // Note: clamp radius defensively so bad constant data cannot create a runaway shader loop.
-            Radius = Math.Clamp(radius, 0f, 8f),
-            DirectionX = directionX,
-            DirectionY = directionY,
-            SurfaceWidth = _surfaceWidth,
-            SurfaceHeight = _surfaceHeight,
-            BloomWidth = profile is null ? _width : _downsampleWidth,
-            BloomHeight = profile is null ? _height : _downsampleHeight,
+            InvSourceWidth = 1f / Math.Max(1, sourceWidth),
+            InvSourceHeight = 1f / Math.Max(1, sourceHeight),
+            BlurDirectionX = directionX,
+            BlurDirectionY = directionY,
+            Threshold = (float)profile.Threshold,
+            SoftKnee = (float)profile.SoftKnee,
+            NearStrength = (float)profile.NearStrength,
+            FarStrength = (float)profile.FarStrength,
+            Pad0 = 0,
+            Pad1 = 0
         };
+    }
 
-        var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
-        Marshal.StructureToPtr(constants, mapped.DataPointer, false);
-        _context.Unmap(_bloomConstantsBuffer, 0);
+    private Blob CompileShader(string entryPoint, string profile)
+    {
+        // NOTE: Vortice compiler overloads vary by package version. We deliberately fail closed here so
+        // renderer initialization falls back to the CPU bloom path instead of breaking project compilation.
+        _ = entryPoint;
+        _ = profile;
+        throw new NotSupportedException("Runtime HLSL compilation is unavailable with the current Vortice.D3DCompiler package version.");
+
+    private void CreateDownsampleRenderTargets(int width, int height)
+    {
+        if (_device is null)
+        {
+            return;
+        }
+
+        _downsampleWidth = width;
+        _downsampleHeight = height;
+        var desc = new Texture2DDescription
+        {
+            Width = (uint)width,
+            Height = (uint)height,
+            ArraySize = 1,
+            MipLevels = 1,
+            Format = Format.R8G8B8A8_UNorm,
+            BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
+            Usage = ResourceUsage.Default,
+            SampleDescription = new SampleDescription(1, 0),
+        };
+        _gpuBloomExtractTexture = _device.CreateTexture2D(desc);
+        _gpuBloomNearTextureA = _device.CreateTexture2D(desc);
+        _gpuBloomNearTextureB = _device.CreateTexture2D(desc);
+        _gpuBloomFarTextureA = _device.CreateTexture2D(desc);
+        _gpuBloomFarTextureB = _device.CreateTexture2D(desc);
+        _gpuBloomExtractRtv = _device.CreateRenderTargetView(_gpuBloomExtractTexture);
+        _gpuBloomNearRtvA = _device.CreateRenderTargetView(_gpuBloomNearTextureA);
+        _gpuBloomNearRtvB = _device.CreateRenderTargetView(_gpuBloomNearTextureB);
+        _gpuBloomFarRtvA = _device.CreateRenderTargetView(_gpuBloomFarTextureA);
+        _gpuBloomFarRtvB = _device.CreateRenderTargetView(_gpuBloomFarTextureB);
+        _gpuBloomParamsBuffer?.Dispose();
+        _gpuBloomParamsBuffer = null;
+        _gpuBloomCompositeSrv?.Dispose();
+        _gpuBloomCompositeSrv = null;
+        _gpuBloomCompositeRtv?.Dispose();
+        _gpuBloomCompositeRtv = null;
+        _gpuBloomCompositeTexture?.Dispose();
+        _gpuBloomCompositeTexture = null;
+        _gpuBloomReadbackTexture?.Dispose();
+        _gpuBloomReadbackTexture = null;
+        _gpuBloomExtractSrv?.Dispose();
+        _gpuBloomExtractSrv = null;
+        _gpuBloomExtractRtv?.Dispose();
+        _gpuBloomExtractRtv = null;
+        _gpuBloomExtractTexture?.Dispose();
+        _gpuBloomExtractTexture = null;
+        _gpuBloomNearSrvA?.Dispose();
+        _gpuBloomNearSrvA = null;
+        _gpuBloomNearSrvB?.Dispose();
+        _gpuBloomNearSrvB = null;
+        _gpuBloomNearRtvA?.Dispose();
+        _gpuBloomNearRtvA = null;
+        _gpuBloomNearRtvB?.Dispose();
+        _gpuBloomNearRtvB = null;
+        _gpuBloomNearTextureA?.Dispose();
+        _gpuBloomNearTextureA = null;
+        _gpuBloomNearTextureB?.Dispose();
+        _gpuBloomNearTextureB = null;
+        _gpuBloomFarSrvA?.Dispose();
+        _gpuBloomFarSrvA = null;
+        _gpuBloomFarSrvB?.Dispose();
+        _gpuBloomFarSrvB = null;
+        _gpuBloomFarRtvA?.Dispose();
+        _gpuBloomFarRtvA = null;
+        _gpuBloomFarRtvB?.Dispose();
+        _gpuBloomFarRtvB = null;
+        _gpuBloomFarTextureA?.Dispose();
+        _gpuBloomFarTextureA = null;
+        _gpuBloomFarTextureB?.Dispose();
+        _gpuBloomFarTextureB = null;
+        _gpuBloomLinearSampler?.Dispose();
+        _gpuBloomLinearSampler = null;
+        _gpuBloomFullscreenVs?.Dispose();
+        _gpuBloomFullscreenVs = null;
+        _gpuBloomExtractPs?.Dispose();
+        _gpuBloomExtractPs = null;
+        _gpuBloomBlurPs?.Dispose();
+        _gpuBloomBlurPs = null;
+        _gpuBloomCompositePs?.Dispose();
+        _gpuBloomCompositePs = null;
+        _gpuBloomSupported = false;
+        _gpuBloomDisableReason = "disposed";
+        _gpuBloomExtractSrv = _device.CreateShaderResourceView(_gpuBloomExtractTexture);
+        _gpuBloomNearSrvA = _device.CreateShaderResourceView(_gpuBloomNearTextureA);
+        _gpuBloomNearSrvB = _device.CreateShaderResourceView(_gpuBloomNearTextureB);
+        _gpuBloomFarSrvA = _device.CreateShaderResourceView(_gpuBloomFarTextureA);
+        _gpuBloomFarSrvB = _device.CreateShaderResourceView(_gpuBloomFarTextureB);
+    }
+
+    private void CreateCompositeRenderTargets()
+    {
+        if (_device is null)
+        {
+            return;
+}
+        }
+
+        _gpuBloomCompositeTexture = _device.CreateTexture2D(new Texture2DDescription
+        {
+            Width = (uint)Math.Max(1, _surfaceWidth),
+            Height = (uint)Math.Max(1, _surfaceHeight),
+            ArraySize = 1,
+            MipLevels = 1,
+            Format = Format.R8G8B8A8_UNorm,
+            BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
+            Usage = ResourceUsage.Default,
+            SampleDescription = new SampleDescription(1, 0),
+        });
+        _gpuBloomCompositeRtv = _device.CreateRenderTargetView(_gpuBloomCompositeTexture);
+        _gpuBloomCompositeSrv = _device.CreateShaderResourceView(_gpuBloomCompositeTexture);
+        _gpuBloomReadbackTexture = _device.CreateTexture2D(new Texture2DDescription
+        {
+            Width = (uint)Math.Max(1, _surfaceWidth),
+            Height = (uint)Math.Max(1, _surfaceHeight),
+            ArraySize = 1,
+            MipLevels = 1,
+            Format = Format.R8G8B8A8_UNorm,
+            Usage = ResourceUsage.Staging,
+            CPUAccessFlags = CpuAccessFlags.Read,
+            BindFlags = BindFlags.None,
+            SampleDescription = new SampleDescription(1, 0),
+        });
     }
 
     private bool DownsampleEmissive(byte[] bgra, int width, int height, BloomProfile profile, out int minBloomX, out int minBloomY, out int maxBloomX, out int maxBloomY)
@@ -1279,7 +1406,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // Radius is interpreted as pure spill distance in screen pixels (mapped to bloom space), not dot-size inflated.
         _ = dotSize;
         _ = scaleDivisor;
-        return Math.Clamp(configuredRadius, 0, 8);
+        return Math.Max(0, configuredRadius);
     }
 
     private static void EnsureOpaqueBackground(byte[] bgra)
@@ -1310,44 +1437,60 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         return ab + ((cd - ab) * ty);
     }
 
-    private string TryGetDeviceRemovedReasonText()
-    {
-        if (_device is null)
-        {
-            return "deviceReason=unavailable";
-        }
-
-        try
-        {
-            var reason = _device.DeviceRemovedReason;
-            return $"deviceReason=0x{reason.Code:X8}";
-        }
-        catch
-        {
-            return "deviceReason=unavailable";
-        }
-    }
-
-    private void TryRecoverGpuBloomPipeline(Exception trigger)
-    {
-        try
-        {
-            DisposeGpuBloomResources();
-            InitializeGpuBloomPipeline();
-            AppLogger.Info($"[renderer] gpu bloom recovery attempted after {trigger.GetType().Name}; directPresent={_directPresentEnabled} status={_directPresentStatus}");
-        }
-        catch (Exception recoveryEx)
-        {
-            _gpuBloomSupported = false;
-            _directPresentEnabled = false;
-            _directPresentStatus = $"disabled:recovery-failed:{recoveryEx.GetType().Name}";
-            AppLogger.Warn($"[renderer] gpu bloom recovery failed. reason={recoveryEx.Message}");
-        }
-    }
-
     private void DisposeDeviceResources()
     {
-        DisposeGpuBloomResources();
+        _gpuBloomParamsBuffer?.Dispose();
+        _gpuBloomParamsBuffer = null;
+        _gpuBloomCompositeSrv?.Dispose();
+        _gpuBloomCompositeSrv = null;
+        _gpuBloomCompositeRtv?.Dispose();
+        _gpuBloomCompositeRtv = null;
+        _gpuBloomCompositeTexture?.Dispose();
+        _gpuBloomCompositeTexture = null;
+        _gpuBloomReadbackTexture?.Dispose();
+        _gpuBloomReadbackTexture = null;
+        _gpuBloomExtractSrv?.Dispose();
+        _gpuBloomExtractSrv = null;
+        _gpuBloomExtractRtv?.Dispose();
+        _gpuBloomExtractRtv = null;
+        _gpuBloomExtractTexture?.Dispose();
+        _gpuBloomExtractTexture = null;
+        _gpuBloomNearSrvA?.Dispose();
+        _gpuBloomNearSrvA = null;
+        _gpuBloomNearSrvB?.Dispose();
+        _gpuBloomNearSrvB = null;
+        _gpuBloomNearRtvA?.Dispose();
+        _gpuBloomNearRtvA = null;
+        _gpuBloomNearRtvB?.Dispose();
+        _gpuBloomNearRtvB = null;
+        _gpuBloomNearTextureA?.Dispose();
+        _gpuBloomNearTextureA = null;
+        _gpuBloomNearTextureB?.Dispose();
+        _gpuBloomNearTextureB = null;
+        _gpuBloomFarSrvA?.Dispose();
+        _gpuBloomFarSrvA = null;
+        _gpuBloomFarSrvB?.Dispose();
+        _gpuBloomFarSrvB = null;
+        _gpuBloomFarRtvA?.Dispose();
+        _gpuBloomFarRtvA = null;
+        _gpuBloomFarRtvB?.Dispose();
+        _gpuBloomFarRtvB = null;
+        _gpuBloomFarTextureA?.Dispose();
+        _gpuBloomFarTextureA = null;
+        _gpuBloomFarTextureB?.Dispose();
+        _gpuBloomFarTextureB = null;
+        _gpuBloomLinearSampler?.Dispose();
+        _gpuBloomLinearSampler = null;
+        _gpuBloomFullscreenVs?.Dispose();
+        _gpuBloomFullscreenVs = null;
+        _gpuBloomExtractPs?.Dispose();
+        _gpuBloomExtractPs = null;
+        _gpuBloomBlurPs?.Dispose();
+        _gpuBloomBlurPs = null;
+        _gpuBloomCompositePs?.Dispose();
+        _gpuBloomCompositePs = null;
+        _gpuBloomSupported = false;
+        _gpuBloomDisableReason = "disposed";
         _frameSrv?.Dispose();
         _frameSrv = null;
         _frameTexture?.Dispose();
@@ -1358,541 +1501,5 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context = null;
         _device?.Dispose();
         _device = null;
-    }
-
-    private void InitializeGpuBloomPipeline()
-    {
-        if (_device is null)
-        {
-            _gpuBloomSupported = false;
-            return;
-        }
-
-        try
-        {
-            // We keep shaders inline for now so deployment stays single-binary and easier for community sharing.
-            using var vsBlob = CompileShaderOrThrow("VSMain", "vs_5_0");
-            using var dotBlob = CompileShaderOrThrow("PSDotPass", "ps_5_0");
-            using var brightBlob = CompileShaderOrThrow("PSBrightPass", "ps_5_0");
-            using var blurBlob = CompileShaderOrThrow("PSSeparableBlur", "ps_5_0");
-            using var compositeBlob = CompileShaderOrThrow("PSComposite", "ps_5_0");
-            _fullscreenVertexShader = _device.CreateVertexShader(vsBlob);
-            _dotPassShader = _device.CreatePixelShader(dotBlob);
-            _brightPassShader = _device.CreatePixelShader(brightBlob);
-            _blurPassShader = _device.CreatePixelShader(blurBlob);
-            _compositeShader = _device.CreatePixelShader(compositeBlob);
-            _linearSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp, 0, 1, ComparisonFunction.Never, new Color4(0f, 0f, 0f, 0f), 0, float.MaxValue));
-            _bloomConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<BloomGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
-            CreateBaseAndCompositeTargets();
-            TryInitializeDirectPresentSurface();
-            _gpuBloomSupported = true;
-            _gpuDotPassSupported = true;
-            _useCpuBloomFallback = false;
-        }
-        catch (Exception ex)
-        {
-            _gpuBloomSupported = false;
-            _gpuDotPassSupported = false;
-            _useCpuBloomFallback = true;
-            _directPresentEnabled = false;
-            _directPresentStatus = $"disabled:init-failed:{ex.GetType().Name}";
-            AppLogger.Warn($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. reason={ex.Message}");
-        }
-    }
-
-    private void TryInitializeDirectPresentSurface()
-    {
-        DisposeDirectPresentResources();
-        _directPresentEnabled = false;
-        _directPresentImage = null;
-
-        if (!_directPresentRequested)
-        {
-            _directPresentStatus = "disabled:runtime-switch-off";
-            AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
-            return;
-        }
-
-        if (_gpuCompositeTexture is null || _host is null)
-        {
-            _directPresentStatus = "disabled:missing-composite-or-host";
-            AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
-            return;
-        }
-
-        try
-        {
-            // Note: the D3D11 composite target is exposed as a DXGI shared handle, then opened on a D3D9Ex texture for D3DImage.
-            using var dxgiResource = _gpuCompositeTexture.QueryInterface<IDXGIResource>();
-            var sharedHandle = dxgiResource.SharedHandle;
-            if (sharedHandle == IntPtr.Zero)
-            {
-                _directPresentStatus = "disabled:no-shared-handle";
-                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
-                return;
-            }
-
-            _d3d9Ex = D3D9.D3D9.Direct3DCreate9Ex();
-            if (_d3d9Ex is null)
-            {
-                _directPresentStatus = "disabled:d3d9ex-create-failed";
-                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
-                return;
-            }
-
-            var presentParameters = new D3D9.PresentParameters
-            {
-                Windowed = true,
-                SwapEffect = D3D9.SwapEffect.Discard,
-                DeviceWindowHandle = IntPtr.Zero,
-                PresentationInterval = D3D9.PresentInterval.Default,
-            };
-
-            _d3d9Device = _d3d9Ex!.CreateDeviceEx(
-                0,
-                D3D9.DeviceType.Hardware,
-                IntPtr.Zero,
-                D3D9.CreateFlags.HardwareVertexProcessing | D3D9.CreateFlags.Multithreaded | D3D9.CreateFlags.FpuPreserve,
-                presentParameters);
-
-            _d3d9SharedTexture = _d3d9Device.CreateTexture(
-                (uint)Math.Max(1, _surfaceWidth),
-                (uint)Math.Max(1, _surfaceHeight),
-                1,
-                D3D9.Usage.RenderTarget,
-                D3D9.Format.A8R8G8B8,
-                D3D9.Pool.Default,
-                ref sharedHandle);
-
-            _d3d9SharedSurface = _d3d9SharedTexture.GetSurfaceLevel(0);
-            _directPresentImage = new D3DImage();
-            _directPresentImage.Lock();
-            _directPresentImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, _d3d9SharedSurface.NativePointer, true);
-            _directPresentImage.Unlock();
-            _host.Source = _directPresentImage;
-            _host.Stretch = Stretch.Fill;
-            _directPresentEnabled = true;
-            _directPresentStatus = "active:zero-readback";
-            AppLogger.Info("[renderer] gpu direct present enabled with shared-surface bridge (zero-readback mode active).");
-        }
-        catch (Exception ex)
-        {
-            _directPresentEnabled = false;
-            DisposeDirectPresentResources();
-            _directPresentStatus = $"disabled:init-exception:{ex.GetType().Name}";
-            AppLogger.Warn($"[renderer] gpu direct present disabled. reason={ex.Message}");
-        }
-    }
-
-    private static Blob CompileShaderOrThrow(string entryPoint, string shaderProfile)
-    {
-        // Note: CompileFromFile is the most deterministic overload in Vortice across SDK bindings.
-        var shaderPath = Path.Combine(Path.GetTempPath(), "VirtualDofMatrix.BloomShaders.hlsl");
-        File.WriteAllText(shaderPath, BloomShaders.Source);
-        var compileResult = Compiler.CompileFromFile(
-            shaderPath,
-            null!,
-            null!,
-            entryPoint,
-            shaderProfile,
-            ShaderFlags.OptimizationLevel3,
-            EffectFlags.None,
-            out var shaderBlob,
-            out var errorBlob);
-        if (compileResult.Failure || shaderBlob is null)
-        {
-            var errors = errorBlob is null ? "unknown shader compile failure" : Marshal.PtrToStringAnsi(errorBlob.BufferPointer);
-            throw new InvalidOperationException($"Failed to compile bloom shader {entryPoint}/{shaderProfile}: {errors}");
-        }
-
-        return shaderBlob!;
-    }
-
-    private void EnsureGpuBloomTargets(int scaleDivisor)
-    {
-        if (!_gpuBloomSupported || _device is null)
-        {
-            return;
-        }
-
-        if (_gpuBrightTexture is not null && _gpuBloomScaleDivisor == scaleDivisor)
-        {
-            return;
-        }
-
-        DisposeBloomIntermediateTargets();
-        _gpuBloomScaleDivisor = Math.Max(1, scaleDivisor);
-        _downsampleWidth = Math.Max(1, _surfaceWidth / _gpuBloomScaleDivisor);
-        _downsampleHeight = Math.Max(1, _surfaceHeight / _gpuBloomScaleDivisor);
-        CreateBloomIntermediateTargets(_downsampleWidth, _downsampleHeight);
-    }
-
-    private void CreateBaseAndCompositeTargets()
-    {
-        if (_device is null)
-        {
-            return;
-        }
-
-        var ledUploadDesc = new Texture2DDescription
-        {
-            Width = (uint)Math.Max(1, _width),
-            Height = (uint)Math.Max(1, _height),
-            ArraySize = 1,
-            MipLevels = 1,
-            Format = DxgiFormat.R8G8B8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Dynamic,
-            BindFlags = BindFlags.None,
-            CPUAccessFlags = CpuAccessFlags.Write,
-        };
-        _gpuLedUploadTexture = _device.CreateTexture2D(ledUploadDesc);
-
-        var ledSrvDesc = ledUploadDesc;
-        ledSrvDesc.Usage = ResourceUsage.Default;
-        ledSrvDesc.BindFlags = BindFlags.ShaderResource;
-        ledSrvDesc.CPUAccessFlags = CpuAccessFlags.None;
-        _gpuLedColorTexture = _device.CreateTexture2D(ledSrvDesc);
-        _gpuLedColorSrv = _device.CreateShaderResourceView(_gpuLedColorTexture);
-
-        var fullDesc = new Texture2DDescription
-        {
-            Width = (uint)Math.Max(1, _surfaceWidth),
-            Height = (uint)Math.Max(1, _surfaceHeight),
-            ArraySize = 1,
-            MipLevels = 1,
-            Format = DxgiFormat.R8G8B8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
-            CPUAccessFlags = CpuAccessFlags.None,
-            MiscFlags = _directPresentRequested ? ResourceOptionFlags.Shared : ResourceOptionFlags.None,
-        };
-        _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
-        _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
-        _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
-
-        fullDesc.Usage = ResourceUsage.Default;
-        fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
-        fullDesc.CPUAccessFlags = CpuAccessFlags.None;
-        _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
-        _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
-        _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
-
-        fullDesc.Usage = ResourceUsage.Staging;
-        fullDesc.BindFlags = BindFlags.None;
-        fullDesc.CPUAccessFlags = CpuAccessFlags.Read;
-        _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
-    }
-
-    private void CreateBloomIntermediateTargets(int width, int height)
-    {
-        if (_device is null)
-        {
-            return;
-        }
-
-        var desc = new Texture2DDescription
-        {
-            Width = (uint)Math.Max(1, width),
-            Height = (uint)Math.Max(1, height),
-            ArraySize = 1,
-            MipLevels = 1,
-            Format = DxgiFormat.R8G8B8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
-        };
-
-        _gpuBrightTexture = _device.CreateTexture2D(desc);
-        _gpuBrightRtv = _device.CreateRenderTargetView(_gpuBrightTexture);
-        _gpuBrightSrv = _device.CreateShaderResourceView(_gpuBrightTexture);
-        _gpuNearPingTexture = _device.CreateTexture2D(desc);
-        _gpuNearPingRtv = _device.CreateRenderTargetView(_gpuNearPingTexture);
-        _gpuNearPingSrv = _device.CreateShaderResourceView(_gpuNearPingTexture);
-        _gpuNearPongTexture = _device.CreateTexture2D(desc);
-        _gpuNearPongRtv = _device.CreateRenderTargetView(_gpuNearPongTexture);
-        _gpuNearPongSrv = _device.CreateShaderResourceView(_gpuNearPongTexture);
-        _gpuFarPingTexture = _device.CreateTexture2D(desc);
-        _gpuFarPingRtv = _device.CreateRenderTargetView(_gpuFarPingTexture);
-        _gpuFarPingSrv = _device.CreateShaderResourceView(_gpuFarPingTexture);
-        _gpuFarPongTexture = _device.CreateTexture2D(desc);
-        _gpuFarPongRtv = _device.CreateRenderTargetView(_gpuFarPongTexture);
-        _gpuFarPongSrv = _device.CreateShaderResourceView(_gpuFarPongTexture);
-    }
-
-    private void DisposeGpuBloomResources()
-    {
-        DisposeDirectPresentResources();
-        DisposeBloomIntermediateTargets();
-        _gpuReadbackTexture?.Dispose();
-        _gpuReadbackTexture = null;
-        _gpuCompositeSrv?.Dispose();
-        _gpuCompositeSrv = null;
-        _gpuCompositeRtv?.Dispose();
-        _gpuCompositeRtv = null;
-        _gpuCompositeTexture?.Dispose();
-        _gpuCompositeTexture = null;
-        _gpuLedColorSrv?.Dispose();
-        _gpuLedColorSrv = null;
-        _gpuLedColorTexture?.Dispose();
-        _gpuLedColorTexture = null;
-        _gpuLedUploadTexture?.Dispose();
-        _gpuLedUploadTexture = null;
-        _gpuBaseRtv?.Dispose();
-        _gpuBaseRtv = null;
-        _gpuBaseSrv?.Dispose();
-        _gpuBaseSrv = null;
-        _gpuBaseTexture?.Dispose();
-        _gpuBaseTexture = null;
-        _bloomConstantsBuffer?.Dispose();
-        _bloomConstantsBuffer = null;
-        _linearSampler?.Dispose();
-        _linearSampler = null;
-        _compositeShader?.Dispose();
-        _compositeShader = null;
-        _dotPassShader?.Dispose();
-        _dotPassShader = null;
-        _blurPassShader?.Dispose();
-        _blurPassShader = null;
-        _brightPassShader?.Dispose();
-        _brightPassShader = null;
-        _fullscreenVertexShader?.Dispose();
-        _fullscreenVertexShader = null;
-    }
-
-    private void DisposeDirectPresentResources()
-    {
-        _d3d9SharedSurface?.Dispose();
-        _d3d9SharedSurface = null;
-        _d3d9SharedTexture?.Dispose();
-        _d3d9SharedTexture = null;
-        _d3d9Device?.Dispose();
-        _d3d9Device = null;
-        _d3d9Ex?.Dispose();
-        _d3d9Ex = null;
-        _directPresentImage = null;
-    }
-
-    private void LogDirectPresentModeIfNeeded()
-    {
-        if (_directPresentStatusLogged)
-        {
-            return;
-        }
-
-        _directPresentStatusLogged = true;
-        if (_directPresentEnabled)
-        {
-            AppLogger.Info("[renderer] frame present path=zero-readback-shared-surface.");
-            return;
-        }
-
-        AppLogger.Info($"[renderer] frame present path=fallback-readback status={_directPresentStatus}");
-    }
-
-    private void DisposeBloomIntermediateTargets()
-    {
-        _gpuFarPongSrv?.Dispose();
-        _gpuFarPongSrv = null;
-        _gpuFarPongRtv?.Dispose();
-        _gpuFarPongRtv = null;
-        _gpuFarPongTexture?.Dispose();
-        _gpuFarPongTexture = null;
-        _gpuFarPingSrv?.Dispose();
-        _gpuFarPingSrv = null;
-        _gpuFarPingRtv?.Dispose();
-        _gpuFarPingRtv = null;
-        _gpuFarPingTexture?.Dispose();
-        _gpuFarPingTexture = null;
-        _gpuNearPongSrv?.Dispose();
-        _gpuNearPongSrv = null;
-        _gpuNearPongRtv?.Dispose();
-        _gpuNearPongRtv = null;
-        _gpuNearPongTexture?.Dispose();
-        _gpuNearPongTexture = null;
-        _gpuNearPingSrv?.Dispose();
-        _gpuNearPingSrv = null;
-        _gpuNearPingRtv?.Dispose();
-        _gpuNearPingRtv = null;
-        _gpuNearPingTexture?.Dispose();
-        _gpuNearPingTexture = null;
-        _gpuBrightSrv?.Dispose();
-        _gpuBrightSrv = null;
-        _gpuBrightRtv?.Dispose();
-        _gpuBrightRtv = null;
-        _gpuBrightTexture?.Dispose();
-        _gpuBrightTexture = null;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct BloomGpuConstants
-    {
-        public float Threshold;
-        public float SoftKnee;
-        public float NearStrength;
-        public float FarStrength;
-        public float ScaleDivisor;
-        public float Radius;
-        public float DirectionX;
-        public float DirectionY;
-        // Note: composite uses Direction as mode flags (base lane tag) and Radius as derive radius.
-        public float SurfaceWidth;
-        public float SurfaceHeight;
-        public float BloomWidth;
-        public float BloomHeight;
-    }
-
-    private static class BloomShaders
-    {
-        public const string Source = """
-cbuffer BloomConstants : register(b0)
-{
-    float Threshold;
-    float SoftKnee;
-    float NearStrength;
-    float FarStrength;
-    float ScaleDivisor;
-    float Radius;
-    float2 Direction;
-    float2 SurfaceSize;
-    float2 BloomSize;
-}
-Texture2D BaseTexture : register(t0);
-Texture2D SharedBlurTexture : register(t1);
-SamplerState LinearSampler : register(s0);
-struct VsOut
-{
-    float4 Position : SV_Position;
-    float2 Uv : TEXCOORD0;
-};
-VsOut VSMain(uint vertexId : SV_VertexID)
-{
-    VsOut output;
-    // Note: explicit full-screen triangle vertices are friendlier across drivers than bit-manipulated UV generation.
-    float2 positions[3] =
-    {
-        float2(-1.0f, -1.0f),
-        float2(-1.0f,  3.0f),
-        float2( 3.0f, -1.0f)
-    };
-    float2 uvs[3] =
-    {
-        float2(0.0f, 1.0f),
-        float2(0.0f,-1.0f),
-        float2(2.0f, 1.0f)
-    };
-    output.Position = float4(positions[vertexId], 0, 1);
-    output.Uv = uvs[vertexId];
-    return output;
-}
-float4 PSDotPass(VsOut input) : SV_Target
-{
-    // Note: Direction.x carries stride and Direction.y carries padding for the dot pass.
-    float stride = max(Direction.x, 1.0f);
-    float padding = max(Direction.y, 0.0f);
-    float2 pixel = input.Uv * SurfaceSize;
-    float2 local = pixel - float2(padding, padding);
-    if (local.x < 0.0f || local.y < 0.0f) return float4(0, 0, 0, 1);
-    float2 ledCoord = floor(local / stride);
-    if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(0, 0, 0, 1);
-    float2 within = frac(local / stride) * stride;
-    if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
-    float2 ledUv = (ledCoord + 0.5f) / max(BloomSize, float2(1.0f, 1.0f));
-    float3 ledColor = BaseTexture.SampleLevel(LinearSampler, ledUv, 0).rgb;
-    return float4(ledColor, 1.0f);
-}
-float SoftKneeWeight(float3 color)
-{
-    float peak = max(color.r, max(color.g, color.b));
-    if (SoftKnee <= 0.0001f) return peak >= Threshold ? 1.0f : 0.0f;
-    float t = saturate((peak - Threshold) / max(SoftKnee, 0.0001f));
-    return t * t * (3.0f - (2.0f * t));
-}
-float4 PSBrightPass(VsOut input) : SV_Target
-{
-    // Note: match CPU bloom extraction by averaging over the downsample footprint
-    // and only counting emissive contributors.
-    int scale = max(1, (int)round(ScaleDivisor));
-    float2 texel = 1.0f / max(SurfaceSize, float2(1.0f, 1.0f));
-    float2 footprint = float2(scale, scale);
-    float2 start = input.Uv - ((footprint * 0.5f - 0.5f) * texel);
-    float3 sum = 0;
-    float samples = 0;
-    [loop]
-    for (int y = 0; y < scale; y++)
-    {
-        [loop]
-        for (int x = 0; x < scale; x++)
-        {
-            float2 uv = start + float2(x, y) * texel;
-            float3 c = BaseTexture.Sample(LinearSampler, uv).rgb;
-            float e = SoftKneeWeight(c);
-            if (e <= 0.0f) continue;
-            sum += c * e;
-            samples += 1.0f;
-        }
-    }
-    if (samples <= 0.0f) return float4(0, 0, 0, 1);
-    return float4(sum / samples, 1.0f);
-}
-float4 PSSeparableBlur(VsOut input) : SV_Target
-{
-    float r = clamp(Radius, 0.0f, 8.0f);
-    if (r <= 0.001f) return BaseTexture.Sample(LinearSampler, input.Uv);
-    float3 sum = 0;
-    float weightSum = 0;
-    // Note: fixed bounds + unroll avoids driver issues with dynamic loop trip counts.
-    [unroll]
-    for (int i = -8; i <= 8; i++)
-    {
-        if (abs((float)i) > r) continue;
-        float2 uv = input.Uv + (Direction * (float)i);
-        float w = 1.0f - abs((float)i) / (r + 1.0f);
-        sum += BaseTexture.Sample(LinearSampler, uv).rgb * w;
-        weightSum += w;
-    }
-    return float4(sum / max(weightSum, 0.0001f), 1.0f);
-}
-float3 SampleTent(Texture2D tex, float2 uv, float2 texel, float radius)
-{
-    float r = clamp(radius, 0.0f, 8.0f);
-    if (r <= 0.001f) return tex.Sample(LinearSampler, uv).rgb;
-    float3 sum = 0;
-    float wsum = 0;
-    [unroll]
-    for (int y = -8; y <= 8; y++)
-    {
-        if (abs((float)y) > r) continue;
-        [unroll]
-        for (int x = -8; x <= 8; x++)
-        {
-            if (abs((float)x) > r) continue;
-            float wx = 1.0f - abs((float)x) / (r + 1.0f);
-            float wy = 1.0f - abs((float)y) / (r + 1.0f);
-            float w = wx * wy;
-            sum += tex.Sample(LinearSampler, uv + float2(x, y) * texel).rgb * w;
-            wsum += w;
-        }
-    }
-    return sum / max(wsum, 0.0001f);
-}
-float4 PSComposite(VsOut input) : SV_Target
-{
-    float3 baseColor = BaseTexture.Sample(LinearSampler, input.Uv).rgb;
-    float3 sharedColor = SharedBlurTexture.Sample(LinearSampler, input.Uv).rgb;
-    float2 bloomTexel = 1.0f / max(BloomSize, float2(1.0f, 1.0f));
-    float3 derivedColor = SampleTent(SharedBlurTexture, input.Uv, bloomTexel, Radius);
-
-    // Note: Direction.x == 1 means shared lane is near; Direction.y == 1 means shared lane is far.
-    float sharedIsNear = step(0.5f, Direction.x);
-    float sharedIsFar = step(0.5f, Direction.y);
-    float3 nearColor = (sharedColor * sharedIsNear) + (derivedColor * sharedIsFar);
-    float3 farColor = (sharedColor * sharedIsFar) + (derivedColor * sharedIsNear);
-
-    float3 outColor = saturate(baseColor + (nearColor * NearStrength) + (farColor * FarStrength));
-    return float4(outColor, 1.0f);
-}
-""";
     }
 }
