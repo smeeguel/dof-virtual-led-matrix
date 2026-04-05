@@ -107,7 +107,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private float[] _dotSpecularMask = Array.Empty<float>();
     private static readonly Color4 BlackClearColor = new(0f, 0f, 0f, 0f);
     private byte[] _bgra = Array.Empty<byte>();
+    // Conversational note: this is raw RGB byte upload scratch only (no CPU-expanded RGBA/BGRA assembly).
     private byte[] _rawRgbUpload = Array.Empty<byte>();
+    // Conversational note: this buffer is readback-only for CPU fallback rendering paths.
     private byte[] _cpuLedReadback = Array.Empty<byte>();
     private float[] _screenBloomSourceRgb = Array.Empty<float>();
     private float[] _screenBloomNearRgb = Array.Empty<float>();
@@ -311,6 +313,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        // Conversational note: per-frame upload stays raw-only (RgbMemory bytes) and never assembles full-color LED texels on CPU.
         var byteCount = ledCount * Channels;
         rgb[..byteCount].CopyTo(_rawRgbUpload);
         if (byteCount < _rawRgbUpload.Length)
