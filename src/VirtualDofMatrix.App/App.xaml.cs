@@ -7,6 +7,7 @@ using VirtualDofMatrix.App.Presentation;
 using VirtualDofMatrix.App.Transport;
 using VirtualDofMatrix.Core;
 using System.IO.Pipes;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
@@ -164,20 +165,71 @@ public partial class App : Application
             }
         }
 
+        // DOF users usually expect renderer switches to "just work"; when dropping from GPU -> CPU we relaunch
+        // immediately so the new renderer path is active without requiring manual intervention.
         if (previousRenderer.Equals("gpu", StringComparison.OrdinalIgnoreCase) &&
             _config.Matrix.Renderer.Equals("cpu", StringComparison.OrdinalIgnoreCase))
         {
             PersistWindowSettings();
-            MessageBox.Show(_window,
-                "CPU renderer selection was saved. Please restart Virtual DOF Matrix for the renderer change to take effect reliably.",
-                "Restart required for GPU -> CPU switch",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            RestartForRendererSwitch();
             return;
         }
 
         _window.ApplyRuntimeSettings();
         PersistWindowSettings();
+    }
+
+    private void RestartForRendererSwitch()
+    {
+        if (_window is null)
+        {
+            return;
+        }
+
+        try
+        {
+            // Re-launch this same executable with its current command-line so startup behavior remains identical
+            // (for example --table-launch / visibility args sent by frontends).
+            var currentExePath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(currentExePath))
+            {
+                throw new InvalidOperationException("Could not resolve current process path for restart.");
+            }
+
+            var args = Environment.GetCommandLineArgs().Skip(1).Select(QuoteArgument);
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = currentExePath,
+                Arguments = string.Join(" ", args),
+                UseShellExecute = true,
+                WorkingDirectory = AppContext.BaseDirectory,
+            };
+
+            Process.Start(startInfo);
+            AppLogger.Info("[app] restarting process to apply GPU->CPU renderer switch.");
+            _window.Close();
+            Shutdown();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(_window,
+                $"CPU renderer selection was saved, but automatic restart failed: {ex.Message}\nPlease restart Virtual DOF Matrix manually.",
+                "Restart required for GPU -> CPU switch",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    private static string QuoteArgument(string arg)
+    {
+        if (string.IsNullOrEmpty(arg))
+        {
+            return "\"\"";
+        }
+
+        return arg.Contains(' ') || arg.Contains('"')
+            ? $"\"{arg.Replace("\"", "\\\"")}\""
+            : arg;
     }
 
     private bool TryUpdateCabinetResolution(int width, int height)
