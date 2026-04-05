@@ -1436,7 +1436,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             _gpuBloomSupported = true;
-            _gpuDotPassSupported = true;
+            // Keep GPU bloom enabled but stay on CPU dot raster for visual parity (off-state bulbs + color fidelity).
+            _gpuDotPassSupported = false;
             _useCpuBloomFallback = false;
             return true;
         }
@@ -1587,7 +1588,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Height = (uint)Math.Max(1, _height),
             ArraySize = 1,
             MipLevels = 1,
-            Format = DxgiFormat.R8G8B8A8_UNorm,
+            Format = DxgiFormat.B8G8R8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
             // We feed this texture via UpdateSubresource, so default usage is the valid and intended mode.
             Usage = ResourceUsage.Default,
@@ -1608,13 +1609,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             BindFlags.ShaderResource | BindFlags.RenderTarget,
             CpuAccessFlags.None,
             allowShared: false,
-            DxgiFormat.R8G8B8A8_UNorm);
+            DxgiFormat.B8G8R8A8_UNorm);
         _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
         _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
         _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
 
         // Keep composite + readback formats identical so CopyResource is valid even if direct present gets disabled later.
-        var compositeFormat = shareCompositeTextureForDirectPresent ? DxgiFormat.B8G8R8A8_UNorm : DxgiFormat.R8G8B8A8_UNorm;
+        var compositeFormat = DxgiFormat.B8G8R8A8_UNorm;
         fullDesc = CreateFullSurfaceDescription(
             ResourceUsage.Default,
             BindFlags.ShaderResource | BindFlags.RenderTarget,
