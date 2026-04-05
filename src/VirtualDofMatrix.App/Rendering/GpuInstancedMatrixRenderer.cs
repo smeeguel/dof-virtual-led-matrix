@@ -273,13 +273,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         ApplyBloomIfEnabled(_style, useGpuDotPass);
 
-        var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
-        Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
-        _context.Unmap(_frameTexture, 0);
-
-        // Conversational note: when direct-present is online we skip CPU bitmap uploads entirely.
         if (!_directPresentEnabled)
         {
+            // Conversational note: legacy bitmap fallback still needs CPU-side frame upload.
+            var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
+            Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
+            _context.Unmap(_frameTexture, 0);
+
             // Conversational note: this renderer presents via WriteableBitmap in fallback mode.
             _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
         }
@@ -838,9 +838,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             var rgbOffset = raster * Channels;
             var bgraOffset = raster * 4;
-            _ledBgra[bgraOffset] = (byte)Math.Clamp(_workingRgb[rgbOffset + 2], 0f, 255f);
+            // Conversational note: GPU LED texture is RGBA, so channel upload order must be R,G,B to avoid red/blue swaps.
+            _ledBgra[bgraOffset] = (byte)Math.Clamp(_workingRgb[rgbOffset], 0f, 255f);
             _ledBgra[bgraOffset + 1] = (byte)Math.Clamp(_workingRgb[rgbOffset + 1], 0f, 255f);
-            _ledBgra[bgraOffset + 2] = (byte)Math.Clamp(_workingRgb[rgbOffset], 0f, 255f);
+            _ledBgra[bgraOffset + 2] = (byte)Math.Clamp(_workingRgb[rgbOffset + 2], 0f, 255f);
             _ledBgra[bgraOffset + 3] = 255;
         }
 
