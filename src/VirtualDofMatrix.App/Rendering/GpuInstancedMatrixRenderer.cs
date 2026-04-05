@@ -1368,35 +1368,82 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        if (TryInitializeGpuBloomPipelineCore(_directPresentRequested, out var firstFailure, out var firstStage))
+        {
+            return;
+        }
+
+        // Conversational note: if direct-present specific setup fails, we still want GPU bloom alive via readback path.
+        if (_directPresentRequested)
+        {
+            AppLogger.Warn($"[renderer] gpu bloom init failed at stage='{firstStage}' with direct present requested; retrying without direct present. reason={firstFailure!.Message}");
+            DisposeGpuBloomResources();
+            if (TryInitializeGpuBloomPipelineCore(enableDirectPresentShare: false, out _, out _))
+            {
+                _directPresentEnabled = false;
+                _directPresentStatus = "disabled:retry-no-direct-present";
+                AppLogger.Warn("[renderer] gpu bloom initialized after retry with direct present disabled.");
+                return;
+            }
+        }
+
+        _gpuBloomSupported = false;
+        _gpuDotPassSupported = false;
+        _useCpuBloomFallback = true;
+        _directPresentEnabled = false;
+        _directPresentStatus = $"disabled:init-failed:{firstFailure!.GetType().Name}";
+        AppLogger.Warn($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. stage={firstStage} reason={firstFailure.Message}");
+    }
+
+    private bool TryInitializeGpuBloomPipelineCore(bool enableDirectPresentShare, out Exception? failure, out string failedStage)
+    {
+        failedStage = "compile-vs";
+        failure = null;
         try
         {
             // We keep shaders inline for now so deployment stays single-binary and easier for community sharing.
             using var vsBlob = CompileShaderOrThrow("VSMain", "vs_5_0");
+            failedStage = "compile-dot";
             using var dotBlob = CompileShaderOrThrow("PSDotPass", "ps_5_0");
+            failedStage = "compile-bright";
             using var brightBlob = CompileShaderOrThrow("PSBrightPass", "ps_5_0");
+            failedStage = "compile-blur";
             using var blurBlob = CompileShaderOrThrow("PSSeparableBlur", "ps_5_0");
+            failedStage = "compile-composite";
             using var compositeBlob = CompileShaderOrThrow("PSComposite", "ps_5_0");
-            _fullscreenVertexShader = _device.CreateVertexShader(vsBlob);
+            failedStage = "create-shaders";
+            _fullscreenVertexShader = _device!.CreateVertexShader(vsBlob);
             _dotPassShader = _device.CreatePixelShader(dotBlob);
             _brightPassShader = _device.CreatePixelShader(brightBlob);
             _blurPassShader = _device.CreatePixelShader(blurBlob);
             _compositeShader = _device.CreatePixelShader(compositeBlob);
+            failedStage = "create-sampler";
             _linearSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp, 0, 1, ComparisonFunction.Never, new Color4(0f, 0f, 0f, 0f), 0, float.MaxValue));
+            failedStage = "create-constants";
             _bloomConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<BloomGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
-            CreateBaseAndCompositeTargets(_directPresentRequested);
-            TryInitializeDirectPresentSurface();
+            failedStage = "create-targets";
+            CreateBaseAndCompositeTargets(enableDirectPresentShare);
+
+            if (enableDirectPresentShare)
+            {
+                failedStage = "direct-present";
+                TryInitializeDirectPresentSurface();
+            }
+            else
+            {
+                _directPresentEnabled = false;
+                _directPresentStatus = _directPresentRequested ? "disabled:retry-no-direct-present" : "disabled:runtime-switch-off";
+            }
+
             _gpuBloomSupported = true;
             _gpuDotPassSupported = true;
             _useCpuBloomFallback = false;
+            return true;
         }
         catch (Exception ex)
         {
-            _gpuBloomSupported = false;
-            _gpuDotPassSupported = false;
-            _useCpuBloomFallback = true;
-            _directPresentEnabled = false;
-            _directPresentStatus = $"disabled:init-failed:{ex.GetType().Name}";
-            AppLogger.Warn($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. reason={ex.Message}");
+            failure = ex;
+            return false;
         }
     }
 
