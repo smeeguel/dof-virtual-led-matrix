@@ -79,6 +79,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private string _gpuBloomStage = "idle";
     private string _gpuBloomTrace = string.Empty;
     private ulong _gpuBloomAttemptCount;
+    private string _dotPathStatus = string.Empty;
     private ulong _lastOutputSequence;
     private readonly object _gate = new();
     private Image? _host;
@@ -251,6 +252,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         var useGpuDotPass = ShouldUseGpuDotPass(_style);
+        LogDotPathIfNeeded(useGpuDotPass);
         if (useGpuDotPass)
         {
             // Note: this path uploads mapped LED colors and lets the GPU shade dot geometry per pixel.
@@ -304,6 +306,18 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         Array.Clear(_smoothedRgb, 0, _smoothedRgb.Length);
         Array.Clear(_bgra, 0, _bgra.Length);
         _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
+    }
+
+    private void LogDotPathIfNeeded(bool usingGpuDotPass)
+    {
+        var status = usingGpuDotPass ? "gpu-dot-pass" : "cpu-dot-raster-fallback";
+        if (string.Equals(_dotPathStatus, status, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _dotPathStatus = status;
+        AppLogger.Info($"[renderer] dot path={status}");
     }
 
     private float ApplySmoothing(int channel, byte targetByte, float rise, float fall, bool enabled)
@@ -1930,7 +1944,7 @@ float4 PSDotPass(VsOut input) : SV_Target
     float2 ledUv = (ledCoord + 0.5f) / max(BloomSize, float2(1.0f, 1.0f));
     float3 ledColor = BaseTexture.SampleLevel(LinearSampler, ledUv, 0).rgb;
     // Conversational note: CPU raster keeps off-state bulbs visible by default, so don't dim off tint too aggressively here.
-    float3 offColor = saturate(OffColor * lerp(0.45f, 1.0f, saturate(OffAlpha)));
+    float3 offColor = saturate(OffColor * lerp(0.75f, 1.0f, saturate(OffAlpha)));
     float3 baseColor = max(ledColor, offColor);
     if (FlatShading > 0.5f)
     {

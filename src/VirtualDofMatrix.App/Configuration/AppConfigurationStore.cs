@@ -78,6 +78,9 @@ public sealed class AppConfigurationStore
             config.Matrix.Bloom = new BloomConfig();
         }
 
+        // Keep startup behavior aligned with the selected quality preset (unless user explicitly uses Custom).
+        VisualQualityProfiles.ApplyPreset(config.Matrix, config.Settings.VisualQuality);
+
         return config;
     }
 }
