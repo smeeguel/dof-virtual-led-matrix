@@ -779,12 +779,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
-        // Conversational note: current GPU dot shader is a fast flat pass; high-quality circle/lens treatment stays on CPU raster for parity.
-        if (!style.Visual.FlatShading || style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
         return _gpuDotPassSupported &&
                _context is not null &&
                _gpuLedUploadTexture is not null &&
@@ -1037,6 +1031,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             OffColorG = (float)((_style?.Visual.OffStateTintG ?? 0) / 255.0),
             OffColorB = (float)((_style?.Visual.OffStateTintB ?? 0) / 255.0),
             OffAlpha = (float)Math.Clamp(_style?.Visual.OffStateAlpha ?? 0.0, 0.0, 1.0),
+            FlatShading = (_style?.Visual.FlatShading ?? false) ? 1f : 0f,
+            DotIsCircle = (_style?.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) ?? false) ? 1f : 0f,
+            FullBrightnessRadiusMinPct = (float)Math.Clamp(_style?.Visual.FullBrightnessRadiusMinPct ?? 0.8, 0.0, 1.0),
+            LensFalloff = (float)Math.Clamp(_style?.Visual.LensFalloff ?? 0.45, 0.0, 1.0),
+            SpecularHotspot = (float)Math.Clamp(_style?.Visual.SpecularHotspot ?? 0.28, 0.0, 1.0),
+            RimHighlight = (float)Math.Clamp(_style?.Visual.RimHighlight ?? 0.22, 0.0, 1.0),
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -1850,6 +1850,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float OffColorG;
         public float OffColorB;
         public float OffAlpha;
+        public float FlatShading;
+        public float DotIsCircle;
+        public float FullBrightnessRadiusMinPct;
+        public float LensFalloff;
+        public float SpecularHotspot;
+        public float RimHighlight;
+        public float Padding0;
+        public float Padding1;
     }
 
     private static class BloomShaders
@@ -1868,6 +1876,13 @@ cbuffer BloomConstants : register(b0)
     float2 BloomSize;
     float3 OffColor;
     float OffAlpha;
+    float FlatShading;
+    float DotIsCircle;
+    float FullBrightnessRadiusMinPct;
+    float LensFalloff;
+    float SpecularHotspot;
+    float RimHighlight;
+    float2 _Padding;
 }
 Texture2D BaseTexture : register(t0);
 Texture2D SharedBlurTexture : register(t1);
@@ -1909,10 +1924,29 @@ float4 PSDotPass(VsOut input) : SV_Target
     if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(0, 0, 0, 1);
     float2 within = frac(local / stride) * stride;
     if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
+    float2 radialUv = ((within + 0.5f) / max(Radius, 1.0f)) * 2.0f - 1.0f;
+    float radial = length(radialUv);
+    if (DotIsCircle > 0.5f && radial > 1.0f) return float4(0, 0, 0, 1);
     float2 ledUv = (ledCoord + 0.5f) / max(BloomSize, float2(1.0f, 1.0f));
     float3 ledColor = BaseTexture.SampleLevel(LinearSampler, ledUv, 0).rgb;
     float3 offColor = saturate(OffColor * max(OffAlpha, 0.0f));
-    return float4(max(ledColor, offColor), 1.0f);
+    float3 baseColor = max(ledColor, offColor);
+    if (FlatShading > 0.5f)
+    {
+        return float4(baseColor, 1.0f);
+    }
+
+    float inner = saturate(FullBrightnessRadiusMinPct);
+    float lensStart = max(0.0f, inner);
+    float lensT = saturate((radial - lensStart) / max(1.0f - lensStart, 0.0001f));
+    float lensPower = lerp(1.2f, 3.0f, saturate(LensFalloff));
+    float lens = 1.0f - pow(lensT, lensPower);
+    float rim = smoothstep(0.55f, 1.0f, radial) * saturate(RimHighlight);
+    float hotspot = saturate(1.0f - (distance(radialUv, float2(-0.35f, -0.35f)) * 1.65f));
+    hotspot = hotspot * hotspot * saturate(SpecularHotspot);
+    float3 lit = baseColor * (0.3f + (0.7f * lens));
+    float3 highlight = (baseColor * rim * 0.35f) + hotspot.xxx;
+    return float4(saturate(lit + highlight), 1.0f);
 }
 float SoftKneeWeight(float3 color)
 {
