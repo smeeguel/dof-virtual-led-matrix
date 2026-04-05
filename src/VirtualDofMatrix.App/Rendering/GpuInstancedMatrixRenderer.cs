@@ -1555,7 +1555,38 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuLedColorTexture = _device.CreateTexture2D(ledSrvDesc);
         _gpuLedColorSrv = _device.CreateShaderResourceView(_gpuLedColorTexture);
 
-        var fullDesc = new Texture2DDescription
+        var fullDesc = CreateFullSurfaceDescription(
+            ResourceUsage.Default,
+            BindFlags.ShaderResource | BindFlags.RenderTarget,
+            CpuAccessFlags.None,
+            _directPresentRequested);
+        _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
+        _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
+        _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
+
+        fullDesc = CreateFullSurfaceDescription(
+            ResourceUsage.Default,
+            BindFlags.ShaderResource | BindFlags.RenderTarget,
+            CpuAccessFlags.None,
+            _directPresentRequested);
+        _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
+        _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
+        _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
+
+        // Important nuance: staging textures cannot be shared; forcing MiscFlags=None avoids E_INVALIDARG on init.
+        fullDesc = CreateFullSurfaceDescription(
+            ResourceUsage.Staging,
+            BindFlags.None,
+            CpuAccessFlags.Read,
+            allowShared: false);
+        _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
+    }
+
+    internal Texture2DDescription CreateFullSurfaceDescription(ResourceUsage usage, BindFlags bindFlags, CpuAccessFlags cpuAccessFlags, bool allowShared)
+    {
+        // Conversational note: this helper centralizes descriptor creation so we can't accidentally carry invalid flag combos.
+        var miscFlags = allowShared && usage == ResourceUsage.Default ? ResourceOptionFlags.Shared : ResourceOptionFlags.None;
+        return new Texture2DDescription
         {
             Width = (uint)Math.Max(1, _surfaceWidth),
             Height = (uint)Math.Max(1, _surfaceHeight),
@@ -1563,26 +1594,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             MipLevels = 1,
             Format = DxgiFormat.R8G8B8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
-            CPUAccessFlags = CpuAccessFlags.None,
-            MiscFlags = _directPresentRequested ? ResourceOptionFlags.Shared : ResourceOptionFlags.None,
+            Usage = usage,
+            BindFlags = bindFlags,
+            CPUAccessFlags = cpuAccessFlags,
+            MiscFlags = miscFlags,
         };
-        _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
-        _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
-        _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
-
-        fullDesc.Usage = ResourceUsage.Default;
-        fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
-        fullDesc.CPUAccessFlags = CpuAccessFlags.None;
-        _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
-        _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
-        _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
-
-        fullDesc.Usage = ResourceUsage.Staging;
-        fullDesc.BindFlags = BindFlags.None;
-        fullDesc.CPUAccessFlags = CpuAccessFlags.Read;
-        _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
     }
 
     private void CreateBloomIntermediateTargets(int width, int height)
