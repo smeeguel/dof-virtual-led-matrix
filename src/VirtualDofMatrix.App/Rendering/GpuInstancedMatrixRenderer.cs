@@ -1370,22 +1370,33 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        var initStage = "start";
         try
         {
             // We keep shaders inline for now so deployment stays single-binary and easier for community sharing.
+            initStage = "compile-vs";
             using var vsBlob = CompileShaderOrThrow("VSMain", "vs_5_0");
+            initStage = "compile-dot";
             using var dotBlob = CompileShaderOrThrow("PSDotPass", "ps_5_0");
+            initStage = "compile-bright";
             using var brightBlob = CompileShaderOrThrow("PSBrightPass", "ps_5_0");
+            initStage = "compile-blur";
             using var blurBlob = CompileShaderOrThrow("PSSeparableBlur", "ps_5_0");
+            initStage = "compile-composite";
             using var compositeBlob = CompileShaderOrThrow("PSComposite", "ps_5_0");
+            initStage = "create-shaders";
             _fullscreenVertexShader = _device.CreateVertexShader(vsBlob);
             _dotPassShader = _device.CreatePixelShader(dotBlob);
             _brightPassShader = _device.CreatePixelShader(brightBlob);
             _blurPassShader = _device.CreatePixelShader(blurBlob);
             _compositeShader = _device.CreatePixelShader(compositeBlob);
+            initStage = "create-sampler";
             _linearSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp, 0, 1, ComparisonFunction.Never, new Color4(0f, 0f, 0f, 0f), 0, float.MaxValue));
+            initStage = "create-constants";
             _bloomConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<BloomGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
+            initStage = "create-targets";
             CreateBaseAndCompositeTargets();
+            initStage = "init-direct-present";
             TryInitializeDirectPresentSurface();
             _gpuBloomSupported = true;
             _gpuDotPassSupported = true;
@@ -1397,8 +1408,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _gpuDotPassSupported = false;
             _useCpuBloomFallback = true;
             _directPresentEnabled = false;
-            _directPresentStatus = $"disabled:init-failed:{ex.GetType().Name}";
-            AppLogger.Warn($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. reason={ex.Message}");
+            _directPresentStatus = $"disabled:init-failed:{initStage}:{ex.GetType().Name}";
+            AppLogger.Warn($"[renderer] gpu bloom pipeline unavailable; using CPU fallback. stage={initStage} surface={_surfaceWidth}x{_surfaceHeight} reason={ex.Message}");
         }
     }
 
@@ -1583,68 +1594,87 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        var ledUploadDesc = new Texture2DDescription
-        {
-            Width = (uint)Math.Max(1, _width),
-            Height = (uint)Math.Max(1, _height),
-            ArraySize = 1,
-            MipLevels = 1,
-            Format = DxgiFormat.R8G8B8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Dynamic,
-            BindFlags = BindFlags.None,
-            CPUAccessFlags = CpuAccessFlags.Write,
-        };
-        _gpuLedUploadTexture = _device.CreateTexture2D(ledUploadDesc);
-
-        var ledSrvDesc = ledUploadDesc;
-        ledSrvDesc.Usage = ResourceUsage.Default;
-        ledSrvDesc.BindFlags = BindFlags.ShaderResource;
-        ledSrvDesc.CPUAccessFlags = CpuAccessFlags.None;
-        _gpuLedColorTexture = _device.CreateTexture2D(ledSrvDesc);
-        _gpuLedColorSrv = _device.CreateShaderResourceView(_gpuLedColorTexture);
-
-        var fullDesc = new Texture2DDescription
-        {
-            Width = (uint)Math.Max(1, _surfaceWidth),
-            Height = (uint)Math.Max(1, _surfaceHeight),
-            ArraySize = 1,
-            MipLevels = 1,
-            Format = DxgiFormat.R8G8B8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
-            CPUAccessFlags = CpuAccessFlags.None,
-        };
-        _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
-        _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
-        _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
-
-        fullDesc.Usage = ResourceUsage.Default;
-        fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
-        fullDesc.CPUAccessFlags = CpuAccessFlags.None;
-        // Conversational note: some drivers reject shared textures for this format/usage, so we gracefully fall back to a non-shared composite target.
+        var createStage = "start";
         try
         {
-            fullDesc.MiscFlags = ResourceOptionFlags.Shared;
-            _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
+            var ledUploadDesc = new Texture2DDescription
+            {
+                Width = (uint)Math.Max(1, _width),
+                Height = (uint)Math.Max(1, _height),
+                ArraySize = 1,
+                MipLevels = 1,
+                Format = DxgiFormat.R8G8B8A8_UNorm,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Dynamic,
+                BindFlags = BindFlags.None,
+                CPUAccessFlags = CpuAccessFlags.Write,
+            };
+            createStage = "led-upload-texture";
+            _gpuLedUploadTexture = _device.CreateTexture2D(ledUploadDesc);
+
+            var ledSrvDesc = ledUploadDesc;
+            ledSrvDesc.Usage = ResourceUsage.Default;
+            ledSrvDesc.BindFlags = BindFlags.ShaderResource;
+            ledSrvDesc.CPUAccessFlags = CpuAccessFlags.None;
+            createStage = "led-color-texture";
+            _gpuLedColorTexture = _device.CreateTexture2D(ledSrvDesc);
+            createStage = "led-color-srv";
+            _gpuLedColorSrv = _device.CreateShaderResourceView(_gpuLedColorTexture);
+
+            var fullDesc = new Texture2DDescription
+            {
+                Width = (uint)Math.Max(1, _surfaceWidth),
+                Height = (uint)Math.Max(1, _surfaceHeight),
+                ArraySize = 1,
+                MipLevels = 1,
+                Format = DxgiFormat.R8G8B8A8_UNorm,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
+                CPUAccessFlags = CpuAccessFlags.None,
+            };
+            createStage = "base-texture";
+            _gpuBaseTexture = _device.CreateTexture2D(fullDesc);
+            createStage = "base-srv";
+            _gpuBaseSrv = _device.CreateShaderResourceView(_gpuBaseTexture);
+            createStage = "base-rtv";
+            _gpuBaseRtv = _device.CreateRenderTargetView(_gpuBaseTexture);
+
+            fullDesc.Usage = ResourceUsage.Default;
+            fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
+            fullDesc.CPUAccessFlags = CpuAccessFlags.None;
+            // Conversational note: some drivers reject shared textures for this format/usage, so we gracefully fall back to a non-shared composite target.
+            try
+            {
+                createStage = "composite-shared-texture";
+                fullDesc.MiscFlags = ResourceOptionFlags.Shared;
+                _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
+            }
+            catch (Exception ex)
+            {
+                createStage = "composite-nonshared-fallback";
+                fullDesc.MiscFlags = ResourceOptionFlags.None;
+                _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
+                _directPresentStatus = $"disabled:interop-shared-texture-unsupported:{ex.GetType().Name}";
+                AppLogger.Warn($"[renderer] gpu direct present unavailable; shared composite texture not supported on this device. reason={ex.Message}");
+            }
+
+            createStage = "composite-srv";
+            _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
+            createStage = "composite-rtv";
+            _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
+
+            fullDesc.Usage = ResourceUsage.Staging;
+            fullDesc.BindFlags = BindFlags.None;
+            fullDesc.CPUAccessFlags = CpuAccessFlags.Read;
+            fullDesc.MiscFlags = ResourceOptionFlags.None;
+            createStage = "readback-texture";
+            _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
         }
         catch (Exception ex)
         {
-            fullDesc.MiscFlags = ResourceOptionFlags.None;
-            _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
-            _directPresentStatus = $"disabled:interop-shared-texture-unsupported:{ex.GetType().Name}";
-            AppLogger.Warn($"[renderer] gpu direct present unavailable; shared composite texture not supported on this device. reason={ex.Message}");
+            throw new InvalidOperationException($"CreateBaseAndCompositeTargets failed at stage='{createStage}' width={_surfaceWidth} height={_surfaceHeight}.", ex);
         }
-
-        _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
-        _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
-
-        fullDesc.Usage = ResourceUsage.Staging;
-        fullDesc.BindFlags = BindFlags.None;
-        fullDesc.CPUAccessFlags = CpuAccessFlags.Read;
-        fullDesc.MiscFlags = ResourceOptionFlags.None;
-        _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
     }
 
     private void CreateBloomIntermediateTargets(int width, int height)
