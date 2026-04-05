@@ -143,6 +143,7 @@ public partial class App : Application
             return;
         }
 
+        var previousRenderer = _config.Matrix.Renderer;
         var originalWidth = _config.Matrix.Width;
         var originalHeight = _config.Matrix.Height;
 
@@ -161,6 +162,18 @@ public partial class App : Application
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
+        }
+
+        if (previousRenderer.Equals("gpu", StringComparison.OrdinalIgnoreCase) &&
+            _config.Matrix.Renderer.Equals("cpu", StringComparison.OrdinalIgnoreCase))
+        {
+            PersistWindowSettings();
+            MessageBox.Show(_window,
+                "CPU renderer selection was saved. Please restart Virtual DOF Matrix for the renderer change to take effect reliably.",
+                "Restart required for GPU -> CPU switch",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
         }
 
         _window.ApplyRuntimeSettings();
