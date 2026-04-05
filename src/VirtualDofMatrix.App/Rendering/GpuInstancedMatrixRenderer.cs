@@ -31,12 +31,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11Texture2D? _gpuLedColorTexture;
     private ID3D11ShaderResourceView? _gpuLedColorSrv;
     private ID3D11UnorderedAccessView? _gpuLedColorUav;
+    private ID3D11RenderTargetView? _gpuLedColorRtv;
     private ID3D11Texture2D? _gpuLedReadbackTexture;
-    private ID3D11Buffer? _gpuRawLedByteBuffer;
-    private ID3D11ShaderResourceView? _gpuRawLedByteSrv;
-    private ID3D11Buffer? _gpuPrevLedBuffer;
+    private ID3D11Texture2D? _gpuRawLedTexture;
+    private ID3D11ShaderResourceView? _gpuRawLedSrv;
+    private ID3D11Texture2D? _gpuPrevLedTexture;
     private ID3D11UnorderedAccessView? _gpuPrevLedUav;
-    private ID3D11Buffer? _gpuLogicalToRasterBuffer;
+    private ID3D11Texture2D? _gpuLogicalToRasterTexture;
     private ID3D11ShaderResourceView? _gpuLogicalToRasterSrv;
     private ID3D11Buffer? _gpuPreprocessConstantsBuffer;
     private ID3D11ComputeShader? _gpuPreprocessShader;
@@ -100,7 +101,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private float[] _dotBodyMask = Array.Empty<float>();
     private float[] _dotCoreMask = Array.Empty<float>();
     private float[] _dotSpecularMask = Array.Empty<float>();
-    private readonly byte[] _zeroClear = new byte[4];
+    private static readonly Color4 BlackClearColor = new(0f, 0f, 0f, 0f);
     private byte[] _bgra = Array.Empty<byte>();
     private byte[] _rawRgbUpload = Array.Empty<byte>();
     private byte[] _cpuLedReadback = Array.Empty<byte>();
@@ -275,21 +276,30 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         Array.Clear(_bgra, 0, _bgra.Length);
-        if (_context is not null && _gpuLedColorUav is not null)
+        if (_context is not null && _gpuLedColorRtv is not null)
         {
-            _context.ClearUnorderedAccessViewUint(_gpuLedColorUav, _zeroClear);
+            _context.ClearRenderTargetView(_gpuLedColorRtv, BlackClearColor);
         }
-        if (_context is not null && _gpuPrevLedUav is not null)
+        if (_context is not null && _gpuPrevLedTexture is not null)
         {
-            _context.ClearUnorderedAccessViewUint(_gpuPrevLedUav, _zeroClear);
+            var prevInit = new byte[Math.Max(16, _width * _height * 16)];
+            var prevHandle = GCHandle.Alloc(prevInit, GCHandleType.Pinned);
+            try
+            {
+                _context.UpdateSubresource(_gpuPrevLedTexture, 0, null, prevHandle.AddrOfPinnedObject(), (uint)Math.Max(16, _width * 16), 0);
+            }
+            finally
+            {
+                prevHandle.Free();
+            }
         }
         _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
     }
 
     private void DispatchLedPreprocess(ReadOnlySpan<byte> rgb, int ledCount, DotStyleConfig style)
     {
-        if (_context is null || _gpuRawLedByteBuffer is null || _gpuLedColorUav is null ||
-            _gpuRawLedByteSrv is null || _gpuLogicalToRasterSrv is null || _gpuPrevLedUav is null ||
+        if (_context is null || _gpuRawLedTexture is null || _gpuLedColorUav is null || _gpuLedColorRtv is null ||
+            _gpuRawLedSrv is null || _gpuLogicalToRasterSrv is null || _gpuPrevLedUav is null ||
             _gpuPreprocessConstantsBuffer is null || _gpuPreprocessShader is null)
         {
             return;
@@ -305,7 +315,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var handle = GCHandle.Alloc(_rawRgbUpload, GCHandleType.Pinned);
         try
         {
-            _context.UpdateSubresource(_gpuRawLedByteBuffer, 0, null, handle.AddrOfPinnedObject(), (uint)_rawRgbUpload.Length, 0);
+            _context.UpdateSubresource(_gpuRawLedTexture, 0, null, handle.AddrOfPinnedObject(), (uint)_rawRgbUpload.Length, 0);
         }
         finally
         {
@@ -314,10 +324,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         var constants = new LedPreprocessGpuConstants
         {
-            LedCount = ledCount,
-            RasterCount = _width * _height,
-            Width = _width,
-            Height = _height,
+            LedCount = (uint)ledCount,
+            RasterCount = (uint)(_width * _height),
+            Width = (uint)_width,
+            Height = (uint)_height,
             SmoothingEnabled = style.TemporalSmoothing.Enabled ? 1u : 0u,
             RiseAlpha = (float)Math.Clamp(style.TemporalSmoothing.RiseAlpha, 0.0, 1.0),
             FallAlpha = (float)Math.Clamp(style.TemporalSmoothing.FallAlpha, 0.0, 1.0),
@@ -340,10 +350,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         // Conversational note: every dispatch starts from a black raster so short packets cannot leave stale LED colors behind.
-        _context.ClearUnorderedAccessViewUint(_gpuLedColorUav, _zeroClear);
+        _context.ClearRenderTargetView(_gpuLedColorRtv, BlackClearColor);
         _context.CSSetShader(_gpuPreprocessShader);
         _context.CSSetConstantBuffer(1, _gpuPreprocessConstantsBuffer);
-        _context.CSSetShaderResource(0, _gpuRawLedByteSrv);
+        _context.CSSetShaderResource(0, _gpuRawLedSrv);
         _context.CSSetShaderResource(1, _gpuLogicalToRasterSrv);
         _context.CSSetUnorderedAccessView(0, _gpuPrevLedUav);
         _context.CSSetUnorderedAccessView(1, _gpuLedColorUav);
@@ -813,10 +823,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         return _gpuDotPassSupported &&
                _context is not null &&
                _gpuLedColorTexture is not null &&
+               _gpuLedColorRtv is not null &&
                _gpuLedColorUav is not null &&
                _gpuLedColorSrv is not null &&
-               _gpuRawLedByteBuffer is not null &&
-               _gpuRawLedByteSrv is not null &&
+               _gpuRawLedTexture is not null &&
+               _gpuRawLedSrv is not null &&
                _gpuPreprocessConstantsBuffer is not null &&
                _gpuPreprocessShader is not null &&
                _gpuBaseRtv is not null &&
@@ -1624,6 +1635,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _gpuLedColorSrv = _device.CreateShaderResourceView(_gpuLedColorTexture);
             createStage = "led-color-uav";
             _gpuLedColorUav = _device.CreateUnorderedAccessView(_gpuLedColorTexture);
+            createStage = "led-color-rtv";
+            _gpuLedColorRtv = _device.CreateRenderTargetView(_gpuLedColorTexture);
 
             var ledReadbackDesc = ledTextureDesc;
             ledReadbackDesc.Usage = ResourceUsage.Staging;
@@ -1632,34 +1645,43 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             createStage = "led-readback-texture";
             _gpuLedReadbackTexture = _device.CreateTexture2D(ledReadbackDesc);
 
-            var rawByteDesc = new BufferDescription((uint)Math.Max(1, _width * _height * Channels), BindFlags.ShaderResource, ResourceUsage.Default, CpuAccessFlags.None, ResourceOptionFlags.BufferAllowRawViews, 0);
-            createStage = "raw-led-byte-buffer";
-            _gpuRawLedByteBuffer = _device.CreateBuffer(rawByteDesc);
-            createStage = "raw-led-byte-srv";
-            _gpuRawLedByteSrv = _device.CreateShaderResourceView(_gpuRawLedByteBuffer, new ShaderResourceViewDescription(_gpuRawLedByteBuffer, ShaderResourceViewDimension.BufferEx, DxgiFormat.R8_UInt)
+            var rawRgbDesc = new Texture2DDescription
             {
-                BufferEx = new BufferExShaderResourceView
-                {
-                    FirstElement = 0,
-                    NumElements = (uint)Math.Max(1, _width * _height * Channels),
-                    Flags = BufferExShaderResourceViewFlags.None,
-                },
-            });
+                Width = (uint)Math.Max(1, _width * _height * Channels),
+                Height = 1,
+                ArraySize = 1,
+                MipLevels = 1,
+                Format = DxgiFormat.R8_UInt,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.ShaderResource,
+            };
+            createStage = "raw-led-texture";
+            _gpuRawLedTexture = _device.CreateTexture2D(rawRgbDesc);
+            createStage = "raw-led-srv";
+            _gpuRawLedSrv = _device.CreateShaderResourceView(_gpuRawLedTexture);
 
-            var prevBufferDesc = new BufferDescription((uint)Math.Max(16, _width * _height * 16), BindFlags.UnorderedAccess, ResourceUsage.Default, CpuAccessFlags.None, ResourceOptionFlags.BufferStructured, 16);
-            createStage = "prev-led-buffer";
-            _gpuPrevLedBuffer = _device.CreateBuffer(prevBufferDesc);
-            createStage = "prev-led-uav";
-            _gpuPrevLedUav = _device.CreateUnorderedAccessView(_gpuPrevLedBuffer, new UnorderedAccessViewDescription(_gpuPrevLedBuffer, UnorderedAccessViewDimension.Buffer, DxgiFormat.Unknown)
+            var prevDesc = new Texture2DDescription
             {
-                Buffer = new BufferUnorderedAccessView { FirstElement = 0, NumElements = (uint)Math.Max(1, _width * _height) },
-            });
+                Width = (uint)Math.Max(1, _width),
+                Height = (uint)Math.Max(1, _height),
+                ArraySize = 1,
+                MipLevels = 1,
+                Format = DxgiFormat.R32G32B32A32_Float,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.UnorderedAccess,
+            };
+            createStage = "prev-led-texture";
+            _gpuPrevLedTexture = _device.CreateTexture2D(prevDesc);
+            createStage = "prev-led-uav";
+            _gpuPrevLedUav = _device.CreateUnorderedAccessView(_gpuPrevLedTexture);
             // Conversational note: zeroing this buffer ensures smoothing starts from dark pixels on first frame.
             var prevInit = new byte[Math.Max(16, _width * _height * 16)];
             var prevHandle = GCHandle.Alloc(prevInit, GCHandleType.Pinned);
             try
             {
-                _context?.UpdateSubresource(_gpuPrevLedBuffer, 0, null, prevHandle.AddrOfPinnedObject(), 0, 0);
+                _context?.UpdateSubresource(_gpuPrevLedTexture, 0, null, prevHandle.AddrOfPinnedObject(), (uint)Math.Max(16, _width * 16), 0);
             }
             finally
             {
@@ -1674,9 +1696,19 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             var mappingHandle = GCHandle.Alloc(mappingData, GCHandleType.Pinned);
             try
             {
-                var mappingDesc = new BufferDescription((uint)Math.Max(16, mappingData.Length * sizeof(int)), BindFlags.ShaderResource, ResourceUsage.Immutable, CpuAccessFlags.None, ResourceOptionFlags.BufferStructured, sizeof(int));
-                createStage = "logical-to-raster-buffer";
-                _gpuLogicalToRasterBuffer = _device.CreateBuffer(mappingDesc, new SubresourceData(mappingHandle.AddrOfPinnedObject(), 0, 0));
+                var mappingDesc = new Texture2DDescription
+                {
+                    Width = (uint)Math.Max(1, _width),
+                    Height = (uint)Math.Max(1, _height),
+                    ArraySize = 1,
+                    MipLevels = 1,
+                    Format = DxgiFormat.R32_SInt,
+                    SampleDescription = new SampleDescription(1, 0),
+                    Usage = ResourceUsage.Immutable,
+                    BindFlags = BindFlags.ShaderResource,
+                };
+                createStage = "logical-to-raster-texture";
+                _gpuLogicalToRasterTexture = _device.CreateTexture2D(mappingDesc, new SubresourceData(mappingHandle.AddrOfPinnedObject(), (uint)Math.Max(sizeof(int), _width * sizeof(int)), 0));
             }
             finally
             {
@@ -1684,10 +1716,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             createStage = "logical-to-raster-srv";
-            _gpuLogicalToRasterSrv = _device.CreateShaderResourceView(_gpuLogicalToRasterBuffer, new ShaderResourceViewDescription(_gpuLogicalToRasterBuffer, ShaderResourceViewDimension.Buffer, DxgiFormat.Unknown)
-            {
-                Buffer = new BufferShaderResourceView { FirstElement = 0, NumElements = (uint)Math.Max(1, mappingData.Length) },
-            });
+            _gpuLogicalToRasterSrv = _device.CreateShaderResourceView(_gpuLogicalToRasterTexture);
 
             var fullDesc = new Texture2DDescription
             {
@@ -1792,6 +1821,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         DisposeBloomIntermediateTargets();
         _gpuReadbackTexture?.Dispose();
         _gpuReadbackTexture = null;
+        _gpuLedColorRtv?.Dispose();
+        _gpuLedColorRtv = null;
         _gpuCompositeSrv?.Dispose();
         _gpuCompositeSrv = null;
         _gpuCompositeRtv?.Dispose();
@@ -1800,16 +1831,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuCompositeTexture = null;
         _gpuLogicalToRasterSrv?.Dispose();
         _gpuLogicalToRasterSrv = null;
-        _gpuLogicalToRasterBuffer?.Dispose();
-        _gpuLogicalToRasterBuffer = null;
+        _gpuLogicalToRasterTexture?.Dispose();
+        _gpuLogicalToRasterTexture = null;
         _gpuPrevLedUav?.Dispose();
         _gpuPrevLedUav = null;
-        _gpuPrevLedBuffer?.Dispose();
-        _gpuPrevLedBuffer = null;
-        _gpuRawLedByteSrv?.Dispose();
-        _gpuRawLedByteSrv = null;
-        _gpuRawLedByteBuffer?.Dispose();
-        _gpuRawLedByteBuffer = null;
+        _gpuPrevLedTexture?.Dispose();
+        _gpuPrevLedTexture = null;
+        _gpuRawLedSrv?.Dispose();
+        _gpuRawLedSrv = null;
+        _gpuRawLedTexture?.Dispose();
+        _gpuRawLedTexture = null;
         _gpuLedReadbackTexture?.Dispose();
         _gpuLedReadbackTexture = null;
         _gpuLedColorUav?.Dispose();
@@ -1973,9 +2004,9 @@ cbuffer LedPreprocessConstants : register(b1)
 Texture2D BaseTexture : register(t0);
 Texture2D NearTexture : register(t1);
 Texture2D FarTexture : register(t2);
-Buffer<uint> RawLedBytes : register(t3);
-StructuredBuffer<int> LogicalToRaster : register(t4);
-RWStructuredBuffer<float4> PrevFrameRgb : register(u0);
+Texture2D<uint> RawLedBytes : register(t3);
+Texture2D<int> LogicalToRaster : register(t4);
+RWTexture2D<float4> PrevFrameRgb : register(u0);
 RWTexture2D<float4> LedOutputTexture : register(u1);
 SamplerState LinearSampler : register(s0);
 struct VsOut
@@ -2149,15 +2180,16 @@ void CSPreprocessLeds(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (logical >= LedCount || logical >= RasterCount) return;
 
     uint byteOffset = logical * 3u;
+    uint2 logicalCoord = uint2(logical % max(1u, LedWidth), logical / max(1u, LedWidth));
     float3 target = float3(
-        ToneMapChannel(RawLedBytes[byteOffset + 0]),
-        ToneMapChannel(RawLedBytes[byteOffset + 1]),
-        ToneMapChannel(RawLedBytes[byteOffset + 2]));
+        ToneMapChannel(RawLedBytes[uint2(byteOffset + 0, 0)]),
+        ToneMapChannel(RawLedBytes[uint2(byteOffset + 1, 0)]),
+        ToneMapChannel(RawLedBytes[uint2(byteOffset + 2, 0)]));
 
     float3 smoothed = target;
     if (SmoothingEnabled > 0)
     {
-        float3 current = PrevFrameRgb[logical].rgb;
+        float3 current = PrevFrameRgb[logicalCoord].rgb;
         [unroll]
         for (int c = 0; c < 3; c++)
         {
@@ -2179,8 +2211,8 @@ void CSPreprocessLeds(uint3 dispatchThreadId : SV_DispatchThreadID)
         }
     }
 
-    PrevFrameRgb[logical] = float4(smoothed, 1.0f);
-    int rasterIndex = LogicalToRaster[logical];
+    PrevFrameRgb[logicalCoord] = float4(smoothed, 1.0f);
+    int rasterIndex = LogicalToRaster[logicalCoord];
     if (rasterIndex < 0 || rasterIndex >= (int)RasterCount) return;
     uint raster = (uint)rasterIndex;
     uint x = raster % max(1u, LedWidth);
