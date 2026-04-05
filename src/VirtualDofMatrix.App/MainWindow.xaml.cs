@@ -101,7 +101,8 @@ public partial class MainWindow : Window
         _matrixRenderer.UpdateFrame(presentation);
         // Render() is intentionally lightweight now (CPU compose happens off-thread), so ApplyPresentation stays responsive.
         var now = DateTimeOffset.UtcNow;
-        if (_forcedRenderBurstsRemaining > 0 || (now - _lastRenderUtc) >= MinRenderInterval)
+        var isCpuBackend = _matrixRenderer.BackendName.Equals("cpu", StringComparison.OrdinalIgnoreCase);
+        if (isCpuBackend || _forcedRenderBurstsRemaining > 0 || (now - _lastRenderUtc) >= MinRenderInterval)
         {
             _matrixRenderer.Render();
             _lastRenderUtc = now;
