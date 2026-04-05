@@ -6,6 +6,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Vortice.D3DCompiler;
+using Vortice.Direct3D9;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
@@ -59,8 +60,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11Texture2D? _gpuReadbackTexture;
     private D3DImage? _directPresentImage;
     private bool _directPresentEnabled;
+    private bool _directPresentInteropAvailable;
     private bool _directPresentParityValidated;
     private string _directPresentStatus = "uninitialized";
+    private IDirect3D9Ex? _direct3D9Ex;
+    private IDirect3DDevice9Ex? _direct3D9Device;
+    private IDirect3DTexture9? _direct3D9SharedTexture;
+    private IDirect3DSurface9? _direct3D9SharedSurface;
     private bool _gpuBloomSupported;
     private bool _gpuDotPassSupported;
     private bool _useCpuBloomFallback;
@@ -172,6 +178,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _host.Stretch = Stretch.Fill;
         _directPresentImage = null;
         _directPresentEnabled = false;
+        _directPresentInteropAvailable = false;
         _directPresentParityValidated = false;
         _directPresentStatus = "waiting-for-bloom-init";
         InitializeGpuBloomPipeline();
@@ -711,6 +718,18 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
+        if (_style?.Visual.ForceLegacyReadbackPresent is true)
+        {
+            if (_directPresentStatus != "forced:legacy-readback")
+            {
+                // Conversational note: this switch is a user escape hatch for systems where WPF interop is flaky.
+                _directPresentStatus = "forced:legacy-readback";
+                AppLogger.Info("[renderer] gpu direct present bypassed by config; using legacy readback.");
+            }
+
+            return TryReadbackCompositeToCpu(trace);
+        }
+
         // Conversational note: when direct present is online, we intentionally avoid GPU->CPU readback.
         if (_directPresentEnabled && _directPresentImage is not null && _host is not null)
         {
@@ -734,9 +753,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             catch (Exception ex)
             {
                 _directPresentEnabled = false;
-                _directPresentStatus = $"disabled:present-failed:{ex.GetType().Name}";
+                _directPresentStatus = $"disabled:interop-present-failed:{ex.GetType().Name}";
                 AppLogger.Warn($"[renderer] gpu direct present disabled during frame; falling back to readback. reason={ex.Message}");
             }
+        }
+
+        if (_directPresentInteropAvailable && !_directPresentEnabled)
+        {
+            trace.Append(" interop-disabled-fallback-readback");
         }
 
         return TryReadbackCompositeToCpu(trace);
@@ -1374,7 +1398,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private void TryInitializeDirectPresentSurface()
     {
         _directPresentEnabled = false;
+        _directPresentInteropAvailable = false;
         _directPresentImage = null;
+        _direct3D9SharedSurface?.Dispose();
+        _direct3D9SharedSurface = null;
+        _direct3D9SharedTexture?.Dispose();
+        _direct3D9SharedTexture = null;
+        _direct3D9Device?.Dispose();
+        _direct3D9Device = null;
+        _direct3D9Ex?.Dispose();
+        _direct3D9Ex = null;
 
         if (_gpuCompositeTexture is null || _host is null)
         {
@@ -1385,18 +1418,110 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         try
         {
-            // Conversational note: D3DImage expects a D3D9 surface pointer. Our D3D11-only build cannot bind it directly yet.
-            // We still centralize this initialization so the renderer cleanly falls back today and can be upgraded in one place.
+            // Conversational note: WPF's D3DImage only accepts a D3D9 surface, so we bridge from our D3D11 composite texture via a shared handle.
+            using var dxgiResource = _gpuCompositeTexture.QueryInterfaceOrNull<IDXGIResource>();
+            if (dxgiResource is null)
+            {
+                _directPresentStatus = "disabled:interop-missing-dxgi-resource";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            var sharedHandle = dxgiResource.SharedHandle;
+            if (sharedHandle == IntPtr.Zero)
+            {
+                _directPresentStatus = "disabled:interop-missing-shared-handle";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            _direct3D9Ex = D3D9.Direct3DCreate9Ex();
+            if (_direct3D9Ex is null)
+            {
+                _directPresentStatus = "disabled:interop-d3d9ex-create-failed";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            var hostHandle = (PresentationSource.FromVisual(_host) as HwndSource)?.Handle ?? IntPtr.Zero;
+            if (hostHandle == IntPtr.Zero)
+            {
+                _directPresentStatus = "disabled:interop-missing-hwnd";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            var presentParameters = new PresentParameters
+            {
+                Windowed = true,
+                SwapEffect = SwapEffect.Discard,
+                DeviceWindowHandle = hostHandle,
+                PresentationInterval = PresentInterval.Immediate,
+            };
+
+            _direct3D9Device = _direct3D9Ex.CreateDeviceEx(
+                0,
+                DeviceType.Hardware,
+                hostHandle,
+                CreateFlags.HardwareVertexProcessing | CreateFlags.Multithreaded | CreateFlags.FpuPreserve,
+                presentParameters,
+                null);
+
+            if (_direct3D9Device is null)
+            {
+                _directPresentStatus = "disabled:interop-d3d9ex-device-create-failed";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            _direct3D9SharedTexture = _direct3D9Device.CreateTexture(
+                Math.Max(1, _surfaceWidth),
+                Math.Max(1, _surfaceHeight),
+                1,
+                Usage.RenderTarget,
+                Format.A8R8G8B8,
+                Pool.Default,
+                ref sharedHandle);
+
+            if (_direct3D9SharedTexture is null)
+            {
+                _directPresentStatus = "disabled:interop-shared-texture-open-failed";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
+            _direct3D9SharedSurface = _direct3D9SharedTexture.GetSurfaceLevel(0);
+            if (_direct3D9SharedSurface is null)
+            {
+                _directPresentStatus = "disabled:interop-shared-surface-unavailable";
+                AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+                return;
+            }
+
             _directPresentImage = new D3DImage();
-            _directPresentEnabled = false;
-            _directPresentStatus = "disabled:d3d11-d3dimage-bridge-unavailable";
-            AppLogger.Info($"[renderer] gpu direct present disabled. reason={_directPresentStatus}");
+            _directPresentImage.Lock();
+            _directPresentImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, _direct3D9SharedSurface.NativePointer, enableSoftwareFallback: true);
+            _directPresentImage.Unlock();
+            _host.Source = _directPresentImage;
+            _directPresentInteropAvailable = true;
+            _directPresentEnabled = true;
+            _directPresentStatus = "enabled:interop-d3d11-d3d9ex-shared-surface";
+            AppLogger.Info($"[renderer] gpu direct present enabled. status={_directPresentStatus}");
         }
         catch (Exception ex)
         {
             _directPresentEnabled = false;
+            _directPresentInteropAvailable = false;
             _directPresentImage = null;
-            _directPresentStatus = $"disabled:init-exception:{ex.GetType().Name}";
+            _direct3D9SharedSurface?.Dispose();
+            _direct3D9SharedSurface = null;
+            _direct3D9SharedTexture?.Dispose();
+            _direct3D9SharedTexture = null;
+            _direct3D9Device?.Dispose();
+            _direct3D9Device = null;
+            _direct3D9Ex?.Dispose();
+            _direct3D9Ex = null;
+            _directPresentStatus = $"disabled:interop-init-exception:{ex.GetType().Name}";
             AppLogger.Warn($"[renderer] gpu direct present disabled. reason={ex.Message}");
         }
     }
@@ -1491,6 +1616,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         fullDesc.Usage = ResourceUsage.Default;
         fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
         fullDesc.CPUAccessFlags = CpuAccessFlags.None;
+        // Conversational note: the composite target is shared so D3D9Ex can open it for D3DImage presentation.
+        fullDesc.OptionFlags = ResourceOptionFlags.Shared;
         _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
         _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
         _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
@@ -1498,6 +1625,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         fullDesc.Usage = ResourceUsage.Staging;
         fullDesc.BindFlags = BindFlags.None;
         fullDesc.CPUAccessFlags = CpuAccessFlags.Read;
+        fullDesc.OptionFlags = ResourceOptionFlags.None;
         _gpuReadbackTexture = _device.CreateTexture2D(fullDesc);
     }
 
@@ -1539,6 +1667,17 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private void DisposeGpuBloomResources()
     {
+        _directPresentEnabled = false;
+        _directPresentInteropAvailable = false;
+        _directPresentImage = null;
+        _direct3D9SharedSurface?.Dispose();
+        _direct3D9SharedSurface = null;
+        _direct3D9SharedTexture?.Dispose();
+        _direct3D9SharedTexture = null;
+        _direct3D9Device?.Dispose();
+        _direct3D9Device = null;
+        _direct3D9Ex?.Dispose();
+        _direct3D9Ex = null;
         DisposeBloomIntermediateTargets();
         _gpuReadbackTexture?.Dispose();
         _gpuReadbackTexture = null;

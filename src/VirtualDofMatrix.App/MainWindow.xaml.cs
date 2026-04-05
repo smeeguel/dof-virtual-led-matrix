@@ -256,6 +256,7 @@ public partial class MainWindow : Window
             Visual = new MatrixVisualConfig
             {
                 ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
+                ForceLegacyReadbackPresent = _config.Matrix.Visual.ForceLegacyReadbackPresent,
                 FlatShading = _config.Matrix.Visual.FlatShading,
                 FullBrightnessRadiusMinPct = _config.Matrix.Visual.FullBrightnessRadiusMinPct,
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,

@@ -24,6 +24,7 @@
     },
     "visual": {
       "forceCpuDotRasterFallback": false,
+      "forceLegacyReadbackPresent": false,
       "flatShading": false,
       "fullBrightnessRadiusMinPct": 0.8,
       "offStateTintR": 20,

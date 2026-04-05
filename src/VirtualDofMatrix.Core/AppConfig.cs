@@ -78,6 +78,9 @@ public sealed class MatrixVisualConfig
     // When true, force the renderer to keep CPU dot rasterization for maximum compatibility.
     public bool ForceCpuDotRasterFallback { get; set; } = false;
 
+    // When true, force GPU bloom output to use legacy D3D11->CPU readback instead of D3DImage interop presentation.
+    public bool ForceLegacyReadbackPresent { get; set; } = false;
+
     // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
     public bool FlatShading { get; set; } = false;
 
