@@ -75,11 +75,14 @@ public sealed class TemporalSmoothingConfig
 
 public sealed class MatrixVisualConfig
 {
+    // Preference flag for the planned all-D3D11 swapchain presentation path.
+    public bool PreferD3D11SwapChainPresent { get; set; } = true;
+
     // When true, force the renderer to keep CPU dot rasterization for maximum compatibility.
     public bool ForceCpuDotRasterFallback { get; set; } = false;
 
-    // Runtime capability switch for the shared-surface present bridge (D3D11 -> D3D9Ex -> D3DImage).
-    public bool EnableZeroReadbackPresent { get; set; } = true;
+    // When true, force GPU bloom output to use legacy D3D11->CPU readback instead of direct swapchain presentation.
+    public bool ForceLegacyReadbackPresent { get; set; } = false;
 
     // Experimental quality flag: when true, use a single-pass flat RGB dot render path.
     public bool FlatShading { get; set; } = false;
