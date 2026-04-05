@@ -75,6 +75,12 @@ public sealed class TemporalSmoothingConfig
 
 public sealed class MatrixVisualConfig
 {
+    // Preference flag for the planned all-D3D11 swapchain presentation path.
+    public bool PreferD3D11SwapChainPresent { get; set; } = true;
+
+    // Temporary compatibility flag: allow legacy D3D9Ex interop while D3D11 swapchain hosting is rolled out.
+    public bool AllowLegacyD3D9InteropPresent { get; set; } = true;
+
     // When true, force the renderer to keep CPU dot rasterization for maximum compatibility.
     public bool ForceCpuDotRasterFallback { get; set; } = false;
 

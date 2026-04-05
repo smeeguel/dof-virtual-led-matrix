@@ -255,6 +255,8 @@ public partial class MainWindow : Window
             },
             Visual = new MatrixVisualConfig
             {
+                PreferD3D11SwapChainPresent = _config.Matrix.Visual.PreferD3D11SwapChainPresent,
+                AllowLegacyD3D9InteropPresent = _config.Matrix.Visual.AllowLegacyD3D9InteropPresent,
                 ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                 ForceLegacyReadbackPresent = _config.Matrix.Visual.ForceLegacyReadbackPresent,
                 FlatShading = _config.Matrix.Visual.FlatShading,

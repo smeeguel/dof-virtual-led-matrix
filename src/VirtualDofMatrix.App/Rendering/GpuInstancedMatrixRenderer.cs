@@ -1467,6 +1467,20 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        if (_style?.Visual.PreferD3D11SwapChainPresent is true)
+        {
+            // Conversational note: we keep this marker explicit so logs show intent during the D3D11 swapchain migration.
+            _directPresentStatus = "pending:d3d11-swapchain-presentation";
+            if (!(_style?.Visual.AllowLegacyD3D9InteropPresent ?? true))
+            {
+                _directPresentStatus = "disabled:legacy-d3d9-interop-blocked-by-config";
+                AppLogger.Info("[renderer] gpu direct present deferred to future D3D11 swapchain path; legacy D3D9 interop disabled by config.");
+                return;
+            }
+
+            AppLogger.Info("[renderer] d3d11 swapchain presentation preferred; using temporary legacy D3D9 interop path until swapchain host is enabled.");
+        }
+
         var interopStage = "start";
         try
         {

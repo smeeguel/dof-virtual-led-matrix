@@ -23,6 +23,8 @@
       "fallAlpha": 0.9
     },
     "visual": {
+      "preferD3D11SwapChainPresent": true,
+      "allowLegacyD3D9InteropPresent": true,
       "forceCpuDotRasterFallback": false,
       "forceLegacyReadbackPresent": false,
       "flatShading": false,
