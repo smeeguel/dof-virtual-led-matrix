@@ -1589,9 +1589,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             MipLevels = 1,
             Format = DxgiFormat.R8G8B8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Dynamic,
+            // We feed this texture via UpdateSubresource, so default usage is the valid and intended mode.
+            Usage = ResourceUsage.Default,
             BindFlags = BindFlags.None,
-            CPUAccessFlags = CpuAccessFlags.Write,
+            CPUAccessFlags = CpuAccessFlags.None,
         };
         _gpuLedUploadTexture = _device.CreateTexture2D(ledUploadDesc);
 
