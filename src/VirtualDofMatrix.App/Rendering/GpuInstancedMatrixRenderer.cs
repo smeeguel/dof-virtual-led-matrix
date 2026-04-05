@@ -1013,6 +1013,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
+        var visual = _style?.Visual;
         var constants = new BloomGpuConstants
         {
             Threshold = (float)(profile?.Threshold ?? 0.0),
@@ -1028,6 +1029,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             SurfaceHeight = _surfaceHeight,
             BloomWidth = profile is null ? _width : _downsampleWidth,
             BloomHeight = profile is null ? _height : _downsampleHeight,
+            DotShapeCircle = _style is not null && _style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) ? 1f : 0f,
+            FlatShading = visual?.FlatShading is true ? 1f : 0f,
+            FullBrightnessRadius = (float)Math.Clamp(visual?.FullBrightnessRadiusMinPct ?? 0.8, 0.0, 1.0),
+            OffStateAlpha = (float)Math.Clamp(visual?.OffStateAlpha ?? 0.0, 0.0, 1.0),
+            OffTintR = (visual?.OffStateTintR ?? 0) / 255f,
+            OffTintG = (visual?.OffStateTintG ?? 0) / 255f,
+            OffTintB = (visual?.OffStateTintB ?? 0) / 255f,
+            LensFalloff = (float)Math.Clamp(visual?.LensFalloff ?? 0.45, 0.0, 1.0),
+            SpecularHotspot = (float)Math.Clamp(visual?.SpecularHotspot ?? 0.28, 0.0, 1.0),
+            RimHighlight = (float)Math.Clamp(visual?.RimHighlight ?? 0.22, 0.0, 1.0),
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -1813,6 +1824,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float SurfaceHeight;
         public float BloomWidth;
         public float BloomHeight;
+        public float DotShapeCircle;
+        public float FlatShading;
+        public float FullBrightnessRadius;
+        public float OffStateAlpha;
+        public float OffTintR;
+        public float OffTintG;
+        public float OffTintB;
+        public float LensFalloff;
+        public float SpecularHotspot;
+        public float RimHighlight;
     }
 
     private static class BloomShaders
@@ -1829,6 +1850,14 @@ cbuffer BloomConstants : register(b0)
     float2 Direction;
     float2 SurfaceSize;
     float2 BloomSize;
+    float DotShapeCircle;
+    float FlatShading;
+    float FullBrightnessRadius;
+    float OffStateAlpha;
+    float3 OffTint;
+    float LensFalloff;
+    float SpecularHotspot;
+    float RimHighlight;
 }
 Texture2D BaseTexture : register(t0);
 Texture2D NearTexture : register(t1);
@@ -1871,9 +1900,50 @@ float4 PSDotPass(VsOut input) : SV_Target
     if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(0, 0, 0, 1);
     float2 within = frac(local / stride) * stride;
     if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
+
+    float radial = 0.0f;
+    float edge = 1.0f;
+    if (DotShapeCircle > 0.5f)
+    {
+        float center = (Radius - 1.0f) * 0.5f;
+        float denom = max(0.5f, Radius * 0.5f);
+        float dx = (within.x - center) / denom;
+        float dy = (within.y - center) / denom;
+        radial = sqrt(dx * dx + dy * dy);
+        if (radial > 1.0f) return float4(0, 0, 0, 1);
+        float fullRadius = saturate(FullBrightnessRadius);
+        float adjusted = max(radial, fullRadius);
+        float normalized = (adjusted - fullRadius) / max(0.0001f, 1.0f - fullRadius);
+        edge = saturate(1.0f - normalized);
+    }
+
     float2 ledUv = (ledCoord + 0.5f) / max(BloomSize, float2(1.0f, 1.0f));
     float3 ledColor = BaseTexture.SampleLevel(LinearSampler, ledUv, 0).rgb;
-    return float4(ledColor, 1.0f);
+    float intensity = saturate(max(ledColor.r, max(ledColor.g, ledColor.b)));
+    float offBlend = 1.0f - (intensity * intensity);
+    float hasOffState = OffStateAlpha > 0.0001f && max(OffTint.r, max(OffTint.g, OffTint.b)) > 0.0f ? 1.0f : 0.0f;
+    if (hasOffState < 0.5f && intensity <= 0.0f) return float4(0, 0, 0, 1);
+
+    if (FlatShading > 0.5f)
+    {
+        float3 flatColor = (OffTint * OffStateAlpha * offBlend) + ledColor;
+        return float4(saturate(flatColor), 1.0f);
+    }
+
+    float rootIntensity = sqrt(intensity);
+    float coreOpacity = intensity > 0.0f ? saturate(0.35f + (rootIntensity * 0.65f)) : 0.0f;
+    float specOpacity = intensity > 0.0f ? saturate((rootIntensity * 0.45f) + 0.08f) : 0.0f;
+    float body = OffStateAlpha * ((0.25f + (0.55f * pow(edge, 0.5f + LensFalloff))) + (RimHighlight * 0.08f * (1.0f - edge)));
+    float core = pow(edge, 1.1f + (LensFalloff * 1.6f)) * coreOpacity;
+
+    float hx = (within.x / max(1.0f, Radius - 1.0f)) - 0.50f;
+    float hy = (within.y / max(1.0f, Radius - 1.0f)) - 0.35f;
+    float hotspotDist2 = (hx * hx) + (hy * hy);
+    float specMask = exp(-hotspotDist2 / max(0.01f, 0.02f + (0.12f * SpecularHotspot))) * (0.35f + (0.55f * SpecularHotspot));
+    float spec = specMask * specOpacity;
+
+    float3 outColor = (OffTint * body * offBlend) + (ledColor * core) + spec.xxx;
+    return float4(saturate(outColor), 1.0f);
 }
 float SoftKneeWeight(float3 color)
 {
