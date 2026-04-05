@@ -30,7 +30,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11ShaderResourceView? _frameSrv;
     private ID3D11Texture2D? _gpuLedColorTexture;
     private ID3D11ShaderResourceView? _gpuLedColorSrv;
-    private ID3D11Texture2D? _gpuLedUploadTexture;
+    private ID3D11UnorderedAccessView? _gpuLedColorUav;
+    private ID3D11Texture2D? _gpuLedReadbackTexture;
+    private ID3D11Buffer? _gpuRawLedByteBuffer;
+    private ID3D11ShaderResourceView? _gpuRawLedByteSrv;
+    private ID3D11Buffer? _gpuPrevLedBuffer;
+    private ID3D11UnorderedAccessView? _gpuPrevLedUav;
+    private ID3D11Buffer? _gpuLogicalToRasterBuffer;
+    private ID3D11ShaderResourceView? _gpuLogicalToRasterSrv;
+    private ID3D11Buffer? _gpuPreprocessConstantsBuffer;
+    private ID3D11ComputeShader? _gpuPreprocessShader;
     private ID3D11SamplerState? _linearSampler;
     private ID3D11VertexShader? _fullscreenVertexShader;
     private ID3D11PixelShader? _dotPassShader;
@@ -91,22 +100,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private float[] _dotBodyMask = Array.Empty<float>();
     private float[] _dotCoreMask = Array.Empty<float>();
     private float[] _dotSpecularMask = Array.Empty<float>();
-    private byte[] _ledBgra = Array.Empty<byte>();
+    private readonly byte[] _zeroClear = new byte[4];
     private byte[] _bgra = Array.Empty<byte>();
-    private float[] _smoothedRgb = Array.Empty<float>();
-    private float[] _workingRgb = Array.Empty<float>();
+    private byte[] _rawRgbUpload = Array.Empty<byte>();
+    private byte[] _cpuLedReadback = Array.Empty<byte>();
     private float[] _screenBloomSourceRgb = Array.Empty<float>();
     private float[] _screenBloomNearRgb = Array.Empty<float>();
     private float[] _screenBloomFarRgb = Array.Empty<float>();
     private float[] _screenBloomScratchRgb = Array.Empty<float>();
     private int _downsampleWidth;
     private int _downsampleHeight;
-    private readonly byte[] _toneMapLut = new byte[256];
-    private double _lutBrightness = double.NaN;
-    private double _lutGamma = double.NaN;
-    private bool _lutToneEnabled;
-    private double _lutKneeStart = double.NaN;
-    private double _lutToneStrength = double.NaN;
 
     public string BackendName => "gpu";
 
@@ -124,10 +127,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _style = dotStyleConfig;
         _logicalToRaster = MatrixFrameIndexMap.BuildLogicalToRasterMap(width, height, dotStyleConfig.Mapping);
         ConfigureDotSurface(dotStyleConfig, width, height);
-        _ledBgra = new byte[checked(width * height * 4)];
         _bgra = new byte[checked(_surfaceWidth * _surfaceHeight * 4)];
-        _smoothedRgb = new float[checked(width * height * Channels)];
-        _workingRgb = new float[checked(width * height * Channels)];
+        _rawRgbUpload = new byte[checked(width * height * Channels)];
+        _cpuLedReadback = new byte[checked(width * height * 4)];
         _screenBloomSourceRgb = Array.Empty<float>();
         _screenBloomNearRgb = Array.Empty<float>();
         _screenBloomFarRgb = Array.Empty<float>();
@@ -213,41 +215,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
         _lastOutputSequence = frame.OutputSequence;
 
-        BuildToneMapLutIfNeeded(_style);
-        Array.Clear(_workingRgb, 0, _workingRgb.Length);
-
         var rgb = frame.RgbMemory.Span;
         var ledCount = Math.Min(_logicalToRaster.Length, rgb.Length / Channels);
-        var smoothing = _style.TemporalSmoothing;
-        var smoothingEnabled = smoothing.Enabled;
-        var rise = (float)Math.Clamp(smoothing.RiseAlpha, 0.0, 1.0);
-        var fall = (float)Math.Clamp(smoothing.FallAlpha, 0.0, 1.0);
-
-        for (var logical = 0; logical < ledCount; logical++)
-        {
-            var src = logical * Channels;
-            var smoothingOffset = logical * Channels;
-            var r = ApplySmoothing(smoothingOffset, _toneMapLut[rgb[src]], rise, fall, smoothingEnabled);
-            var g = ApplySmoothing(smoothingOffset + 1, _toneMapLut[rgb[src + 1]], rise, fall, smoothingEnabled);
-            var b = ApplySmoothing(smoothingOffset + 2, _toneMapLut[rgb[src + 2]], rise, fall, smoothingEnabled);
-
-            var raster = _logicalToRaster[logical];
-            if ((uint)raster >= (uint)(_width * _height))
-            {
-                continue;
-            }
-
-            var rasterOffset = raster * Channels;
-            _workingRgb[rasterOffset] = r;
-            _workingRgb[rasterOffset + 1] = g;
-            _workingRgb[rasterOffset + 2] = b;
-        }
+        DispatchLedPreprocess(rgb, ledCount, _style);
 
         var useGpuDotPass = ShouldUseGpuDotPass(_style);
         if (useGpuDotPass)
         {
-            // Conversational note: this path uploads mapped LED colors and lets the GPU shade dot geometry per pixel.
-            UploadLogicalLedBufferToGpu();
+            // Conversational note: preprocessing now writes directly into the GPU LED texture, so we go straight to dot shading.
             if (!RenderGpuDotsToBaseTexture())
             {
                 useGpuDotPass = false;
@@ -259,12 +234,17 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             // Conversational note: compatibility path keeps the original CPU dot raster behavior exactly intact.
             Array.Clear(_bgra, 0, _bgra.Length);
             EnsureOpaqueBackground(_bgra);
+            if (!TryReadProcessedLedsToCpu())
+            {
+                return;
+            }
+
             for (var raster = 0; raster < _width * _height; raster++)
             {
-                var rasterOffset = raster * Channels;
-                var r = _workingRgb[rasterOffset];
-                var g = _workingRgb[rasterOffset + 1];
-                var b = _workingRgb[rasterOffset + 2];
+                var ledOffset = raster * 4;
+                var r = _cpuLedReadback[ledOffset];
+                var g = _cpuLedReadback[ledOffset + 1];
+                var b = _cpuLedReadback[ledOffset + 2];
                 var baseX = _dotPadding + ((raster % _width) * _dotStride);
                 var baseY = _dotPadding + ((raster / _width) * _dotStride);
                 RasterFastDot(baseX, baseY, r, g, b);
@@ -294,73 +274,104 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        Array.Clear(_smoothedRgb, 0, _smoothedRgb.Length);
         Array.Clear(_bgra, 0, _bgra.Length);
+        if (_context is not null && _gpuLedColorUav is not null)
+        {
+            _context.ClearUnorderedAccessViewUint(_gpuLedColorUav, _zeroClear);
+        }
+        if (_context is not null && _gpuPrevLedUav is not null)
+        {
+            _context.ClearUnorderedAccessViewUint(_gpuPrevLedUav, _zeroClear);
+        }
         _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
     }
 
-    private float ApplySmoothing(int channel, byte targetByte, float rise, float fall, bool enabled)
+    private void DispatchLedPreprocess(ReadOnlySpan<byte> rgb, int ledCount, DotStyleConfig style)
     {
-        var target = targetByte;
-        if (!enabled)
-        {
-            _smoothedRgb[channel] = target;
-            return target;
-        }
-
-        var current = _smoothedRgb[channel];
-        if (targetByte == byte.MaxValue)
-        {
-            _smoothedRgb[channel] = byte.MaxValue;
-            return byte.MaxValue;
-        }
-
-        var delta = target - current;
-        var alpha = delta >= 0 ? rise : fall;
-        var next = current + (alpha * delta);
-        if (targetByte == 0 && next <= TemporalSmoothingOffSnapThreshold)
-        {
-            next = 0f;
-        }
-
-        _smoothedRgb[channel] = next;
-        return next;
-    }
-
-    private void BuildToneMapLutIfNeeded(DotStyleConfig style)
-    {
-        if (_lutBrightness.Equals(style.Brightness) &&
-            _lutGamma.Equals(style.Gamma) &&
-            _lutToneEnabled == style.ToneMapping.Enabled &&
-            _lutKneeStart.Equals(style.ToneMapping.KneeStart) &&
-            _lutToneStrength.Equals(style.ToneMapping.Strength))
+        if (_context is null || _gpuRawLedByteBuffer is null || _gpuLedColorUav is null ||
+            _gpuRawLedByteSrv is null || _gpuLogicalToRasterSrv is null || _gpuPrevLedUav is null ||
+            _gpuPreprocessConstantsBuffer is null || _gpuPreprocessShader is null)
         {
             return;
         }
 
-        _lutBrightness = style.Brightness;
-        _lutGamma = style.Gamma;
-        _lutToneEnabled = style.ToneMapping.Enabled;
-        _lutKneeStart = style.ToneMapping.KneeStart;
-        _lutToneStrength = style.ToneMapping.Strength;
-
-        for (var i = 0; i < 256; i++)
+        var byteCount = ledCount * Channels;
+        rgb[..byteCount].CopyTo(_rawRgbUpload);
+        if (byteCount < _rawRgbUpload.Length)
         {
-            var normalized = i / 255.0;
-            var adjusted = Math.Pow(Math.Clamp(normalized, 0.0, 1.0), Math.Clamp(style.Gamma, 0.1, 5.0));
-            var scaled = adjusted * Math.Clamp(style.Brightness, 0.0, 1.0);
-            if (style.ToneMapping.Enabled && scaled > 1.0)
-            {
-                var kneeStart = Math.Clamp(style.ToneMapping.KneeStart, 1.0, 2.0);
-                var strength = Math.Clamp(style.ToneMapping.Strength, 0.0, 8.0);
-                if (scaled > kneeStart)
-                {
-                    var excess = scaled - kneeStart;
-                    scaled = kneeStart + (excess / (1.0 + (strength * excess)));
-                }
-            }
+            Array.Clear(_rawRgbUpload, byteCount, _rawRgbUpload.Length - byteCount);
+        }
 
-            _toneMapLut[i] = (byte)Math.Round(Math.Clamp(scaled, 0.0, 1.0) * 255.0);
+        var handle = GCHandle.Alloc(_rawRgbUpload, GCHandleType.Pinned);
+        try
+        {
+            _context.UpdateSubresource(_gpuRawLedByteBuffer, 0, null, handle.AddrOfPinnedObject(), (uint)_rawRgbUpload.Length, 0);
+        }
+        finally
+        {
+            handle.Free();
+        }
+
+        var constants = new LedPreprocessGpuConstants
+        {
+            LedCount = ledCount,
+            RasterCount = _width * _height,
+            Width = _width,
+            Height = _height,
+            SmoothingEnabled = style.TemporalSmoothing.Enabled ? 1u : 0u,
+            RiseAlpha = (float)Math.Clamp(style.TemporalSmoothing.RiseAlpha, 0.0, 1.0),
+            FallAlpha = (float)Math.Clamp(style.TemporalSmoothing.FallAlpha, 0.0, 1.0),
+            Brightness = (float)Math.Clamp(style.Brightness, 0.0, 1.0),
+            Gamma = (float)Math.Clamp(style.Gamma, 0.1, 5.0),
+            ToneEnabled = style.ToneMapping.Enabled ? 1u : 0u,
+            ToneKneeStart = (float)Math.Clamp(style.ToneMapping.KneeStart, 1.0, 2.0),
+            ToneStrength = (float)Math.Clamp(style.ToneMapping.Strength, 0.0, 8.0),
+            OffSnapThreshold = TemporalSmoothingOffSnapThreshold,
+        };
+
+        var constantsHandle = GCHandle.Alloc(new[] { constants }, GCHandleType.Pinned);
+        try
+        {
+            _context.UpdateSubresource(_gpuPreprocessConstantsBuffer, 0, null, constantsHandle.AddrOfPinnedObject(), (uint)Marshal.SizeOf<LedPreprocessGpuConstants>(), 0);
+        }
+        finally
+        {
+            constantsHandle.Free();
+        }
+
+        // Conversational note: every dispatch starts from a black raster so short packets cannot leave stale LED colors behind.
+        _context.ClearUnorderedAccessViewUint(_gpuLedColorUav, _zeroClear);
+        _context.CSSetShader(_gpuPreprocessShader);
+        _context.CSSetConstantBuffer(1, _gpuPreprocessConstantsBuffer);
+        _context.CSSetShaderResource(0, _gpuRawLedByteSrv);
+        _context.CSSetShaderResource(1, _gpuLogicalToRasterSrv);
+        _context.CSSetUnorderedAccessView(0, _gpuPrevLedUav);
+        _context.CSSetUnorderedAccessView(1, _gpuLedColorUav);
+        _context.Dispatch((uint)Math.Max(1, (ledCount + 63) / 64), 1, 1);
+        _context.CSSetUnorderedAccessView(0, null);
+        _context.CSSetUnorderedAccessView(1, null);
+        _context.CSSetShaderResource(0, null);
+        _context.CSSetShaderResource(1, null);
+        _context.CSSetShader(null);
+    }
+
+    private bool TryReadProcessedLedsToCpu()
+    {
+        if (_context is null || _gpuLedColorTexture is null || _gpuLedReadbackTexture is null)
+        {
+            return false;
+        }
+
+        _context.CopyResource(_gpuLedReadbackTexture, _gpuLedColorTexture);
+        var mapped = _context.Map(_gpuLedReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+        try
+        {
+            ReadBgraRows(mapped.DataPointer, mapped.RowPitch, _cpuLedReadback, _width, _height);
+            return true;
+        }
+        finally
+        {
+            _context.Unmap(_gpuLedReadbackTexture, 0);
         }
     }
 
@@ -582,7 +593,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
         // If there are no lit LEDs in this frame, we skip bloom so "off bulb" shading stays clean.
-        if (!HasAnyLitLed(_workingRgb))
+        if (!HasAnyLitLed())
         {
             if (baseFrameIsGpuRendered)
             {
@@ -801,9 +812,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         return _gpuDotPassSupported &&
                _context is not null &&
-               _gpuLedUploadTexture is not null &&
                _gpuLedColorTexture is not null &&
+               _gpuLedColorUav is not null &&
                _gpuLedColorSrv is not null &&
+               _gpuRawLedByteBuffer is not null &&
+               _gpuRawLedByteSrv is not null &&
+               _gpuPreprocessConstantsBuffer is not null &&
+               _gpuPreprocessShader is not null &&
                _gpuBaseRtv is not null &&
                _gpuBaseSrv is not null &&
                _dotPassShader is not null;
@@ -820,36 +835,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         try
         {
             _context.UpdateSubresource(_gpuBaseTexture, 0, null, handle.AddrOfPinnedObject(), (uint)(_surfaceWidth * 4), 0);
-        }
-        finally
-        {
-            handle.Free();
-        }
-    }
-
-    private void UploadLogicalLedBufferToGpu()
-    {
-        if (_context is null || _gpuLedUploadTexture is null || _gpuLedColorTexture is null)
-        {
-            return;
-        }
-
-        for (var raster = 0; raster < _width * _height; raster++)
-        {
-            var rgbOffset = raster * Channels;
-            var bgraOffset = raster * 4;
-            // Conversational note: GPU LED texture is RGBA, so channel upload order must be R,G,B to avoid red/blue swaps.
-            _ledBgra[bgraOffset] = (byte)Math.Clamp(_workingRgb[rgbOffset], 0f, 255f);
-            _ledBgra[bgraOffset + 1] = (byte)Math.Clamp(_workingRgb[rgbOffset + 1], 0f, 255f);
-            _ledBgra[bgraOffset + 2] = (byte)Math.Clamp(_workingRgb[rgbOffset + 2], 0f, 255f);
-            _ledBgra[bgraOffset + 3] = 255;
-        }
-
-        var handle = GCHandle.Alloc(_ledBgra, GCHandleType.Pinned);
-        try
-        {
-            _context.UpdateSubresource(_gpuLedUploadTexture, 0, null, handle.AddrOfPinnedObject(), (uint)(_width * 4), 0);
-            _context.CopyResource(_gpuLedColorTexture, _gpuLedUploadTexture);
         }
         finally
         {
@@ -1294,11 +1279,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         return t * t * (3f - (2f * t));
     }
 
-    private static bool HasAnyLitLed(float[] rgb)
+    private bool HasAnyLitLed()
     {
-        for (var i = 0; i < rgb.Length; i += Channels)
+        if (!TryReadProcessedLedsToCpu())
         {
-            if (rgb[i] > 0.5f || rgb[i + 1] > 0.5f || rgb[i + 2] > 0.5f)
+            return true;
+        }
+
+        for (var i = 0; i < _cpuLedReadback.Length; i += 4)
+        {
+            if (_cpuLedReadback[i] > 0 || _cpuLedReadback[i + 1] > 0 || _cpuLedReadback[i + 2] > 0)
             {
                 return true;
             }
@@ -1415,16 +1405,20 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             using var blurBlob = CompileShaderOrThrow("PSSeparableBlur", "ps_5_0");
             initStage = "compile-composite";
             using var compositeBlob = CompileShaderOrThrow("PSComposite", "ps_5_0");
+            initStage = "compile-led-preprocess-cs";
+            using var preprocessBlob = CompileShaderOrThrow("CSPreprocessLeds", "cs_5_0");
             initStage = "create-shaders";
             _fullscreenVertexShader = _device.CreateVertexShader(vsBlob);
             _dotPassShader = _device.CreatePixelShader(dotBlob);
             _brightPassShader = _device.CreatePixelShader(brightBlob);
             _blurPassShader = _device.CreatePixelShader(blurBlob);
             _compositeShader = _device.CreatePixelShader(compositeBlob);
+            _gpuPreprocessShader = _device.CreateComputeShader(preprocessBlob);
             initStage = "create-sampler";
             _linearSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp, 0, 1, ComparisonFunction.Never, new Color4(0f, 0f, 0f, 0f), 0, float.MaxValue));
             initStage = "create-constants";
             _bloomConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<BloomGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
+            _gpuPreprocessConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<LedPreprocessGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Default));
             initStage = "create-targets";
             CreateBaseAndCompositeTargets();
             initStage = "init-direct-present";
@@ -1612,7 +1606,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var createStage = "start";
         try
         {
-            var ledUploadDesc = new Texture2DDescription
+            var ledTextureDesc = new Texture2DDescription
             {
                 Width = (uint)Math.Max(1, _width),
                 Height = (uint)Math.Max(1, _height),
@@ -1620,22 +1614,80 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 MipLevels = 1,
                 Format = DxgiFormat.R8G8B8A8_UNorm,
                 SampleDescription = new SampleDescription(1, 0),
-                // Conversational note: D3D11 rejects Dynamic textures with BindFlags.None; Default works with UpdateSubresource for our upload path.
                 Usage = ResourceUsage.Default,
-                BindFlags = BindFlags.None,
+                BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess,
                 CPUAccessFlags = CpuAccessFlags.None,
             };
-            createStage = "led-upload-texture";
-            _gpuLedUploadTexture = _device.CreateTexture2D(ledUploadDesc);
-
-            var ledSrvDesc = ledUploadDesc;
-            ledSrvDesc.Usage = ResourceUsage.Default;
-            ledSrvDesc.BindFlags = BindFlags.ShaderResource;
-            ledSrvDesc.CPUAccessFlags = CpuAccessFlags.None;
             createStage = "led-color-texture";
-            _gpuLedColorTexture = _device.CreateTexture2D(ledSrvDesc);
+            _gpuLedColorTexture = _device.CreateTexture2D(ledTextureDesc);
             createStage = "led-color-srv";
             _gpuLedColorSrv = _device.CreateShaderResourceView(_gpuLedColorTexture);
+            createStage = "led-color-uav";
+            _gpuLedColorUav = _device.CreateUnorderedAccessView(_gpuLedColorTexture);
+
+            var ledReadbackDesc = ledTextureDesc;
+            ledReadbackDesc.Usage = ResourceUsage.Staging;
+            ledReadbackDesc.BindFlags = BindFlags.None;
+            ledReadbackDesc.CPUAccessFlags = CpuAccessFlags.Read;
+            createStage = "led-readback-texture";
+            _gpuLedReadbackTexture = _device.CreateTexture2D(ledReadbackDesc);
+
+            var rawByteDesc = new BufferDescription((uint)Math.Max(1, _width * _height * Channels), BindFlags.ShaderResource, ResourceUsage.Default, CpuAccessFlags.None, ResourceOptionFlags.BufferAllowRawViews, 0);
+            createStage = "raw-led-byte-buffer";
+            _gpuRawLedByteBuffer = _device.CreateBuffer(rawByteDesc);
+            createStage = "raw-led-byte-srv";
+            _gpuRawLedByteSrv = _device.CreateShaderResourceView(_gpuRawLedByteBuffer, new ShaderResourceViewDescription(_gpuRawLedByteBuffer, ShaderResourceViewDimension.BufferEx, DxgiFormat.R8_UInt)
+            {
+                BufferEx = new BufferExShaderResourceView
+                {
+                    FirstElement = 0,
+                    NumElements = (uint)Math.Max(1, _width * _height * Channels),
+                    Flags = BufferExShaderResourceViewFlags.None,
+                },
+            });
+
+            var prevBufferDesc = new BufferDescription((uint)Math.Max(16, _width * _height * 16), BindFlags.UnorderedAccess, ResourceUsage.Default, CpuAccessFlags.None, ResourceOptionFlags.BufferStructured, 16);
+            createStage = "prev-led-buffer";
+            _gpuPrevLedBuffer = _device.CreateBuffer(prevBufferDesc);
+            createStage = "prev-led-uav";
+            _gpuPrevLedUav = _device.CreateUnorderedAccessView(_gpuPrevLedBuffer, new UnorderedAccessViewDescription(_gpuPrevLedBuffer, UnorderedAccessViewDimension.Buffer, DxgiFormat.Unknown)
+            {
+                Buffer = new BufferUnorderedAccessView { FirstElement = 0, NumElements = (uint)Math.Max(1, _width * _height) },
+            });
+            // Conversational note: zeroing this buffer ensures smoothing starts from dark pixels on first frame.
+            var prevInit = new byte[Math.Max(16, _width * _height * 16)];
+            var prevHandle = GCHandle.Alloc(prevInit, GCHandleType.Pinned);
+            try
+            {
+                _context?.UpdateSubresource(_gpuPrevLedBuffer, 0, null, prevHandle.AddrOfPinnedObject(), 0, 0);
+            }
+            finally
+            {
+                prevHandle.Free();
+            }
+
+            var mappingData = new int[Math.Max(1, _logicalToRaster.Length)];
+            if (_logicalToRaster.Length > 0)
+            {
+                Array.Copy(_logicalToRaster, mappingData, _logicalToRaster.Length);
+            }
+            var mappingHandle = GCHandle.Alloc(mappingData, GCHandleType.Pinned);
+            try
+            {
+                var mappingDesc = new BufferDescription((uint)Math.Max(16, mappingData.Length * sizeof(int)), BindFlags.ShaderResource, ResourceUsage.Immutable, CpuAccessFlags.None, ResourceOptionFlags.BufferStructured, sizeof(int));
+                createStage = "logical-to-raster-buffer";
+                _gpuLogicalToRasterBuffer = _device.CreateBuffer(mappingDesc, new SubresourceData(mappingHandle.AddrOfPinnedObject(), 0, 0));
+            }
+            finally
+            {
+                mappingHandle.Free();
+            }
+
+            createStage = "logical-to-raster-srv";
+            _gpuLogicalToRasterSrv = _device.CreateShaderResourceView(_gpuLogicalToRasterBuffer, new ShaderResourceViewDescription(_gpuLogicalToRasterBuffer, ShaderResourceViewDimension.Buffer, DxgiFormat.Unknown)
+            {
+                Buffer = new BufferShaderResourceView { FirstElement = 0, NumElements = (uint)Math.Max(1, mappingData.Length) },
+            });
 
             var fullDesc = new Texture2DDescription
             {
@@ -1746,12 +1798,26 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuCompositeRtv = null;
         _gpuCompositeTexture?.Dispose();
         _gpuCompositeTexture = null;
+        _gpuLogicalToRasterSrv?.Dispose();
+        _gpuLogicalToRasterSrv = null;
+        _gpuLogicalToRasterBuffer?.Dispose();
+        _gpuLogicalToRasterBuffer = null;
+        _gpuPrevLedUav?.Dispose();
+        _gpuPrevLedUav = null;
+        _gpuPrevLedBuffer?.Dispose();
+        _gpuPrevLedBuffer = null;
+        _gpuRawLedByteSrv?.Dispose();
+        _gpuRawLedByteSrv = null;
+        _gpuRawLedByteBuffer?.Dispose();
+        _gpuRawLedByteBuffer = null;
+        _gpuLedReadbackTexture?.Dispose();
+        _gpuLedReadbackTexture = null;
+        _gpuLedColorUav?.Dispose();
+        _gpuLedColorUav = null;
         _gpuLedColorSrv?.Dispose();
         _gpuLedColorSrv = null;
         _gpuLedColorTexture?.Dispose();
         _gpuLedColorTexture = null;
-        _gpuLedUploadTexture?.Dispose();
-        _gpuLedUploadTexture = null;
         _gpuBaseRtv?.Dispose();
         _gpuBaseRtv = null;
         _gpuBaseSrv?.Dispose();
@@ -1760,10 +1826,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuBaseTexture = null;
         _bloomConstantsBuffer?.Dispose();
         _bloomConstantsBuffer = null;
+        _gpuPreprocessConstantsBuffer?.Dispose();
+        _gpuPreprocessConstantsBuffer = null;
         _linearSampler?.Dispose();
         _linearSampler = null;
         _compositeShader?.Dispose();
         _compositeShader = null;
+        _gpuPreprocessShader?.Dispose();
+        _gpuPreprocessShader = null;
         _dotPassShader?.Dispose();
         _dotPassShader = null;
         _blurPassShader?.Dispose();
@@ -1838,6 +1908,28 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float Padding1;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LedPreprocessGpuConstants
+    {
+        public uint LedCount;
+        public uint RasterCount;
+        public uint Width;
+        public uint Height;
+        public uint SmoothingEnabled;
+        public float RiseAlpha;
+        public float FallAlpha;
+        public float Brightness;
+        public float Gamma;
+        public uint ToneEnabled;
+        public float ToneKneeStart;
+        public float ToneStrength;
+        public float OffSnapThreshold;
+        // Conversational note: pad to a 16-byte multiple so D3D11 constant buffer uploads stay deterministic.
+        public float Padding0;
+        public float Padding1;
+        public float Padding2;
+    }
+
     private static class BloomShaders
     {
         public const string Source = """
@@ -1861,9 +1953,30 @@ cbuffer BloomConstants : register(b0)
     float SpecularHotspot;
     float RimHighlight;
 }
+cbuffer LedPreprocessConstants : register(b1)
+{
+    uint LedCount;
+    uint RasterCount;
+    uint LedWidth;
+    uint LedHeight;
+    uint SmoothingEnabled;
+    float RiseAlpha;
+    float FallAlpha;
+    float Brightness;
+    float Gamma;
+    uint ToneEnabled;
+    float ToneKneeStart;
+    float ToneStrength;
+    float OffSnapThreshold;
+    float3 LedPreprocessPadding;
+}
 Texture2D BaseTexture : register(t0);
 Texture2D NearTexture : register(t1);
 Texture2D FarTexture : register(t2);
+Buffer<uint> RawLedBytes : register(t3);
+StructuredBuffer<int> LogicalToRaster : register(t4);
+RWStructuredBuffer<float4> PrevFrameRgb : register(u0);
+RWTexture2D<float4> LedOutputTexture : register(u1);
 SamplerState LinearSampler : register(s0);
 struct VsOut
 {
@@ -2010,6 +2123,69 @@ float4 PSComposite(VsOut input) : SV_Target
     float3 farColor = FarTexture.Sample(LinearSampler, input.Uv).rgb;
     float3 outColor = saturate(baseColor + (nearColor * NearStrength) + (farColor * FarStrength));
     return float4(outColor, 1.0f);
+}
+float ToneMapChannel(uint rawByte)
+{
+    float normalized = clamp((float)rawByte / 255.0f, 0.0f, 1.0f);
+    float adjusted = pow(normalized, clamp(Gamma, 0.1f, 5.0f));
+    float scaled = adjusted * clamp(Brightness, 0.0f, 1.0f);
+    if (ToneEnabled > 0 && scaled > 1.0f)
+    {
+        float kneeStart = clamp(ToneKneeStart, 1.0f, 2.0f);
+        float strength = clamp(ToneStrength, 0.0f, 8.0f);
+        if (scaled > kneeStart)
+        {
+            float excess = scaled - kneeStart;
+            scaled = kneeStart + (excess / (1.0f + (strength * excess)));
+        }
+    }
+
+    return clamp(scaled, 0.0f, 1.0f) * 255.0f;
+}
+[numthreads(64, 1, 1)]
+void CSPreprocessLeds(uint3 dispatchThreadId : SV_DispatchThreadID)
+{
+    uint logical = dispatchThreadId.x;
+    if (logical >= LedCount || logical >= RasterCount) return;
+
+    uint byteOffset = logical * 3u;
+    float3 target = float3(
+        ToneMapChannel(RawLedBytes[byteOffset + 0]),
+        ToneMapChannel(RawLedBytes[byteOffset + 1]),
+        ToneMapChannel(RawLedBytes[byteOffset + 2]));
+
+    float3 smoothed = target;
+    if (SmoothingEnabled > 0)
+    {
+        float3 current = PrevFrameRgb[logical].rgb;
+        [unroll]
+        for (int c = 0; c < 3; c++)
+        {
+            if (target[c] >= 255.0f)
+            {
+                smoothed[c] = 255.0f;
+                continue;
+            }
+
+            float delta = target[c] - current[c];
+            float alpha = delta >= 0.0f ? RiseAlpha : FallAlpha;
+            float nextValue = current[c] + (alpha * delta);
+            if (target[c] <= 0.0f && nextValue <= OffSnapThreshold)
+            {
+                nextValue = 0.0f;
+            }
+
+            smoothed[c] = nextValue;
+        }
+    }
+
+    PrevFrameRgb[logical] = float4(smoothed, 1.0f);
+    int rasterIndex = LogicalToRaster[logical];
+    if (rasterIndex < 0 || rasterIndex >= (int)RasterCount) return;
+    uint raster = (uint)rasterIndex;
+    uint x = raster % max(1u, LedWidth);
+    uint y = raster / max(1u, LedWidth);
+    LedOutputTexture[uint2(x, y)] = float4(clamp(smoothed / 255.0f, 0.0f, 1.0f), 1.0f);
 }
 """;
     }
