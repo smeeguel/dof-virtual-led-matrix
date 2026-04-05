@@ -1027,9 +1027,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             SurfaceHeight = _surfaceHeight,
             BloomWidth = profile is null ? _width : _downsampleWidth,
             BloomHeight = profile is null ? _height : _downsampleHeight,
-            OffColorR = (float)((_style?.Visual.OffStateColor.Red ?? 0) / 255.0),
-            OffColorG = (float)((_style?.Visual.OffStateColor.Green ?? 0) / 255.0),
-            OffColorB = (float)((_style?.Visual.OffStateColor.Blue ?? 0) / 255.0),
+            OffColorR = (float)((_style?.Visual.OffStateTintR ?? 0) / 255.0),
+            OffColorG = (float)((_style?.Visual.OffStateTintG ?? 0) / 255.0),
+            OffColorB = (float)((_style?.Visual.OffStateTintB ?? 0) / 255.0),
             OffAlpha = (float)Math.Clamp(_style?.Visual.OffStateAlpha ?? 0.0, 0.0, 1.0),
         };
 
