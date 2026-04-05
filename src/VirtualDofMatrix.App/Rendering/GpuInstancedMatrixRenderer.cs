@@ -1026,6 +1026,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             SurfaceHeight = _surfaceHeight,
             BloomWidth = profile is null ? _width : _downsampleWidth,
             BloomHeight = profile is null ? _height : _downsampleHeight,
+            OffColorR = (float)((_style?.Visual.OffStateColor.Red ?? 0) / 255.0),
+            OffColorG = (float)((_style?.Visual.OffStateColor.Green ?? 0) / 255.0),
+            OffColorB = (float)((_style?.Visual.OffStateColor.Blue ?? 0) / 255.0),
+            OffAlpha = (float)Math.Clamp(_style?.Visual.OffStateAlpha ?? 0.0, 0.0, 1.0),
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -1436,8 +1440,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             _gpuBloomSupported = true;
-            // Keep GPU bloom enabled but stay on CPU dot raster for visual parity (off-state bulbs + color fidelity).
-            _gpuDotPassSupported = false;
+            _gpuDotPassSupported = true;
             _useCpuBloomFallback = false;
             return true;
         }
@@ -1811,6 +1814,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float SurfaceHeight;
         public float BloomWidth;
         public float BloomHeight;
+        public float OffColorR;
+        public float OffColorG;
+        public float OffColorB;
+        public float OffAlpha;
     }
 
     private static class BloomShaders
@@ -1827,6 +1834,8 @@ cbuffer BloomConstants : register(b0)
     float2 Direction;
     float2 SurfaceSize;
     float2 BloomSize;
+    float3 OffColor;
+    float OffAlpha;
 }
 Texture2D BaseTexture : register(t0);
 Texture2D SharedBlurTexture : register(t1);
@@ -1870,7 +1879,8 @@ float4 PSDotPass(VsOut input) : SV_Target
     if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
     float2 ledUv = (ledCoord + 0.5f) / max(BloomSize, float2(1.0f, 1.0f));
     float3 ledColor = BaseTexture.SampleLevel(LinearSampler, ledUv, 0).rgb;
-    return float4(ledColor, 1.0f);
+    float3 offColor = saturate(OffColor * max(OffAlpha, 0.0f));
+    return float4(max(ledColor, offColor), 1.0f);
 }
 float SoftKneeWeight(float3 color)
 {
