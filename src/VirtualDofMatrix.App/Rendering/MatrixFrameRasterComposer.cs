@@ -6,7 +6,7 @@ namespace VirtualDofMatrix.App.Rendering;
 internal sealed class MatrixFrameRasterComposer
 {
     private const int HardMinimumDotSpacing = 2;
-    private const float TemporalSmoothingOffSnapThreshold = 1.0f;
+    private const float TemporalSmoothingOffSnapThreshold = 4.0f;
     private const int DirtyRectComplexityThreshold = 128;
     private const double DirtyCoverageFullUploadThreshold = 0.65;
     private static readonly TimeSpan SessionGapResetThreshold = TimeSpan.FromMilliseconds(750);
