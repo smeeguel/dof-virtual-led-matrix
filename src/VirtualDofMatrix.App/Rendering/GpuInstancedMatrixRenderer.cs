@@ -1623,9 +1623,20 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         fullDesc.Usage = ResourceUsage.Default;
         fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
         fullDesc.CPUAccessFlags = CpuAccessFlags.None;
-        // Conversational note: the composite target is shared so D3D9Ex can open it for D3DImage presentation.
-        fullDesc.MiscFlags = ResourceOptionFlags.Shared;
-        _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
+        // Conversational note: some drivers reject shared textures for this format/usage, so we gracefully fall back to a non-shared composite target.
+        try
+        {
+            fullDesc.MiscFlags = ResourceOptionFlags.Shared;
+            _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
+        }
+        catch (Exception ex)
+        {
+            fullDesc.MiscFlags = ResourceOptionFlags.None;
+            _gpuCompositeTexture = _device.CreateTexture2D(fullDesc);
+            _directPresentStatus = $"disabled:interop-shared-texture-unsupported:{ex.GetType().Name}";
+            AppLogger.Warn($"[renderer] gpu direct present unavailable; shared composite texture not supported on this device. reason={ex.Message}");
+        }
+
         _gpuCompositeSrv = _device.CreateShaderResourceView(_gpuCompositeTexture);
         _gpuCompositeRtv = _device.CreateRenderTargetView(_gpuCompositeTexture);
 
