@@ -182,7 +182,8 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
 
                 await bitmapHost.Dispatcher.InvokeAsync(
                     () => ApplyComposedFrame(bitmapHost, composed),
-                    DispatcherPriority.Render,
+                    // Conversational note: Normal avoids starvation after GPU direct-present teardown where Render-priority callbacks may stall.
+                    DispatcherPriority.Normal,
                     _composeCts.Token);
             }
             catch (OperationCanceledException)
