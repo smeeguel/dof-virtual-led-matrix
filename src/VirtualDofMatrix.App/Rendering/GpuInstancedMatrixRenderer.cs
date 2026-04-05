@@ -87,7 +87,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private string _gpuBloomTrace = string.Empty;
     private ulong _gpuBloomAttemptCount;
     private ulong _lastOutputSequence;
-    private bool _isGpuPrimaryPath;
+    private RenderLane _renderLane = RenderLane.GpuPrimary;
+    private RenderLane? _lastLoggedLane;
     private bool _hasAnyRawLitLed;
     private readonly object _gate = new();
     private Image? _host;
@@ -236,9 +237,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
         }
 
-        _isGpuPrimaryPath = useGpuDotPass && !_useCpuBloomFallback;
+        _renderLane = ResolveRenderLane(useGpuDotPass);
+        LogLaneTransitionIfNeeded();
 
-        if (!useGpuDotPass)
+        if (_renderLane == RenderLane.CpuDotFallback)
         {
             // Conversational note: compatibility path keeps the original CPU dot raster behavior exactly intact.
             Array.Clear(_bgra, 0, _bgra.Length);
@@ -260,7 +262,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
         }
 
-        ApplyBloomIfEnabled(_style, useGpuDotPass);
+        ApplyBloomIfEnabled(_style, useGpuDotPass, _renderLane);
 
         if (!_directPresentEnabled)
         {
@@ -387,12 +389,18 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private bool TryReadProcessedLedsToCpu(string reason)
     {
+        if (_renderLane == RenderLane.GpuPrimary)
+        {
+            AppLogger.Warn($"[renderer] readback suppressed on GPU primary lane. reason={reason} seq={_lastOutputSequence}");
+            return false;
+        }
+
         if (_context is null || _gpuLedColorTexture is null || _gpuLedReadbackTexture is null)
         {
             return false;
         }
 
-        AppLogger.Info($"[renderer] gpu led readback entered reason={reason} seq={_lastOutputSequence} gpuPrimary={_isGpuPrimaryPath}");
+        AppLogger.Info($"[renderer] gpu led readback entered reason={reason} seq={_lastOutputSequence} lane={_renderLane}");
         _context.CopyResource(_gpuLedReadbackTexture, _gpuLedColorTexture);
         var mapped = _context.Map(_gpuLedReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         try
@@ -611,7 +619,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private void ApplyBloomIfEnabled(DotStyleConfig style, bool baseFrameIsGpuRendered)
+    private void ApplyBloomIfEnabled(DotStyleConfig style, bool baseFrameIsGpuRendered, RenderLane lane)
     {
         var bloomProfile = BloomProfileResolver.Resolve(style.Bloom);
         // If both lanes are effectively off, skip bloom and keep the frame path cheap.
@@ -654,6 +662,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         _useCpuBloomFallback = true;
+        if (lane != RenderLane.CpuDotFallback)
+        {
+            _renderLane = RenderLane.CpuBloomFallback;
+            LogLaneTransitionIfNeeded();
+        }
 
         if (baseFrameIsGpuRendered && _context is not null && _gpuBaseTexture is not null && _gpuReadbackTexture is not null)
         {
@@ -855,6 +868,32 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                _gpuBaseRtv is not null &&
                _gpuBaseSrv is not null &&
                _dotPassShader is not null;
+    }
+
+    private RenderLane ResolveRenderLane(bool gpuDotPassReady)
+    {
+        if (!gpuDotPassReady)
+        {
+            return RenderLane.CpuDotFallback;
+        }
+
+        if (_useCpuBloomFallback)
+        {
+            return RenderLane.CpuBloomFallback;
+        }
+
+        return RenderLane.GpuPrimary;
+    }
+
+    private void LogLaneTransitionIfNeeded()
+    {
+        if (_lastLoggedLane == _renderLane)
+        {
+            return;
+        }
+
+        AppLogger.Info($"[renderer] lane={_renderLane} seq={_lastOutputSequence}");
+        _lastLoggedLane = _renderLane;
     }
 
     private void UploadCpuSurfaceToGpuBase()
@@ -1971,6 +2010,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float Padding0;
         public float Padding1;
         public float Padding2;
+    }
+
+    private enum RenderLane
+    {
+        GpuPrimary,
+        CpuDotFallback,
+        CpuBloomFallback,
     }
 
     private static class BloomShaders
