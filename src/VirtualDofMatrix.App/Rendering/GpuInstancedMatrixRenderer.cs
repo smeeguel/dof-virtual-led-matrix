@@ -1605,9 +1605,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 MipLevels = 1,
                 Format = DxgiFormat.R8G8B8A8_UNorm,
                 SampleDescription = new SampleDescription(1, 0),
-                Usage = ResourceUsage.Dynamic,
+                // Conversational note: D3D11 rejects Dynamic textures with BindFlags.None; Default works with UpdateSubresource for our upload path.
+                Usage = ResourceUsage.Default,
                 BindFlags = BindFlags.None,
-                CPUAccessFlags = CpuAccessFlags.Write,
+                CPUAccessFlags = CpuAccessFlags.None,
             };
             createStage = "led-upload-texture";
             _gpuLedUploadTexture = _device.CreateTexture2D(ledUploadDesc);
