@@ -1626,7 +1626,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 Format = DxgiFormat.R8G8B8A8_UNorm,
                 SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default,
-                BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess,
+                // Conversational note: preprocess texture is cleared via RTV and consumed via UAV/SRV, so all three bind flags are required.
+                BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess | BindFlags.RenderTarget,
                 CPUAccessFlags = CpuAccessFlags.None,
             };
             createStage = "led-color-texture";
