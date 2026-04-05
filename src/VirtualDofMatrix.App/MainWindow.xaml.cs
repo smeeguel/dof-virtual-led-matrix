@@ -358,10 +358,16 @@ public partial class MainWindow : Window
         ApplyPersistedVisualSettings();
         _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
         _idleOffPresentation = null;
-        _matrixRenderer.Dispose();
-        _matrixRenderer = CreateRenderer(_config);
+        ReplaceRenderer(CreateRenderer(_config));
         ApplyDebugVisibility();
         ReinitializeRendererForViewport();
+
+        // Conversational note: one extra replay pass makes renderer backend switches (GPU<->CPU) deterministic mid-flight.
+        if (_latestPresentation is not null)
+        {
+            _matrixRenderer.UpdateFrame(_latestPresentation);
+            _matrixRenderer.Render();
+        }
     }
 
     public void SetShowDebug(bool showDebug)
@@ -420,6 +426,14 @@ public partial class MainWindow : Window
     private static string NormalizeRendererLabel(string renderer)
     {
         return renderer.Equals("cpu", StringComparison.OrdinalIgnoreCase) ? "CPU" : "GPU";
+    }
+
+    private void ReplaceRenderer(IMatrixRenderer nextRenderer)
+    {
+        _matrixRenderer.Dispose();
+        MatrixImage.Source = null;
+        MatrixCanvas.Children.Clear();
+        _matrixRenderer = nextRenderer;
     }
 
 
