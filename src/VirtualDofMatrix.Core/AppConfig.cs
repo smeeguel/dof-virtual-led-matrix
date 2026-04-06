@@ -24,6 +24,12 @@ public sealed class TransportConfig
 
     // Local IPC endpoint used for runtime show/hide control commands.
     public string ControlPipeName { get; set; } = "VirtualDofMatrix.Control";
+
+    // Local IPC endpoint used by the multi-client toy frame broadcast adapter.
+    public string BroadcastPipeName { get; set; } = "VirtualDofMatrix.Broadcast";
+
+    // Maximum queued frame envelopes per client before latest-wins eviction starts.
+    public int BroadcastMaxQueuePerClient { get; set; } = 8;
 }
 
 public sealed class MatrixConfig

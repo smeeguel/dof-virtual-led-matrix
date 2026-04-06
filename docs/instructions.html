@@ -462,6 +462,14 @@ You can keep toy routing/visual settings in `toys.ini` (configured by `routing.t
 
 - Use short comments in the INI to explain each setting.
 - See `examples/toys.sample.ini` for examples covering policy, per-toy window settings, render settings, bloom settings, and output targets.
+
+## 14) Named-pipe broadcast adapter
+
+The app now hosts a multi-client broadcast pipe for routed toy frames.
+
+- Pipe name comes from `transport.broadcastPipeName` (default: `VirtualDofMatrix.Broadcast`).
+- Queue bound per client comes from `transport.broadcastMaxQueuePerClient` (latest-wins eviction).
+- Handshake is JSON line-based and supports protocol version, min supported version, feature flags, and optional toy filters.
 </script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>

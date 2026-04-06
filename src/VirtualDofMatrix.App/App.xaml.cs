@@ -25,6 +25,7 @@ public partial class App : Application
     private AppConfig? _config;
     private MainWindow? _window;
     private FrameTransportHost? _transportHost;
+    private NamedPipeBroadcastAdapter? _broadcastAdapter;
     private DispatcherTimer? _windowSettingsSaveTimer;
     private CancellationTokenSource? _controlCts;
     private Task? _controlTask;
@@ -69,9 +70,11 @@ public partial class App : Application
 
         var routingPlanProvider = new ConfigRoutingPlanProvider(_config);
         var toyRouter = new ToyRouter(_config.Routing.Policy);
+        _broadcastAdapter = new NamedPipeBroadcastAdapter(_config);
         var outputAdapters = new List<IOutputAdapter>
         {
             new WpfWindowOutputAdapter(Dispatcher, _config, _window, PersistWindowSettings),
+            _broadcastAdapter,
         };
 
         _transportHost = new FrameTransportHost(_config, toyRouter, routingPlanProvider, outputAdapters);
@@ -112,6 +115,9 @@ public partial class App : Application
         {
             await _transportHost.StopAsync();
         }
+
+        _broadcastAdapter?.Dispose();
+        _broadcastAdapter = null;
 
         base.OnExit(e);
     }

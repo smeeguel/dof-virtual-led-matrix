@@ -1,7 +1,9 @@
 {
   "transport": {
     "pipeName": "VirtualDofMatrix",
-    "controlPipeName": "VirtualDofMatrix.Control"
+    "controlPipeName": "VirtualDofMatrix.Control",
+    "broadcastPipeName": "VirtualDofMatrix.Broadcast",
+    "broadcastMaxQueuePerClient": 8
   },
   "routing": {
     "routingSchemaVersion": "1",
