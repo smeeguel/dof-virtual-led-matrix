@@ -22,8 +22,12 @@ public sealed class AppConfigurationStore
         }
 
         var json = File.ReadAllText(filePath);
-        var loaded = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions);
-        var (normalized, shouldPersist) = ApplyLegacyDefaults(loaded ?? new AppConfig());
+        var loaded = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions) ?? new AppConfig();
+
+        var iniPath = ResolveToyIniPath(filePath, loaded.Routing?.ToyConfigIniPath);
+        var iniApplied = ToyIniConfiguration.ApplyFromIni(loaded, iniPath);
+        var (normalized, shouldPersist) = ApplyLegacyDefaults(loaded);
+        shouldPersist |= iniApplied;
 
         if (shouldPersist)
         {
@@ -255,6 +259,12 @@ public sealed class AppConfigurationStore
                 modified = true;
             }
 
+            if (toy.Bloom is null)
+            {
+                toy.Bloom = new ToyBloomOptionsConfig();
+                modified = true;
+            }
+
             if (toy.OutputTargets is null)
             {
                 toy.OutputTargets = [];
@@ -367,6 +377,16 @@ public sealed class AppConfigurationStore
                 Brightness = config.Matrix.Brightness,
                 Gamma = config.Matrix.Gamma,
             },
+            Bloom = new ToyBloomOptionsConfig
+            {
+                Enabled = config.Matrix.Bloom.Enabled,
+                Threshold = config.Matrix.Bloom.Threshold,
+                SoftKnee = config.Matrix.Bloom.SoftKnee,
+                NearRadiusPx = config.Matrix.Bloom.NearRadiusPx,
+                FarRadiusPx = config.Matrix.Bloom.FarRadiusPx,
+                NearStrength = config.Matrix.Bloom.NearStrength,
+                FarStrength = config.Matrix.Bloom.FarStrength,
+            },
             OutputTargets =
             [
                 new ToyAdapterTargetConfig
@@ -410,6 +430,20 @@ public sealed class AppConfigurationStore
         modified = true;
 
         return modified;
+    }
+
+    private static string ResolveToyIniPath(string settingsJsonPath, string? configuredPath)
+    {
+        var iniFileName = string.IsNullOrWhiteSpace(configuredPath) ? "toys.ini" : configuredPath;
+        if (Path.IsPathRooted(iniFileName))
+        {
+            return iniFileName;
+        }
+
+        var settingsDirectory = Path.GetDirectoryName(settingsJsonPath);
+        return string.IsNullOrWhiteSpace(settingsDirectory)
+            ? iniFileName
+            : Path.Combine(settingsDirectory, iniFileName);
     }
 
     private static void Warn(string message)

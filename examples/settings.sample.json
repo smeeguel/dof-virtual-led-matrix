@@ -99,7 +99,8 @@
           }
         ]
       }
-    ]
+    ],
+    "toyConfigIniPath": "toys.ini"
   },
   "window": {
     "alwaysOnTop": true,

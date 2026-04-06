@@ -205,6 +205,9 @@ public sealed class RoutingConfig
 
     public RoutingPolicyConfig Policy { get; set; } = new();
 
+    // Optional INI file used to define toy-specific routing/visual settings with comments.
+    public string ToyConfigIniPath { get; set; } = "toys.ini";
+
     public List<ToyRouteConfig> Toys { get; set; } = [];
 }
 
@@ -245,6 +248,8 @@ public sealed class ToyRouteConfig
     public ToyWindowOptionsConfig Window { get; set; } = new();
 
     public ToyRenderOptionsConfig Render { get; set; } = new();
+
+    public ToyBloomOptionsConfig Bloom { get; set; } = new();
 
     public List<ToyAdapterTargetConfig> OutputTargets { get; set; } = [];
 }
@@ -300,6 +305,23 @@ public sealed class ToyRenderOptionsConfig
     public double Gamma { get; set; } = 0.8;
 }
 
+
+public sealed class ToyBloomOptionsConfig
+{
+    public bool Enabled { get; set; } = true;
+
+    public double Threshold { get; set; } = 0.72;
+
+    public double SoftKnee { get; set; } = 0.18;
+
+    public int NearRadiusPx { get; set; } = 2;
+
+    public int FarRadiusPx { get; set; } = 10;
+
+    public double NearStrength { get; set; } = 1.0;
+
+    public double FarStrength { get; set; } = 0.2;
+}
 public sealed class ToyAdapterTargetConfig
 {
     public string Adapter { get; set; } = "viewer";
