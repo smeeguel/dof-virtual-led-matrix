@@ -3,48 +3,9 @@
     "pipeName": "VirtualDofMatrix",
     "controlPipeName": "VirtualDofMatrix.Control"
   },
-  "matrix": {
-    "renderer": "gpu",
-    "width": 128,
-    "height": 32,
-    "mapping": "TopDownAlternateRightLeft",
-    "toneMapping": {
-      "enabled": true,
-      "kneeStart": 0.95,
-      "strength": 0.55
-    },
-    "temporalSmoothing": {
-      "enabled": true,
-      "riseAlpha": 0.9,
-      "fallAlpha": 0.9
-    },
-    "visual": {
-      "gpuPresentMode": "DirectPresentOnly",
-      "forceCpuDotRasterFallback": false,
-      "enableDirectPresentParitySampling": false,
-      "enableDiagnosticReadbackCapture": false,
-      "flatShading": false,
-      "fullBrightnessRadiusMinPct": 0.8,
-      "offStateTintR": 20,
-      "offStateTintG": 20,
-      "offStateTintB": 20,
-      "offStateAlpha": 0.2,
-      "lensFalloff": 0.45,
-      "specularHotspot": 0.28,
-      "rimHighlight": 0.22
-    }
-  },
   "routing": {
     "routingSchemaVersion": "1",
     "toyConfigIniPath": "toys.ini"
-  },
-  "window": {
-    "alwaysOnTop": true,
-    "borderless": true,
-    "left": 10,
-    "top": 6,
-    "width": 1412,
-    "height": 353
   },
   "debug": {
     "showDebug": false,
