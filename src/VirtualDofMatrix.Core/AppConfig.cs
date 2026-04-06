@@ -218,6 +218,16 @@ public sealed class RoutingPolicyConfig
 
     // Actionable behavior toggle for unknown mapping names from config payloads.
     public bool FallbackToMatrixMapping { get; set; } = true;
+
+    // Supported values: drop, partial-black-fill, hold-last.
+    public string OnMissingData { get; set; } = "partial-black-fill";
+
+    // Supported values: reject-config, clamp.
+    public string OnOversizeRange { get; set; } = "clamp";
+
+    // Supported values: latest-wins, drop-oldest.
+    // Approved default keeps live display responsive by preferring the newest frame.
+    public string OnFrameRateSpike { get; set; } = "latest-wins";
 }
 
 public sealed class ToyRouteConfig

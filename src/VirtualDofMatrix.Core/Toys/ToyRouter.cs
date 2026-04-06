@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Text;
+using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.Core.Toys;
 
@@ -11,6 +13,15 @@ namespace VirtualDofMatrix.Core.Toys;
 /// </remarks>
 public sealed class ToyRouter : IToyRouter
 {
+    private readonly RoutingPolicyConfig _policy;
+    private readonly ConcurrentDictionary<string, ToyFrame> _lastFrameByToyId = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, ulong> _lastSequenceByToyId = new(StringComparer.OrdinalIgnoreCase);
+
+    public ToyRouter(RoutingPolicyConfig? policy = null)
+    {
+        _policy = policy ?? new RoutingPolicyConfig();
+    }
+
     public ToyRoutingResult Route(
         ReadOnlySpan<byte> payload,
         RoutingFrameContext context,
@@ -22,30 +33,82 @@ public sealed class ToyRouter : IToyRouter
 
         foreach (var toy in toyDefinitions)
         {
-            if (!toy.Enabled)
+            try
             {
+                RouteSingleToy(payload, context, globalFrameId, toy, frames, diagnostics);
+            }
+            catch (Exception ex)
+            {
+                // Conversational note: per-toy failure isolation is intentional so one bad toy never freezes the others.
                 diagnostics.Add(new ToyRoutingDiagnostic(
                     toy.Id,
                     MappedLedCount: 0,
                     MissingBytes: 0,
-                    PolicyAction: ToyRoutingPolicyAction.SkippedDisabled,
-                    Message: "Toy is disabled in the routing plan."));
-                continue;
-            }
-
-            var frame = BuildToyFrame(payload, context, toy, globalFrameId, out var diagnostic);
-            diagnostics.Add(diagnostic);
-
-            if (frame is not null)
-            {
-                frames.Add(frame);
+                    PolicyAction: ToyRoutingPolicyAction.PerToyFailureIsolated,
+                    Message: $"Toy routing failed in isolation: {ex.Message}"));
             }
         }
 
         return new ToyRoutingResult(globalFrameId, frames, diagnostics);
     }
 
-    private static ToyFrame? BuildToyFrame(
+    private void RouteSingleToy(
+        ReadOnlySpan<byte> payload,
+        RoutingFrameContext context,
+        ulong globalFrameId,
+        ToyDefinition toy,
+        ICollection<ToyFrame> frames,
+        ICollection<ToyRoutingDiagnostic> diagnostics)
+    {
+        if (!toy.Enabled)
+        {
+            diagnostics.Add(new ToyRoutingDiagnostic(
+                toy.Id,
+                MappedLedCount: 0,
+                MissingBytes: 0,
+                PolicyAction: ToyRoutingPolicyAction.SkippedDisabled,
+                Message: "Toy is disabled in the routing plan."));
+            return;
+        }
+
+        if (ShouldDropForFrameRatePolicy(context.InputSequence, toy.Id))
+        {
+            diagnostics.Add(new ToyRoutingDiagnostic(
+                toy.Id,
+                MappedLedCount: 0,
+                MissingBytes: 0,
+                PolicyAction: ToyRoutingPolicyAction.FrameDroppedLatestWins,
+                Message: "Frame dropped because onFrameRateSpike=latest-wins and a newer/equal sequence already exists for this toy."));
+            return;
+        }
+
+        var frame = BuildToyFrame(payload, context, toy, globalFrameId, out var diagnostic);
+        diagnostics.Add(diagnostic);
+
+        if (frame is not null)
+        {
+            frames.Add(frame);
+            _lastFrameByToyId[toy.Id] = frame;
+            _lastSequenceByToyId[toy.Id] = context.InputSequence;
+        }
+    }
+
+    private bool ShouldDropForFrameRatePolicy(ulong inputSequence, string toyId)
+    {
+        if (!PolicyEquals(_policy.OnFrameRateSpike, "latest-wins"))
+        {
+            return false;
+        }
+
+        if (!_lastSequenceByToyId.TryGetValue(toyId, out var lastSequence))
+        {
+            return false;
+        }
+
+        return inputSequence <= lastSequence;
+    }
+
+    private ToyFrame? BuildToyFrame(
         ReadOnlySpan<byte> payload,
         RoutingFrameContext context,
         ToyDefinition toy,
@@ -58,37 +121,53 @@ public sealed class ToyRouter : IToyRouter
 
         var canonicalStart = Math.Max(0, toy.SourceDescriptor.CanonicalStart);
         var requestedLedCount = Math.Max(0, toy.SourceDescriptor.Length);
-        var mappedLedCount = Math.Min(matrixLedCapacity, requestedLedCount);
+        var mappedLedCount = requestedLedCount;
 
-        // Conversational note: v1 policy chooses a conservative "paint black for missing data" behavior.
+        if (requestedLedCount > matrixLedCapacity)
+        {
+            if (PolicyEquals(_policy.OnOversizeRange, "reject-config"))
+            {
+                diagnostic = new ToyRoutingDiagnostic(
+                    toy.Id,
+                    MappedLedCount: 0,
+                    MissingBytes: 0,
+                    PolicyAction: ToyRoutingPolicyAction.RejectedOversizeRange,
+                    Message: $"Toy source length {requestedLedCount} exceeds matrix capacity {matrixLedCapacity}; rejected by onOversizeRange=reject-config.");
+                return null;
+            }
+
+            mappedLedCount = matrixLedCapacity;
+        }
+
+        // Conversational note: v1 starts each output as black; policy decides whether missing bytes stay black, drop, or hold-last.
         var pixels = new Rgb24[matrixLedCapacity];
         var payloadStartByte = canonicalStart * 3;
 
         if (payloadStartByte >= payload.Length || mappedLedCount == 0)
         {
-            diagnostic = new ToyRoutingDiagnostic(
-                toy.Id,
-                MappedLedCount: 0,
-                MissingBytes: mappedLedCount * 3,
-                PolicyAction: ToyRoutingPolicyAction.SourceOutOfRange,
-                Message: "Canonical source range starts outside this payload frame; toy output filled with black.");
-
-            return new ToyFrame(
-                toy.Id,
-                DeriveToyFrameId(globalFrameId, toy.Id),
-                context.ReceivedAtUtc,
+            return ApplyMissingDataPolicy(
+                toy,
+                context,
+                globalFrameId,
                 width,
                 height,
-                PixelsToBytes(pixels),
-                pixels);
+                pixels,
+                mappedLedCount,
+                ToyRoutingPolicyAction.SourceOutOfRange,
+                "Canonical source range starts outside this payload frame.",
+                out diagnostic);
         }
 
         var availableBytes = payload.Length - payloadStartByte;
         var availableLeds = Math.Min(mappedLedCount, availableBytes / 3);
 
         var mapping = toy.Mapping;
-        var policyAction = ToyRoutingPolicyAction.None;
-        var policyMessage = "Mapped canonical range successfully.";
+        var policyAction = requestedLedCount > matrixLedCapacity
+            ? ToyRoutingPolicyAction.ClampedOversizeRange
+            : ToyRoutingPolicyAction.None;
+        var policyMessage = requestedLedCount > matrixLedCapacity
+            ? $"Requested {requestedLedCount} LEDs but clamped to matrix capacity {matrixLedCapacity}."
+            : "Mapped canonical range successfully.";
 
         for (var ledIndex = 0; ledIndex < availableLeds; ledIndex++)
         {
@@ -112,18 +191,86 @@ public sealed class ToyRouter : IToyRouter
         var missingBytes = (mappedLedCount - availableLeds) * 3;
         if (missingBytes > 0)
         {
-            policyAction = policyAction == ToyRoutingPolicyAction.None
-                ? ToyRoutingPolicyAction.PaddedMissingBytesWithBlack
-                : policyAction;
-            policyMessage = $"Mapped {availableLeds}/{mappedLedCount} LEDs; padded missing bytes with black.";
+            return ApplyMissingDataPolicy(
+                toy,
+                context,
+                globalFrameId,
+                width,
+                height,
+                pixels,
+                mappedLedCount,
+                policyAction,
+                $"Mapped {availableLeds}/{mappedLedCount} LEDs; {missingBytes} bytes missing.",
+                out diagnostic,
+                availableLeds,
+                missingBytes);
         }
 
         diagnostic = new ToyRoutingDiagnostic(
             toy.Id,
             MappedLedCount: availableLeds,
-            MissingBytes: Math.Max(0, missingBytes),
+            MissingBytes: 0,
             PolicyAction: policyAction,
             Message: policyMessage);
+
+        return new ToyFrame(
+            toy.Id,
+            DeriveToyFrameId(globalFrameId, toy.Id),
+            context.ReceivedAtUtc,
+            width,
+            height,
+            PixelsToBytes(pixels),
+            pixels);
+    }
+
+    private ToyFrame? ApplyMissingDataPolicy(
+        ToyDefinition toy,
+        RoutingFrameContext context,
+        ulong globalFrameId,
+        int width,
+        int height,
+        Rgb24[] pixels,
+        int mappedLedCount,
+        ToyRoutingPolicyAction existingPolicyAction,
+        string baseMessage,
+        out ToyRoutingDiagnostic diagnostic,
+        int availableLeds = 0,
+        int? explicitMissingBytes = null)
+    {
+        var missingBytes = explicitMissingBytes ?? Math.Max(0, mappedLedCount * 3);
+
+        if (PolicyEquals(_policy.OnMissingData, "drop"))
+        {
+            diagnostic = new ToyRoutingDiagnostic(
+                toy.Id,
+                MappedLedCount: availableLeds,
+                MissingBytes: missingBytes,
+                PolicyAction: ToyRoutingPolicyAction.DroppedMissingData,
+                Message: $"{baseMessage} Dropped by onMissingData=drop.");
+            return null;
+        }
+
+        if (PolicyEquals(_policy.OnMissingData, "hold-last") && _lastFrameByToyId.TryGetValue(toy.Id, out var lastFrame))
+        {
+            diagnostic = new ToyRoutingDiagnostic(
+                toy.Id,
+                MappedLedCount: availableLeds,
+                MissingBytes: missingBytes,
+                PolicyAction: ToyRoutingPolicyAction.HeldLastFrame,
+                Message: $"{baseMessage} Holding last frame due to onMissingData=hold-last.");
+            return lastFrame with { FrameId = DeriveToyFrameId(globalFrameId, toy.Id), TimestampUtc = context.ReceivedAtUtc };
+        }
+
+        var policyAction = existingPolicyAction == ToyRoutingPolicyAction.None
+            ? ToyRoutingPolicyAction.PaddedMissingBytesWithBlack
+            : existingPolicyAction;
+
+        diagnostic = new ToyRoutingDiagnostic(
+            toy.Id,
+            MappedLedCount: availableLeds,
+            MissingBytes: missingBytes,
+            PolicyAction: policyAction,
+            Message: $"{baseMessage} Filled missing bytes with black due to onMissingData=partial-black-fill.");
 
         return new ToyFrame(
             toy.Id,
@@ -149,6 +296,9 @@ public sealed class ToyRouter : IToyRouter
             return (x, y, ToyRoutingPolicyAction.MappingFallbackRowMajor);
         }
     }
+
+    private static bool PolicyEquals(string? value, string expected)
+        => string.Equals(value?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
 
     private static ulong DeriveToyFrameId(ulong globalFrameId, string toyId)
     {
@@ -217,4 +367,10 @@ public enum ToyRoutingPolicyAction
     SourceOutOfRange,
     PaddedMissingBytesWithBlack,
     MappingFallbackRowMajor,
+    DroppedMissingData,
+    HeldLastFrame,
+    RejectedOversizeRange,
+    ClampedOversizeRange,
+    FrameDroppedLatestWins,
+    PerToyFailureIsolated,
 }

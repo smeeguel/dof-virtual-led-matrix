@@ -148,6 +148,30 @@ public sealed class AppConfigurationStore
             modified = true;
         }
 
+        NormalizePolicyValue(
+            policyName: "routing.policy.onMissingData",
+            currentValue: config.Routing.Policy.OnMissingData,
+            supportedValues: ["drop", "partial-black-fill", "hold-last"],
+            defaultValue: "partial-black-fill",
+            assign: value => config.Routing.Policy.OnMissingData = value,
+            ref modified);
+
+        NormalizePolicyValue(
+            policyName: "routing.policy.onOversizeRange",
+            currentValue: config.Routing.Policy.OnOversizeRange,
+            supportedValues: ["reject-config", "clamp"],
+            defaultValue: "clamp",
+            assign: value => config.Routing.Policy.OnOversizeRange = value,
+            ref modified);
+
+        NormalizePolicyValue(
+            policyName: "routing.policy.onFrameRateSpike",
+            currentValue: config.Routing.Policy.OnFrameRateSpike,
+            supportedValues: ["latest-wins", "drop-oldest"],
+            defaultValue: "latest-wins",
+            assign: value => config.Routing.Policy.OnFrameRateSpike = value,
+            ref modified);
+
         if (config.Routing.Toys.Count == 0)
         {
             MigrateLegacyMatrixToDefaultToy(config);
@@ -269,6 +293,39 @@ public sealed class AppConfigurationStore
         }
 
         return modified;
+    }
+
+    private static void NormalizePolicyValue(
+        string policyName,
+        string? currentValue,
+        string[] supportedValues,
+        string defaultValue,
+        Action<string> assign,
+        ref bool modified)
+    {
+        if (string.IsNullOrWhiteSpace(currentValue))
+        {
+            Warn($"{policyName} is missing; defaulting to '{defaultValue}'.");
+            assign(defaultValue);
+            modified = true;
+            return;
+        }
+
+        var normalized = currentValue.Trim().ToLowerInvariant();
+        if (!supportedValues.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            var allowed = string.Join(", ", supportedValues);
+            Warn($"{policyName}='{currentValue}' is invalid; expected one of [{allowed}]. Defaulting to '{defaultValue}'.");
+            assign(defaultValue);
+            modified = true;
+            return;
+        }
+
+        if (!string.Equals(currentValue, normalized, StringComparison.Ordinal))
+        {
+            assign(normalized);
+            modified = true;
+        }
     }
 
     private static void MigrateLegacyMatrixToDefaultToy(AppConfig config)

@@ -53,7 +53,10 @@
     "policy": {
       "defaultStripLength": 1100,
       "skipInvalidToys": true,
-      "fallbackToMatrixMapping": true
+      "fallbackToMatrixMapping": true,
+      "onMissingData": "partial-black-fill",
+      "onOversizeRange": "clamp",
+      "onFrameRateSpike": "latest-wins"
     },
     "toys": [
       {
