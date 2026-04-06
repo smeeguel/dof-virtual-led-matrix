@@ -8,10 +8,6 @@
     "width": 128,
     "height": 32,
     "mapping": "TopDownAlternateRightLeft",
-    "dotShape": "circle",
-    "minDotSpacing": 2,
-    "brightness": 1.0,
-    "gamma": 0.8,
     "toneMapping": {
       "enabled": true,
       "kneeStart": 0.95,
@@ -36,70 +32,10 @@
       "lensFalloff": 0.45,
       "specularHotspot": 0.28,
       "rimHighlight": 0.22
-    },
-    "bloom": {
-      "enabled": true,
-      "threshold": 0.72,
-      "softKnee": 0.18,
-      "downsampleDivisor": 2,
-      "nearRadiusPx": 2,
-      "farRadiusPx": 10,
-      "nearStrength": 1.0,
-      "farStrength": 0.2
     }
   },
   "routing": {
     "routingSchemaVersion": "1",
-    "policy": {
-      "defaultStripLength": 1100,
-      "skipInvalidToys": true,
-      "fallbackToMatrixMapping": true,
-      "onMissingData": "partial-black-fill",
-      "onOversizeRange": "clamp",
-      "onFrameRateSpike": "latest-wins"
-    },
-    "toys": [
-      {
-        "id": "backglass-main",
-        "enabled": true,
-        "kind": "matrix",
-        "source": {
-          "canonicalStart": 0,
-          "length": 256,
-          "stripIndex": 0,
-          "stripOffset": 0
-        },
-        "mapping": {
-          "width": 32,
-          "height": 8,
-          "mode": "TopDownAlternateRightLeft"
-        },
-        "window": {
-          "useGlobalWindow": true,
-          "alwaysOnTop": true,
-          "borderless": true,
-          "left": 10,
-          "top": 6,
-          "width": 1412,
-          "height": 353
-        },
-        "render": {
-          "dotShape": "circle",
-          "minDotSpacing": 2,
-          "brightness": 1.0,
-          "gamma": 0.8
-        },
-        "outputTargets": [
-          {
-            "adapter": "viewer",
-            "enabled": true,
-            "options": {
-              "channel": "main"
-            }
-          }
-        ]
-      }
-    ],
     "toyConfigIniPath": "toys.ini"
   },
   "window": {
