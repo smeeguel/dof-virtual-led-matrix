@@ -115,8 +115,8 @@ public sealed class WriteableBitmapRendererSnapshotTests
         config.Width = 6;
         config.Height = 3;
         config.Bloom.Enabled = true;
-        config.Bloom.NearRadius = 3;
-        config.Bloom.FarRadius = 5;
+        config.Bloom.NearRadiusPx = 3;
+        config.Bloom.FarRadiusPx = 5;
         config.Bloom.NearStrength = 0.55;
         config.Bloom.FarStrength = 0.4;
         config.TemporalSmoothing.Enabled = false;
