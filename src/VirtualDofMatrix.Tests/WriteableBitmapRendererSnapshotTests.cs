@@ -143,6 +143,41 @@ public sealed class WriteableBitmapRendererSnapshotTests
         Assert.Equal(ComputeHash(baseline.Pixels), ComputeHash(incremental.Pixels));
     }
 
+    [Fact]
+    public void Compose_ShouldContinueProducingDirtyUpdates_UntilSmoothedCellFullyTurnsOff()
+    {
+        var config = CreateBaseConfig();
+        config.Width = 1;
+        config.Height = 1;
+        config.Bloom.Enabled = false;
+        config.TemporalSmoothing.Enabled = true;
+        config.TemporalSmoothing.RiseAlpha = 1.0;
+        config.TemporalSmoothing.FallAlpha = 0.25;
+
+        var composer = new MatrixFrameRasterComposer();
+        composer.Configure(config);
+
+        composer.Compose(CreateSolidFrame(1, 5, 0, 0, 1UL));
+
+        var sawDirtyBeforeFullyOff = false;
+        (int Width, int Height, int Stride, byte[] Pixels, IReadOnlyList<DirtyRect> DirtyRects, bool UseFullFrameWrite) frame = default;
+        for (ulong i = 0; i < 12; i++)
+        {
+            frame = composer.Compose(CreateSolidFrame(1, 0, 0, 0, 2UL + i));
+            if (frame.DirtyRects.Count > 0)
+            {
+                sawDirtyBeforeFullyOff = true;
+            }
+        }
+
+        var baselineComposer = new MatrixFrameRasterComposer();
+        baselineComposer.Configure(config);
+        var baselineOff = baselineComposer.Compose(CreateSolidFrame(1, 0, 0, 0, 500UL));
+
+        Assert.True(sawDirtyBeforeFullyOff);
+        Assert.Equal(ComputeHash(baselineOff.Pixels), ComputeHash(frame.Pixels));
+    }
+
     private static MatrixConfig CreateBaseConfig() =>
         new()
         {

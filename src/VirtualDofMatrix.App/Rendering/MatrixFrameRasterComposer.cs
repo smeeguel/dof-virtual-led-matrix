@@ -472,11 +472,11 @@ internal sealed class MatrixFrameRasterComposer
 
     private bool HasMatrixCellChanged(int matrixIndex)
     {
-        // Any per-channel delta means we touched this dot footprint this frame.
-        const float epsilon = 0.5f;
-        return Math.Abs(_workingRgb.R[matrixIndex] - _previousWorkingRgb.R[matrixIndex]) >= epsilon ||
-               Math.Abs(_workingRgb.G[matrixIndex] - _previousWorkingRgb.G[matrixIndex]) >= epsilon ||
-               Math.Abs(_workingRgb.B[matrixIndex] - _previousWorkingRgb.B[matrixIndex]) >= epsilon;
+        // Conversational note: compare post-quantization bytes so tiny smoothing steps still redraw when they cross
+        // visible output boundaries (especially the last 1->0 fade step that would otherwise "ghost").
+        return ToByte(_workingRgb.R[matrixIndex] / 255.0) != ToByte(_previousWorkingRgb.R[matrixIndex] / 255.0) ||
+               ToByte(_workingRgb.G[matrixIndex] / 255.0) != ToByte(_previousWorkingRgb.G[matrixIndex] / 255.0) ||
+               ToByte(_workingRgb.B[matrixIndex] / 255.0) != ToByte(_previousWorkingRgb.B[matrixIndex] / 255.0);
     }
 
     private void CopyCurrentWorkingToPrevious(int matrixCapacity)
