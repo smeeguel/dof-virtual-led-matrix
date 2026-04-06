@@ -49,7 +49,7 @@
     }
   },
   "routing": {
-    "routingSchemaVersion": "1.0",
+    "routingSchemaVersion": "1",
     "policy": {
       "defaultStripLength": 1100,
       "skipInvalidToys": true,
@@ -57,7 +57,7 @@
     },
     "toys": [
       {
-        "id": "matrix-main",
+        "id": "backglass-main",
         "enabled": true,
         "kind": "matrix",
         "source": {

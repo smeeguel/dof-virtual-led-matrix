@@ -201,7 +201,7 @@ public sealed class SettingsConfig
 public sealed class RoutingConfig
 {
     // Conversational note: this version string lets routing changes evolve without breaking legacy settings files.
-    public string RoutingSchemaVersion { get; set; } = "1.0";
+    public string RoutingSchemaVersion { get; set; } = "1";
 
     public RoutingPolicyConfig Policy { get; set; } = new();
 
