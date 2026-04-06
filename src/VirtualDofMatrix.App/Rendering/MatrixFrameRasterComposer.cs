@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Rendering;
@@ -48,6 +50,15 @@ internal sealed class MatrixFrameRasterComposer
     private int[] _logicalToRasterMap = Array.Empty<int>();
     private DateTimeOffset _lastPresentedAt = DateTimeOffset.UnixEpoch;
     private bool _forceFullFrameWrite = true;
+    private const float BloomLaneStrengthEpsilon = 0.0001f;
+    private ulong _bloomNearBlurPassCount;
+    private ulong _bloomFarBlurPassCount;
+    private ulong _bloomNearCompositePassCount;
+    private ulong _bloomFarCompositePassCount;
+    private long _bloomNearBlurTicks;
+    private long _bloomFarBlurTicks;
+    private long _bloomNearCompositeTicks;
+    private long _bloomFarCompositeTicks;
 
     public void Configure(MatrixConfig config)
     {
@@ -535,21 +546,109 @@ internal sealed class MatrixFrameRasterComposer
 
         var effectiveNearRadius = GetEffectiveBloomRadius(bloomProfile.NearRadius, bloomProfile.ScaleDivisor, _config.DotSize);
         var effectiveFarRadius = GetEffectiveBloomRadius(bloomProfile.FarRadius, bloomProfile.ScaleDivisor, _config.DotSize);
+        // Conversational note: lane activity is keyed off effective radius + non-trivial strength so no-op lanes skip all work.
+        var nearActive = effectiveNearRadius > 0 && bloomProfile.NearStrength > BloomLaneStrengthEpsilon;
+        var farActive = effectiveFarRadius > 0 && bloomProfile.FarStrength > BloomLaneStrengthEpsilon;
+        if (!nearActive && !farActive)
+        {
+            return;
+        }
+
         var compositeRadius = Math.Max(effectiveNearRadius, effectiveFarRadius) + 1;
         ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, compositeRadius, _downsampleWidth, _downsampleHeight, out var compositeMinX, out var compositeMinY, out var compositeMaxX, out var compositeMaxY);
         // We always clear the full composite ROI so stale lane values can't leak as edge tint lines.
-        ClearBloomRoi(_screenBloomNearRgb, _downsampleWidth, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY);
-        ClearBloomRoi(_screenBloomFarRgb, _downsampleWidth, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY);
+        if (nearActive)
+        {
+            ClearBloomRoi(_screenBloomNearRgb, _downsampleWidth, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY);
+        }
+
+        if (farActive)
+        {
+            ClearBloomRoi(_screenBloomFarRgb, _downsampleWidth, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY);
+        }
+
         // We expand blur input bounds by per-lane radius so edge taps still see neighbors outside the emissive core.
-        ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius + 1, _downsampleWidth, _downsampleHeight, out var nearMinX, out var nearMinY, out var nearMaxX, out var nearMaxY);
-        ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveFarRadius + 1, _downsampleWidth, _downsampleHeight, out var farMinX, out var farMinY, out var farMaxX, out var farMaxY);
         // Keep source immutable per frame; each lane writes into its own destination buffer.
         // This avoids near/far aliasing bugs where one blur pass accidentally feeds the other lane.
-        BloomBlurStrategy.BlurFromImmutableSource(_screenBloomSourceRgb, _screenBloomNearRgb, _screenBloomScratchRgb, _downsampleWidth, _downsampleHeight, effectiveNearRadius, nearMinX, nearMinY, nearMaxX, nearMaxY);
-        BloomBlurStrategy.BlurFromImmutableSource(_screenBloomSourceRgb, _screenBloomFarRgb, _screenBloomScratchRgb, _downsampleWidth, _downsampleHeight, effectiveFarRadius, farMinX, farMinY, farMaxX, farMaxY);
+        if (nearActive)
+        {
+            ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius + 1, _downsampleWidth, _downsampleHeight, out var nearMinX, out var nearMinY, out var nearMaxX, out var nearMaxY);
+            var nearBlurStart = Stopwatch.GetTimestamp();
+            BloomBlurStrategy.BlurFromImmutableSource(_screenBloomSourceRgb, _screenBloomNearRgb, _screenBloomScratchRgb, _downsampleWidth, _downsampleHeight, effectiveNearRadius, nearMinX, nearMinY, nearMaxX, nearMaxY);
+            _bloomNearBlurTicks += Stopwatch.GetTimestamp() - nearBlurStart;
+            _bloomNearBlurPassCount++;
+        }
+
+        if (farActive)
+        {
+            ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveFarRadius + 1, _downsampleWidth, _downsampleHeight, out var farMinX, out var farMinY, out var farMaxX, out var farMaxY);
+            var farBlurStart = Stopwatch.GetTimestamp();
+            BloomBlurStrategy.BlurFromImmutableSource(_screenBloomSourceRgb, _screenBloomFarRgb, _screenBloomScratchRgb, _downsampleWidth, _downsampleHeight, effectiveFarRadius, farMinX, farMinY, farMaxX, farMaxY);
+            _bloomFarBlurTicks += Stopwatch.GetTimestamp() - farBlurStart;
+            _bloomFarBlurPassCount++;
+        }
+
         var effectiveNearStrength = (float)bloomProfile.NearStrength;
         var effectiveFarStrength = (float)bloomProfile.FarStrength;
-        CompositeBloom(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveNearStrength, effectiveFarStrength, bloomProfile);
+        var compositeStart = Stopwatch.GetTimestamp();
+        if (nearActive && farActive)
+        {
+            CompositeBloom(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveNearStrength, effectiveFarStrength, bloomProfile);
+            _bloomNearCompositePassCount++;
+            _bloomFarCompositePassCount++;
+        }
+        else if (nearActive)
+        {
+            CompositeBloomSingleLane(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveNearStrength, bloomProfile);
+            _bloomNearCompositePassCount++;
+        }
+        else
+        {
+            CompositeBloomSingleLane(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveFarStrength, bloomProfile);
+            _bloomFarCompositePassCount++;
+        }
+
+        var compositeTicks = Stopwatch.GetTimestamp() - compositeStart;
+        if (nearActive)
+        {
+            _bloomNearCompositeTicks += compositeTicks;
+        }
+
+        if (farActive)
+        {
+            _bloomFarCompositeTicks += compositeTicks;
+        }
+
+        LogBloomLaneCountersIfNeeded();
+    }
+
+    private void LogBloomLaneCountersIfNeeded()
+    {
+        if (ShouldLogBloomCounter(_bloomNearBlurPassCount))
+        {
+            var avgNearBlurMs = ToMilliseconds(_bloomNearBlurTicks, _bloomNearBlurPassCount);
+            var avgNearCompositeMs = ToMilliseconds(_bloomNearCompositeTicks, _bloomNearCompositePassCount);
+            AppLogger.Info($"[composer] bloom near lane blurPasses={_bloomNearBlurPassCount} compositePasses={_bloomNearCompositePassCount} avgBlurMs={avgNearBlurMs:F4} avgCompositeMs={avgNearCompositeMs:F4}");
+        }
+
+        if (ShouldLogBloomCounter(_bloomFarBlurPassCount))
+        {
+            var avgFarBlurMs = ToMilliseconds(_bloomFarBlurTicks, _bloomFarBlurPassCount);
+            var avgFarCompositeMs = ToMilliseconds(_bloomFarCompositeTicks, _bloomFarCompositePassCount);
+            AppLogger.Info($"[composer] bloom far lane blurPasses={_bloomFarBlurPassCount} compositePasses={_bloomFarCompositePassCount} avgBlurMs={avgFarBlurMs:F4} avgCompositeMs={avgFarCompositeMs:F4}");
+        }
+    }
+
+    private static bool ShouldLogBloomCounter(ulong count) => count > 0 && (count <= 3 || (count & (count - 1)) == 0);
+
+    private static double ToMilliseconds(long ticks, ulong count)
+    {
+        if (count == 0 || ticks <= 0)
+        {
+            return 0;
+        }
+
+        return (ticks * 1000.0 / Stopwatch.Frequency) / count;
     }
 
     private bool DownsampleEmissive(byte[] bgra, int width, int height, BloomProfile profile, int emissiveMinX, int emissiveMinY, int emissiveMaxX, int emissiveMaxY, out int minBloomX, out int minBloomY, out int maxBloomX, out int maxBloomY)
@@ -663,6 +762,30 @@ internal sealed class MatrixFrameRasterComposer
                 target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (near.R * nearStrength) + (far.R * farStrength), 0f, 255f);
                 target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (near.G * nearStrength) + (far.G * farStrength), 0f, 255f);
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (near.B * nearStrength) + (far.B * farStrength), 0f, 255f);
+            }
+        }
+    }
+
+    private static void CompositeBloomSingleLane(byte[] target, int width, int height, RgbPlaneBuffer laneBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, float effectiveStrength, BloomProfile profile)
+    {
+        var strength = effectiveStrength;
+        var startX = Math.Max(0, minBloomX * profile.ScaleDivisor);
+        var startY = Math.Max(0, minBloomY * profile.ScaleDivisor);
+        var endX = Math.Min(width - 1, ((maxBloomX + 1) * profile.ScaleDivisor) - 1);
+        var endY = Math.Min(height - 1, ((maxBloomY + 1) * profile.ScaleDivisor) - 1);
+
+        for (var y = startY; y <= endY; y++)
+        {
+            for (var x = startX; x <= endX; x++)
+            {
+                // Conversational note: single-lane composite avoids bilinear fetch + sum for a lane that was never rendered.
+                var bloomU = ((x + 0.5f) / profile.ScaleDivisor) - 0.5f;
+                var bloomV = ((y + 0.5f) / profile.ScaleDivisor) - 0.5f;
+                var lane = SampleBilinear(laneBlur, bloomWidth, bloomHeight, bloomU, bloomV);
+                var targetOffset = ((y * width) + x) * 4;
+                target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (lane.R * strength), 0f, 255f);
+                target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (lane.G * strength), 0f, 255f);
+                target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (lane.B * strength), 0f, 255f);
             }
         }
     }
