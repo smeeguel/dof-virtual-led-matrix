@@ -1,4 +1,5 @@
 using VirtualDofMatrix.Core;
+using VirtualDofMatrix.App.Rendering;
 using Xunit;
 
 namespace VirtualDofMatrix.Tests;
@@ -58,5 +59,31 @@ public sealed class GpuRendererBoundaryTests
 
         var bgra = GpuFrameUpload.BuildBgraFrame(leds, map, width, height);
         Assert.Equal(checked(width * height * 4), bgra.Length);
+    }
+
+    [Fact]
+    public void BloomRoiMath_ShouldExpandAndClampBoundsWithoutClippingEdges()
+    {
+        var emissiveSurface = new GpuInstancedMatrixRenderer.IntRect(30, 6, 6, 4);
+        var bloomBounds = GpuInstancedMatrixRenderer.BloomRoiMath.SurfaceToBloomBounds(emissiveSurface, scaleDivisor: 2, bloomWidth: 32, bloomHeight: 16);
+        var expandedNear = GpuInstancedMatrixRenderer.BloomRoiMath.Expand(bloomBounds, padding: 3, maxWidth: 32, maxHeight: 16);
+        var expandedFar = GpuInstancedMatrixRenderer.BloomRoiMath.Expand(bloomBounds, padding: 7, maxWidth: 32, maxHeight: 16);
+        var union = GpuInstancedMatrixRenderer.BloomRoiMath.Union(expandedNear, expandedFar);
+        var compositeSurface = GpuInstancedMatrixRenderer.BloomRoiMath.BloomToSurfaceBounds(union, scaleDivisor: 2, surfaceWidth: 64, surfaceHeight: 32);
+
+        Assert.Equal(new GpuInstancedMatrixRenderer.IntRect(15, 3, 3, 2), bloomBounds);
+        Assert.Equal(new GpuInstancedMatrixRenderer.IntRect(12, 0, 9, 8), expandedNear);
+        Assert.Equal(new GpuInstancedMatrixRenderer.IntRect(8, 0, 13, 12), expandedFar);
+        Assert.Equal(new GpuInstancedMatrixRenderer.IntRect(16, 0, 26, 24), compositeSurface);
+    }
+
+    [Fact]
+    public void BloomRoiMath_ShouldReturnEmptyWhenInputBoundsAreEmpty()
+    {
+        var empty = GpuInstancedMatrixRenderer.IntRect.Empty;
+
+        Assert.True(GpuInstancedMatrixRenderer.BloomRoiMath.SurfaceToBloomBounds(empty, 4, 64, 16).IsEmpty);
+        Assert.True(GpuInstancedMatrixRenderer.BloomRoiMath.Expand(empty, 8, 64, 16).IsEmpty);
+        Assert.True(GpuInstancedMatrixRenderer.BloomRoiMath.BloomToSurfaceBounds(empty, 4, 256, 64).IsEmpty);
     }
 }
