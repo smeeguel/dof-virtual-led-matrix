@@ -526,7 +526,8 @@ internal sealed class MatrixFrameRasterComposer
             return;
         }
 
-        var compositeRadius = Math.Max(effectiveNearRadius, effectiveFarRadius) + 1;
+        // Separable blur widens support to ~2*radius in bloom space, plus one tile for bilinear fringe continuity.
+        var compositeRadius = (Math.Max(effectiveNearRadius, effectiveFarRadius) * 2) + 1;
         ExpandDownsampleRoi(minBloomX, minBloomY, maxBloomX, maxBloomY, compositeRadius, _downsampleWidth, _downsampleHeight, out var compositeMinX, out var compositeMinY, out var compositeMaxX, out var compositeMaxY);
         // We always clear the full composite ROI so stale lane values can't leak as edge tint lines.
         if (nearActive)
@@ -1124,7 +1125,9 @@ internal sealed class MatrixFrameRasterComposer
             return 0;
         }
 
-        return (maxRadius + 2) * Math.Max(1, profile.ScaleDivisor);
+        // Keep dirty invalidation aligned with composite ROI: 2*radius spill + one tile of bilinear fringe.
+        var spillInBloomPixels = (maxRadius * 2) + 1;
+        return (spillInBloomPixels + 1) * Math.Max(1, profile.ScaleDivisor);
     }
 
     private bool MatrixCellIntersectsDirtyBounds(int matrixX, int matrixY)
