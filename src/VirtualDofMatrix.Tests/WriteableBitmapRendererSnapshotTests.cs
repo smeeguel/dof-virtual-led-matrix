@@ -187,9 +187,10 @@ public sealed class WriteableBitmapRendererSnapshotTests
         // verifies we never drift pixels between iterations or across fresh composer instances.
         var profiles = new[]
         {
-            new BloomProfileCase("tight-near", nearRadiusPx: 2, farRadiusPx: 4, nearStrength: 0.65, farStrength: 0.35, threshold: 0.22, softKnee: 0.15),
-            new BloomProfileCase("wide-far", nearRadiusPx: 1, farRadiusPx: 8, nearStrength: 0.35, farStrength: 0.7, threshold: 0.18, softKnee: 0.3),
-            new BloomProfileCase("balanced", nearRadiusPx: 4, farRadiusPx: 6, nearStrength: 0.5, farStrength: 0.5, threshold: 0.25, softKnee: 0.2),
+            // Use positional arguments here so constructor parameter casing differences can't break compile on named args.
+            new BloomProfileCase("tight-near", 2, 4, 0.65, 0.35, 0.22, 0.15),
+            new BloomProfileCase("wide-far", 1, 8, 0.35, 0.7, 0.18, 0.3),
+            new BloomProfileCase("balanced", 4, 6, 0.5, 0.5, 0.25, 0.2),
         };
 
         foreach (var profile in profiles)
