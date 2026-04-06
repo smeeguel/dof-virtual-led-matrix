@@ -71,7 +71,7 @@ public partial class App : Application
         var toyRouter = new ToyRouter(_config.Routing.Policy);
         var outputAdapters = new List<IOutputAdapter>
         {
-            new ViewerOutputAdapter(Dispatcher, _window),
+            new WpfWindowOutputAdapter(Dispatcher, _config, _window, PersistWindowSettings),
         };
 
         _transportHost = new FrameTransportHost(_config, toyRouter, routingPlanProvider, outputAdapters);
@@ -276,6 +276,7 @@ public partial class App : Application
         destination.Window = source.Window;
         destination.Debug = source.Debug;
         destination.Settings = source.Settings;
+        destination.Routing = source.Routing;
     }
 
     private void PersistWindowSettings()
