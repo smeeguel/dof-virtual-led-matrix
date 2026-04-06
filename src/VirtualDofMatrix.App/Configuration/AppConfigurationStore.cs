@@ -25,8 +25,10 @@ public sealed class AppConfigurationStore
         var loaded = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions) ?? new AppConfig();
 
         var iniPath = ResolveToyIniPath(filePath, loaded.Routing?.ToyConfigIniPath);
+        var createdIni = EnsureToyIniExists(iniPath);
         var iniApplied = ToyIniConfiguration.ApplyFromIni(loaded, iniPath);
         var (normalized, shouldPersist) = ApplyLegacyDefaults(loaded);
+        shouldPersist |= createdIni;
         shouldPersist |= iniApplied;
 
         if (shouldPersist)
@@ -530,6 +532,69 @@ public sealed class AppConfigurationStore
 
         set(next);
         return true;
+    }
+
+    private static bool EnsureToyIniExists(string iniPath)
+    {
+        if (File.Exists(iniPath))
+        {
+            return false;
+        }
+
+        var directory = Path.GetDirectoryName(iniPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        // Conversational note: we drop a starter file next to the executable so first-run setup is obvious.
+        File.WriteAllText(iniPath, BuildDefaultToyIniTemplate());
+        return true;
+    }
+
+    private static string BuildDefaultToyIniTemplate()
+    {
+        return """
+; Auto-generated starter toys.ini
+; Edit toy settings here. Keep this file next to settings.json / app executable.
+
+[policy]
+; onMissingData options: drop | partial-black-fill | hold-last
+onMissingData = partial-black-fill
+; onOversizeRange options: reject-config | clamp
+onOversizeRange = clamp
+; onFrameRateSpike options: latest-wins | drop-oldest
+onFrameRateSpike = latest-wins
+
+defaultStripLength = 1100
+
+[toy:backglass-main]
+enabled = true
+kind = matrix
+width = 32
+height = 8
+mapping = TopDownAlternateRightLeft
+sourceCanonicalStart = 0
+sourceLength = 256
+windowLeft = 10
+windowTop = 6
+windowWidth = 1412
+windowHeight = 353
+windowAlwaysOnTop = true
+windowBorderless = true
+renderDotShape = circle
+renderMinDotSpacing = 2
+renderBrightness = 1.0
+renderGamma = 0.8
+bloomEnabled = true
+bloomThreshold = 0.72
+bloomSoftKnee = 0.18
+bloomNearRadiusPx = 2
+bloomFarRadiusPx = 10
+bloomNearStrength = 1.0
+bloomFarStrength = 0.2
+outputTargets = viewer,pipe-broadcast
+""";
     }
 
     private static string ResolveToyIniPath(string settingsJsonPath, string? configuredPath)
