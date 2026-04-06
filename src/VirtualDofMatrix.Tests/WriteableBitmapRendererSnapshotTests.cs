@@ -89,6 +89,60 @@ public sealed class WriteableBitmapRendererSnapshotTests
         Assert.Equal(ComputeHash(baseline.Pixels), ComputeHash(decayed.Pixels));
     }
 
+    [Fact]
+    public void Compose_ShouldSkipRaster_WhenFrameHasNoChangedCells()
+    {
+        var config = CreateBaseConfig();
+        config.Bloom.Enabled = false;
+        config.TemporalSmoothing.Enabled = false;
+
+        var composer = new MatrixFrameRasterComposer();
+        composer.Configure(config);
+        var frame = CreateSolidFrame(config.Width * config.Height, 20, 60, 120, 10UL);
+
+        var first = composer.Compose(frame);
+        var second = composer.Compose(frame);
+
+        Assert.False(second.UseFullFrameWrite);
+        Assert.Empty(second.DirtyRects);
+        Assert.Equal(ComputeHash(first.Pixels), ComputeHash(second.Pixels));
+    }
+
+    [Fact]
+    public void Compose_ShouldIncrementallyRedraw_WhenCellTurnsOffWithBloomEnabled()
+    {
+        var config = CreateBaseConfig();
+        config.Width = 6;
+        config.Height = 3;
+        config.Bloom.Enabled = true;
+        config.Bloom.NearRadius = 3;
+        config.Bloom.FarRadius = 5;
+        config.Bloom.NearStrength = 0.55;
+        config.Bloom.FarStrength = 0.4;
+        config.TemporalSmoothing.Enabled = false;
+
+        var composer = new MatrixFrameRasterComposer();
+        composer.Configure(config);
+
+        var ledCount = config.Width * config.Height;
+        var firstPayload = new byte[ledCount * 3];
+        firstPayload[0] = 255;
+        firstPayload[1] = 64;
+        firstPayload[2] = 24;
+        composer.Compose(new FramePresentation(firstPayload, ledCount, ledCount, 1, DateTimeOffset.UtcNow));
+
+        var offFrame = CreateSolidFrame(ledCount, 0, 0, 0, 2UL);
+        var incremental = composer.Compose(offFrame);
+
+        var baselineComposer = new MatrixFrameRasterComposer();
+        baselineComposer.Configure(config);
+        var baseline = baselineComposer.Compose(offFrame);
+
+        Assert.False(incremental.UseFullFrameWrite);
+        Assert.NotEmpty(incremental.DirtyRects);
+        Assert.Equal(ComputeHash(baseline.Pixels), ComputeHash(incremental.Pixels));
+    }
+
     private static MatrixConfig CreateBaseConfig() =>
         new()
         {

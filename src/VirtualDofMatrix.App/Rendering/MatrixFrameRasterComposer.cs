@@ -107,10 +107,43 @@ internal sealed class MatrixFrameRasterComposer
         ApplyColorTransforms(_config, matrixCapacity);
         EnsureChangedMatrixBuffer(matrixCapacity);
         Array.Clear(_changedMatrixCells, 0, matrixCapacity);
-        Array.Clear(_surfaceBgra, 0, _surfaceBgra.Length);
-        EnsureOpaqueBackground(_surfaceBgra);
         ResetRasterEmissiveBounds();
         ResetRasterDirtyBounds();
+
+        var hasChangedCells = false;
+        for (var matrixIndex = 0; matrixIndex < matrixCapacity; matrixIndex++)
+        {
+            if (!HasMatrixCellChanged(matrixIndex))
+            {
+                continue;
+            }
+
+            _changedMatrixCells[matrixIndex] = true;
+            hasChangedCells = true;
+        }
+
+        var fullFrameRaster = _forceFullFrameWrite;
+        // Conversational note: unchanged frames are common in idle tables, so we skip all raster work when nothing moved.
+        if (!fullFrameRaster && !hasChangedCells)
+        {
+            CopyCurrentWorkingToPrevious(matrixCapacity);
+            return (_surfaceWidth, _surfaceHeight, _stride, _surfaceBgra, Array.Empty<DirtyRect>(), false);
+        }
+
+        if (fullFrameRaster)
+        {
+            Array.Clear(_surfaceBgra, 0, _surfaceBgra.Length);
+            EnsureOpaqueBackground(_surfaceBgra);
+        }
+        else
+        {
+            MarkChangedCellsDirtyBoundsWithBloomMargin();
+            if (TryGetRasterDirtyBounds(out var dirtyMinX, out var dirtyMinY, out var dirtyMaxX, out var dirtyMaxY))
+            {
+                ClearSurfaceRegion(_surfaceBgra, dirtyMinX, dirtyMinY, dirtyMaxX, dirtyMaxY);
+            }
+        }
+
         for (var y = 0; y < _config.Height; y++)
         {
             for (var x = 0; x < _config.Width; x++)
@@ -120,20 +153,12 @@ internal sealed class MatrixFrameRasterComposer
                 var g = ToByte(_workingRgb.G[matrixIndex] / 255.0);
                 var b = ToByte(_workingRgb.B[matrixIndex] / 255.0);
                 var intensity = Math.Max(r, Math.Max(g, b)) / 255.0;
-                if (HasMatrixCellChanged(matrixIndex))
+                if (fullFrameRaster || MatrixCellIntersectsDirtyBounds(x, y))
                 {
-                    _changedMatrixCells[matrixIndex] = true;
+                    var dstX = _dotSpacing + (x * _dotStride);
+                    var dstY = _dotSpacing + (y * _dotStride);
+                    RasterDot(dstX, dstY, r, g, b, intensity, _config.Visual);
                 }
-
-                var dstX = _dotSpacing + (x * _dotStride);
-                var dstY = _dotSpacing + (y * _dotStride);
-                if (_changedMatrixCells[matrixIndex])
-                {
-                    // We conservatively track touched dot footprints so off-state transitions are uploaded too.
-                    MarkRasterDirtyBounds(dstX, dstY, _kernel.Size, _kernel.Size);
-                }
-
-                RasterDot(dstX, dstY, r, g, b, intensity, _config.Visual);
             }
         }
         ApplyBloomIfEnabled();
@@ -218,54 +243,24 @@ internal sealed class MatrixFrameRasterComposer
             return true;
         }
 
-        var totalPixels = _surfaceWidth * _surfaceHeight;
-        var dirtyPixels = 0;
-        // We intentionally generate row strips from changed matrix cells + kernel footprint.
-        for (var matrixY = 0; matrixY < _config!.Height; matrixY++)
-        {
-            var dotTop = _dotSpacing + (matrixY * _dotStride);
-            var dotBottom = dotTop + _kernel!.Size - 1;
-            if (dotBottom < dirtyMinY || dotTop > dirtyMaxY)
-            {
-                continue;
-            }
-
-            var runStartCell = -1;
-            for (var matrixX = 0; matrixX < _config.Width; matrixX++)
-            {
-                var matrixIndex = (matrixY * _config.Width) + matrixX;
-                if (_changedMatrixCells[matrixIndex])
-                {
-                    runStartCell = runStartCell < 0 ? matrixX : runStartCell;
-                    continue;
-                }
-
-                if (runStartCell >= 0)
-                {
-                    AppendDotRunStrips(matrixY, runStartCell, matrixX - 1, ref dirtyPixels);
-                    runStartCell = -1;
-                }
-            }
-
-            if (runStartCell >= 0)
-            {
-                AppendDotRunStrips(matrixY, runStartCell, _config.Width - 1, ref dirtyPixels);
-            }
-
-            // Too many row strips means the update is fragmented; full-frame upload is cheaper and simpler.
-            if (_dirtyRectScratch.Count > DirtyRectComplexityThreshold)
-            {
-                dirtyRects = Array.Empty<DirtyRect>();
-                return false;
-            }
-        }
-
-        if (_dirtyRectScratch.Count == 0)
+        if (!TryGetRasterDirtyBounds(out var dirtyMinX, out _, out var dirtyMaxX, out _))
         {
             dirtyRects = Array.Empty<DirtyRect>();
             return true;
         }
 
+        var totalPixels = _surfaceWidth * _surfaceHeight;
+        var dirtyWidth = (dirtyMaxX - dirtyMinX) + 1;
+        var dirtyHeight = (dirtyMaxY - dirtyMinY) + 1;
+        var dirtyPixels = dirtyWidth * dirtyHeight;
+
+        if (dirtyWidth <= 0 || dirtyHeight <= 0)
+        {
+            dirtyRects = Array.Empty<DirtyRect>();
+            return true;
+        }
+
+        _dirtyRectScratch.Add(new DirtyRect(dirtyMinX, dirtyMinY, dirtyWidth, dirtyHeight));
         if (dirtyPixels >= (int)(totalPixels * DirtyCoverageFullUploadThreshold))
         {
             dirtyRects = Array.Empty<DirtyRect>();
@@ -274,29 +269,6 @@ internal sealed class MatrixFrameRasterComposer
 
         dirtyRects = _dirtyRectScratch.ToArray();
         return true;
-    }
-
-    private void AppendDotRunStrips(int matrixY, int runStartCell, int runEndCellInclusive, ref int dirtyPixels)
-    {
-        var stripX = _dotSpacing + (runStartCell * _dotStride);
-        var stripRight = _dotSpacing + (runEndCellInclusive * _dotStride) + _kernel!.Size - 1;
-        var stripY = _dotSpacing + (matrixY * _dotStride);
-        var stripBottom = stripY + _kernel.Size - 1;
-        stripX = Math.Clamp(stripX, 0, _surfaceWidth - 1);
-        stripRight = Math.Clamp(stripRight, 0, _surfaceWidth - 1);
-        stripY = Math.Clamp(stripY, 0, _surfaceHeight - 1);
-        stripBottom = Math.Clamp(stripBottom, 0, _surfaceHeight - 1);
-        if (stripRight < stripX || stripBottom < stripY)
-        {
-            return;
-        }
-
-        var stripWidth = (stripRight - stripX) + 1;
-        for (var py = stripY; py <= stripBottom; py++)
-        {
-            dirtyPixels += stripWidth;
-            _dirtyRectScratch.Add(new DirtyRect(stripX, py, stripWidth, 1));
-        }
     }
 
     private void RasterDot(int originX, int originY, byte r, byte g, byte b, double intensity, MatrixVisualConfig visual)
@@ -1029,6 +1001,96 @@ internal sealed class MatrixFrameRasterComposer
     }
 
     private readonly record struct RgbSample(float R, float G, float B);
+
+    private void MarkChangedCellsDirtyBoundsWithBloomMargin()
+    {
+        if (_config is null || _kernel is null)
+        {
+            return;
+        }
+
+        // We invalidate around changed dots so local bloom spill and off-state fades don't leave stale pixels behind.
+        var localMargin = ComputeBloomInvalidationMarginPixels();
+        for (var y = 0; y < _config.Height; y++)
+        {
+            for (var x = 0; x < _config.Width; x++)
+            {
+                var matrixIndex = (y * _config.Width) + x;
+                if (!_changedMatrixCells[matrixIndex])
+                {
+                    continue;
+                }
+
+                var dstX = _dotSpacing + (x * _dotStride);
+                var dstY = _dotSpacing + (y * _dotStride);
+                MarkRasterDirtyBounds(dstX - localMargin, dstY - localMargin, _kernel.Size + (localMargin * 2), _kernel.Size + (localMargin * 2));
+            }
+        }
+    }
+
+    private int ComputeBloomInvalidationMarginPixels()
+    {
+        if (_config is null)
+        {
+            return 0;
+        }
+
+        var profile = BloomProfileResolver.Resolve(_config.Bloom);
+        if (!profile.Enabled)
+        {
+            return 0;
+        }
+
+        var maxRadius = Math.Max(profile.NearRadius, profile.FarRadius);
+        if (maxRadius <= 0)
+        {
+            return 0;
+        }
+
+        return (maxRadius + 2) * Math.Max(1, profile.ScaleDivisor);
+    }
+
+    private bool MatrixCellIntersectsDirtyBounds(int matrixX, int matrixY)
+    {
+        if (_kernel is null)
+        {
+            return false;
+        }
+
+        if (!TryGetRasterDirtyBounds(out var minX, out var minY, out var maxX, out var maxY))
+        {
+            return false;
+        }
+
+        var cellMinX = _dotSpacing + (matrixX * _dotStride);
+        var cellMinY = _dotSpacing + (matrixY * _dotStride);
+        var cellMaxX = cellMinX + _kernel.Size - 1;
+        var cellMaxY = cellMinY + _kernel.Size - 1;
+        return cellMaxX >= minX && cellMinX <= maxX && cellMaxY >= minY && cellMinY <= maxY;
+    }
+
+    private void ClearSurfaceRegion(byte[] surface, int minX, int minY, int maxX, int maxY)
+    {
+        var clampedMinX = Math.Clamp(minX, 0, _surfaceWidth - 1);
+        var clampedMinY = Math.Clamp(minY, 0, _surfaceHeight - 1);
+        var clampedMaxX = Math.Clamp(maxX, 0, _surfaceWidth - 1);
+        var clampedMaxY = Math.Clamp(maxY, 0, _surfaceHeight - 1);
+        if (clampedMinX > clampedMaxX || clampedMinY > clampedMaxY)
+        {
+            return;
+        }
+
+        for (var y = clampedMinY; y <= clampedMaxY; y++)
+        {
+            var rowStart = (y * _stride) + (clampedMinX * 4);
+            var rowLength = ((clampedMaxX - clampedMinX) + 1) * 4;
+            Array.Clear(surface, rowStart, rowLength);
+            for (var alphaOffset = rowStart + 3; alphaOffset < rowStart + rowLength; alphaOffset += 4)
+            {
+                surface[alphaOffset] = 255;
+            }
+        }
+    }
 
     private sealed class DotKernel
     {
