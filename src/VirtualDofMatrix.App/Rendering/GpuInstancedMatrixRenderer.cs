@@ -1295,15 +1295,15 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.VSSetShader(_fullscreenVertexShader);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.PSSetShader(shader);
-        _context.PSSetShaderResource(0, source0);
-        _context.PSSetShaderResource(1, source1);
-        _context.PSSetShaderResource(2, source2);
+        _context.PSSetShaderResource(0, source0 ?? null!);
+        _context.PSSetShaderResource(1, source1 ?? null!);
+        _context.PSSetShaderResource(2, source2 ?? null!);
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
         _context.PSSetShaderResources(0, NullPixelShaderSrvs);
         _context.RSSetState(null);
-        _context.RSSetScissorRectangles(Array.Empty<RawRect>());
+        _context.RSSetScissorRect(0, 0, fullWidth, fullHeight);
         _context.RSSetViewport(new Viewport(0, 0, fullWidth, fullHeight, 0f, 1f));
     }
 
@@ -1332,7 +1332,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         _context.RSSetState(_scissorRasterizerState);
         _context.RSSetViewport(new Viewport(roi.X, roi.Y, roi.Width, roi.Height, 0f, 1f));
-        _context.RSSetScissorRectangles(new RawRect(roi.X, roi.Y, roi.Right, roi.Bottom));
+        _context.RSSetScissorRect(roi.X, roi.Y, roi.Width, roi.Height);
     }
 
     private void SetBloomConstants(BloomProfile? profile, float radius, float directionX, float directionY)
