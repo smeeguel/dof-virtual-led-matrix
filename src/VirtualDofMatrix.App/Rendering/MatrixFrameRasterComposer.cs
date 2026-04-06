@@ -719,21 +719,49 @@ internal sealed class MatrixFrameRasterComposer
         var startY = Math.Max(0, minBloomY * profile.ScaleDivisor);
         var endX = Math.Min(width - 1, ((maxBloomX + 1) * profile.ScaleDivisor) - 1);
         var endY = Math.Min(height - 1, ((maxBloomY + 1) * profile.ScaleDivisor) - 1);
+        var rowWidth = (endX - startX) + 1;
+        if (rowWidth <= 0)
+        {
+            return;
+        }
+
+        // Conversational note: precompute X interpolation state once so each row can reuse x0/x1/tx without redoing mapping math.
+        var x0ByPixel = new int[rowWidth];
+        var x1ByPixel = new int[rowWidth];
+        var txByPixel = new float[rowWidth];
+        FillBilinearScanlineX(profile.ScaleDivisor, bloomWidth, startX, rowWidth, x0ByPixel, x1ByPixel, txByPixel);
+        // Row staging buffers let us compute each lane sample once per pixel and then apply channel strength in a tight write loop.
+        var nearRowR = new float[rowWidth];
+        var nearRowG = new float[rowWidth];
+        var nearRowB = new float[rowWidth];
+        var farRowR = new float[rowWidth];
+        var farRowG = new float[rowWidth];
+        var farRowB = new float[rowWidth];
 
         for (var y = startY; y <= endY; y++)
         {
-            for (var x = startX; x <= endX; x++)
+            ResolveBilinearY(profile.ScaleDivisor, bloomHeight, y, out var y0, out var y1, out var ty);
+            for (var xIndex = 0; xIndex < rowWidth; xIndex++)
             {
-                // Bilinear fetch keeps bloom smooth when upsampling from the downsampled buffers.
-                var bloomU = ((x + 0.5f) / profile.ScaleDivisor) - 0.5f;
-                var bloomV = ((y + 0.5f) / profile.ScaleDivisor) - 0.5f;
-                var near = SampleBilinear(nearBlur, bloomWidth, bloomHeight, bloomU, bloomV);
-                var far = SampleBilinear(farBlur, bloomWidth, bloomHeight, bloomU, bloomV);
+                var x0 = x0ByPixel[xIndex];
+                var x1 = x1ByPixel[xIndex];
+                var tx = txByPixel[xIndex];
+                var topLeft = (y0 * bloomWidth) + x0;
+                var topRight = (y0 * bloomWidth) + x1;
+                var bottomLeft = (y1 * bloomWidth) + x0;
+                var bottomRight = (y1 * bloomWidth) + x1;
 
-                var targetOffset = ((y * width) + x) * 4;
-                target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (near.R * nearStrength) + (far.R * farStrength), 0f, 255f);
-                target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (near.G * nearStrength) + (far.G * farStrength), 0f, 255f);
-                target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (near.B * nearStrength) + (far.B * farStrength), 0f, 255f);
+                SampleLaneBilinear(nearBlur, topLeft, topRight, bottomLeft, bottomRight, tx, ty, out nearRowR[xIndex], out nearRowG[xIndex], out nearRowB[xIndex]);
+                SampleLaneBilinear(farBlur, topLeft, topRight, bottomLeft, bottomRight, tx, ty, out farRowR[xIndex], out farRowG[xIndex], out farRowB[xIndex]);
+            }
+
+            var targetOffset = ((y * width) + startX) * 4;
+            for (var xIndex = 0; xIndex < rowWidth; xIndex++)
+            {
+                target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (nearRowR[xIndex] * nearStrength) + (farRowR[xIndex] * farStrength), 0f, 255f);
+                target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (nearRowG[xIndex] * nearStrength) + (farRowG[xIndex] * farStrength), 0f, 255f);
+                target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (nearRowB[xIndex] * nearStrength) + (farRowB[xIndex] * farStrength), 0f, 255f);
+                targetOffset += 4;
             }
         }
     }
@@ -745,19 +773,43 @@ internal sealed class MatrixFrameRasterComposer
         var startY = Math.Max(0, minBloomY * profile.ScaleDivisor);
         var endX = Math.Min(width - 1, ((maxBloomX + 1) * profile.ScaleDivisor) - 1);
         var endY = Math.Min(height - 1, ((maxBloomY + 1) * profile.ScaleDivisor) - 1);
+        var rowWidth = (endX - startX) + 1;
+        if (rowWidth <= 0)
+        {
+            return;
+        }
+
+        // Single-lane path shares the same cached X interpolation inputs so both codepaths stay numerically aligned.
+        var x0ByPixel = new int[rowWidth];
+        var x1ByPixel = new int[rowWidth];
+        var txByPixel = new float[rowWidth];
+        FillBilinearScanlineX(profile.ScaleDivisor, bloomWidth, startX, rowWidth, x0ByPixel, x1ByPixel, txByPixel);
+        var laneRowR = new float[rowWidth];
+        var laneRowG = new float[rowWidth];
+        var laneRowB = new float[rowWidth];
 
         for (var y = startY; y <= endY; y++)
         {
-            for (var x = startX; x <= endX; x++)
+            ResolveBilinearY(profile.ScaleDivisor, bloomHeight, y, out var y0, out var y1, out var ty);
+            for (var xIndex = 0; xIndex < rowWidth; xIndex++)
             {
-                // Conversational note: single-lane composite avoids bilinear fetch + sum for a lane that was never rendered.
-                var bloomU = ((x + 0.5f) / profile.ScaleDivisor) - 0.5f;
-                var bloomV = ((y + 0.5f) / profile.ScaleDivisor) - 0.5f;
-                var lane = SampleBilinear(laneBlur, bloomWidth, bloomHeight, bloomU, bloomV);
-                var targetOffset = ((y * width) + x) * 4;
-                target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (lane.R * strength), 0f, 255f);
-                target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (lane.G * strength), 0f, 255f);
-                target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (lane.B * strength), 0f, 255f);
+                var x0 = x0ByPixel[xIndex];
+                var x1 = x1ByPixel[xIndex];
+                var tx = txByPixel[xIndex];
+                var topLeft = (y0 * bloomWidth) + x0;
+                var topRight = (y0 * bloomWidth) + x1;
+                var bottomLeft = (y1 * bloomWidth) + x0;
+                var bottomRight = (y1 * bloomWidth) + x1;
+                SampleLaneBilinear(laneBlur, topLeft, topRight, bottomLeft, bottomRight, tx, ty, out laneRowR[xIndex], out laneRowG[xIndex], out laneRowB[xIndex]);
+            }
+
+            var targetOffset = ((y * width) + startX) * 4;
+            for (var xIndex = 0; xIndex < rowWidth; xIndex++)
+            {
+                target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (laneRowR[xIndex] * strength), 0f, 255f);
+                target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (laneRowG[xIndex] * strength), 0f, 255f);
+                target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (laneRowB[xIndex] * strength), 0f, 255f);
+                targetOffset += 4;
             }
         }
     }
@@ -806,48 +858,41 @@ internal sealed class MatrixFrameRasterComposer
         }
     }
 
-    private static RgbSample SampleBilinear(RgbPlaneBuffer source, int width, int height, float x, float y)
+    private static void FillBilinearScanlineX(int scaleDivisor, int bloomWidth, int startX, int rowWidth, int[] x0ByPixel, int[] x1ByPixel, float[] txByPixel)
     {
-        var x0 = Math.Clamp((int)Math.Floor(x), 0, width - 1);
-        var y0 = Math.Clamp((int)Math.Floor(y), 0, height - 1);
-        var x1 = Math.Min(width - 1, x0 + 1);
-        var y1 = Math.Min(height - 1, y0 + 1);
-        var tx = x - x0;
-        var ty = y - y0;
+        var bloomU = ((startX + 0.5f) / scaleDivisor) - 0.5f;
+        var stepU = 1f / scaleDivisor;
+        for (var i = 0; i < rowWidth; i++)
+        {
+            var x0 = Math.Clamp((int)Math.Floor(bloomU), 0, bloomWidth - 1);
+            x0ByPixel[i] = x0;
+            x1ByPixel[i] = Math.Min(bloomWidth - 1, x0 + 1);
+            txByPixel[i] = bloomU - x0;
+            bloomU += stepU;
+        }
+    }
 
-        var topLeft = (y0 * width) + x0;
-        var topRight = (y0 * width) + x1;
-        var bottomLeft = (y1 * width) + x0;
-        var bottomRight = (y1 * width) + x1;
+    private static void ResolveBilinearY(int scaleDivisor, int bloomHeight, int y, out int y0, out int y1, out float ty)
+    {
+        var bloomV = ((y + 0.5f) / scaleDivisor) - 0.5f;
+        y0 = Math.Clamp((int)Math.Floor(bloomV), 0, bloomHeight - 1);
+        y1 = Math.Min(bloomHeight - 1, y0 + 1);
+        ty = bloomV - y0;
+    }
 
-        // We run RGB through one SIMD batch so interpolation arithmetic stays in lockstep per channel.
-        Span<float> a = stackalloc float[System.Numerics.Vector<float>.Count];
-        Span<float> b = stackalloc float[System.Numerics.Vector<float>.Count];
-        Span<float> c = stackalloc float[System.Numerics.Vector<float>.Count];
-        Span<float> d = stackalloc float[System.Numerics.Vector<float>.Count];
-        a[0] = source.R[topLeft];
-        a[1] = source.G[topLeft];
-        a[2] = source.B[topLeft];
-        b[0] = source.R[topRight];
-        b[1] = source.G[topRight];
-        b[2] = source.B[topRight];
-        c[0] = source.R[bottomLeft];
-        c[1] = source.G[bottomLeft];
-        c[2] = source.B[bottomLeft];
-        d[0] = source.R[bottomRight];
-        d[1] = source.G[bottomRight];
-        d[2] = source.B[bottomRight];
+    private static void SampleLaneBilinear(RgbPlaneBuffer source, int topLeft, int topRight, int bottomLeft, int bottomRight, float tx, float ty, out float r, out float g, out float b)
+    {
+        var topR = source.R[topLeft] + ((source.R[topRight] - source.R[topLeft]) * tx);
+        var topG = source.G[topLeft] + ((source.G[topRight] - source.G[topLeft]) * tx);
+        var topB = source.B[topLeft] + ((source.B[topRight] - source.B[topLeft]) * tx);
 
-        var va = new System.Numerics.Vector<float>(a);
-        var vb = new System.Numerics.Vector<float>(b);
-        var vc = new System.Numerics.Vector<float>(c);
-        var vd = new System.Numerics.Vector<float>(d);
-        var vtx = new System.Numerics.Vector<float>(tx);
-        var vty = new System.Numerics.Vector<float>(ty);
-        var vab = va + ((vb - va) * vtx);
-        var vcd = vc + ((vd - vc) * vtx);
-        var sample = vab + ((vcd - vab) * vty);
-        return new RgbSample(sample[0], sample[1], sample[2]);
+        var bottomR = source.R[bottomLeft] + ((source.R[bottomRight] - source.R[bottomLeft]) * tx);
+        var bottomG = source.G[bottomLeft] + ((source.G[bottomRight] - source.G[bottomLeft]) * tx);
+        var bottomB = source.B[bottomLeft] + ((source.B[bottomRight] - source.B[bottomLeft]) * tx);
+
+        r = topR + ((bottomR - topR) * ty);
+        g = topG + ((bottomG - topG) * ty);
+        b = topB + ((bottomB - topB) * ty);
     }
 
     private static byte ApplyToneMap(byte channel, double brightness, double gamma, ToneMappingConfig toneMapping)
@@ -999,8 +1044,6 @@ internal sealed class MatrixFrameRasterComposer
             Array.Clear(rgb.B, offset, length);
         }
     }
-
-    private readonly record struct RgbSample(float R, float G, float B);
 
     private void MarkChangedCellsDirtyBoundsWithBloomMargin()
     {

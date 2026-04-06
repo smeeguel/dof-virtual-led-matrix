@@ -178,6 +178,59 @@ public sealed class WriteableBitmapRendererSnapshotTests
         Assert.Equal(ComputeHash(baselineOff.Pixels), ComputeHash(frame.Pixels));
     }
 
+    [Fact]
+    public void Compose_BloomCompositeProfiles_ShouldRemainPixelStable_AcrossHotLoop()
+    {
+        // Conversational note: this is a benchmark-style guard that hammers bloom compositing patterns repeatedly and
+        // verifies we never drift pixels between iterations or across fresh composer instances.
+        var profiles = new[]
+        {
+            new BloomProfileCase("tight-near", nearRadius: 2, farRadius: 4, nearStrength: 0.65, farStrength: 0.35, threshold: 0.22, softKnee: 0.15),
+            new BloomProfileCase("wide-far", nearRadius: 1, farRadius: 8, nearStrength: 0.35, farStrength: 0.7, threshold: 0.18, softKnee: 0.3),
+            new BloomProfileCase("balanced", nearRadius: 4, farRadius: 6, nearStrength: 0.5, farStrength: 0.5, threshold: 0.25, softKnee: 0.2),
+        };
+
+        foreach (var profile in profiles)
+        {
+            var config = CreateBaseConfig();
+            config.Width = 16;
+            config.Height = 8;
+            config.DotSize = 7;
+            config.Bloom.Enabled = true;
+            config.Bloom.NearRadiusPx = profile.NearRadiusPx;
+            config.Bloom.FarRadiusPx = profile.FarRadiusPx;
+            config.Bloom.NearStrength = profile.NearStrength;
+            config.Bloom.FarStrength = profile.FarStrength;
+            config.Bloom.Threshold = profile.Threshold;
+            config.Bloom.SoftKnee = profile.SoftKnee;
+            config.TemporalSmoothing.Enabled = false;
+
+            var ledCount = config.Width * config.Height;
+            var baseFrame = CreateGradientFrame(ledCount);
+            var pulseFrame = CreatePulseFrame(ledCount);
+
+            var hotComposer = new MatrixFrameRasterComposer();
+            hotComposer.Configure(config);
+            var baselineHash = ComputeHash(hotComposer.Compose(baseFrame).Pixels);
+            hotComposer.Compose(pulseFrame);
+
+            for (ulong i = 0; i < 18; i++)
+            {
+                var frame = (i % 2 == 0) ? baseFrame : pulseFrame;
+                var composed = hotComposer.Compose(new FramePresentation(frame.RgbMemory, frame.LedsPerChannel, frame.HighestLedWritten, frame.Sequence + i + 10, DateTimeOffset.UtcNow.AddMilliseconds(i)));
+                if (i % 2 == 0)
+                {
+                    Assert.Equal(baselineHash, ComputeHash(composed.Pixels));
+                }
+            }
+
+            var freshComposer = new MatrixFrameRasterComposer();
+            freshComposer.Configure(config);
+            var fresh = freshComposer.Compose(baseFrame);
+            Assert.Equal(baselineHash, ComputeHash(fresh.Pixels));
+        }
+    }
+
     private static MatrixConfig CreateBaseConfig() =>
         new()
         {
@@ -251,4 +304,13 @@ public sealed class WriteableBitmapRendererSnapshotTests
 
         return builder.ToString();
     }
+
+    private readonly record struct BloomProfileCase(
+        string Name,
+        int NearRadiusPx,
+        int FarRadiusPx,
+        double NearStrength,
+        double FarStrength,
+        double Threshold,
+        double SoftKnee);
 }
