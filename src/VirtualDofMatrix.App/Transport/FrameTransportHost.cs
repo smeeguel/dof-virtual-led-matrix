@@ -2,24 +2,33 @@ using System.IO;
 using System.IO.Pipes;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
+using VirtualDofMatrix.Core.Toys;
 
 namespace VirtualDofMatrix.App.Transport;
 
-// Overview: FrameTransportHost listens for serialized frame presentations and republishes them as app-level events.
+// Overview: FrameTransportHost listens for named-pipe payload frames, routes them, then publishes per-toy frames to adapters.
 public sealed class FrameTransportHost
 {
     private readonly AppConfig _config;
+    private readonly IToyRouter _toyRouter;
+    private readonly IRoutingPlanProvider _routingPlanProvider;
+    private readonly IReadOnlyList<IOutputAdapter> _outputAdapters;
     private volatile bool _isActive = true;
 
     private CancellationTokenSource? _cts;
     private Task? _runTask;
 
-    public FrameTransportHost(AppConfig config)
+    public FrameTransportHost(
+        AppConfig config,
+        IToyRouter toyRouter,
+        IRoutingPlanProvider routingPlanProvider,
+        IReadOnlyList<IOutputAdapter> outputAdapters)
     {
         _config = config;
+        _toyRouter = toyRouter;
+        _routingPlanProvider = routingPlanProvider;
+        _outputAdapters = outputAdapters;
     }
-
-    public event EventHandler<FramePresentation>? FramePresented;
 
     public void SetActive(bool active)
     {
@@ -69,8 +78,6 @@ public sealed class FrameTransportHost
 
     private async Task RunNamedPipeLoopAsync(CancellationToken cancellationToken)
     {
-        // Branch task note: viewer hosts a named-pipe server; DOF custom controller
-        // (VirtualLEDStripController) connects as a client.
         var pipeName = string.IsNullOrWhiteSpace(_config.Transport.PipeName)
             ? "VirtualDofMatrix"
             : _config.Transport.PipeName;
@@ -111,7 +118,6 @@ public sealed class FrameTransportHost
                         throw new InvalidDataException("Invalid named-pipe frame magic. Expected 'VDMF'.");
                     }
 
-                    // Branch task note: envelope currently uses version 1 framing.
                     var version = header[4];
                     if (version != 1)
                     {
@@ -139,14 +145,7 @@ public sealed class FrameTransportHost
                         continue;
                     }
 
-                    var frame = new FramePresentation(
-                        payload,
-                        payload.Length / 3,
-                        payload.Length / 3,
-                        unchecked((ulong)sequence),
-                        DateTimeOffset.UtcNow);
-
-                    OnFramePresented(frame);
+                    RouteAndPublish(payload, unchecked((ulong)sequence), version);
                 }
             }
             catch (OperationCanceledException)
@@ -174,6 +173,50 @@ public sealed class FrameTransportHost
         }
     }
 
+    private void RouteAndPublish(byte[] payload, ulong sequence, byte version)
+    {
+        var context = new RoutingFrameContext(
+            InputSequence: sequence,
+            PayloadLength: payload.Length,
+            PayloadKind: "NamedPipe.VDMF",
+            ReceivedAtUtc: DateTimeOffset.UtcNow,
+            PresentedAtUtc: null,
+            SourceStripIndex: null,
+            SourceOffset: null,
+            SchemaVersion: $"vdmf-{version}");
+
+        var plan = _routingPlanProvider.GetActiveToyDefinitions();
+        var definitionsById = plan.ToDictionary(t => t.Id, StringComparer.OrdinalIgnoreCase);
+        var result = _toyRouter.Route(payload, context, plan);
+
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            if (_config.Debug.LogProtocol)
+            {
+                AppLogger.Info($"[route] toy={diagnostic.ToyId} mapped={diagnostic.MappedLedCount} missingBytes={diagnostic.MissingBytes} action={diagnostic.PolicyAction} msg={diagnostic.Message}");
+            }
+        }
+
+        foreach (var frame in result.Frames)
+        {
+            if (!definitionsById.TryGetValue(frame.ToyId, out var toyDefinition))
+            {
+                continue;
+            }
+
+            // Conversational note: adapters are opt-in per toy so one toy can feed viewer while another streams elsewhere.
+            foreach (var adapter in _outputAdapters)
+            {
+                if (!toyDefinition.OutputTargets.Contains(adapter.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                adapter.Write(frame, context);
+            }
+        }
+    }
+
     private static async Task<byte[]> ReadExactlyAsync(Stream stream, int length, CancellationToken cancellationToken)
     {
         var buffer = new byte[length];
@@ -190,10 +233,5 @@ public sealed class FrameTransportHost
         }
 
         return buffer;
-    }
-
-    private void OnFramePresented(FramePresentation frame)
-    {
-        FramePresented?.Invoke(this, frame);
     }
 }

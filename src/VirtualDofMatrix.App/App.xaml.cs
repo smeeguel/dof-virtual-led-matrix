@@ -6,6 +6,7 @@ using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.App.Presentation;
 using VirtualDofMatrix.App.Transport;
 using VirtualDofMatrix.Core;
+using VirtualDofMatrix.Core.Toys;
 using System.IO.Pipes;
 using System.Diagnostics;
 using System.Text;
@@ -24,7 +25,6 @@ public partial class App : Application
     private AppConfig? _config;
     private MainWindow? _window;
     private FrameTransportHost? _transportHost;
-    private FramePresentationDispatcher? _presentationDispatcher;
     private DispatcherTimer? _windowSettingsSaveTimer;
     private CancellationTokenSource? _controlCts;
     private Task? _controlTask;
@@ -67,10 +67,14 @@ public partial class App : Application
         _window.SizeChanged += (_, _) => ScheduleWindowSettingsPersist();
         _window.Closing += (_, _) => PersistWindowSettings();
 
-        _transportHost = new FrameTransportHost(_config);
-        _presentationDispatcher = new FramePresentationDispatcher(Dispatcher);
-        _presentationDispatcher.Attach(_transportHost);
-        _presentationDispatcher.FramePresentedOnUiThread += (_, frame) => _window.ApplyPresentation(frame);
+        var routingPlanProvider = new ConfigRoutingPlanProvider(_config);
+        var toyRouter = new ToyRouter(_config.Routing.Policy);
+        var outputAdapters = new List<IOutputAdapter>
+        {
+            new ViewerOutputAdapter(Dispatcher, _window),
+        };
+
+        _transportHost = new FrameTransportHost(_config, toyRouter, routingPlanProvider, outputAdapters);
 
         await _transportHost.StartAsync();
         StartControlServer(_config);
@@ -103,12 +107,6 @@ public partial class App : Application
         }
 
         PersistWindowSettings();
-
-        if (_presentationDispatcher is not null)
-        {
-            _presentationDispatcher.Dispose();
-            _presentationDispatcher = null;
-        }
 
         if (_transportHost is not null)
         {
