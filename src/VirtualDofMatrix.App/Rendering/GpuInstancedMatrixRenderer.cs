@@ -50,7 +50,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11PixelShader? _brightPassShader;
     private ID3D11PixelShader? _blurPassShader;
     private ID3D11PixelShader? _compositeShader;
+    private ID3D11PixelShader? _clearPassShader;
     private ID3D11Buffer? _bloomConstantsBuffer;
+    private ID3D11RasterizerState? _scissorRasterizerState;
     private ID3D11Texture2D? _gpuBaseTexture;
     private ID3D11RenderTargetView? _gpuBaseRtv;
     private ID3D11ShaderResourceView? _gpuBaseSrv;
@@ -96,6 +98,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private RenderLane _renderLane = RenderLane.GpuPrimary;
     private RenderLane? _lastLoggedLane;
     private bool _hasAnyRawLitLed;
+    private IntRect _emissiveSurfaceBounds = IntRect.Empty;
     private readonly object _gate = new();
     private Image? _host;
     private WriteableBitmap? _fallbackBitmap;
@@ -342,6 +345,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         _hasAnyRawLitLed = false;
+        var minLedX = _width;
+        var minLedY = _height;
+        var maxLedX = -1;
+        var maxLedY = -1;
         for (var i = 0; i < byteCount; i++)
         {
             if (_rawRgbUpload[i] > 0)
@@ -349,6 +356,51 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 _hasAnyRawLitLed = true;
                 break;
             }
+        }
+
+        if (_hasAnyRawLitLed)
+        {
+            // Conversational note: while we already walk the raw upload once, this second pass stays cheap and gives us tight bloom ROI bounds.
+            for (var logicalLed = 0; logicalLed < ledCount; logicalLed++)
+            {
+                var srcOffset = logicalLed * Channels;
+                if (_rawRgbUpload[srcOffset] == 0 && _rawRgbUpload[srcOffset + 1] == 0 && _rawRgbUpload[srcOffset + 2] == 0)
+                {
+                    continue;
+                }
+
+                if ((uint)logicalLed >= (uint)_logicalToRaster.Length)
+                {
+                    continue;
+                }
+
+                var rasterIndex = _logicalToRaster[logicalLed];
+                if ((uint)rasterIndex >= (uint)(_width * _height))
+                {
+                    continue;
+                }
+
+                var x = rasterIndex % _width;
+                var y = rasterIndex / _width;
+                minLedX = Math.Min(minLedX, x);
+                minLedY = Math.Min(minLedY, y);
+                maxLedX = Math.Max(maxLedX, x);
+                maxLedY = Math.Max(maxLedY, y);
+            }
+        }
+
+        if (maxLedX >= minLedX && maxLedY >= minLedY)
+        {
+            // Conversational note: convert LED-cell bounds into surface-space pixels so bloom ROI math can stay layout-accurate.
+            var left = _dotPadding + (minLedX * _dotStride);
+            var top = _dotPadding + (minLedY * _dotStride);
+            var right = _dotPadding + (maxLedX * _dotStride) + Math.Max(1, _dotSize) - 1;
+            var bottom = _dotPadding + (maxLedY * _dotStride) + Math.Max(1, _dotSize) - 1;
+            _emissiveSurfaceBounds = IntRect.FromInclusive(left, top, right, bottom, _surfaceWidth, _surfaceHeight);
+        }
+        else
+        {
+            _emissiveSurfaceBounds = IntRect.Empty;
         }
 
         var handle = GCHandle.Alloc(_rawRgbUpload, GCHandleType.Pinned);
@@ -853,23 +905,55 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         var nearRadius = GetEffectiveBloomRadius(profile.NearRadius, profile.ScaleDivisor, _dotSize);
         var farRadius = GetEffectiveBloomRadius(profile.FarRadius, profile.ScaleDivisor, _dotSize);
+        var nearActive = nearRadius > 0 && profile.NearStrength > BloomLaneStrengthEpsilon;
+        var farActive = farRadius > 0 && profile.FarStrength > BloomLaneStrengthEpsilon;
+        if (!nearActive && !farActive)
+        {
+            _gpuBloomStage = "composite-base-only";
+            trace.Append(" ->composite-base-only");
+            _gpuBloomTrace = trace.ToString();
+            _context.CopyResource(_gpuCompositeTexture, _gpuBaseTexture);
+            return TryPresentGpuCompositeFrame(trace);
+        }
+
+        var emissiveBloomBounds = BloomRoiMath.SurfaceToBloomBounds(_emissiveSurfaceBounds, profile.ScaleDivisor, _downsampleWidth, _downsampleHeight);
+        if (emissiveBloomBounds.IsEmpty)
+        {
+            emissiveBloomBounds = new IntRect(0, 0, _downsampleWidth, _downsampleHeight);
+        }
+
+        // Conversational note: we expand each lane independently so heavy far-radius blur does not over-inflate near-lane work.
+        var brightRoi = BloomRoiMath.Expand(emissiveBloomBounds, 1, _downsampleWidth, _downsampleHeight);
+        var nearBlurRoi = nearActive ? BloomRoiMath.Expand(emissiveBloomBounds, nearRadius + 1, _downsampleWidth, _downsampleHeight) : IntRect.Empty;
+        var farBlurRoi = farActive ? BloomRoiMath.Expand(emissiveBloomBounds, farRadius + 1, _downsampleWidth, _downsampleHeight) : IntRect.Empty;
+        var compositeRoi = BloomRoiMath.BloomToSurfaceBounds(
+            nearActive && farActive ? BloomRoiMath.Union(nearBlurRoi, farBlurRoi) : (nearActive ? nearBlurRoi : farBlurRoi),
+            profile.ScaleDivisor,
+            _surfaceWidth,
+            _surfaceHeight);
 
         _gpuBloomStage = "bright-pass";
         trace.Append(" ->bright-pass");
         _gpuBloomTrace = trace.ToString();
-        RunBrightPass(profile);
-        _gpuBloomStage = "blur-near";
-        trace.Append(" ->blur-near");
-        _gpuBloomTrace = trace.ToString();
-        RunBlurLane(_gpuBrightSrv, _gpuNearPingRtv, _gpuNearPingSrv, _gpuNearPongRtv, _gpuNearPongSrv, nearRadius);
-        _gpuBloomStage = "blur-far";
-        trace.Append(" ->blur-far");
-        _gpuBloomTrace = trace.ToString();
-        RunBlurLane(_gpuBrightSrv, _gpuFarPingRtv, _gpuFarPingSrv, _gpuFarPongRtv, _gpuFarPongSrv, farRadius);
+        RunBrightPass(profile, brightRoi);
+        if (nearActive)
+        {
+            _gpuBloomStage = "blur-near";
+            trace.Append(" ->blur-near");
+            _gpuBloomTrace = trace.ToString();
+            RunBlurLane(_gpuBrightSrv, _gpuNearPingRtv, _gpuNearPingSrv, _gpuNearPongRtv, _gpuNearPongSrv, nearRadius, nearBlurRoi);
+        }
+        if (farActive)
+        {
+            _gpuBloomStage = "blur-far";
+            trace.Append(" ->blur-far");
+            _gpuBloomTrace = trace.ToString();
+            RunBlurLane(_gpuBrightSrv, _gpuFarPingRtv, _gpuFarPingSrv, _gpuFarPongRtv, _gpuFarPongSrv, farRadius, farBlurRoi);
+        }
         _gpuBloomStage = "composite";
         trace.Append(" ->composite");
         _gpuBloomTrace = trace.ToString();
-        RunCompositePass(profile);
+        RunCompositePass(profile, compositeRoi, nearActive, farActive);
 
         // Conversational note: explicitly switch away from the composite RTV before CopyResource.
         _gpuBloomStage = "unbind-composite";
@@ -1128,24 +1212,15 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private void RunBrightPass(BloomProfile profile)
+    private void RunBrightPass(BloomProfile profile, IntRect roi)
     {
-        if (_context is null || _gpuBrightRtv is null || _gpuBaseSrv is null || _brightPassShader is null)
+        if (_context is null || _gpuBrightRtv is null || _gpuBaseSrv is null || _brightPassShader is null || roi.IsEmpty)
         {
             return;
         }
 
         SetBloomConstants(profile, radius: 0f, directionX: 0f, directionY: 0f);
-        _context.OMSetRenderTargets(_gpuBrightRtv);
-        _context.RSSetViewport(new Viewport(0, 0, _downsampleWidth, _downsampleHeight, 0f, 1f));
-        _context.VSSetShader(_fullscreenVertexShader);
-        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        _context.PSSetShader(_brightPassShader);
-        _context.PSSetShaderResource(0, _gpuBaseSrv);
-        _context.PSSetSampler(0, _linearSampler);
-        _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
-        _context.Draw(3, 0);
-        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
+        DrawFullscreenPass(_gpuBrightRtv, _brightPassShader, _gpuBaseSrv, null, null, roi, _downsampleWidth, _downsampleHeight, clearRoiBeforeDraw: true);
     }
 
     private void RunBlurLane(
@@ -1154,9 +1229,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         ID3D11ShaderResourceView pingSrv,
         ID3D11RenderTargetView pongRtv,
         ID3D11ShaderResourceView pongSrv,
-        int radius)
+        int radius,
+        IntRect roi)
     {
-        if (_context is null || _blurPassShader is null)
+        if (_context is null || _blurPassShader is null || roi.IsEmpty)
         {
             return;
         }
@@ -1165,47 +1241,98 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var texelY = 1f / Math.Max(1, _downsampleHeight);
 
         SetBloomConstants(null, radius, texelX, 0f);
-        _context.OMSetRenderTargets(pingRtv);
-        _context.RSSetViewport(new Viewport(0, 0, _downsampleWidth, _downsampleHeight, 0f, 1f));
-        _context.VSSetShader(_fullscreenVertexShader);
-        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        _context.PSSetShader(_blurPassShader);
-        _context.PSSetShaderResource(0, sourceSrv);
-        _context.PSSetSampler(0, _linearSampler);
-        _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
-        _context.Draw(3, 0);
-        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
+        DrawFullscreenPass(pingRtv, _blurPassShader, sourceSrv, null, null, roi, _downsampleWidth, _downsampleHeight, clearRoiBeforeDraw: true);
 
         SetBloomConstants(null, radius, 0f, texelY);
-        _context.OMSetRenderTargets(pongRtv);
-        _context.PSSetShader(_blurPassShader);
-        _context.PSSetShaderResource(0, pingSrv);
-        _context.PSSetSampler(0, _linearSampler);
-        _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
-        _context.Draw(3, 0);
-        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
+        DrawFullscreenPass(pongRtv, _blurPassShader, pingSrv, null, null, roi, _downsampleWidth, _downsampleHeight, clearRoiBeforeDraw: true);
     }
 
-    private void RunCompositePass(BloomProfile profile)
+    private void RunCompositePass(BloomProfile profile, IntRect roi, bool nearActive, bool farActive)
     {
-        if (_context is null || _compositeShader is null || _gpuCompositeRtv is null || _gpuBaseSrv is null || _gpuNearPongSrv is null || _gpuFarPongSrv is null)
+        if (_context is null || _compositeShader is null || _gpuCompositeRtv is null || _gpuBaseSrv is null || roi.IsEmpty)
         {
             return;
         }
 
         SetBloomConstants(profile, radius: 0f, directionX: 0f, directionY: 0f);
-        _context.OMSetRenderTargets(_gpuCompositeRtv);
-        _context.RSSetViewport(new Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
+        // Conversational note: inactive lanes bind null SRVs so we skip unnecessary sampling and stale resource usage.
+        DrawFullscreenPass(
+            _gpuCompositeRtv,
+            _compositeShader,
+            _gpuBaseSrv,
+            nearActive ? _gpuNearPongSrv : null,
+            farActive ? _gpuFarPongSrv : null,
+            roi,
+            _surfaceWidth,
+            _surfaceHeight,
+            clearRoiBeforeDraw: true);
+    }
+
+    private void DrawFullscreenPass(
+        ID3D11RenderTargetView target,
+        ID3D11PixelShader shader,
+        ID3D11ShaderResourceView? source0,
+        ID3D11ShaderResourceView? source1,
+        ID3D11ShaderResourceView? source2,
+        IntRect roi,
+        int fullWidth,
+        int fullHeight,
+        bool clearRoiBeforeDraw)
+    {
+        if (_context is null || _fullscreenVertexShader is null || _linearSampler is null || _bloomConstantsBuffer is null || roi.IsEmpty)
+        {
+            return;
+        }
+
+        _context.OMSetRenderTargets(target);
+        SetViewportAndScissor(roi);
+        if (clearRoiBeforeDraw)
+        {
+            DrawRoiClearPass(target, roi);
+            SetViewportAndScissor(roi);
+        }
+
         _context.VSSetShader(_fullscreenVertexShader);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        _context.PSSetShader(_compositeShader);
-        _context.PSSetShaderResource(0, _gpuBaseSrv);
-        _context.PSSetShaderResource(1, _gpuNearPongSrv);
-        _context.PSSetShaderResource(2, _gpuFarPongSrv);
+        _context.PSSetShader(shader);
+        _context.PSSetShaderResource(0, source0 ?? null!);
+        _context.PSSetShaderResource(1, source1 ?? null!);
+        _context.PSSetShaderResource(2, source2 ?? null!);
         _context.PSSetSampler(0, _linearSampler);
         _context.PSSetConstantBuffer(0, _bloomConstantsBuffer);
         _context.Draw(3, 0);
         _context.PSSetShaderResources(0, NullPixelShaderSrvs);
+        _context.RSSetState(null);
+        _context.RSSetScissorRect(0, 0, fullWidth, fullHeight);
+        _context.RSSetViewport(new Viewport(0, 0, fullWidth, fullHeight, 0f, 1f));
+    }
+
+    private void DrawRoiClearPass(ID3D11RenderTargetView target, IntRect roi)
+    {
+        if (_context is null || _clearPassShader is null || _fullscreenVertexShader is null || roi.IsEmpty)
+        {
+            return;
+        }
+
+        _context.OMSetRenderTargets(target);
+        SetViewportAndScissor(roi);
+        _context.VSSetShader(_fullscreenVertexShader);
+        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _context.PSSetShader(_clearPassShader);
+        _context.Draw(3, 0);
+        _context.PSSetShaderResources(0, NullPixelShaderSrvs);
+    }
+
+    private void SetViewportAndScissor(IntRect roi)
+    {
+        if (_context is null || roi.IsEmpty)
+        {
+            return;
+        }
+
+        _context.RSSetState(_scissorRasterizerState);
+        _context.RSSetViewport(new Viewport(roi.X, roi.Y, roi.Width, roi.Height, 0f, 1f));
+        _context.RSSetScissorRect(roi.X, roi.Y, roi.Width, roi.Height);
     }
 
     private void SetBloomConstants(BloomProfile? profile, float radius, float directionX, float directionY)
@@ -1618,6 +1745,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             using var blurBlob = CompileShaderOrThrow("PSSeparableBlur", "ps_5_0");
             initStage = "compile-composite";
             using var compositeBlob = CompileShaderOrThrow("PSComposite", "ps_5_0");
+            initStage = "compile-clear";
+            using var clearBlob = CompileShaderOrThrow("PSClearPass", "ps_5_0");
             initStage = "compile-led-preprocess-cs";
             using var preprocessBlob = CompileShaderOrThrow("CSPreprocessLeds", "cs_5_0");
             initStage = "create-shaders";
@@ -1626,12 +1755,18 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _brightPassShader = _device.CreatePixelShader(brightBlob);
             _blurPassShader = _device.CreatePixelShader(blurBlob);
             _compositeShader = _device.CreatePixelShader(compositeBlob);
+            _clearPassShader = _device.CreatePixelShader(clearBlob);
             _gpuPreprocessShader = _device.CreateComputeShader(preprocessBlob);
             initStage = "create-sampler";
             _linearSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp, 0, 1, ComparisonFunction.Never, new Color4(0f, 0f, 0f, 0f), 0, float.MaxValue));
             initStage = "create-constants";
             _bloomConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<BloomGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write));
             _gpuPreprocessConstantsBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<LedPreprocessGpuConstants>(), BindFlags.ConstantBuffer, ResourceUsage.Default));
+            _scissorRasterizerState = _device.CreateRasterizerState(new RasterizerDescription(CullMode.None, FillMode.Solid)
+            {
+                ScissorEnable = true,
+                DepthClipEnable = true,
+            });
             initStage = "create-targets";
             CreateBaseAndCompositeTargets();
             AppLogger.Info($"[renderer] led preprocess texture contract format={LedColorTextureFormat} channels={LedColorChannelContract}");
@@ -2068,8 +2203,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _bloomConstantsBuffer = null;
         _gpuPreprocessConstantsBuffer?.Dispose();
         _gpuPreprocessConstantsBuffer = null;
+        _scissorRasterizerState?.Dispose();
+        _scissorRasterizerState = null;
         _linearSampler?.Dispose();
         _linearSampler = null;
+        _clearPassShader?.Dispose();
+        _clearPassShader = null;
         _compositeShader?.Dispose();
         _compositeShader = null;
         _gpuPreprocessShader?.Dispose();
@@ -2168,6 +2307,95 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float Padding0;
         public float Padding1;
         public float Padding2;
+    }
+
+    internal readonly record struct IntRect(int X, int Y, int Width, int Height)
+    {
+        public static IntRect Empty => new(0, 0, 0, 0);
+        public bool IsEmpty => Width <= 0 || Height <= 0;
+        public int Right => X + Width;
+        public int Bottom => Y + Height;
+
+        public static IntRect FromInclusive(int left, int top, int right, int bottom, int maxWidth, int maxHeight)
+        {
+            var clampedLeft = Math.Clamp(left, 0, Math.Max(0, maxWidth - 1));
+            var clampedTop = Math.Clamp(top, 0, Math.Max(0, maxHeight - 1));
+            var clampedRight = Math.Clamp(right, 0, Math.Max(0, maxWidth - 1));
+            var clampedBottom = Math.Clamp(bottom, 0, Math.Max(0, maxHeight - 1));
+            if (clampedRight < clampedLeft || clampedBottom < clampedTop)
+            {
+                return Empty;
+            }
+
+            return new IntRect(clampedLeft, clampedTop, (clampedRight - clampedLeft) + 1, (clampedBottom - clampedTop) + 1);
+        }
+    }
+
+    internal static class BloomRoiMath
+    {
+        internal static IntRect SurfaceToBloomBounds(IntRect surfaceBounds, int scaleDivisor, int bloomWidth, int bloomHeight)
+        {
+            if (surfaceBounds.IsEmpty || bloomWidth <= 0 || bloomHeight <= 0)
+            {
+                return IntRect.Empty;
+            }
+
+            var scale = Math.Max(1, scaleDivisor);
+            var left = surfaceBounds.X / scale;
+            var top = surfaceBounds.Y / scale;
+            var rightInclusive = (surfaceBounds.Right - 1) / scale;
+            var bottomInclusive = (surfaceBounds.Bottom - 1) / scale;
+            return IntRect.FromInclusive(left, top, rightInclusive, bottomInclusive, bloomWidth, bloomHeight);
+        }
+
+        internal static IntRect BloomToSurfaceBounds(IntRect bloomBounds, int scaleDivisor, int surfaceWidth, int surfaceHeight)
+        {
+            if (bloomBounds.IsEmpty || surfaceWidth <= 0 || surfaceHeight <= 0)
+            {
+                return IntRect.Empty;
+            }
+
+            var scale = Math.Max(1, scaleDivisor);
+            var left = bloomBounds.X * scale;
+            var top = bloomBounds.Y * scale;
+            var rightInclusive = ((bloomBounds.Right * scale) - 1);
+            var bottomInclusive = ((bloomBounds.Bottom * scale) - 1);
+            return IntRect.FromInclusive(left, top, rightInclusive, bottomInclusive, surfaceWidth, surfaceHeight);
+        }
+
+        internal static IntRect Expand(IntRect input, int padding, int maxWidth, int maxHeight)
+        {
+            if (input.IsEmpty || maxWidth <= 0 || maxHeight <= 0)
+            {
+                return IntRect.Empty;
+            }
+
+            var safePad = Math.Max(0, padding);
+            var left = input.X - safePad;
+            var top = input.Y - safePad;
+            var rightInclusive = (input.Right - 1) + safePad;
+            var bottomInclusive = (input.Bottom - 1) + safePad;
+            return IntRect.FromInclusive(left, top, rightInclusive, bottomInclusive, maxWidth, maxHeight);
+        }
+
+        internal static IntRect Union(IntRect a, IntRect b)
+        {
+            if (a.IsEmpty)
+            {
+                return b;
+            }
+
+            if (b.IsEmpty)
+            {
+                return a;
+            }
+
+            var left = Math.Min(a.X, b.X);
+            var top = Math.Min(a.Y, b.Y);
+            var right = Math.Max(a.Right, b.Right);
+            var bottom = Math.Max(a.Bottom, b.Bottom);
+            return new IntRect(left, top, right - left, bottom - top);
+        }
     }
 
     private enum RenderLane
@@ -2370,6 +2598,10 @@ float4 PSComposite(VsOut input) : SV_Target
     float3 farColor = FarTexture.Sample(LinearSampler, input.Uv).rgb;
     float3 outColor = saturate(baseColor + (nearColor * NearStrength) + (farColor * FarStrength));
     return float4(outColor, 1.0f);
+}
+float4 PSClearPass(VsOut input) : SV_Target
+{
+    return float4(0, 0, 0, 1);
 }
 float ToneMapChannel(uint rawByte)
 {
