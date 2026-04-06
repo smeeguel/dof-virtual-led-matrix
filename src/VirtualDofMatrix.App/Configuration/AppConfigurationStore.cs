@@ -565,34 +565,60 @@ onMissingData = partial-black-fill
 onOversizeRange = clamp
 ; onFrameRateSpike options: latest-wins | drop-oldest
 onFrameRateSpike = latest-wins
-
+; defaultStripLength options: positive integer (example: 1100)
 defaultStripLength = 1100
 
 [toy:backglass-main]
+; enabled options: true | false
 enabled = true
+; kind options: matrix | topper | <custom-name>
 kind = matrix
-width = 32
-height = 8
+; width options: positive integer (legacy default: 128)
+width = 128
+; height options: positive integer (legacy default: 32)
+height = 32
+; mapping options: TopDownAlternateRightLeft | RowMajor | ColumnMajor
 mapping = TopDownAlternateRightLeft
+; sourceCanonicalStart options: integer >= 0
 sourceCanonicalStart = 0
-sourceLength = 256
+; sourceLength options: integer > 0 (legacy default 128*32 = 4096)
+sourceLength = 4096
+; sourceStripIndex/sourceStripOffset options: integer >= 0 (optional)
+sourceStripIndex = 0
+sourceStripOffset = 0
+
+; windowLeft/windowTop options: number (pixels)
 windowLeft = 10
 windowTop = 6
+; windowWidth/windowHeight options: number > 0 (pixels)
 windowWidth = 1412
 windowHeight = 353
+; windowAlwaysOnTop/windowBorderless options: true | false
 windowAlwaysOnTop = true
 windowBorderless = true
+
+; renderDotShape options: circle | square
 renderDotShape = circle
+; renderMinDotSpacing options: integer >= 0
 renderMinDotSpacing = 2
+; renderBrightness options: number 0.0..1.0
 renderBrightness = 1.0
+; renderGamma options: number > 0
 renderGamma = 0.8
+
+; bloomEnabled options: true | false
 bloomEnabled = true
+; bloomThreshold/bloomSoftKnee options: number 0.0..1.0
 bloomThreshold = 0.72
 bloomSoftKnee = 0.18
+; bloomNearRadiusPx/bloomFarRadiusPx options: integer >= 0
 bloomNearRadiusPx = 2
 bloomFarRadiusPx = 10
+; bloomNearStrength/bloomFarStrength options: number >= 0
 bloomNearStrength = 1.0
 bloomFarStrength = 0.2
+
+; outputTargets options: comma list of adapter names (example: viewer,pipe-broadcast)
 outputTargets = viewer,pipe-broadcast
 """;
     }
