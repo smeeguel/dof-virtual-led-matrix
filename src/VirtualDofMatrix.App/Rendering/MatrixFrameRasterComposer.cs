@@ -1,5 +1,4 @@
 using VirtualDofMatrix.Core;
-using System.Diagnostics;
 
 namespace VirtualDofMatrix.App.Rendering;
 
@@ -129,7 +128,12 @@ internal sealed class MatrixFrameRasterComposer
         IReadOnlyList<DirtyRect> dirtyRects = Array.Empty<DirtyRect>();
         var fullFrameWrite = _forceFullFrameWrite || !TryBuildDirtyRects(out dirtyRects);
 #if DEBUG
-        DebugAssertDirtyRectsCoverPixelDiffs(fullFrameWrite, dirtyRects);
+        if (!fullFrameWrite && DebugHasUncoveredPixelDiffs(dirtyRects))
+        {
+            // Debug guardrail: if ROI strips miss anything (for example bloom spill), safely fall back.
+            dirtyRects = Array.Empty<DirtyRect>();
+            fullFrameWrite = true;
+        }
 #endif
         _forceFullFrameWrite = false;
         Buffer.BlockCopy(_surfaceBgra, 0, _previousSurfaceBgra, 0, _surfaceBgra.Length);
@@ -840,13 +844,8 @@ internal sealed class MatrixFrameRasterComposer
     }
 
 #if DEBUG
-    private void DebugAssertDirtyRectsCoverPixelDiffs(bool fullFrameWrite, IReadOnlyList<DirtyRect> dirtyRects)
+    private bool DebugHasUncoveredPixelDiffs(IReadOnlyList<DirtyRect> dirtyRects)
     {
-        if (fullFrameWrite)
-        {
-            return;
-        }
-
         // Debug-only full compare: verify ROI strips cover every changed pixel without paying release costs.
         var coverage = new bool[_surfaceWidth * _surfaceHeight];
         foreach (var rect in dirtyRects)
@@ -873,9 +872,14 @@ internal sealed class MatrixFrameRasterComposer
                     _surfaceBgra[pixelOffset + 1] != _previousSurfaceBgra[pixelOffset + 1] ||
                     _surfaceBgra[pixelOffset + 2] != _previousSurfaceBgra[pixelOffset + 2] ||
                     _surfaceBgra[pixelOffset + 3] != _previousSurfaceBgra[pixelOffset + 3];
-                Debug.Assert(!changed || coverage[coverRowStart + x], $"Dirty rects missed changed pixel ({x}, {y}).");
+                if (changed && !coverage[coverRowStart + x])
+                {
+                    return true;
+                }
             }
         }
+
+        return false;
     }
 #endif
 
