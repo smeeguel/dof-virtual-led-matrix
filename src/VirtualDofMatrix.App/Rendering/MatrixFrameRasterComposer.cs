@@ -123,11 +123,19 @@ internal sealed class MatrixFrameRasterComposer
         }
 
         var fullFrameRaster = _forceFullFrameWrite;
+        var bloomEnabled = _config.Bloom.Enabled;
         // Conversational note: unchanged frames are common in idle tables, so we skip all raster work when nothing moved.
         if (!fullFrameRaster && !hasChangedCells)
         {
             CopyCurrentWorkingToPrevious(matrixCapacity);
             return (_surfaceWidth, _surfaceHeight, _stride, _surfaceBgra, Array.Empty<DirtyRect>(), false);
+        }
+
+        if (!fullFrameRaster && bloomEnabled && hasChangedCells)
+        {
+            // Bloom is additive over a wide footprint; forcing full redraw on changed frames prevents stale bloom energy
+            // from accumulating when incremental dirty bounds miss edge spill during long smoothing sequences.
+            fullFrameRaster = true;
         }
 
         if (fullFrameRaster)
