@@ -5,12 +5,11 @@ using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Presentation;
 
-// Overview: this dispatcher coalesces fast transport updates into UI-thread-safe frame notifications.
+// Overview: legacy dispatcher kept for compatibility while the new adapter pipeline owns live frame delivery.
 public sealed class FramePresentationDispatcher : IDisposable
 {
     private readonly Dispatcher _dispatcher;
     private readonly object _gate = new();
-    private FrameTransportHost? _host;
     private FramePresentation _latestFrame = new(Array.Empty<byte>(), 0, 0, 0, DateTimeOffset.UnixEpoch);
     private bool _hasFrame;
     private int _uiDispatchScheduled;
@@ -24,18 +23,12 @@ public sealed class FramePresentationDispatcher : IDisposable
 
     public void Attach(FrameTransportHost host)
     {
-        if (_host is not null)
-        {
-            _host.FramePresented -= OnFramePresentedFromHost;
-        }
-
-        _host = host;
-        _host.FramePresented += OnFramePresentedFromHost;
+        // Conversational note: host now routes directly to output adapters, so this legacy attach point is intentionally a no-op.
+        _ = host;
     }
 
-    private void OnFramePresentedFromHost(object? sender, FramePresentation frame)
+    public void Publish(FramePresentation frame)
     {
-        // We keep only the newest frame so UI never falls behind when transport bursts.
         lock (_gate)
         {
             _latestFrame = frame;
@@ -80,10 +73,6 @@ public sealed class FramePresentationDispatcher : IDisposable
 
     public void Dispose()
     {
-        if (_host is not null)
-        {
-            _host.FramePresented -= OnFramePresentedFromHost;
-            _host = null;
-        }
+        // No subscriptions to dispose in adapter-first pipeline.
     }
 }
