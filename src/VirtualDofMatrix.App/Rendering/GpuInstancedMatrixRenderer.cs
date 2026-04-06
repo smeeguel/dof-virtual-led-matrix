@@ -72,7 +72,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11ShaderResourceView? _gpuCompositeSrv;
     private ID3D11Texture2D? _gpuReadbackTexture;
     private bool _directPresentEnabled;
-    private bool _directPresentInteropAvailable;
     private bool _directPresentParityValidated;
     private bool _directPresentParitySamplingEnabled;
     private bool _diagnosticReadbackCaptureEnabled;
@@ -188,7 +187,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _host.Source = _fallbackBitmap;
         _host.Stretch = Stretch.Fill;
         _directPresentEnabled = false;
-        _directPresentInteropAvailable = false;
         _directPresentParityValidated = false;
         _directPresentStatus = "waiting-for-bloom-init";
         InitializeGpuBloomPipeline();
@@ -1640,7 +1638,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private void TryInitializeDirectPresentSurface()
     {
         _directPresentEnabled = false;
-        _directPresentInteropAvailable = false;
         _directPresentBackBuffer?.Dispose();
         _directPresentBackBuffer = null;
         _directPresentSwapChain?.Dispose();
@@ -1722,7 +1719,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             _host.Source = null;
-            _directPresentInteropAvailable = true;
             _directPresentEnabled = true;
             _directPresentStatus = "enabled:d3d11-swapchain";
             AppLogger.Info($"[renderer] gpu direct present enabled. status={_directPresentStatus}");
@@ -1730,7 +1726,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         catch (Exception ex)
         {
             _directPresentEnabled = false;
-            _directPresentInteropAvailable = false;
             _directPresentBackBuffer?.Dispose();
             _directPresentBackBuffer = null;
             _directPresentSwapChain?.Dispose();
@@ -2002,7 +1997,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private void DisposeGpuBloomResources()
     {
         _directPresentEnabled = false;
-        _directPresentInteropAvailable = false;
         _directPresentBackBuffer?.Dispose();
         _directPresentBackBuffer = null;
         _directPresentSwapChain?.Dispose();
