@@ -175,7 +175,9 @@ public sealed class WriteableBitmapRendererSnapshotTests
         var baselineOff = baselineComposer.Compose(CreateSolidFrame(1, 0, 0, 0, 500UL));
 
         Assert.True(sawDirtyBeforeFullyOff);
-        Assert.Equal(ComputeHash(baselineOff.Pixels), ComputeHash(frame.Pixels));
+        // Conversational note: loop above always assigns `frame`, but we still defend against nullable flow uncertainty.
+        Assert.NotNull(frame.Pixels);
+        Assert.Equal(ComputeHash(baselineOff.Pixels), ComputeHash(frame.Pixels!));
     }
 
     [Fact]
@@ -185,9 +187,9 @@ public sealed class WriteableBitmapRendererSnapshotTests
         // verifies we never drift pixels between iterations or across fresh composer instances.
         var profiles = new[]
         {
-            new BloomProfileCase("tight-near", nearRadius: 2, farRadius: 4, nearStrength: 0.65, farStrength: 0.35, threshold: 0.22, softKnee: 0.15),
-            new BloomProfileCase("wide-far", nearRadius: 1, farRadius: 8, nearStrength: 0.35, farStrength: 0.7, threshold: 0.18, softKnee: 0.3),
-            new BloomProfileCase("balanced", nearRadius: 4, farRadius: 6, nearStrength: 0.5, farStrength: 0.5, threshold: 0.25, softKnee: 0.2),
+            new BloomProfileCase("tight-near", nearRadiusPx: 2, farRadiusPx: 4, nearStrength: 0.65, farStrength: 0.35, threshold: 0.22, softKnee: 0.15),
+            new BloomProfileCase("wide-far", nearRadiusPx: 1, farRadiusPx: 8, nearStrength: 0.35, farStrength: 0.7, threshold: 0.18, softKnee: 0.3),
+            new BloomProfileCase("balanced", nearRadiusPx: 4, farRadiusPx: 6, nearStrength: 0.5, farStrength: 0.5, threshold: 0.25, softKnee: 0.2),
         };
 
         foreach (var profile in profiles)
@@ -217,7 +219,7 @@ public sealed class WriteableBitmapRendererSnapshotTests
             for (ulong i = 0; i < 18; i++)
             {
                 var frame = (i % 2 == 0) ? baseFrame : pulseFrame;
-                var composed = hotComposer.Compose(new FramePresentation(frame.RgbMemory, frame.LedsPerChannel, frame.HighestLedWritten, frame.Sequence + i + 10, DateTimeOffset.UtcNow.AddMilliseconds(i)));
+                var composed = hotComposer.Compose(new FramePresentation(frame.RgbBytes, frame.HighestLedWritten, frame.LedsPerChannel, frame.OutputSequence + i + 10, DateTimeOffset.UtcNow.AddMilliseconds(i)));
                 if (i % 2 == 0)
                 {
                     Assert.Equal(baselineHash, ComputeHash(composed.Pixels));
