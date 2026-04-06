@@ -860,23 +860,57 @@ internal sealed class MatrixFrameRasterComposer
 
     private static void FillBilinearScanlineX(int scaleDivisor, int bloomWidth, int startX, int rowWidth, int[] x0ByPixel, int[] x1ByPixel, float[] txByPixel)
     {
-        var bloomU = ((startX + 0.5f) / scaleDivisor) - 0.5f;
+        var startBloomU = ((startX + 0.5f) / scaleDivisor) - 0.5f;
         var stepU = 1f / scaleDivisor;
+        var maxX = bloomWidth - 1;
         for (var i = 0; i < rowWidth; i++)
         {
-            var x0 = Math.Clamp((int)Math.Floor(bloomU), 0, bloomWidth - 1);
-            x0ByPixel[i] = x0;
-            x1ByPixel[i] = Math.Min(bloomWidth - 1, x0 + 1);
-            txByPixel[i] = bloomU - x0;
-            bloomU += stepU;
+            var bloomU = startBloomU + (i * stepU);
+            // Clamp in sample space first so edges replicate border texels instead of extrapolating past them.
+            if (bloomU <= 0f)
+            {
+                x0ByPixel[i] = 0;
+                x1ByPixel[i] = 0;
+                txByPixel[i] = 0f;
+            }
+            else if (bloomU >= maxX)
+            {
+                x0ByPixel[i] = maxX;
+                x1ByPixel[i] = maxX;
+                txByPixel[i] = 0f;
+            }
+            else
+            {
+                var x0 = (int)Math.Floor(bloomU);
+                x0ByPixel[i] = x0;
+                x1ByPixel[i] = x0 + 1;
+                txByPixel[i] = bloomU - x0;
+            }
         }
     }
 
     private static void ResolveBilinearY(int scaleDivisor, int bloomHeight, int y, out int y0, out int y1, out float ty)
     {
         var bloomV = ((y + 0.5f) / scaleDivisor) - 0.5f;
-        y0 = Math.Clamp((int)Math.Floor(bloomV), 0, bloomHeight - 1);
-        y1 = Math.Min(bloomHeight - 1, y0 + 1);
+        var maxY = bloomHeight - 1;
+        if (bloomV <= 0f)
+        {
+            y0 = 0;
+            y1 = 0;
+            ty = 0f;
+            return;
+        }
+
+        if (bloomV >= maxY)
+        {
+            y0 = maxY;
+            y1 = maxY;
+            ty = 0f;
+            return;
+        }
+
+        y0 = (int)Math.Floor(bloomV);
+        y1 = y0 + 1;
         ty = bloomV - y0;
     }
 
