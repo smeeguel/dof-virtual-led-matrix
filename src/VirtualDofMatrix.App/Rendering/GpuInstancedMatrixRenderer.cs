@@ -29,8 +29,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11Device? _device;
     private ID3D11DeviceContext? _context;
     private ID3D11Buffer? _instanceBuffer;
-    private ID3D11Texture2D? _frameTexture;
-    private ID3D11ShaderResourceView? _frameSrv;
     private ID3D11Texture2D? _gpuLedColorTexture;
     private ID3D11ShaderResourceView? _gpuLedColorSrv;
     private ID3D11UnorderedAccessView? _gpuLedColorUav;
@@ -186,20 +184,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var byteWidth = (uint)(instanceData.Length * sizeof(uint));
         _instanceBuffer = _device.CreateBuffer(new BufferDescription(byteWidth, BindFlags.VertexBuffer, ResourceUsage.Default));
 
-        _frameTexture = _device.CreateTexture2D(new Texture2DDescription
-        {
-            Width = (uint)Math.Max(1, _surfaceWidth),
-            Height = (uint)Math.Max(1, _surfaceHeight),
-            ArraySize = 1,
-            MipLevels = 1,
-            Format = DxgiFormat.R8G8B8A8_UNorm,
-            BindFlags = BindFlags.ShaderResource,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Dynamic,
-            CPUAccessFlags = CpuAccessFlags.Write,
-        });
-
-        _frameSrv = _device.CreateShaderResourceView(_frameTexture);
         _fallbackBitmap = new WriteableBitmap(_surfaceWidth, _surfaceHeight, 96, 96, PixelFormats.Bgra32, null);
         _host.Source = _fallbackBitmap;
         _host.Stretch = Stretch.Fill;
@@ -229,7 +213,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     public void Render()
     {
-        if (_context is null || _frameTexture is null || _fallbackBitmap is null || _style is null)
+        if (_context is null || _fallbackBitmap is null || _style is null)
         {
             return;
         }
@@ -284,13 +268,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         if (!_directPresentEnabled)
         {
-            // Conversational note: legacy bitmap fallback still needs CPU-side frame upload.
-            var map = _context.Map(_frameTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
-            Marshal.Copy(_bgra, 0, map.DataPointer, _bgra.Length);
-            _context.Unmap(_frameTexture, 0);
-
-            // Conversational note: this renderer presents via WriteableBitmap in fallback mode.
-            _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
+            PresentFallbackBitmap(_fallbackBitmap, _bgra, _surfaceWidth, _surfaceHeight);
         }
     }
 
@@ -321,7 +299,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 prevHandle.Free();
             }
         }
-        _fallbackBitmap.WritePixels(new System.Windows.Int32Rect(0, 0, _surfaceWidth, _surfaceHeight), _bgra, _surfaceWidth * 4, 0);
+        PresentFallbackBitmap(_fallbackBitmap, _bgra, _surfaceWidth, _surfaceHeight);
     }
 
     private void DispatchLedPreprocess(ReadOnlySpan<byte> rgb, int ledCount, DotStyleConfig style)
@@ -1527,6 +1505,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
+    private static void PresentFallbackBitmap(WriteableBitmap bitmap, byte[] bgra, int width, int height)
+    {
+        // Conversational note: fallback presentation is intentionally direct (WritePixels only) and bypasses any staging texture.
+        bitmap.WritePixels(new Int32Rect(0, 0, width, height), bgra, width * 4, 0);
+    }
+
     private static float SampleBilinear(float[] source, int width, int height, float x, float y, int channel)
     {
         var x0 = Math.Clamp((int)Math.Floor(x), 0, width - 1);
@@ -1584,10 +1568,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private void DisposeDeviceResources()
     {
         DisposeGpuBloomResources();
-        _frameSrv?.Dispose();
-        _frameSrv = null;
-        _frameTexture?.Dispose();
-        _frameTexture = null;
         _instanceBuffer?.Dispose();
         _instanceBuffer = null;
         _context?.Dispose();
