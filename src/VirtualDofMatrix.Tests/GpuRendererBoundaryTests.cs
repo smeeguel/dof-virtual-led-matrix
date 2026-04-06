@@ -1,3 +1,7 @@
+using System.Reflection;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.Core;
 using Xunit;
 
@@ -58,5 +62,57 @@ public sealed class GpuRendererBoundaryTests
 
         var bgra = GpuFrameUpload.BuildBgraFrame(leds, map, width, height);
         Assert.Equal(checked(width * height * 4), bgra.Length);
+    }
+
+    [Fact]
+    public void GpuFallbackPresent_ShouldWritePixelsWithoutFrameTextureStaging()
+    {
+        var frameTextureField = typeof(GpuInstancedMatrixRenderer).GetField("_frameTexture", BindingFlags.Instance | BindingFlags.NonPublic);
+        var frameSrvField = typeof(GpuInstancedMatrixRenderer).GetField("_frameSrv", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.Null(frameTextureField);
+        Assert.Null(frameSrvField);
+
+        RunInSta(() =>
+        {
+            var presenter = typeof(GpuInstancedMatrixRenderer).GetMethod("PresentFallbackBitmap", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.NotNull(presenter);
+
+            var width = 2;
+            var height = 1;
+            var bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+            // Conversational note: pixel order is BGRA to mirror the renderer's fallback path contract.
+            var bgra = new byte[] { 1, 2, 3, 255, 4, 5, 6, 255 };
+
+            presenter!.Invoke(null, new object[] { bitmap, bgra, width, height });
+
+            var copy = new byte[bgra.Length];
+            bitmap.CopyPixels(copy, width * 4, 0);
+            Assert.Equal(bgra, copy);
+        });
+    }
+
+    private static void RunInSta(Action action)
+    {
+        Exception? captured = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                captured = ex;
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (captured is not null)
+        {
+            throw new TargetInvocationException(captured);
+        }
     }
 }

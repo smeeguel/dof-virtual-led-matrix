@@ -160,7 +160,8 @@ public sealed class WriteableBitmapRendererSnapshotTests
         composer.Compose(CreateSolidFrame(1, 5, 0, 0, 1UL));
 
         var sawDirtyBeforeFullyOff = false;
-        (int Width, int Height, int Stride, byte[] Pixels, IReadOnlyList<DirtyRect> DirtyRects, bool UseFullFrameWrite) frame = default;
+        (int Width, int Height, int Stride, byte[] Pixels, IReadOnlyList<DirtyRect> DirtyRects, bool UseFullFrameWrite) frame =
+            (0, 0, 0, Array.Empty<byte>(), Array.Empty<DirtyRect>(), false);
         for (ulong i = 0; i < 12; i++)
         {
             frame = composer.Compose(CreateSolidFrame(1, 0, 0, 0, 2UL + i));
