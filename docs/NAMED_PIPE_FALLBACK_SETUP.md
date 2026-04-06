@@ -1,48 +1,56 @@
-# Named Pipe fallback setup (custom `DirectOutput.dll` build)
+# Named-pipe DOF integration setup
 
-This is the fallback path when external extension loading is unavailable in stock DOF.
+> This repository currently ships and documents the **named-pipe integration path** using the custom `DirectOutput.dll` build that includes `VirtualLEDStripController`.
 
-## 1) Build and replace DOF runtime DLL
+## 1) Deploy DOF runtime DLLs from this repo/package
 
-Build the `DirectOutput` project from `DirectOutput-master/DirectOutput.sln` and deploy the resulting `DirectOutput.dll` into your DOF runtime `x64`/`x86` bin folder (matching your host process bitness).
+Copy the provided `DirectOutput.dll` files into your DOF runtime folders:
 
-The custom build in this repo adds `VirtualLEDStripController`.
+- `C:\DirectOutput\x64\DirectOutput.dll`
+- `C:\DirectOutput\x86\DirectOutput.dll`
 
-## 2) Switch cabinet controller type
+Back up existing DLLs first.
 
-Use the updated cabinet config in this repo (`dofinstall/Config/Cabinet.xml`), or mirror these key changes:
+## 2) Use `VirtualLEDStripController` in `Cabinet.xml`
 
-- Controller element: `<VirtualLEDStripController>` (instead of `<TeensyStripController>`)
-- Keep LED strip counts and controller name
-- Set `<PipeName>VirtualDofMatrix</PipeName>`
+Your cabinet configuration must target the virtual controller type (not `TeensyStripController` for this build path):
 
-## 3) Start viewer in named-pipe mode
+- controller element: `<VirtualLEDStripController>`
+- pipe name field: `<PipeName>VirtualDofMatrix</PipeName>` (or match your custom setting)
+- keep your matrix dimensions/arrangement aligned with your viewer config
 
-`examples/settings.sample.json` now defaults to:
+## 3) Configure `settings.json`
+
+The app listens on the transport pipe from `settings.json`:
 
 ```json
 "transport": {
-  "pipeName": "VirtualDofMatrix"
+  "pipeName": "VirtualDofMatrix",
+  "controlPipeName": "VirtualDofMatrix.Control"
 }
 ```
 
-The app opens a `NamedPipeServerStream` and waits for DOF to connect.
+If you change `PipeName` in `Cabinet.xml`, update `settings.json` to the same name.
 
-## 4) Validate with logs
+## 4) Run order
 
-### Viewer-side expected logs
+1. Start `VirtualDofMatrix.App.exe` first.
+2. Start frontend/VPX so DOF initializes and connects.
 
-With `debug.logProtocol=true`, expected messages include:
+## 5) Verify connectivity in logs
+
+When protocol logging is enabled (`debug.logProtocol=true`), expected viewer logs include:
 
 - `Waiting for named pipe client on 'VirtualDofMatrix'...`
 - `Named pipe client connected on 'VirtualDofMatrix'.`
-- `Pipe frame seq=<n>, payload=<bytes> bytes.`
+- Optional frame logs when `debug.logFrames=true`:
+  - `Pipe frame seq=<n>, payload=<bytes> bytes.`
 
-### DOF-side expected logs
+DOF-side `DirectOutput.log` should show `VirtualLEDStripController` init/connect lifecycle entries.
 
-In `DirectOutput.log`, expected lifecycle messages include the new controller type name:
+## 6) Troubleshooting quick checks
 
-- `VirtualLEDStripController "LED Strips 0" initialized and updater thread started.`
-- `... has connected to VirtualLEDStripController "LED Strips 0".`
-
-If viewer is not running when DOF starts, connect failure/reconnect warnings are expected.
+- Pipe names mismatch between `Cabinet.xml` and `settings.json`.
+- Viewer not started before DOF attempts initial connect.
+- Wrong DOF DLL bitness deployed for the host process.
+- Old cached DOF config still active (restart frontend/table after config changes).
