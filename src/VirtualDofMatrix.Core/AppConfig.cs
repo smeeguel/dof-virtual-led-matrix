@@ -13,6 +13,8 @@ public sealed class AppConfig
     public DebugConfig Debug { get; set; } = new();
 
     public SettingsConfig Settings { get; set; } = new();
+
+    public RoutingConfig Routing { get; set; } = new();
 }
 
 public sealed class TransportConfig
@@ -194,4 +196,106 @@ public sealed class SettingsConfig
     public bool AutoUpdateCabinetOnResolutionChange { get; set; } = true;
 
     public string VisualQuality { get; set; } = "High";
+}
+
+public sealed class RoutingConfig
+{
+    // Conversational note: this version string lets routing changes evolve without breaking legacy settings files.
+    public string RoutingSchemaVersion { get; set; } = "1.0";
+
+    public RoutingPolicyConfig Policy { get; set; } = new();
+
+    public List<ToyRouteConfig> Toys { get; set; } = [];
+}
+
+public sealed class RoutingPolicyConfig
+{
+    // Default strip length used when source ranges only provide strip+offset and no canonical start.
+    public int DefaultStripLength { get; set; } = 1100;
+
+    // If true, invalid toy entries are ignored instead of hard-failing app startup.
+    public bool SkipInvalidToys { get; set; } = true;
+
+    // Actionable behavior toggle for unknown mapping names from config payloads.
+    public bool FallbackToMatrixMapping { get; set; } = true;
+}
+
+public sealed class ToyRouteConfig
+{
+    public string Id { get; set; } = "";
+
+    public bool Enabled { get; set; } = true;
+
+    public string Kind { get; set; } = "matrix";
+
+    public ToySourceConfig Source { get; set; } = new();
+
+    public ToyMappingConfig Mapping { get; set; } = new();
+
+    public ToyWindowOptionsConfig Window { get; set; } = new();
+
+    public ToyRenderOptionsConfig Render { get; set; } = new();
+
+    public List<ToyAdapterTargetConfig> OutputTargets { get; set; } = [];
+}
+
+public sealed class ToySourceConfig
+{
+    // Canonical index into the global flattened input stream.
+    public int? CanonicalStart { get; set; }
+
+    // Number of LEDs from canonical start consumed by this toy.
+    public int Length { get; set; }
+
+    // Optional legacy source coordinates (strip + offset) for normalization.
+    public int? StripIndex { get; set; }
+
+    public int? StripOffset { get; set; }
+}
+
+public sealed class ToyMappingConfig
+{
+    public int Width { get; set; } = 32;
+
+    public int Height { get; set; } = 8;
+
+    public string Mode { get; set; } = "TopDownAlternateRightLeft";
+}
+
+public sealed class ToyWindowOptionsConfig
+{
+    public bool UseGlobalWindow { get; set; } = true;
+
+    public bool AlwaysOnTop { get; set; } = true;
+
+    public bool Borderless { get; set; } = true;
+
+    public double? Left { get; set; }
+
+    public double? Top { get; set; }
+
+    public double? Width { get; set; }
+
+    public double? Height { get; set; }
+}
+
+public sealed class ToyRenderOptionsConfig
+{
+    public string DotShape { get; set; } = "circle";
+
+    public int MinDotSpacing { get; set; } = 2;
+
+    public double Brightness { get; set; } = 1.0;
+
+    public double Gamma { get; set; } = 0.8;
+}
+
+public sealed class ToyAdapterTargetConfig
+{
+    public string Adapter { get; set; } = "viewer";
+
+    public bool Enabled { get; set; } = true;
+
+    // Free-form adapter payload so each output adapter can own its own small settings contract.
+    public Dictionary<string, string> Options { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

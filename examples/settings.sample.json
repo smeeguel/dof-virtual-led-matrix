@@ -48,6 +48,56 @@
       "farStrength": 0.2
     }
   },
+  "routing": {
+    "routingSchemaVersion": "1.0",
+    "policy": {
+      "defaultStripLength": 1100,
+      "skipInvalidToys": true,
+      "fallbackToMatrixMapping": true
+    },
+    "toys": [
+      {
+        "id": "matrix-main",
+        "enabled": true,
+        "kind": "matrix",
+        "source": {
+          "canonicalStart": 0,
+          "length": 256,
+          "stripIndex": 0,
+          "stripOffset": 0
+        },
+        "mapping": {
+          "width": 32,
+          "height": 8,
+          "mode": "TopDownAlternateRightLeft"
+        },
+        "window": {
+          "useGlobalWindow": true,
+          "alwaysOnTop": true,
+          "borderless": true,
+          "left": 10,
+          "top": 6,
+          "width": 1412,
+          "height": 353
+        },
+        "render": {
+          "dotShape": "circle",
+          "minDotSpacing": 2,
+          "brightness": 1.0,
+          "gamma": 0.8
+        },
+        "outputTargets": [
+          {
+            "adapter": "viewer",
+            "enabled": true,
+            "options": {
+              "channel": "main"
+            }
+          }
+        ]
+      }
+    ]
+  },
   "window": {
     "alwaysOnTop": true,
     "borderless": true,
