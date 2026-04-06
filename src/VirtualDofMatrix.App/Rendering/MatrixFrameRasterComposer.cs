@@ -45,6 +45,7 @@ internal sealed class MatrixFrameRasterComposer
     private byte[] _previousSurfaceBgra = Array.Empty<byte>();
     private bool[] _changedMatrixCells = Array.Empty<bool>();
     private readonly List<DirtyRect> _dirtyRectScratch = new();
+    private int[] _logicalToRasterMap = Array.Empty<int>();
     private DateTimeOffset _lastPresentedAt = DateTimeOffset.UnixEpoch;
     private bool _forceFullFrameWrite = true;
 
@@ -60,6 +61,8 @@ internal sealed class MatrixFrameRasterComposer
         _previousSurfaceBgra = new byte[_surfaceBgra.Length];
         _forceFullFrameWrite = true;
         _kernel = DotKernel.Create(config.DotSize, config.DotShape, config.Visual);
+        // Precompute logical->raster lookups once per configuration so Compose stays allocation-free and branch-light.
+        _logicalToRasterMap = MatrixFrameIndexMap.BuildLogicalToRasterMap(config.Width, config.Height, config.Mapping);
     }
 
     public (int Width, int Height, int Stride, byte[] Pixels, IReadOnlyList<DirtyRect> DirtyRects, bool UseFullFrameWrite) Compose(FramePresentation framePresentation)
@@ -83,8 +86,7 @@ internal sealed class MatrixFrameRasterComposer
         for (var logicalIndex = 0; logicalIndex < ledCount; logicalIndex++)
         {
             var rgbOffset = logicalIndex * 3;
-            var mapped = MatrixMapper.MapLinearIndex(logicalIndex, _config.Width, _config.Height, _config.Mapping);
-            var mappedIndex = (mapped.Y * _config.Width) + mapped.X;
+            var mappedIndex = _logicalToRasterMap[logicalIndex];
             _mappedRgb.R[mappedIndex] = rgb[rgbOffset];
             _mappedRgb.G[mappedIndex] = rgb[rgbOffset + 1];
             _mappedRgb.B[mappedIndex] = rgb[rgbOffset + 2];
