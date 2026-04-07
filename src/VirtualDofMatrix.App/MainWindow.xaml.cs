@@ -74,7 +74,7 @@ public partial class MainWindow : Window
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
         ApplyDebugVisibility();
-        _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
+        RefreshLockedAspectRatioFromWindow();
 
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) => ReinitializeRendererForViewport();
@@ -374,7 +374,7 @@ public partial class MainWindow : Window
         var previousRenderer = _matrixRenderer.BackendName;
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
-        _lockedAspectRatio = Math.Max(1.0, _config.Matrix.Width / (double)_config.Matrix.Height);
+        RefreshLockedAspectRatioFromWindow();
         _idleOffPresentation = null;
         ReplaceRenderer(CreateRenderer(_config));
         _forcedRenderBurstsRemaining = 6;
@@ -405,10 +405,16 @@ public partial class MainWindow : Window
         _config.Window.LockAspectRatio = LockAspectRatioMenuItem.IsChecked;
         if (_config.Window.LockAspectRatio)
         {
-            // Conversational note: immediately snap once so the window re-enters a valid locked ratio after free-resize.
-            EnforceAspectRatio(widthDelta: 1, heightDelta: 0);
-            ReinitializeRendererForViewport();
+            // Conversational note: when re-locking, capture the user's current free-resize shape as the new lock ratio.
+            RefreshLockedAspectRatioFromWindow();
         }
+    }
+
+    private void RefreshLockedAspectRatioFromWindow()
+    {
+        var width = Math.Max(MinWidth, Width);
+        var height = Math.Max(MinHeight, Height);
+        _lockedAspectRatio = Math.Max(1.0 / 64.0, width / Math.Max(1.0, height));
     }
 
     private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
