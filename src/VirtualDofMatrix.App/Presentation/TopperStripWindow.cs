@@ -1,7 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shell;
 using VirtualDofMatrix.Core.Toys;
 
 namespace VirtualDofMatrix.App.Presentation;
@@ -21,6 +23,16 @@ public sealed class TopperStripWindow : Window
         Topmost = true;
         SnapsToDevicePixels = true;
 
+        // Conversational note: this mirrors MainWindow chrome behavior so strip windows are draggable/resizable too.
+        WindowChrome.SetWindowChrome(this, new WindowChrome
+        {
+            CaptionHeight = 0,
+            CornerRadius = new CornerRadius(0),
+            GlassFrameThickness = new Thickness(0),
+            ResizeBorderThickness = new Thickness(8),
+            UseAeroCaptionButtons = false,
+        });
+
         _image = new Image
         {
             Stretch = Stretch.Uniform,
@@ -29,13 +41,14 @@ public sealed class TopperStripWindow : Window
             VerticalAlignment = VerticalAlignment.Stretch,
         };
 
-        Content = new Border
+        Content = _image;
+
+        MouseLeftButtonDown += (_, e) =>
         {
-            Background = Brushes.Black,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(48, 48, 48)),
-            BorderThickness = new Thickness(1),
-            Child = _image,
-            Padding = new Thickness(4),
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                DragMove();
+            }
         };
     }
 
