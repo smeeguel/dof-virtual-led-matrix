@@ -12,6 +12,9 @@
   "matrix": {
     "fillGapEnabled": false
   },
+  "window": {
+    "lockAspectRatio": true
+  },
   "debug": {
     "showDebug": false,
     "logProtocol": false,

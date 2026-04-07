@@ -100,6 +100,7 @@ Core fields:
 
 - `alwaysOnTop`
 - `borderless`
+- `lockAspectRatio`
 - `left`
 - `top`
 - `width`

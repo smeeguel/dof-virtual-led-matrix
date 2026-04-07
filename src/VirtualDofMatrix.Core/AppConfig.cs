@@ -177,6 +177,8 @@ public sealed class WindowConfig
 
     public bool Borderless { get; set; } = true;
 
+    public bool LockAspectRatio { get; set; } = true;
+
     public double Left { get; set; } = 10;
 
     public double Top { get; set; } = 6;
@@ -292,6 +294,8 @@ public sealed class ToyWindowOptionsConfig
     public bool AlwaysOnTop { get; set; } = true;
 
     public bool Borderless { get; set; } = true;
+
+    public bool LockAspectRatio { get; set; } = true;
 
     public double? Left { get; set; }
 

@@ -174,6 +174,7 @@ public sealed class AppConfigurationStore
 
         modified |= SetBoolIfDifferent(primaryToy.Window.AlwaysOnTop, value => config.Window.AlwaysOnTop = value, config.Window.AlwaysOnTop);
         modified |= SetBoolIfDifferent(primaryToy.Window.Borderless, value => config.Window.Borderless = value, config.Window.Borderless);
+        modified |= SetBoolIfDifferent(primaryToy.Window.LockAspectRatio, value => config.Window.LockAspectRatio = value, config.Window.LockAspectRatio);
 
         return modified;
     }
@@ -427,6 +428,7 @@ public sealed class AppConfigurationStore
                 UseGlobalWindow = true,
                 AlwaysOnTop = config.Window.AlwaysOnTop,
                 Borderless = config.Window.Borderless,
+                LockAspectRatio = config.Window.LockAspectRatio,
                 Left = config.Window.Left,
                 Top = config.Window.Top,
                 Width = config.Window.Width,
@@ -601,6 +603,8 @@ windowHeight = 353
 ; windowAlwaysOnTop/windowBorderless options: true | false
 windowAlwaysOnTop = true
 windowBorderless = true
+; windowLockAspectRatio options: true | false
+windowLockAspectRatio = true
 
 ; renderDotShape options: circle | square
 renderDotShape = circle
@@ -650,6 +654,7 @@ windowWidth = 300
 windowHeight = 80
 windowAlwaysOnTop = true
 windowBorderless = true
+windowLockAspectRatio = true
 ; render values used when toy is visualized
 renderDotShape = circle
 renderMinDotSpacing = 2

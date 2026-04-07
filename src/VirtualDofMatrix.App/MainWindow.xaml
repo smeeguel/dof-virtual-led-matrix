@@ -25,6 +25,7 @@
             <ContextMenu>
                 <MenuItem Header="Settings..." Click="OnSettingsMenuClick" />
                 <MenuItem x:Name="ShowDebugMenuItem" Header="Show Debug" IsCheckable="True" Click="OnShowDebugClick" />
+                <MenuItem x:Name="LockAspectRatioMenuItem" Header="Lock Aspect Ratio" IsCheckable="True" Click="OnLockAspectRatioClick" />
                 <Separator />
                 <MenuItem Header="Exit" Click="OnExitMenuClick" />
             </ContextMenu>

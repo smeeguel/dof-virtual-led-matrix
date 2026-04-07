@@ -45,6 +45,8 @@ public partial class MainWindow : Window
 
     public event EventHandler? SettingsRequested;
 
+    public bool IsAspectRatioLocked => _config.Window.LockAspectRatio;
+
     public MainWindow(AppConfig config)
         : this(config, CreateRenderer(config))
     {
@@ -122,6 +124,7 @@ public partial class MainWindow : Window
         _config.Window.Height = Height;
         _config.Window.AlwaysOnTop = Topmost;
         _config.Window.Borderless = WindowStyle == WindowStyle.None;
+        _config.Window.LockAspectRatio = LockAspectRatioMenuItem.IsChecked;
     }
 
     private void ApplyPersistedWindowSettings()
@@ -150,6 +153,7 @@ public partial class MainWindow : Window
     private void ApplyDebugVisibility()
     {
         ShowDebugMenuItem.IsChecked = _config.Debug.ShowDebug;
+        LockAspectRatioMenuItem.IsChecked = _config.Window.LockAspectRatio;
 
         RootGrid.Margin = _config.Debug.ShowDebug ? new Thickness(16) : new Thickness(0);
         DebugPanel.Visibility = _config.Debug.ShowDebug ? Visibility.Visible : Visibility.Collapsed;
@@ -169,7 +173,7 @@ public partial class MainWindow : Window
         var widthDelta = Math.Abs(e.NewSize.Width - e.PreviousSize.Width);
         var heightDelta = Math.Abs(e.NewSize.Height - e.PreviousSize.Height);
 
-        if (widthDelta > 0.01 || heightDelta > 0.01)
+        if (_config.Window.LockAspectRatio && (widthDelta > 0.01 || heightDelta > 0.01))
         {
             EnforceAspectRatio(widthDelta, heightDelta);
         }
@@ -395,6 +399,17 @@ public partial class MainWindow : Window
     private void OnSettingsMenuClick(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnShowDebugClick(object sender, RoutedEventArgs e) => SetShowDebug(ShowDebugMenuItem.IsChecked);
+
+    private void OnLockAspectRatioClick(object sender, RoutedEventArgs e)
+    {
+        _config.Window.LockAspectRatio = LockAspectRatioMenuItem.IsChecked;
+        if (_config.Window.LockAspectRatio)
+        {
+            // Conversational note: immediately snap once so the window re-enters a valid locked ratio after free-resize.
+            EnforceAspectRatio(widthDelta: 1, heightDelta: 0);
+            ReinitializeRendererForViewport();
+        }
+    }
 
     private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
 

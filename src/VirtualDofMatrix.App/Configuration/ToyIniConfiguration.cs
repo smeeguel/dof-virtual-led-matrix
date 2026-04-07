@@ -111,6 +111,8 @@ internal static class ToyIniConfiguration
             lines.Add($"windowAlwaysOnTop = {toy.Window.AlwaysOnTop.ToString().ToLowerInvariant()}");
             lines.Add("; windowBorderless options: true | false (example: true)");
             lines.Add($"windowBorderless = {toy.Window.Borderless.ToString().ToLowerInvariant()}");
+            lines.Add("; windowLockAspectRatio options: true | false (example: true)");
+            lines.Add($"windowLockAspectRatio = {toy.Window.LockAspectRatio.ToString().ToLowerInvariant()}");
             lines.Add(string.Empty);
             lines.Add("; --- render ---");
             lines.Add("; renderDotShape options: circle | square (example: circle)");
@@ -232,6 +234,7 @@ internal static class ToyIniConfiguration
         modified |= SetIfPresent(values, "windowHeight", value => toy.Window.Height = ParseDouble(value, toy.Window.Height ?? 0));
         modified |= SetIfPresent(values, "windowAlwaysOnTop", value => toy.Window.AlwaysOnTop = ParseBool(value, toy.Window.AlwaysOnTop));
         modified |= SetIfPresent(values, "windowBorderless", value => toy.Window.Borderless = ParseBool(value, toy.Window.Borderless));
+        modified |= SetIfPresent(values, "windowLockAspectRatio", value => toy.Window.LockAspectRatio = ParseBool(value, toy.Window.LockAspectRatio));
 
         modified |= SetIfPresent(values, "renderDotShape", value => toy.Render.DotShape = value);
         modified |= SetIfPresent(values, "renderMinDotSpacing", value => toy.Render.MinDotSpacing = ParseInt(value, toy.Render.MinDotSpacing));

@@ -164,6 +164,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             {
                 AlwaysOnTop = toy.Window.AlwaysOnTop,
                 Borderless = toy.Window.Borderless,
+                LockAspectRatio = toy.Window.LockAspectRatio,
                 Left = toy.Window.Left ?? _config.Window.Left,
                 Top = toy.Window.Top ?? _config.Window.Top,
                 Width = toy.Window.Width ?? _config.Window.Width,
@@ -257,6 +258,10 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             toy.Window.Height = window.Height;
             toy.Window.AlwaysOnTop = window.Topmost;
             toy.Window.Borderless = window.WindowStyle == WindowStyle.None;
+            if (window is MainWindow mainWindow)
+            {
+                toy.Window.LockAspectRatio = mainWindow.IsAspectRatioLocked;
+            }
 
             _persistConfig();
         }
