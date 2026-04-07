@@ -52,6 +52,24 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void EnsureInitialViewerToyWindowsOnUiThread()
     {
+        if (!_mainWindow.IsLoaded)
+        {
+            // Conversational note: owner windows can only be assigned after MainWindow is shown/loaded.
+            _mainWindow.Loaded += OnMainWindowLoaded;
+            return;
+        }
+
+        CreateInitialViewerBindings();
+    }
+
+    private void OnMainWindowLoaded(object? sender, RoutedEventArgs e)
+    {
+        _mainWindow.Loaded -= OnMainWindowLoaded;
+        CreateInitialViewerBindings();
+    }
+
+    private void CreateInitialViewerBindings()
+    {
         // Conversational note: pre-create viewer toy windows so users immediately see one viewport per enabled toy.
         foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
         {
@@ -84,10 +102,11 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
 
         // Conversational note: topper/secondary toys use a lightweight image-host window instead of full debug UI.
-        var stripWindow = new TopperStripWindow(toyId)
+        var stripWindow = new TopperStripWindow(toyId);
+        if (_mainWindow.IsLoaded)
         {
-            Owner = _mainWindow,
-        };
+            stripWindow.Owner = _mainWindow;
+        }
 
         ApplyToyWindowConfig(stripWindow, toyConfig?.Window);
         WireGeometryPersistence(stripWindow, toyId);
