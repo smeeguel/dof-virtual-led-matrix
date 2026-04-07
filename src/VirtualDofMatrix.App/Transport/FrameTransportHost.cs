@@ -13,7 +13,9 @@ public sealed class FrameTransportHost
     private readonly IToyRouter _toyRouter;
     private readonly IRoutingPlanProvider _routingPlanProvider;
     private readonly IReadOnlyList<IOutputAdapter> _outputAdapters;
+    private readonly HashSet<string> _loggedFirstSuccessfulRoutes = new(StringComparer.OrdinalIgnoreCase);
     private volatile bool _isActive = true;
+    private ulong _connectionEpoch;
 
     private CancellationTokenSource? _cts;
     private Task? _runTask;
@@ -97,6 +99,9 @@ public sealed class FrameTransportHost
             }
 
             await pipe.WaitForConnectionAsync(cancellationToken);
+            // Conversational note: DOF table relaunches create a new pipe client and restart frame sequence values.
+            // We bump a per-connection epoch so routed InputSequence stays monotonic across reconnects.
+            _connectionEpoch++;
 
             if (_config.Debug.LogProtocol)
             {
@@ -124,7 +129,7 @@ public sealed class FrameTransportHost
                         throw new InvalidDataException($"Unsupported named-pipe frame version {version}.");
                     }
 
-                    var sequence = BitConverter.ToInt32(header, 5);
+                    var rawSequence = unchecked((uint)BitConverter.ToInt32(header, 5));
                     var payloadLength = BitConverter.ToInt32(header, 9);
                     if (payloadLength < 0 || payloadLength > 8 * 1100 * 3)
                     {
@@ -135,6 +140,7 @@ public sealed class FrameTransportHost
                         ? Array.Empty<byte>()
                         : await ReadExactlyAsync(pipe, payloadLength, cancellationToken);
 
+                    var sequence = (_connectionEpoch << 32) | rawSequence;
                     if (_config.Debug.LogProtocol && _config.Debug.LogFrames)
                     {
                         AppLogger.Info($"Pipe frame seq={sequence}, payload={payloadLength} bytes.");
@@ -145,7 +151,7 @@ public sealed class FrameTransportHost
                         continue;
                     }
 
-                    RouteAndPublish(payload, unchecked((ulong)sequence), version);
+                    RouteAndPublish(payload, sequence, version);
                 }
             }
             catch (OperationCanceledException)
@@ -191,8 +197,13 @@ public sealed class FrameTransportHost
 
         foreach (var diagnostic in result.Diagnostics)
         {
-            if (_config.Debug.LogProtocol)
+            if (_config.Debug.LogProtocol
+                && diagnostic.PolicyAction == ToyRoutingPolicyAction.None
+                && diagnostic.MappedLedCount > 0
+                && diagnostic.MissingBytes == 0
+                && _loggedFirstSuccessfulRoutes.Add(diagnostic.ToyId))
             {
+                // Conversational note: this keeps route logs actionable by emitting only each toy's first clean success line.
                 AppLogger.Info($"[route] toy={diagnostic.ToyId} mapped={diagnostic.MappedLedCount} missingBytes={diagnostic.MissingBytes} action={diagnostic.PolicyAction} msg={diagnostic.Message}");
             }
         }
