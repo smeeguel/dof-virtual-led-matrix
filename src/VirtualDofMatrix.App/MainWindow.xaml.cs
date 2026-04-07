@@ -456,12 +456,6 @@ public partial class MainWindow : Window
 
     private static IMatrixRenderer CreateRenderer(AppConfig config)
     {
-        // Fill-gap mode relies on per-axis stretch behavior that the CPU path already supports robustly for short strips.
-        if (config.Matrix.FillGapEnabled)
-        {
-            return new CpuMatrixRenderer();
-        }
-
         if (config.Matrix.Renderer.Equals("cpu", StringComparison.OrdinalIgnoreCase) ||
             config.Matrix.Renderer.Equals("primitive", StringComparison.OrdinalIgnoreCase))
         {

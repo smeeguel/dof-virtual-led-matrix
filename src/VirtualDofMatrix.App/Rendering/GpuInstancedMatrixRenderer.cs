@@ -1209,6 +1209,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             BloomWidth = profile is null ? _width : _downsampleWidth,
             BloomHeight = profile is null ? _height : _downsampleHeight,
             DotShapeCircle = _style is not null && _style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) ? 1f : 0f,
+            FillGapEnabled = _style?.FillGapEnabled is true ? 1f : 0f,
             FlatShading = visual?.FlatShading is true ? 1f : 0f,
             FullBrightnessRadius = (float)Math.Clamp(visual?.FullBrightnessRadiusMinPct ?? 0.8, 0.0, 1.0),
             OffStateAlpha = (float)Math.Clamp(visual?.OffStateAlpha ?? 0.0, 0.0, 1.0),
@@ -2109,6 +2110,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float BloomWidth;
         public float BloomHeight;
         public float DotShapeCircle;
+        public float FillGapEnabled;
         public float FlatShading;
         public float FullBrightnessRadius;
         public float OffStateAlpha;
@@ -2120,7 +2122,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float RimHighlight;
         // Conversational note: D3D11 constant buffers require 16-byte alignment, so we keep explicit padding fields.
         public float Padding0;
-        public float Padding1;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -2167,6 +2168,7 @@ cbuffer BloomConstants : register(b0)
     float2 SurfaceSize;
     float2 BloomSize;
     float DotShapeCircle;
+    float FillGapEnabled;
     float FlatShading;
     float FullBrightnessRadius;
     float OffStateAlpha;
@@ -2227,22 +2229,45 @@ VsOut VSMain(uint vertexId : SV_VertexID)
 }
 float4 PSDotPass(VsOut input) : SV_Target
 {
-    // Conversational note: Direction.x carries stride; spacing is inter-dot only, so we do not offset from outer edges.
+    float spacing = max(Direction.y, 0.0f);
+    // Conversational note: in fill-gap mode we derive per-axis cell sizes from the actual viewport surface so
+    // dots stretch to fill available space while still reserving explicit pixel gaps between neighbors.
     float stride = max(Direction.x, 1.0f);
     float2 pixel = input.Uv * SurfaceSize;
-    float2 ledCoord = floor(pixel / stride);
-    if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(0, 0, 0, 1);
-    float2 within = frac(pixel / stride) * stride;
-    if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
+    float2 ledCoord;
+    float2 within;
+    float2 dotExtent;
+    if (FillGapEnabled > 0.5f)
+    {
+        float cols = max(BloomSize.x, 1.0f);
+        float rows = max(BloomSize.y, 1.0f);
+        float dotWidth = max(1.0f, (SurfaceSize.x - (spacing * max(0.0f, cols - 1.0f))) / cols);
+        float dotHeight = max(1.0f, (SurfaceSize.y - (spacing * max(0.0f, rows - 1.0f))) / rows);
+        float stepX = dotWidth + spacing;
+        float stepY = dotHeight + spacing;
+        ledCoord = floor(float2(pixel.x / max(stepX, 1.0f), pixel.y / max(stepY, 1.0f)));
+        if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= cols || ledCoord.y >= rows) return float4(0, 0, 0, 1);
+        within = float2(pixel.x - (ledCoord.x * stepX), pixel.y - (ledCoord.y * stepY));
+        if (within.x >= dotWidth || within.y >= dotHeight) return float4(0, 0, 0, 1);
+        dotExtent = float2(dotWidth, dotHeight);
+    }
+    else
+    {
+        ledCoord = floor(pixel / stride);
+        if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(0, 0, 0, 1);
+        within = frac(pixel / stride) * stride;
+        if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
+        dotExtent = float2(Radius, Radius);
+    }
 
     float radial = 0.0f;
     float edge = 1.0f;
     if (DotShapeCircle > 0.5f)
     {
-        float center = (Radius - 1.0f) * 0.5f;
-        float denom = max(0.5f, Radius * 0.5f);
-        float dx = (within.x - center) / denom;
-        float dy = (within.y - center) / denom;
+        float2 center = (dotExtent - 1.0f) * 0.5f;
+        float2 denom = max(float2(0.5f, 0.5f), dotExtent * 0.5f);
+        float dx = (within.x - center.x) / denom.x;
+        float dy = (within.y - center.y) / denom.y;
         radial = sqrt(dx * dx + dy * dy);
         if (radial > 1.0f) return float4(0, 0, 0, 1);
         float fullRadius = saturate(FullBrightnessRadius);
