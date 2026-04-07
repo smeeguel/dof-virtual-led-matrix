@@ -26,8 +26,6 @@
 <body>
   <div class="shell">
     <main class="page">
-      <p class="meta">Rendered from <code>instructions_content.md</code> for double-click offline viewing.</p>
-      <p id="status" class="status">Rendering markdown...</p>
       <article id="content"></article>
       <p class="footer">Last updated: 2026-04-07</p>
     </main>
@@ -61,10 +59,6 @@ You need:
 If you are setting up this app for the first time and do not already have DOF installed, watch this walkthrough before Step 1:
 
 - https://youtu.be/lIG6JJ05xbw
-
-> If the embedded player is blocked by YouTube (Error 153), click the video link above to watch directly.
-
-[![Watch the first-time setup video](https://img.youtube.com/vi/lIG6JJ05xbw/hqdefault.jpg)](https://youtu.be/lIG6JJ05xbw)
 
 ---
 
@@ -104,7 +98,9 @@ If you already have a customized DOF setup, merge carefully instead of overwriti
 
 ## 2) Configure Cabinet.xml (beginner walkthrough)
 
-This section explains exactly what to edit.
+If all you want is the default single virtual LED matrix from the provided package config, you can skip Step 2.
+
+Use Step 2 when you need to review or customize Cabinet.xml entries.
 
 ### Step 2A - Open Cabinet.xml
 
@@ -358,19 +354,16 @@ Supported actions:
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
     (function () {
-      const status = document.getElementById('status');
       const content = document.getElementById('content');
       const source = document.getElementById('md-source').textContent;
 
       if (window.marked) {
         marked.setOptions({ gfm: true, breaks: false });
         content.innerHTML = marked.parse(source);
-        status.textContent = 'Showing rendered markdown from instructions_content.md';
         return;
       }
 
       content.innerHTML = '<pre>' + source.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</pre>';
-      status.textContent = 'Could not load markdown renderer from CDN. Showing raw markdown text.';
     })();
   </script>
 </body>
