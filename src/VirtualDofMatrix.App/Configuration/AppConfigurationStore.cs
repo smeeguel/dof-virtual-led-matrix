@@ -606,7 +606,7 @@ windowBorderless = true
 renderDotShape = circle
 ; renderMinDotSpacing options: integer >= 0
 renderMinDotSpacing = 2
-; fillGapEnabled options: true | false (true stretches dot canvas to fill available viewport space minus spacing)
+; fillGapEnabled options: true | false (true biases pitch to dominant axis and stretches dot canvas to fill viewport space minus spacing)
 fillGapEnabled = false
 ; renderBrightness options: number 0.0..1.0
 renderBrightness = 1.0

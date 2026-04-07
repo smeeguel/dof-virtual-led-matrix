@@ -117,7 +117,7 @@ internal static class ToyIniConfiguration
             lines.Add($"renderDotShape = {toy.Render.DotShape}");
             lines.Add("; renderMinDotSpacing options: integer >= 0 (example: 2)");
             lines.Add($"renderMinDotSpacing = {toy.Render.MinDotSpacing}");
-            lines.Add("; fillGapEnabled options: true | false (example: false; true stretches dots to fill available viewport space)");
+            lines.Add("; fillGapEnabled options: true | false (example: false; true biases toward dominant axis and fills available viewport space)");
             lines.Add($"fillGapEnabled = {toy.Render.FillGapEnabled.ToString().ToLowerInvariant()}");
             lines.Add("; renderBrightness options: number 0.0..1.0 (example: 1.0)");
             lines.Add($"renderBrightness = {toy.Render.Brightness.ToString(CultureInfo.InvariantCulture)}");

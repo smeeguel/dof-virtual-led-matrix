@@ -237,7 +237,10 @@ public partial class MainWindow : Window
 
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
-        var stride = Math.Max(1, Math.Min(strideFromWidth, strideFromHeight));
+        // fillGapEnabled intentionally biases toward the larger axis so narrow strips (for example 5x1) don't leave oversized visual gaps.
+        var stride = _config.Matrix.FillGapEnabled
+            ? Math.Max(1, Math.Max(strideFromWidth, strideFromHeight))
+            : Math.Max(1, Math.Min(strideFromWidth, strideFromHeight));
         var spacing = Math.Max(HardMinimumDotSpacing, _config.Matrix.MinDotSpacing);
         var dotSize = Math.Max(1, stride - spacing);
 
