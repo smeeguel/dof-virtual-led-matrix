@@ -161,7 +161,6 @@ public sealed class ToyRouter : IToyRouter
         var availableBytes = payload.Length - payloadStartByte;
         var availableLeds = Math.Min(mappedLedCount, availableBytes / 3);
 
-        var mapping = toy.Mapping;
         var policyAction = requestedLedCount > matrixLedCapacity
             ? ToyRoutingPolicyAction.ClampedOversizeRange
             : ToyRoutingPolicyAction.None;
@@ -177,15 +176,9 @@ public sealed class ToyRouter : IToyRouter
                 payload[sourceByteOffset + 1],
                 payload[sourceByteOffset + 2]);
 
-            var (x, y, mappingAction) = MapWithFallback(ledIndex, width, height, mapping);
-            if (mappingAction != ToyRoutingPolicyAction.None)
-            {
-                policyAction = mappingAction;
-                policyMessage = $"Mapping '{mapping}' was unsupported; used RowMajor fallback.";
-            }
-
-            var targetIndex = (y * width) + x;
-            pixels[targetIndex] = rgb;
+            // Conversational note: ToyRouter keeps output in canonical linear order so downstream renderers
+            // can apply exactly one mapping pass (avoids accidental double-rotation/double-serpentine).
+            pixels[ledIndex] = rgb;
         }
 
         var missingBytes = (mappedLedCount - availableLeds) * 3;
@@ -282,21 +275,6 @@ public sealed class ToyRouter : IToyRouter
             pixels);
     }
 
-    private static (int X, int Y, ToyRoutingPolicyAction PolicyAction) MapWithFallback(int ledIndex, int width, int height, string mapping)
-    {
-        try
-        {
-            var (x, y) = MatrixMapper.MapLinearIndex(ledIndex, width, height, mapping);
-            return (x, y, ToyRoutingPolicyAction.None);
-        }
-        catch (NotSupportedException)
-        {
-            var x = ledIndex % width;
-            var y = ledIndex / width;
-            return (x, y, ToyRoutingPolicyAction.MappingFallbackRowMajor);
-        }
-    }
-
     private static bool PolicyEquals(string? value, string expected)
         => string.Equals(value?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
 
@@ -366,7 +344,6 @@ public enum ToyRoutingPolicyAction
     SkippedDisabled,
     SourceOutOfRange,
     PaddedMissingBytesWithBlack,
-    MappingFallbackRowMajor,
     DroppedMissingData,
     HeldLastFrame,
     RejectedOversizeRange,
