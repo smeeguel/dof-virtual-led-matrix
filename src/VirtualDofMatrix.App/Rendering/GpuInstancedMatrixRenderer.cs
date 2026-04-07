@@ -411,7 +411,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private void ConfigureDotSurface(DotStyleConfig style, int width, int height)
     {
-        if (style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) && !style.Visual.FlatShading)
+        if (style.FillGapEnabled)
+        {
+            // When fill-gap mode is enabled we intentionally honor the full adaptive dot size so each cell can
+            // consume available space (minus spacing) instead of forcing tiny fixed kernels that leave wide gaps.
+            _dotSize = Math.Max(1, style.DotSize);
+        }
+        else if (style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) && !style.Visual.FlatShading)
         {
             _dotSize = Math.Clamp(style.DotSize, 2, 5);
         }
