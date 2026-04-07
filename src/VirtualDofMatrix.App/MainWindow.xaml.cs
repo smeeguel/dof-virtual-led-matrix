@@ -199,6 +199,7 @@ public partial class MainWindow : Window
             effectiveMatrixConfig.Mapping,
             effectiveMatrixConfig.DotSize,
             effectiveMatrixConfig.MinDotSpacing,
+            effectiveMatrixConfig.FillGapEnabled,
             effectiveMatrixConfig.Brightness,
             effectiveMatrixConfig.Gamma,
             effectiveMatrixConfig.Visual,
@@ -249,6 +250,7 @@ public partial class MainWindow : Window
             DotShape = _config.Matrix.DotShape,
             DotSize = dotSize,
             MinDotSpacing = spacing,
+            FillGapEnabled = _config.Matrix.FillGapEnabled,
             Brightness = _config.Matrix.Brightness,
             Gamma = _config.Matrix.Gamma,
             ToneMapping = new ToneMappingConfig

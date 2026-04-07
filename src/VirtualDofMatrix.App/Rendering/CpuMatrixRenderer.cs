@@ -54,7 +54,8 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
             _bitmap = new WriteableBitmap(composed.Width, composed.Height, 96, 96, PixelFormats.Bgra32, null);
             _bitmap.WritePixels(new System.Windows.Int32Rect(0, 0, composed.Width, composed.Height), composed.Pixels, composed.Stride, 0);
             _bitmapHost.Source = _bitmap;
-            _bitmapHost.Stretch = Stretch.Fill;
+            // Keep square-dot geometry by default; fill/stretch is now an explicit per-toy render setting.
+            _bitmapHost.Stretch = dotStyleConfig.FillGapEnabled ? Stretch.Fill : Stretch.Uniform;
             AppLogger.Info($"[renderer] cpu initialized surface={composed.Width}x{composed.Height} leds={width * height}");
         }
         finally

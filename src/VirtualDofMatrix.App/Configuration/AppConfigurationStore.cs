@@ -140,6 +140,7 @@ public sealed class AppConfigurationStore
 
         modified |= SetStringIfDifferent(primaryToy.Render.DotShape, value => config.Matrix.DotShape = value, config.Matrix.DotShape);
         modified |= SetIntIfDifferent(primaryToy.Render.MinDotSpacing, value => config.Matrix.MinDotSpacing = value, config.Matrix.MinDotSpacing);
+        modified |= SetBoolIfDifferent(primaryToy.Render.FillGapEnabled, value => config.Matrix.FillGapEnabled = value, config.Matrix.FillGapEnabled);
         modified |= SetDoubleIfDifferent(primaryToy.Render.Brightness, value => config.Matrix.Brightness = value, config.Matrix.Brightness);
         modified |= SetDoubleIfDifferent(primaryToy.Render.Gamma, value => config.Matrix.Gamma = value, config.Matrix.Gamma);
 
@@ -435,6 +436,7 @@ public sealed class AppConfigurationStore
             {
                 DotShape = string.IsNullOrWhiteSpace(config.Matrix.DotShape) ? "circle" : config.Matrix.DotShape,
                 MinDotSpacing = config.Matrix.MinDotSpacing,
+                FillGapEnabled = config.Matrix.FillGapEnabled,
                 Brightness = config.Matrix.Brightness,
                 Gamma = config.Matrix.Gamma,
             },
@@ -604,6 +606,8 @@ windowBorderless = true
 renderDotShape = circle
 ; renderMinDotSpacing options: integer >= 0
 renderMinDotSpacing = 2
+; fillGapEnabled options: true | false (true stretches dot canvas to fill available viewport space minus spacing)
+fillGapEnabled = false
 ; renderBrightness options: number 0.0..1.0
 renderBrightness = 1.0
 ; renderGamma options: number > 0
@@ -649,6 +653,7 @@ windowBorderless = true
 ; render values used when toy is visualized
 renderDotShape = circle
 renderMinDotSpacing = 2
+fillGapEnabled = false
 renderBrightness = 1.0
 renderGamma = 0.8
 ; bloom options

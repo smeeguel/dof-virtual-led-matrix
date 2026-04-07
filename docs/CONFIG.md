@@ -36,6 +36,7 @@ An up-to-date runnable baseline is provided in `examples/settings.sample.json`.
   "mapping": "TopDownAlternateRightLeft",
   "dotShape": "circle",
   "minDotSpacing": 2,
+  "fillGapEnabled": false,
   "brightness": 1.0,
   "gamma": 0.8,
   "toneMapping": { ... },
@@ -52,6 +53,7 @@ Core fields:
 - `mapping`: logical index mapping mode (default: `TopDownAlternateRightLeft`).
 - `dotShape`: `circle` or `square`.
 - `minDotSpacing`: minimum spacing guardrail for renderer layout.
+- `fillGapEnabled`: when `true`, renderer stretches dots to fill available viewport space minus spacing; when `false` (default), dot canvases stay square.
 - `brightness`: normalized brightness scalar.
 - `gamma`: gamma response control.
 

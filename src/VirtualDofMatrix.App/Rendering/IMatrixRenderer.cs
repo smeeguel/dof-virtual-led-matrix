@@ -9,6 +9,7 @@ public sealed record DotStyleConfig(
     string Mapping,
     int DotSize,
     int DotSpacing,
+    bool FillGapEnabled,
     double Brightness,
     double Gamma,
     MatrixVisualConfig Visual,

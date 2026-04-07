@@ -9,6 +9,9 @@
     "routingSchemaVersion": "1",
     "toyConfigIniPath": "toys.ini"
   },
+  "matrix": {
+    "fillGapEnabled": false
+  },
   "debug": {
     "showDebug": false,
     "logProtocol": false,

@@ -49,6 +49,8 @@ public sealed class MatrixConfig
 
     public int MinDotSpacing { get; set; } = 2;
 
+    public bool FillGapEnabled { get; set; } = false;
+
     public double Brightness { get; set; } = 1.0;
 
     public double Gamma { get; set; } = 0.8;
@@ -305,6 +307,8 @@ public sealed class ToyRenderOptionsConfig
     public string DotShape { get; set; } = "circle";
 
     public int MinDotSpacing { get; set; } = 2;
+
+    public bool FillGapEnabled { get; set; } = false;
 
     public double Brightness { get; set; } = 1.0;
 

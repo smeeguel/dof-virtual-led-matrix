@@ -117,6 +117,8 @@ internal static class ToyIniConfiguration
             lines.Add($"renderDotShape = {toy.Render.DotShape}");
             lines.Add("; renderMinDotSpacing options: integer >= 0 (example: 2)");
             lines.Add($"renderMinDotSpacing = {toy.Render.MinDotSpacing}");
+            lines.Add("; fillGapEnabled options: true | false (example: false; true stretches dots to fill available viewport space)");
+            lines.Add($"fillGapEnabled = {toy.Render.FillGapEnabled.ToString().ToLowerInvariant()}");
             lines.Add("; renderBrightness options: number 0.0..1.0 (example: 1.0)");
             lines.Add($"renderBrightness = {toy.Render.Brightness.ToString(CultureInfo.InvariantCulture)}");
             lines.Add("; renderGamma options: number > 0 (example: 0.8)");
@@ -233,6 +235,7 @@ internal static class ToyIniConfiguration
 
         modified |= SetIfPresent(values, "renderDotShape", value => toy.Render.DotShape = value);
         modified |= SetIfPresent(values, "renderMinDotSpacing", value => toy.Render.MinDotSpacing = ParseInt(value, toy.Render.MinDotSpacing));
+        modified |= SetIfPresent(values, "fillGapEnabled", value => toy.Render.FillGapEnabled = ParseBool(value, toy.Render.FillGapEnabled));
         modified |= SetIfPresent(values, "renderBrightness", value => toy.Render.Brightness = ParseDouble(value, toy.Render.Brightness));
         modified |= SetIfPresent(values, "renderGamma", value => toy.Render.Gamma = ParseDouble(value, toy.Render.Gamma));
 
