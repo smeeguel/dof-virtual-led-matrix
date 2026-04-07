@@ -411,7 +411,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private void ConfigureDotSurface(DotStyleConfig style, int width, int height)
     {
-        if (style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) && !style.Visual.FlatShading)
+        if (style.FillGapEnabled)
+        {
+            // Fill-gap mode computes final cell coverage from surface size in the shader, so we keep the adaptive
+            // dot size here to ensure the backing surface itself scales up to viewport-sized geometry.
+            _dotSize = Math.Max(1, style.DotSize);
+        }
+        else if (style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) && !style.Visual.FlatShading)
         {
             _dotSize = Math.Clamp(style.DotSize, 2, 5);
         }
