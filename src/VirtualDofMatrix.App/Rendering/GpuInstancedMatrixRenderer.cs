@@ -420,7 +420,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _dotSize = 1;
         }
 
-        _dotPadding = _dotSize > 1 ? 1 : 0;
+        // Keep spacing behavior shape-agnostic: renderMinDotSpacing should be honored for both circle and square modes.
+        _dotPadding = Math.Max(0, style.DotSpacing);
         _dotStride = _dotSize + _dotPadding;
         _surfaceWidth = (_dotPadding * 2) + (width * _dotStride);
         _surfaceHeight = (_dotPadding * 2) + (height * _dotStride);
