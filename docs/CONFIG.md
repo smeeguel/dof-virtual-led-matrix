@@ -53,7 +53,7 @@ Core fields:
 - `mapping`: logical index mapping mode (default: `TopDownAlternateRightLeft`).
 - `dotShape`: `circle` or `square`.
 - `minDotSpacing`: minimum spacing guardrail for renderer layout.
-- `fillGapEnabled`: when `true`, renderer biases dot pitch toward the dominant viewport axis (useful for short strips like `5x1`) and stretches to fill space minus spacing; when `false` (default), dot canvases stay square.
+- `fillGapEnabled`: when `true`, renderer biases dot pitch toward the dominant viewport axis and uses stretch-to-fill behavior (short strips like `5x1`); current implementation uses the CPU render path for this mode. When `false` (default), dot canvases stay square.
 - `brightness`: normalized brightness scalar.
 - `gamma`: gamma response control.
 
