@@ -101,18 +101,76 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             return new ToyWindowBinding(_mainWindow, frame => _mainWindow.ApplyPresentation(ToPresentation(frame)));
         }
 
-        // Conversational note: topper/secondary toys use a lightweight image-host window instead of full debug UI.
-        var stripWindow = new TopperStripWindow(toyId);
+        // Conversational note: secondary toys now reuse MainWindow rendering stack for consistent dot/bloom behavior.
+        var toyWindowConfig = BuildToyWindowAppConfig(toyConfig, toyId);
+        var toyWindow = new MainWindow(toyWindowConfig)
+        {
+            DataContext = toyWindowConfig,
+        };
+
         if (_mainWindow.IsLoaded)
         {
-            stripWindow.Owner = _mainWindow;
+            toyWindow.Owner = _mainWindow;
         }
 
-        ApplyToyWindowConfig(stripWindow, toyConfig?.Window);
-        WireGeometryPersistence(stripWindow, toyId);
-        stripWindow.Show();
+        toyWindow.Show();
+        WireGeometryPersistence(toyWindow, toyId);
 
-        return new ToyWindowBinding(stripWindow, frame => stripWindow.ApplyFrame(frame));
+        return new ToyWindowBinding(toyWindow, frame => toyWindow.ApplyPresentation(ToPresentation(frame)));
+    }
+
+    private AppConfig BuildToyWindowAppConfig(ToyRouteConfig? toyConfig, string toyId)
+    {
+        var toy = toyConfig ?? new ToyRouteConfig { Id = toyId };
+
+        var clone = new AppConfig
+        {
+            Transport = _config.Transport,
+            Debug = new DebugConfig
+            {
+                ShowDebug = false,
+                LogProtocol = _config.Debug.LogProtocol,
+                LogFrames = _config.Debug.LogFrames,
+            },
+            Settings = _config.Settings,
+            Routing = _config.Routing,
+            Matrix = new MatrixConfig
+            {
+                Renderer = _config.Matrix.Renderer,
+                Width = Math.Max(1, toy.Mapping.Width),
+                Height = Math.Max(1, toy.Mapping.Height),
+                Mapping = toy.Mapping.Mode,
+                DotShape = toy.Render.DotShape,
+                MinDotSpacing = toy.Render.MinDotSpacing,
+                Brightness = toy.Render.Brightness,
+                Gamma = toy.Render.Gamma,
+                ToneMapping = _config.Matrix.ToneMapping,
+                TemporalSmoothing = _config.Matrix.TemporalSmoothing,
+                Visual = _config.Matrix.Visual,
+                Bloom = new BloomConfig
+                {
+                    Enabled = toy.Bloom.Enabled,
+                    Threshold = toy.Bloom.Threshold,
+                    SoftKnee = toy.Bloom.SoftKnee,
+                    DownsampleDivisor = _config.Matrix.Bloom.DownsampleDivisor,
+                    NearRadiusPx = toy.Bloom.NearRadiusPx,
+                    FarRadiusPx = toy.Bloom.FarRadiusPx,
+                    NearStrength = toy.Bloom.NearStrength,
+                    FarStrength = toy.Bloom.FarStrength,
+                },
+            },
+            Window = new WindowConfig
+            {
+                AlwaysOnTop = toy.Window.AlwaysOnTop,
+                Borderless = toy.Window.Borderless,
+                Left = toy.Window.Left ?? _config.Window.Left,
+                Top = toy.Window.Top ?? _config.Window.Top,
+                Width = toy.Window.Width ?? _config.Window.Width,
+                Height = toy.Window.Height ?? _config.Window.Height,
+            },
+        };
+
+        return clone;
     }
 
     private bool IsPrimaryVisualToy(string toyId)
