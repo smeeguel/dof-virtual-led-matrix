@@ -256,8 +256,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 var r = _cpuLedReadback[ledOffset];
                 var g = _cpuLedReadback[ledOffset + 1];
                 var b = _cpuLedReadback[ledOffset + 2];
-                var baseX = _dotPadding + ((raster % _width) * _dotStride);
-                var baseY = _dotPadding + ((raster / _width) * _dotStride);
+                var baseX = (raster % _width) * _dotStride;
+                var baseY = (raster / _width) * _dotStride;
                 RasterFastDot(baseX, baseY, r, g, b);
             }
         }
@@ -420,11 +420,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _dotSize = 1;
         }
 
-        // Keep spacing behavior shape-agnostic: renderMinDotSpacing should be honored for both circle and square modes.
+        // Keep spacing behavior shape-agnostic and inter-dot only: spacing belongs between cells, not around viewport edges.
         _dotPadding = Math.Max(0, style.DotSpacing);
         _dotStride = _dotSize + _dotPadding;
-        _surfaceWidth = (_dotPadding * 2) + (width * _dotStride);
-        _surfaceHeight = (_dotPadding * 2) + (height * _dotStride);
+        _surfaceWidth = (width * _dotSize) + (Math.Max(0, width - 1) * _dotPadding);
+        _surfaceHeight = (height * _dotSize) + (Math.Max(0, height - 1) * _dotPadding);
         BuildDotMasks(style, _dotSize);
     }
 
@@ -2227,15 +2227,12 @@ VsOut VSMain(uint vertexId : SV_VertexID)
 }
 float4 PSDotPass(VsOut input) : SV_Target
 {
-    // Conversational note: Direction.x carries stride and Direction.y carries padding for the dot pass.
+    // Conversational note: Direction.x carries stride; spacing is inter-dot only, so we do not offset from outer edges.
     float stride = max(Direction.x, 1.0f);
-    float padding = max(Direction.y, 0.0f);
     float2 pixel = input.Uv * SurfaceSize;
-    float2 local = pixel - float2(padding, padding);
-    if (local.x < 0.0f || local.y < 0.0f) return float4(0, 0, 0, 1);
-    float2 ledCoord = floor(local / stride);
+    float2 ledCoord = floor(pixel / stride);
     if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(0, 0, 0, 1);
-    float2 within = frac(local / stride) * stride;
+    float2 within = frac(pixel / stride) * stride;
     if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
 
     float radial = 0.0f;
