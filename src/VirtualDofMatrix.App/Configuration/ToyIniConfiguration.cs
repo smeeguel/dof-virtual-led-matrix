@@ -54,9 +54,13 @@ internal static class ToyIniConfiguration
             "; Managed by Virtual DOF Matrix. Toy/window edits are persisted here.",
             string.Empty,
             "[policy]",
+            "; onMissingData options: drop | partial-black-fill | hold-last (example: partial-black-fill)",
             $"onMissingData = {config.Routing.Policy.OnMissingData}",
+            "; onOversizeRange options: reject-config | clamp (example: clamp)",
             $"onOversizeRange = {config.Routing.Policy.OnOversizeRange}",
+            "; onFrameRateSpike options: latest-wins | drop-oldest (example: latest-wins)",
             $"onFrameRateSpike = {config.Routing.Policy.OnFrameRateSpike}",
+            "; defaultStripLength options: positive integer (example: 1100)",
             $"defaultStripLength = {config.Routing.Policy.DefaultStripLength}",
         };
 
@@ -64,55 +68,74 @@ internal static class ToyIniConfiguration
         {
             lines.Add(string.Empty);
             lines.Add($"[toy:{toy.Id}]");
+            lines.Add("; --- identity ---");
+            lines.Add("; enabled options: true | false (example: true)");
             lines.Add($"enabled = {toy.Enabled.ToString().ToLowerInvariant()}");
+            lines.Add("; kind options: matrix | topper | flasher | <custom-name> (example: matrix)");
             lines.Add($"kind = {toy.Kind}");
+            lines.Add(string.Empty);
+            lines.Add("; --- matrix geometry ---");
+            lines.Add("; width options: positive integer (example: 128)");
             lines.Add($"width = {toy.Mapping.Width}");
+            lines.Add("; height options: positive integer (example: 32)");
             lines.Add($"height = {toy.Mapping.Height}");
+            lines.Add("; mapping options: TopDownAlternateRightLeft | RowMajor | ColumnMajor (example: TopDownAlternateRightLeft)");
             lines.Add($"mapping = {toy.Mapping.Mode}");
+            lines.Add(string.Empty);
+            lines.Add("; --- source routing ---");
+            lines.Add("; sourceCanonicalStart options: integer >= 0 (example: 0)");
             lines.Add($"sourceCanonicalStart = {toy.Source.CanonicalStart ?? 0}");
+            lines.Add("; sourceLength options: integer > 0 (example: 4096 for 128x32)");
             lines.Add($"sourceLength = {toy.Source.Length}");
-            if (toy.Source.StripIndex.HasValue)
-            {
-                lines.Add($"sourceStripIndex = {toy.Source.StripIndex.Value}");
-            }
+            lines.Add("; sourceStripIndex options: integer >= 0 (optional, example: 0)");
+            lines.Add(toy.Source.StripIndex.HasValue ? $"sourceStripIndex = {toy.Source.StripIndex.Value}" : "; sourceStripIndex = 0");
 
-            if (toy.Source.StripOffset.HasValue)
-            {
-                lines.Add($"sourceStripOffset = {toy.Source.StripOffset.Value}");
-            }
+            lines.Add("; sourceStripOffset options: integer >= 0 (optional, example: 0)");
+            lines.Add(toy.Source.StripOffset.HasValue ? $"sourceStripOffset = {toy.Source.StripOffset.Value}" : "; sourceStripOffset = 0");
 
-            if (toy.Window.Left.HasValue)
-            {
-                lines.Add($"windowLeft = {toy.Window.Left.Value.ToString(CultureInfo.InvariantCulture)}");
-            }
+            lines.Add(string.Empty);
+            lines.Add("; --- window placement ---");
+            lines.Add("; windowLeft options: number (pixels, example: 10)");
+            lines.Add(toy.Window.Left.HasValue ? $"windowLeft = {toy.Window.Left.Value.ToString(CultureInfo.InvariantCulture)}" : "; windowLeft = 10");
 
-            if (toy.Window.Top.HasValue)
-            {
-                lines.Add($"windowTop = {toy.Window.Top.Value.ToString(CultureInfo.InvariantCulture)}");
-            }
+            lines.Add("; windowTop options: number (pixels, example: 6)");
+            lines.Add(toy.Window.Top.HasValue ? $"windowTop = {toy.Window.Top.Value.ToString(CultureInfo.InvariantCulture)}" : "; windowTop = 6");
 
-            if (toy.Window.Width.HasValue)
-            {
-                lines.Add($"windowWidth = {toy.Window.Width.Value.ToString(CultureInfo.InvariantCulture)}");
-            }
+            lines.Add("; windowWidth options: number > 0 (pixels, example: 1412)");
+            lines.Add(toy.Window.Width.HasValue ? $"windowWidth = {toy.Window.Width.Value.ToString(CultureInfo.InvariantCulture)}" : "; windowWidth = 1412");
 
-            if (toy.Window.Height.HasValue)
-            {
-                lines.Add($"windowHeight = {toy.Window.Height.Value.ToString(CultureInfo.InvariantCulture)}");
-            }
+            lines.Add("; windowHeight options: number > 0 (pixels, example: 353)");
+            lines.Add(toy.Window.Height.HasValue ? $"windowHeight = {toy.Window.Height.Value.ToString(CultureInfo.InvariantCulture)}" : "; windowHeight = 353");
 
+            lines.Add("; windowAlwaysOnTop options: true | false (example: true)");
             lines.Add($"windowAlwaysOnTop = {toy.Window.AlwaysOnTop.ToString().ToLowerInvariant()}");
+            lines.Add("; windowBorderless options: true | false (example: true)");
             lines.Add($"windowBorderless = {toy.Window.Borderless.ToString().ToLowerInvariant()}");
+            lines.Add(string.Empty);
+            lines.Add("; --- render ---");
+            lines.Add("; renderDotShape options: circle | square (example: circle)");
             lines.Add($"renderDotShape = {toy.Render.DotShape}");
+            lines.Add("; renderMinDotSpacing options: integer >= 0 (example: 2)");
             lines.Add($"renderMinDotSpacing = {toy.Render.MinDotSpacing}");
+            lines.Add("; renderBrightness options: number 0.0..1.0 (example: 1.0)");
             lines.Add($"renderBrightness = {toy.Render.Brightness.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add("; renderGamma options: number > 0 (example: 0.8)");
             lines.Add($"renderGamma = {toy.Render.Gamma.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add(string.Empty);
+            lines.Add("; --- bloom ---");
+            lines.Add("; bloomEnabled options: true | false (example: true)");
             lines.Add($"bloomEnabled = {toy.Bloom.Enabled.ToString().ToLowerInvariant()}");
+            lines.Add("; bloomThreshold options: number 0.0..1.0 (example: 0.72)");
             lines.Add($"bloomThreshold = {toy.Bloom.Threshold.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add("; bloomSoftKnee options: number 0.0..1.0 (example: 0.18)");
             lines.Add($"bloomSoftKnee = {toy.Bloom.SoftKnee.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add("; bloomNearRadiusPx options: integer >= 0 (example: 2)");
             lines.Add($"bloomNearRadiusPx = {toy.Bloom.NearRadiusPx}");
+            lines.Add("; bloomFarRadiusPx options: integer >= 0 (example: 10)");
             lines.Add($"bloomFarRadiusPx = {toy.Bloom.FarRadiusPx}");
+            lines.Add("; bloomNearStrength options: number >= 0 (example: 1.0)");
             lines.Add($"bloomNearStrength = {toy.Bloom.NearStrength.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add("; bloomFarStrength options: number >= 0 (example: 0.2)");
             lines.Add($"bloomFarStrength = {toy.Bloom.FarStrength.ToString(CultureInfo.InvariantCulture)}");
 
             var outputs = toy.OutputTargets
@@ -120,6 +143,8 @@ internal static class ToyIniConfiguration
                 .Select(target => target.Adapter)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+            // Conversational note: we keep outputTargets compact, but document known adapters so generated INI stays self-explanatory.
+            lines.Add("; outputTargets options: comma list of adapter names (known: viewer | pipe-broadcast, example: viewer,pipe-broadcast)");
             lines.Add($"outputTargets = {string.Join(',', outputs)}");
         }
 
