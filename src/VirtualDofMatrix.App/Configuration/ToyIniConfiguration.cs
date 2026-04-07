@@ -41,6 +41,92 @@ internal static class ToyIniConfiguration
         return modified;
     }
 
+    public static void SaveToIni(AppConfig config, string iniPath)
+    {
+        var directory = Path.GetDirectoryName(iniPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var lines = new List<string>
+        {
+            "; Managed by Virtual DOF Matrix. Toy/window edits are persisted here.",
+            string.Empty,
+            "[policy]",
+            $"onMissingData = {config.Routing.Policy.OnMissingData}",
+            $"onOversizeRange = {config.Routing.Policy.OnOversizeRange}",
+            $"onFrameRateSpike = {config.Routing.Policy.OnFrameRateSpike}",
+            $"defaultStripLength = {config.Routing.Policy.DefaultStripLength}",
+        };
+
+        foreach (var toy in config.Routing.Toys)
+        {
+            lines.Add(string.Empty);
+            lines.Add($"[toy:{toy.Id}]");
+            lines.Add($"enabled = {toy.Enabled.ToString().ToLowerInvariant()}");
+            lines.Add($"kind = {toy.Kind}");
+            lines.Add($"width = {toy.Mapping.Width}");
+            lines.Add($"height = {toy.Mapping.Height}");
+            lines.Add($"mapping = {toy.Mapping.Mode}");
+            lines.Add($"sourceCanonicalStart = {toy.Source.CanonicalStart ?? 0}");
+            lines.Add($"sourceLength = {toy.Source.Length}");
+            if (toy.Source.StripIndex.HasValue)
+            {
+                lines.Add($"sourceStripIndex = {toy.Source.StripIndex.Value}");
+            }
+
+            if (toy.Source.StripOffset.HasValue)
+            {
+                lines.Add($"sourceStripOffset = {toy.Source.StripOffset.Value}");
+            }
+
+            if (toy.Window.Left.HasValue)
+            {
+                lines.Add($"windowLeft = {toy.Window.Left.Value.ToString(CultureInfo.InvariantCulture)}");
+            }
+
+            if (toy.Window.Top.HasValue)
+            {
+                lines.Add($"windowTop = {toy.Window.Top.Value.ToString(CultureInfo.InvariantCulture)}");
+            }
+
+            if (toy.Window.Width.HasValue)
+            {
+                lines.Add($"windowWidth = {toy.Window.Width.Value.ToString(CultureInfo.InvariantCulture)}");
+            }
+
+            if (toy.Window.Height.HasValue)
+            {
+                lines.Add($"windowHeight = {toy.Window.Height.Value.ToString(CultureInfo.InvariantCulture)}");
+            }
+
+            lines.Add($"windowAlwaysOnTop = {toy.Window.AlwaysOnTop.ToString().ToLowerInvariant()}");
+            lines.Add($"windowBorderless = {toy.Window.Borderless.ToString().ToLowerInvariant()}");
+            lines.Add($"renderDotShape = {toy.Render.DotShape}");
+            lines.Add($"renderMinDotSpacing = {toy.Render.MinDotSpacing}");
+            lines.Add($"renderBrightness = {toy.Render.Brightness.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"renderGamma = {toy.Render.Gamma.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"bloomEnabled = {toy.Bloom.Enabled.ToString().ToLowerInvariant()}");
+            lines.Add($"bloomThreshold = {toy.Bloom.Threshold.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"bloomSoftKnee = {toy.Bloom.SoftKnee.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"bloomNearRadiusPx = {toy.Bloom.NearRadiusPx}");
+            lines.Add($"bloomFarRadiusPx = {toy.Bloom.FarRadiusPx}");
+            lines.Add($"bloomNearStrength = {toy.Bloom.NearStrength.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"bloomFarStrength = {toy.Bloom.FarStrength.ToString(CultureInfo.InvariantCulture)}");
+
+            var outputs = toy.OutputTargets
+                .Where(target => target.Enabled && !string.IsNullOrWhiteSpace(target.Adapter))
+                .Select(target => target.Adapter)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            lines.Add($"outputTargets = {string.Join(',', outputs)}");
+        }
+
+        // Conversational note: this write keeps toy/window edits living in toys.ini instead of drifting back into settings.json.
+        File.WriteAllLines(iniPath, lines);
+    }
+
     private static Dictionary<string, Dictionary<string, string>> ParseSections(IEnumerable<string> lines)
     {
         var sections = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);

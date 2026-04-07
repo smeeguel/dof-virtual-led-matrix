@@ -44,6 +44,9 @@ public sealed class AppConfigurationStore
     {
         var json = JsonSerializer.Serialize(config, SerializerOptions);
         File.WriteAllText(filePath, json);
+
+        var iniPath = ResolveToyIniPath(filePath, config.Routing?.ToyConfigIniPath);
+        ToyIniConfiguration.SaveToIni(config, iniPath);
     }
 
     private static (AppConfig Config, bool ShouldPersist) ApplyLegacyDefaults(AppConfig config)
