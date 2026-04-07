@@ -35,17 +35,13 @@
 
   <script id="md-source" type="text/plain"># Virtual DOF Matrix End-User Setup Guide
 
-This guide is for everyday pinball cabinet users who want to run the Virtual DOF Matrix viewer.
-
-It is written for beginner-level DOF users and focuses on practical setup steps.
+This guide is written for everyday cabinet owners, including first-time DOF users.
 
 ---
 
 ## What this app does
 
-The Virtual DOF Matrix app creates one or more virtual LED windows on your screen.
-
-Those windows receive output from DOF and display effects such as score-style matrix data, toppers, and flashers (depending on your DOF configuration).
+Virtual DOF Matrix displays DOF LED output in one or more virtual on-screen windows (for example: backglass matrix, topper, or flashers).
 
 ---
 
@@ -54,92 +50,126 @@ Those windows receive output from DOF and display effects such as score-style ma
 You need:
 
 - Windows
-- A working DOF install (`C:\DirectOutput`)
-- VPX/PinUP (or your front-end)
-- This Virtual DOF Matrix package
+- Visual Pinball / PinUP Popper (or similar front-end)
+- A working `C:\DirectOutput` folder
+- This Virtual DOF Matrix package ZIP
 
-If DOF is not installed yet, install both DOF runtimes first:
+---
 
-- `C:\DirectOutput\x64\DirectOutput.dll`
-- `C:\DirectOutput\x86\DirectOutput.dll`
+## 1) Install DOF first, then replace DLLs from this package
 
-Reference download page:
+This order matters.
+
+### Step 1A - Install DOF from mjrnet
+
+If DOF is not installed yet, install it first from:
 
 - http://mjrnet.org/pinscape/dll-updates.html#DOF
 
+Install both runtimes into `C:\DirectOutput`:
+
+- 64-bit runtime (used by VPX): `C:\DirectOutput\x64\DirectOutput.dll`
+- 32-bit runtime (used by Popper/front-end paths): `C:\DirectOutput\x86\DirectOutput.dll`
+
+### Step 1B - Replace both DOF DLLs with the ones in this ZIP
+
+After DOF is installed from mjrnet:
+
+1. Back up existing DLLs:
+   - `C:\DirectOutput\x64\DirectOutput.dll`
+   - `C:\DirectOutput\x86\DirectOutput.dll`
+2. Copy the package DLLs into those same folders:
+   - package x64 DLL -> `C:\DirectOutput\x64\DirectOutput.dll`
+   - package x86 DLL -> `C:\DirectOutput\x86\DirectOutput.dll`
+
+### Step 1C - Copy the package config files
+
+Copy or merge package config files into `C:\DirectOutput\Config`.
+
+If you already have a customized DOF setup, merge carefully instead of overwriting everything.
+
 ---
 
-## 1) Install the package files
+## 2) Configure Cabinet.xml (beginner walkthrough)
 
-1. Unzip the package to any folder (example: `C:\vPin\VirtualLED`).
-2. Back up your current DOF DLLs in both folders:
-   - `C:\DirectOutput\x64`
-   - `C:\DirectOutput\x86`
-3. Copy the package DLLs into those same folders, replacing existing files.
-4. Copy or merge the provided config files into your DOF config location (`C:\DirectOutput\Config`).
+This section explains exactly what to edit.
 
-If you already have a customized cabinet, merge carefully instead of overwriting everything.
+### Step 2A - Open Cabinet.xml
 
----
+1. Go to `C:\DirectOutput\Config`.
+2. Open `Cabinet.xml` in a text editor (Notepad++ recommended).
 
-## 2) Configure Cabinet.xml for the virtual controller
+### Step 2B - Find your virtual matrix controller entry
 
-For the named-pipe build in this repo, your `Cabinet.xml` should use `VirtualLEDStripController`.
+Use search (`Ctrl+F`) for:
 
-Required concept:
+- `VirtualLEDStripController`
 
-- Controller type: `VirtualLEDStripController`
-- Pipe name in `Cabinet.xml` must match `transport.pipeName` in `settings.json`
+If you have the sample config from this repo/package applied, you should already have this controller type in your file.
 
-Example pipe value used by default:
+### Step 2C - Confirm the pipe/controller name matches app settings
 
-- `VirtualDofMatrix`
+In `Cabinet.xml`, find the controller's pipe name value. In `settings.json`, find:
 
-If these names do not match exactly, the app will not receive frames.
+```json
+"transport": {
+  "pipeName": "VirtualDofMatrix"
+}
+```
+
+These two names must match exactly (same spelling, same capitalization).
+
+Tip: the provided examples use `VirtualDofMatrix`.
+
+### Step 2D - Confirm matrix toy name and dimensions
+
+In the same `Cabinet.xml`, find the LED toy used for your matrix (commonly `Matrix1` in this project setup).
+
+Confirm it matches your intended matrix size and arrangement from your config examples.
+
+If your app/window resolution settings are changed later, keep Cabinet.xml matrix dimensions in sync.
 
 ---
 
 ## 3) First launch order
 
-Always use this order:
+Always start in this order:
 
-1. Start `VirtualDofMatrix.App.exe`
-2. Start your front-end or VPX table
+1. Launch `VirtualDofMatrix.App.exe`
+2. Launch Popper/VPX table
 
-If DOF starts first, the initial connection can fail.
+If VPX/DOF starts first, the matrix app might miss the initial connection.
 
 ---
 
-## 4) Basic settings (non-toy)
+## 4) Settings split: settings.json vs toys.ini
 
-`settings.json` holds global app settings (transport, default matrix behavior, window defaults, debug flags).
+- `settings.json` = global app settings (transport, defaults, debug, etc.)
+- `toys.ini` = toy-specific settings (toy definitions, source ranges, per-toy window settings, routing)
 
-Important:
-
-- Per-toy configuration is now in `toys.ini`.
-- Do not put toy definitions in `settings.json`.
+Toy definitions should be managed in `toys.ini`.
 
 ---
 
 ## 5) Add a second / third / fourth virtual toy (toys.ini)
 
-All additional virtual outputs are defined in `toys.ini`.
+All additional virtual outputs are configured in `toys.ini`.
 
 ### Step A - Open toys.ini
 
-- Path comes from `routing.toyConfigIniPath` in `settings.json`.
-- Default filename is `toys.ini` next to `settings.json`.
-- If missing, the app can generate a starter file.
+- Path is set by `routing.toyConfigIniPath` in `settings.json`.
+- Default is `toys.ini` next to `settings.json`.
+- If missing, run the app once and it can create a starter file.
 
-### Step B - Duplicate an existing toy block
+### Step B - Duplicate an existing toy section
 
-Each toy is an INI section like:
+Each toy is a section such as:
 
 ```ini
 [toy:backglass-main]
 ```
 
-To create another toy, copy a section and rename it, for example:
+Copy/paste a section and rename it, for example:
 
 ```ini
 [toy:topper-2]
@@ -147,15 +177,13 @@ To create another toy, copy a section and rename it, for example:
 [toy:flasher-right]
 ```
 
-### Step C - Choose toy type (`kind`)
+### Step C - Choose the toy type (`kind`)
 
-Common values:
+Use one of:
 
 - `matrix`
 - `topper`
 - `flasher`
-
-You can also use a custom label, but the three values above are the expected built-in patterns right now.
 
 ### Step D - Enable the toy
 
@@ -165,28 +193,29 @@ Set:
 enabled = true
 ```
 
-Example requested: to enable the provided 5-bulb flasher sample, open `[toy:flasher-5bulb]` and change:
+Example: to turn on the provided 5-bulb flasher:
 
 ```ini
+[toy:flasher-5bulb]
 enabled = true
 ```
 
-### Step E - Set size and mapping
+### Step E - Set geometry + mapping
 
-For each toy:
+For each toy, set:
 
 - `width`
 - `height`
 - `mapping` (`TopDownAlternateRightLeft`, `RowMajor`, or `ColumnMajor`)
 
-### Step F - Set source range
+### Step F - Set the source LED range
 
-Each toy must read a unique LED range from the canonical stream:
+For each toy, set:
 
 - `sourceCanonicalStart`
 - `sourceLength`
 
-Avoid overlap unless you intentionally want mirrored output.
+Keep ranges non-overlapping unless you intentionally want duplicate/mirrored output.
 
 ### Step G - Set output targets
 
@@ -194,103 +223,125 @@ Typical values:
 
 - `viewer`
 - `pipe-broadcast`
-- or both: `viewer,pipe-broadcast`
+- both: `viewer,pipe-broadcast`
 
-### Step H - Position each toy window
+### Step H - Place each toy window
 
-Set per toy as needed:
+Per toy window fields include:
 
-- `windowLeft`
-- `windowTop`
-- `windowWidth`
-- `windowHeight`
-- `windowAlwaysOnTop`
-- `windowBorderless`
-- `windowLockAspectRatio`
+- `windowLeft`, `windowTop`
+- `windowWidth`, `windowHeight`
+- `windowAlwaysOnTop`, `windowBorderless`, `windowLockAspectRatio`
 
 ---
 
-## 6) Example: turn on second/third/fourth toys
+## 6) DOF-side changes needed for extra toys
 
-A practical pattern:
+Adding a toy in `toys.ini` alone is not enough. DOF must also be configured to output those toy ranges.
 
-1. Keep `[toy:backglass-main]` enabled.
-2. Enable `[toy:topper-main]` for a second display surface.
-3. Enable `[toy:flasher-5bulb]` for a third display surface.
-4. Add a new copied section (for example `[toy:flasher-right]`) as a fourth surface.
-5. Assign non-overlapping `sourceCanonicalStart` + `sourceLength` values.
-6. Save `toys.ini`, restart app, then launch a table.
-
----
-
-## 7) What must change in DOF for extra toys
-
-Adding toy sections in `toys.ini` alone is not enough. DOF must also send data for those outputs.
-
-You usually need all of the following aligned:
+You generally need to keep these aligned:
 
 1. `Cabinet.xml` toy/controller definitions
-2. DOF config tool assignments (ports, devices, toy mapping, and effect routing)
-3. Generated DOF config files re-exported and copied back to cabinet
+2. DOF Config Tool assignments and effect mapping
+3. Re-generated DOF config files copied back to your cabinet
 
-### Open questions to fill in (please complete)
+### Open questions (to be filled by maintainer)
 
-The exact project-specific DOF steps below should be filled with your preferred workflow:
+- **Open question 1:** Exact `Cabinet.xml` snippets users should add/change for second/third/fourth virtual toys.
+- **Open question 2:** Exact DOF Config Tool steps (device, port assignment, toy mapping) for each extra toy type.
+- **Open question 3:** Exact file export/deploy flow after DOF Config Tool changes (which files, to which local paths).
+- **Open question 4:** Recommended naming convention so DOF names and `toys.ini` section names are easy to match.
 
-- **Open question 1:** For this project, what exact `Cabinet.xml` entries are required for a second/third/fourth virtual toy?
-- **Open question 2:** In DOF Config Tool, which exact device/port assignment pattern should users choose for each added virtual toy?
-- **Open question 3:** After DOF Config Tool changes, which exact files must be regenerated and copied locally (file names + paths)?
-- **Open question 4:** Are there recommended naming conventions users should follow so `toys.ini` sections and DOF toy names stay easy to map?
+---
+
+## 7) Popper setup (detailed)
+
+You can launch the app once at Popper startup, then control visibility during table lifecycle.
+
+### Command format
+
+```bat
+"C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command <action> [optional args]
+```
+
+Replace `C:\vPin\VirtualLED` with your real install path.
+
+Supported actions:
+
+- `show`
+- `hide`
+- `frontend-return`
+- `table-launch [CUSTOM1] [CUSTOM2] [CUSTOM3] [CUSTOM4]`
+- `table-launch --default-show-virtual-led [CUSTOM1] [CUSTOM2] [CUSTOM3] [CUSTOM4]`
+
+### Recommended Popper flow
+
+1. **Popper Startup Script**
+
+   ```bat
+   START "" "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe"
+   ```
+
+2. **Table launch style (choose one)**
+
+   **Choice A: Hide by default, show only selected tables**
+
+   ```bat
+   "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command table-launch "[CUSTOM1]" "[CUSTOM2]" "[CUSTOM3]" "[CUSTOM4]"
+   ```
+
+   - If no custom var contains `ShowVirtualLED`, matrix stays hidden during table.
+   - Put `ShowVirtualLED` in any custom var to keep it visible.
+   - `HideVirtualLED` still forces hidden.
+
+   **Choice B: Show by default, hide selected tables**
+
+   ```bat
+   "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command table-launch --default-show-virtual-led "[CUSTOM1]" "[CUSTOM2]" "[CUSTOM3]" "[CUSTOM4]"
+   ```
+
+   - Matrix stays visible unless a custom var contains `HideVirtualLED`.
+
+3. **VPX Close Script** (when returning to Popper)
+
+   ```bat
+   "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command frontend-return
+   ```
+
+4. **Popper Exit Script**
+
+   ```bat
+   taskkill /IM "VirtualDofMatrix.App.exe" /F
+   ```
+
+### Optional explicit override
+
+```bat
+"C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command hide
+"C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command show
+```
 
 ---
 
 ## 8) Troubleshooting
 
-### App opens but nothing animates
+### App opens but no animation
 
-- Confirm app started before VPX/front-end.
-- Confirm `Cabinet.xml` pipe name matches `settings.json` pipe name.
-- Confirm both x64 and x86 DOF DLLs were replaced.
+- Start app first, then VPX/front-end.
+- Confirm both DOF DLLs (x64 and x86) were replaced from this package.
+- Confirm controller name/pipe value matches between `Cabinet.xml` and `settings.json`.
 
-### One toy works but others stay black
+### Main toy works, added toys stay dark
 
 - Confirm each added toy has `enabled = true`.
-- Confirm each toy has correct `sourceCanonicalStart` / `sourceLength`.
-- Confirm DOF is actually outputting data for those additional toy ranges.
+- Confirm `sourceCanonicalStart` and `sourceLength` are correct.
+- Confirm DOF is actually outputting those extra toy ranges.
 
-### Works in VPX but not front-end (or reverse)
+### Works in VPX but not Popper (or reverse)
 
-- Re-check both bitness DLL installs (`x64` and `x86`).
-
----
-
-## 9) Optional Popper control commands
-
-Example command format:
-
-```bat
-"C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command <action>
-```
-
-Common actions:
-
-- `show`
-- `hide`
-- `frontend-return`
-- `table-launch` (with optional custom variables)
-
-If you use a startup script, launch the app once at startup and then use `--command` calls to show/hide as tables open and close.
-
----
-
-## 10) Final checklist
-
-- [ ] App starts without errors.
-- [ ] Main virtual matrix receives animation.
-- [ ] Added toys (second/third/fourth) show expected output.
-- [ ] Pipe names match between `Cabinet.xml` and `settings.json`.
-- [ ] Extra toys are enabled in `toys.ini`.
-- [ ] DOF config changes were regenerated and deployed.
+- Re-check both DLL locations:
+  - `C:\DirectOutput\x64\DirectOutput.dll`
+  - `C:\DirectOutput\x86\DirectOutput.dll`
 </script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
