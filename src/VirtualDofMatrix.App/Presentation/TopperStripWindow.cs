@@ -32,6 +32,8 @@ public sealed class TopperStripWindow : Window
         Content = new Border
         {
             Background = Brushes.Black,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(48, 48, 48)),
+            BorderThickness = new Thickness(1),
             Child = _image,
             Padding = new Thickness(4),
         };
