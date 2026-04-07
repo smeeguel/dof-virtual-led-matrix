@@ -21,6 +21,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _config = config;
         _mainWindow = mainWindow;
         _persistConfig = persistConfig;
+        EnsureInitialViewerToyWindows();
     }
 
     public string Name => "viewer";
@@ -36,6 +37,33 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
 
         _dispatcher.BeginInvoke(() => WriteOnUiThread(frame));
+    }
+
+    private void EnsureInitialViewerToyWindows()
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            EnsureInitialViewerToyWindowsOnUiThread();
+            return;
+        }
+
+        _dispatcher.Invoke(EnsureInitialViewerToyWindowsOnUiThread);
+    }
+
+    private void EnsureInitialViewerToyWindowsOnUiThread()
+    {
+        // Conversational note: pre-create viewer toy windows so users immediately see one viewport per enabled toy.
+        foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
+        {
+            var hasViewerTarget = toy.OutputTargets.Any(target => target.Enabled &&
+                string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
+            if (!hasViewerTarget)
+            {
+                continue;
+            }
+
+            _bindings.GetOrAdd(toy.Id, CreateBindingForToy);
+        }
     }
 
     private void WriteOnUiThread(ToyFrame frame)
