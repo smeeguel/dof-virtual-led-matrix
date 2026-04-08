@@ -562,3 +562,4 @@ Before committing any change in this repository:
 1. Add conversational comments to newly added or heavily edited code blocks so the intent is obvious at a glance.
 2. If settings were added, removed, or renamed, update `examples/settings.sample.json` to match the current runtime schema.
 3. If setup or behavior documentation changed, update `docs/instructions.html` in the same commit.
+4. Keep `docs/instructions.html` end-user focused; do not add tester/developer planning content there.
