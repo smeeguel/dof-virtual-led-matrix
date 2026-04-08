@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://virtualdof.local/schema/virtual-toy-manager.schema.json",
+  "title": "Virtual Toy Manager Sidecar Schema",
+  "description": "Authoritative schema for app-managed virtual toy state persisted in virtual-toy-manager.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "lastWrite",
+    "globalVirtualToys",
+    "tableOverrides"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Current supported schema version for this contract."
+    },
+    "lastWrite": {
+      "$ref": "#/$defs/lastWriteMetadata"
+    },
+    "globalVirtualToys": {
+      "type": "array",
+      "description": "Global toy definitions used as defaults for all tables.",
+      "items": {
+        "$ref": "#/$defs/toyDefinition"
+      },
+      "uniqueItems": true
+    },
+    "tableOverrides": {
+      "type": "array",
+      "description": "Per-table override sets. Overrides are opt-in via enabled=true.",
+      "items": {
+        "$ref": "#/$defs/tableOverrideSet"
+      },
+      "default": []
+    }
+  },
+  "$defs": {
+    "lastWriteMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timestampUtc",
+        "writer",
+        "appVersion"
+      ],
+      "properties": {
+        "timestampUtc": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC write timestamp in ISO-8601 format."
+        },
+        "writer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Writing process identity, e.g. VirtualDofMatrix.App."
+        },
+        "appVersion": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Application version that produced this file."
+        },
+        "sourceCommit": {
+          "type": "string",
+          "description": "Optional source commit or build id for traceability."
+        },
+        "machineName": {
+          "type": "string",
+          "description": "Optional machine name for diagnostics."
+        }
+      }
+    },
+    "tableOverrideSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tableId",
+        "enabled",
+        "overrides"
+      ],
+      "properties": {
+        "tableId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "description": "Stable table identity used for lookup and deterministic ordering."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Opt-in switch; false means this table override set is ignored at compile time."
+        },
+        "overrides": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/toyOverride"
+          },
+          "default": []
+        }
+      }
+    },
+    "toyOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "toyKey"
+      ],
+      "properties": {
+        "toyKey": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        },
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Null means inherit global value."
+        },
+        "brightness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0.0,
+          "maximum": 4.0,
+          "description": "Null means inherit global value."
+        },
+        "gamma": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0.1,
+          "maximum": 4.0,
+          "description": "Null means inherit global value."
+        },
+        "mappingMode": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "RowMajorLeftToRight",
+            "ColumnMajorTopToBottom",
+            "TopDownAlternateRightLeft",
+            null
+          ],
+          "description": "Null means inherit global value."
+        }
+      }
+    },
+    "toyDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "toyKey",
+        "kind",
+        "enabled",
+        "source",
+        "render",
+        "model"
+      ],
+      "properties": {
+        "toyKey": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "matrix",
+            "topper",
+            "flasher"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/$defs/sourceRange"
+        },
+        "render": {
+          "$ref": "#/$defs/renderSettings"
+        },
+        "model": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/singleBulbModel"
+            },
+            {
+              "$ref": "#/$defs/rowModel"
+            },
+            {
+              "$ref": "#/$defs/matrixModel"
+            }
+          ]
+        }
+      }
+    },
+    "sourceRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startLed",
+        "ledCount"
+      ],
+      "properties": {
+        "startLed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8799
+        },
+        "ledCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8800
+        }
+      },
+      "description": "Runtime validator must enforce startLed + ledCount <= 8800."
+    },
+    "renderSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "brightness",
+        "gamma"
+      ],
+      "properties": {
+        "brightness": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 4.0
+        },
+        "gamma": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 4.0
+        },
+        "dotShape": {
+          "type": "string",
+          "enum": [
+            "square",
+            "circle"
+          ],
+          "default": "circle"
+        }
+      }
+    },
+    "singleBulbModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "variant",
+        "mappingMode"
+      ],
+      "properties": {
+        "variant": {
+          "const": "single-bulb"
+        },
+        "mappingMode": {
+          "type": "string",
+          "enum": [
+            "RowMajorLeftToRight"
+          ]
+        }
+      }
+    },
+    "rowModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "variant",
+        "length",
+        "mappingMode"
+      ],
+      "properties": {
+        "variant": {
+          "const": "row"
+        },
+        "length": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 8800
+        },
+        "mappingMode": {
+          "type": "string",
+          "enum": [
+            "RowMajorLeftToRight"
+          ]
+        }
+      }
+    },
+    "matrixModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "variant",
+        "width",
+        "height",
+        "mappingMode"
+      ],
+      "properties": {
+        "variant": {
+          "const": "matrix-2d"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 1100
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 1100
+        },
+        "mappingMode": {
+          "type": "string",
+          "enum": [
+            "RowMajorLeftToRight",
+            "ColumnMajorTopToBottom",
+            "TopDownAlternateRightLeft"
+          ]
+        }
+      },
+      "description": "2D grid model. Runtime validator must enforce width * height <= 8800."
+    }
+  }
+}

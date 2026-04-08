@@ -66,9 +66,8 @@ For each configurable field:
 
 ## Required manager-owned sidecar files
 
-1. `virtual-toy-manager.global.json`
-2. `virtual-toy-manager.tables.json`
-3. `virtual-toy-manager.state.json` (UI/workflow state, not compile source)
+1. `virtual-toy-manager.json` (authoritative app-managed state for globals, table overrides, schema version, and write metadata)
+2. `virtual-toy-manager.state.json` (optional UI/workflow state, not compile source)
 
 ## Write policy
 
