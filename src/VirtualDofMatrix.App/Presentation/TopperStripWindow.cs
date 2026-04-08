@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 using VirtualDofMatrix.Core.Toys;
+using Image = System.Windows.Controls.Image;
 
 namespace VirtualDofMatrix.App.Presentation;
 

@@ -15,7 +15,7 @@ using System.Text.Json;
 namespace VirtualDofMatrix.App;
 
 // Overview: App wires together config loading, transport startup, UI lifecycle, and local control commands.
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private const string ConfigFilePath = "settings.json";
 

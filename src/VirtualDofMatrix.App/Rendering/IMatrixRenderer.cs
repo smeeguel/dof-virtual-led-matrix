@@ -1,5 +1,6 @@
 using System.Windows.Controls;
 using VirtualDofMatrix.Core;
+using Image = System.Windows.Controls.Image;
 
 namespace VirtualDofMatrix.App.Rendering;
 
