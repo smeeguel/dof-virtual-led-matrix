@@ -11,6 +11,7 @@ using System.IO.Pipes;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using WpfMessageBox = System.Windows.MessageBox;
 
 namespace VirtualDofMatrix.App;
 
@@ -164,7 +165,7 @@ public partial class App : System.Windows.Application
             var updatedCabinet = TryUpdateCabinetResolution(_config.Matrix.Width, _config.Matrix.Height);
             if (updatedCabinet)
             {
-                MessageBox.Show(_window,
+                WpfMessageBox.Show(_window,
                     "Cabinet.xml was updated. Restart the current table (or reset DOF) so DOF reloads the new matrix settings.",
                     "DOF restart required",
                     MessageBoxButton.OK,
@@ -219,7 +220,7 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex)
         {
-            MessageBox.Show(_window,
+            WpfMessageBox.Show(_window,
                 $"CPU renderer selection was saved, but automatic restart failed: {ex.Message}\nPlease restart Virtual DOF Matrix manually.",
                 "Restart required for GPU -> CPU switch",
                 MessageBoxButton.OK,
@@ -249,7 +250,7 @@ public partial class App : System.Windows.Application
         var resolvedPath = _cabinetXmlService.ResolveCabinetXmlPath(_config.Settings.CabinetXmlPath);
         if (string.IsNullOrWhiteSpace(resolvedPath))
         {
-            var browse = MessageBox.Show(_window,
+            var browse = WpfMessageBox.Show(_window,
                 "Cabinet.xml could not be found. It is typically located in DirectOutput/Config.\n\nWould you like to browse for Cabinet.xml now?",
                 "Cabinet.xml not found",
                 MessageBoxButton.YesNo,
@@ -269,7 +270,7 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex)
         {
-            MessageBox.Show(_window,
+            WpfMessageBox.Show(_window,
                 $"Failed to update Cabinet.xml: {ex.Message}",
                 "Cabinet update failed",
                 MessageBoxButton.OK,

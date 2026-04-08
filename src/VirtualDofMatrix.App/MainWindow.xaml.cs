@@ -8,6 +8,7 @@ using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
+using WpfBrushes = System.Windows.Media.Brushes;
 
 namespace VirtualDofMatrix.App;
 
@@ -144,7 +145,7 @@ public partial class MainWindow : Window
 
     private void ApplyPersistedVisualSettings()
     {
-        Background = Brushes.Black;
+        Background = WpfBrushes.Black;
         RendererText.Text = $"Renderer: {NormalizeRendererLabel(_config.Matrix.Renderer)}";
         VisualQualityText.Text = $"Visual quality: {_config.Settings.VisualQuality}";
         DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape}";

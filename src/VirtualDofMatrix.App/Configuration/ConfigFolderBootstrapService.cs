@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Forms;
 using VirtualDofMatrix.Core;
+using WpfMessageBox = System.Windows.MessageBox;
 
 namespace VirtualDofMatrix.App.Configuration;
 
@@ -56,7 +57,7 @@ public sealed class ConfigFolderBootstrapService
 
     private static string PromptForFolder(string fallbackPath)
     {
-        MessageBox.Show(
+        WpfMessageBox.Show(
             $"Virtual DOF Matrix could not read '{DefaultConfigFolderPath}'.\n\nChoose your DOF Config folder to continue.",
             "Select DOF Config folder",
             MessageBoxButton.OK,
@@ -97,7 +98,7 @@ public sealed class ConfigFolderBootstrapService
 
     private static void ShowCabinetMissingGuidance(string selectedPath)
     {
-        MessageBox.Show(
+        WpfMessageBox.Show(
             $"Cabinet.xml was not found in:\n{selectedPath}\n\nGuided remediation:\n1) Copy Cabinet.xml into this folder, or\n2) Open Settings > DOF / Cabinet and browse to the correct file.",
             "Cabinet.xml missing",
             MessageBoxButton.OK,

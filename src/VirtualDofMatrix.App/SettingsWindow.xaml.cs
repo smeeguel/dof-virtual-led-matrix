@@ -5,6 +5,8 @@ using System.Windows;
 using System.Windows.Controls;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.Core;
+using WpfMessageBox = System.Windows.MessageBox;
+using Win32OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 
 namespace VirtualDofMatrix.App;
 
@@ -125,7 +127,7 @@ public partial class SettingsWindow : Window
 
     private void OnBrowseCabinetXml(object sender, RoutedEventArgs e)
     {
-        var picker = new OpenFileDialog
+        var picker = new Win32OpenFileDialog
         {
             Filter = "Cabinet XML|Cabinet.xml;*.xml|All files|*.*",
             CheckFileExists = true,
@@ -175,7 +177,7 @@ public partial class SettingsWindow : Window
     {
         if (!TryBuildConfig(out var config, out var error))
         {
-            MessageBox.Show(this, error, "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            WpfMessageBox.Show(this, error, "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
