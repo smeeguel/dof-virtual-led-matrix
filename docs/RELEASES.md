@@ -10,22 +10,38 @@ Workflow file: `.github/workflows/manual-release.yml`.
 
 - Trigger type: `workflow_dispatch` (manual only).
 - Allowed branch: `main` only.
-- Tag format: `vX.Y.Z`.
+- Stable tag format: `vX.Y.Z`.
+- Test-build tag format: `vX.Y.Z-test.<suffix>`.
 
 ### Inputs
 
-- `bump`: `patch`, `minor`, or `major`.
-- `version_override`: optional explicit version in `N.N.N` format (example: `0.2.0`).
+- `release_kind`: `test` or `stable`.
+  - `test` (default): package a test build **without bumping** the app version.
+  - `stable`: publish the next normal semver release.
+- `bump`: `patch`, `minor`, or `major` (used when `release_kind=stable` and `version_override` is empty).
+- `version_override`: optional explicit app version in `N.N.N` format (example: `0.2.0`).
+- `test_build_suffix`: optional identifier used when `release_kind=test` (example: `qa.3`).
+  - If omitted, the workflow uses `build.<run_number>.<run_attempt>`.
 - `is_prerelease`: boolean toggle.
   - `true`: publish as a pre-release.
   - `false`: publish as a stable release.
 
 ### Version behavior
 
-- If `version_override` is set, that value is used.
-- Otherwise, the workflow finds the latest `v*` tag and increments it using `bump`.
-- The first run with no existing tags and default `patch` will produce `v0.0.1`.
-  - To start from `v0.1.0`, run with `version_override: 0.1.0` for the first release.
+Two release modes are now supported:
+
+1. **Stable release mode (`release_kind=stable`)**
+   - If `version_override` is set, that explicit version is used.
+   - Otherwise, the workflow finds the latest stable `vX.Y.Z` tag and increments it using `bump`.
+   - The first stable run with no existing stable tags and default `patch` will produce `v0.0.1`.
+   - Use this mode when you want to advance the app version.
+
+2. **Test build mode (`release_kind=test`)**
+   - The app version stays on the selected base version:
+     - `version_override` if provided, otherwise latest stable version (or `0.0.0` if none exist).
+   - The workflow appends a pre-release style test suffix to make the tag unique:
+     - `vX.Y.Z-test.<suffix>`
+   - This supports multiple packaged test builds between stable versions (for example, several builds between `v0.0.9` and `v0.0.10`).
 
 ### Common failure: `tag already exists`
 
@@ -33,8 +49,8 @@ Workflow file: `.github/workflows/manual-release.yml`.
 - Check existing tags with:
   - `git tag --list "v*"`
 - If you want to publish again, choose a new version:
-  - `version_override` set to an unused value like `0.1.1`, or
-  - leave `version_override` blank and choose a bump that advances past the latest existing tag.
+  - for stable releases, set `version_override` to an unused `N.N.N` (or choose a bump that advances), or
+  - for test builds, keep the same `version_override` and provide a new `test_build_suffix`.
 
 ### Build and package flow
 
@@ -43,7 +59,7 @@ Workflow file: `.github/workflows/manual-release.yml`.
 3. The staging folder is initialized empty.
 4. The effective manifest is treated as authoritative; only mapped files/directories are copied.
 5. The final zip is created as:
-   - `virtual-dof-matrix-vX.Y.Z-win-x64.zip`
+   - `virtual-dof-matrix-<resolved-tag>-win-x64.zip`
 6. The workflow creates and pushes the release tag, then publishes a GitHub Release with auto-generated notes.
 
 ## Release manifest
