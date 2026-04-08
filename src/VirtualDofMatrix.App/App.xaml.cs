@@ -21,8 +21,10 @@ public partial class App : Application
 
     private readonly AppConfigurationStore _configurationStore = new();
     private readonly CabinetXmlService _cabinetXmlService = new();
+    private readonly ConfigFolderBootstrapService _configFolderBootstrapService = new();
 
     private AppConfig? _config;
+    private StartupConfigStatus? _startupConfigStatus;
     private MainWindow? _window;
     private FrameTransportHost? _transportHost;
     private NamedPipeBroadcastAdapter? _broadcastAdapter;
@@ -38,6 +40,7 @@ public partial class App : Application
         // Start each launch from a predictable baseline so logs/config-backed defaults are deterministic.
         AppLogger.ClearForNewLaunch();
         _config = _configurationStore.Load(ConfigFilePath);
+        _startupConfigStatus = _configFolderBootstrapService.ResolveAndPersist(_config);
         _configurationStore.Save(ConfigFilePath, _config);
         AppLogger.Configure(_config.Debug.LogProtocol);
 
@@ -47,7 +50,7 @@ public partial class App : Application
             return;
         }
 
-        _window = new MainWindow(_config)
+        _window = new MainWindow(_config, _startupConfigStatus)
         {
             DataContext = _config,
         };

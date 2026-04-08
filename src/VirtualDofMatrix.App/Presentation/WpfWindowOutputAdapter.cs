@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Windows;
 using System.Windows.Threading;
+using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.Core;
 using VirtualDofMatrix.Core.Toys;
 
@@ -103,7 +104,14 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
         // Conversational note: secondary toys now reuse MainWindow rendering stack for consistent dot/bloom behavior.
         var toyWindowConfig = BuildToyWindowAppConfig(toyConfig, toyId);
-        var toyWindow = new MainWindow(toyWindowConfig)
+        var toyWindow = new MainWindow(
+            toyWindowConfig,
+            new StartupConfigStatus
+            {
+                ActiveConfigPath = _config.Settings.DofConfigFolderPath,
+                CabinetFileStatus = "Cabinet.xml status mirrors primary window",
+                LastLoadedUtc = DateTimeOffset.UtcNow,
+            })
         {
             DataContext = toyWindowConfig,
         };

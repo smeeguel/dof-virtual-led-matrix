@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
     private const int HardMinimumDotSpacing = 2;
     private static readonly TimeSpan MinRenderInterval = TimeSpan.FromMilliseconds(33);
     private readonly AppConfig _config;
+    private readonly StartupConfigStatus _startupConfigStatus;
     private IMatrixRenderer _matrixRenderer;
     private bool _isApplyingAspectLock;
     private bool _isInResizeMove;
@@ -47,14 +49,15 @@ public partial class MainWindow : Window
 
     public bool IsAspectRatioLocked => _config.Window.LockAspectRatio;
 
-    public MainWindow(AppConfig config)
-        : this(config, CreateRenderer(config))
+    public MainWindow(AppConfig config, StartupConfigStatus startupConfigStatus)
+        : this(config, startupConfigStatus, CreateRenderer(config))
     {
     }
 
-    internal MainWindow(AppConfig config, IMatrixRenderer matrixRenderer)
+    internal MainWindow(AppConfig config, StartupConfigStatus startupConfigStatus, IMatrixRenderer matrixRenderer)
     {
         _config = config;
+        _startupConfigStatus = startupConfigStatus;
         _matrixRenderer = matrixRenderer;
 
         InitializeComponent();
@@ -73,6 +76,7 @@ public partial class MainWindow : Window
 
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
+        ApplyStartupStatus();
         ApplyDebugVisibility();
         RefreshLockedAspectRatioFromWindow();
 
@@ -148,6 +152,17 @@ public partial class MainWindow : Window
         DotSpacingText.Text = "Min dot spacing: auto";
         BrightnessText.Text = $"Brightness: {_config.Matrix.Brightness:0.###}";
         GammaText.Text = $"Gamma: {_config.Matrix.Gamma:0.###}";
+    }
+
+    private void ApplyStartupStatus()
+    {
+        StartupConfigPathText.Text = $"Active config path: {_startupConfigStatus.ActiveConfigPath}";
+        StartupCabinetStatusText.Text = _startupConfigStatus.CabinetFileStatus;
+        StartupLoadedAtText.Text = $"Last loaded UTC: {_startupConfigStatus.LastLoadedUtc:O}";
+
+        var hasHint = !string.IsNullOrWhiteSpace(_startupConfigStatus.RemediationHint);
+        StartupRemediationText.Visibility = hasHint ? Visibility.Visible : Visibility.Collapsed;
+        StartupRemediationText.Text = hasHint ? $"Fix: {_startupConfigStatus.RemediationHint}" : string.Empty;
     }
 
     private void ApplyDebugVisibility()

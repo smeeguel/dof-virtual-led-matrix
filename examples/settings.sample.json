@@ -21,6 +21,7 @@
     "logFrames": false
   },
   "settings": {
+    "dofConfigFolderPath": "C:\\DirectOutput\\Config",
     "cabinetXmlPath": "C:\\DirectOutput\\Config\\Cabinet.xml",
     "cabinetToyName": "Matrix1",
     "autoUpdateCabinetOnResolutionChange": true,

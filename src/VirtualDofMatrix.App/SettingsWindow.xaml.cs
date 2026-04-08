@@ -248,6 +248,7 @@ public partial class SettingsWindow : Window
         config.Debug.LogFrames = config.Debug.LogProtocol && LogFramesCheckBox.IsChecked == true;
         config.Settings.AutoUpdateCabinetOnResolutionChange = AutoUpdateCabinetCheckBox.IsChecked == true;
         config.Settings.CabinetXmlPath = CabinetPathTextBox.Text.Trim();
+        config.Settings.DofConfigFolderPath = Path.GetDirectoryName(config.Settings.CabinetXmlPath) ?? config.Settings.DofConfigFolderPath;
         config.Settings.CabinetToyName = string.IsNullOrWhiteSpace(LedStripCombo.Text) ? "Matrix1" : LedStripCombo.Text.Trim();
 
         return true;
@@ -414,6 +415,7 @@ public partial class SettingsWindow : Window
             },
             Settings = new SettingsConfig
             {
+                DofConfigFolderPath = config.Settings.DofConfigFolderPath,
                 CabinetXmlPath = config.Settings.CabinetXmlPath,
                 CabinetToyName = config.Settings.CabinetToyName,
                 AutoUpdateCabinetOnResolutionChange = config.Settings.AutoUpdateCabinetOnResolutionChange,

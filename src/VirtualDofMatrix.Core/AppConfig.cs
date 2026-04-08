@@ -199,6 +199,9 @@ public sealed class DebugConfig
 
 public sealed class SettingsConfig
 {
+    // Preferred DOF config folder. Startup bootstrap probes this folder (or default) and validates required files.
+    public string DofConfigFolderPath { get; set; } = @"C:\DirectOutput\Config";
+
     public string CabinetXmlPath { get; set; } = @"C:\DirectOutput\Config\Cabinet.xml";
 
     public string CabinetToyName { get; set; } = "Matrix1";

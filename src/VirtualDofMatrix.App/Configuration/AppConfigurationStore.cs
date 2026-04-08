@@ -66,6 +66,19 @@ public sealed class AppConfigurationStore
             shouldPersist = true;
         }
 
+        if (string.IsNullOrWhiteSpace(config.Settings.DofConfigFolderPath))
+        {
+            // Keep first-run behavior predictable by defaulting to the canonical DOF config location.
+            config.Settings.DofConfigFolderPath = ConfigFolderBootstrapService.DefaultConfigFolderPath;
+            shouldPersist = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Settings.CabinetXmlPath))
+        {
+            config.Settings.CabinetXmlPath = Path.Combine(config.Settings.DofConfigFolderPath, "Cabinet.xml");
+            shouldPersist = true;
+        }
+
         if (string.IsNullOrWhiteSpace(config.Settings.VisualQuality))
         {
             config.Settings.VisualQuality = "High";
