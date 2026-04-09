@@ -1,6 +1,5 @@
 using System.IO;
 using System.Text;
-using System.Xml;
 using System.Xml.Linq;
 
 namespace VirtualDofMatrix.App.Configuration;
@@ -32,6 +31,16 @@ public sealed class CabinetXmlService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    public string? GetLedStripOutputControllerName(string cabinetXmlPath, string toyName)
+    {
+        var document = LoadCabinetDocument(cabinetXmlPath);
+        var toy = document
+            .Descendants()
+            .Where(x => x.Name.LocalName == "LedStrip")
+            .FirstOrDefault(x => string.Equals(GetChildValue(x, "Name"), toyName, StringComparison.OrdinalIgnoreCase));
+        return toy is null ? null : GetChildValue(toy, "OutputControllerName");
     }
 
     // Conversational note: this inventory parser gives the UI a single, read-only view of toys grouped by
@@ -88,6 +97,12 @@ public sealed class CabinetXmlService
         if (totalLeds > SafeMaxLedTotal)
         {
             throw new InvalidOperationException($"Resolution exceeds safe LED total ({SafeMaxLedTotal}).");
+        }
+
+        var knownToyNames = GetLedStripToyNames(cabinetXmlPath);
+        if (!knownToyNames.Contains(toyName, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Could not find LedStrip toy '{toyName}'.");
         }
 
         var mergePlan = BuildVirtualToyMergePlan(cabinetXmlPath, [new VirtualLedToyDefinition(toyName, width, height)], removeMissingManagedToys: false);
@@ -148,7 +163,7 @@ public sealed class CabinetXmlService
                     ToyName: desired.Name,
                     Field: "LedStrip",
                     OldValue: null,
-                    NewValue: $"Width={desired.Width}, Height={desired.Height}, Controller={desired.OutputControllerName}"));
+                    NewValue: "new managed virtual toy"));
                 continue;
             }
 
@@ -198,7 +213,10 @@ public sealed class CabinetXmlService
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        return new CabinetXmlMergePlan(changes, managedToyOrdering);
+        return new CabinetXmlMergePlan(changes, managedToyOrdering)
+        {
+            DesiredVirtualToysByName = desiredByName,
+        };
     }
 
     public CabinetXmlMergeResult ApplyVirtualToyMerge(string cabinetXmlPath, CabinetXmlMergePlan plan, bool dryRun)
@@ -245,17 +263,23 @@ public sealed class CabinetXmlService
         {
             if (change.ChangeType == CabinetXmlMergeChangeType.Added)
             {
-                var parsed = ParseAddPayload(change.NewValue, change.ToyName);
-                if (!controllerKindsByName.ContainsKey(parsed.OutputControllerName))
+                if (!plan.DesiredVirtualToysByName.TryGetValue(change.ToyName, out var desiredToy))
                 {
-                    throw new InvalidOperationException($"Unknown output controller '{parsed.OutputControllerName}' for virtual toy '{change.ToyName}'.");
+                    throw new InvalidOperationException($"Could not resolve add payload for virtual toy '{change.ToyName}'.");
+                }
+
+                if (!controllerKindsByName.TryGetValue(desiredToy.OutputControllerName, out var controllerKind)
+                    || !controllerKind.Contains("Virtual", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"Output controller '{desiredToy.OutputControllerName}' is missing or not virtual for toy '{change.ToyName}'.");
                 }
 
                 var ledStrip = new XElement(ns + "LedStrip",
                     new XElement(ns + "Name", change.ToyName),
-                    new XElement(ns + "Width", parsed.Width),
-                    new XElement(ns + "Height", parsed.Height),
-                    new XElement(ns + "OutputControllerName", parsed.OutputControllerName));
+                    new XElement(ns + "Width", desiredToy.Width),
+                    new XElement(ns + "Height", desiredToy.Height),
+                    new XElement(ns + "OutputControllerName", desiredToy.OutputControllerName));
 
                 managedExisting[change.ToyName] = ledStrip;
                 continue;
@@ -328,13 +352,7 @@ public sealed class CabinetXmlService
             File.Copy(cabinetXmlPath, backupPath, overwrite: false);
 
             var tempPath = Path.Combine(Path.GetDirectoryName(cabinetXmlPath)!, $"{Path.GetFileName(cabinetXmlPath)}.tmp");
-            using var writer = XmlWriter.Create(tempPath, new XmlWriterSettings
-            {
-                OmitXmlDeclaration = false,
-                Indent = false,
-                NewLineHandling = NewLineHandling.None,
-            });
-            document.Save(writer);
+            document.Save(tempPath, SaveOptions.DisableFormatting);
             File.Move(tempPath, cabinetXmlPath, overwrite: true);
         }
 
@@ -438,46 +456,6 @@ public sealed class CabinetXmlService
         return int.TryParse(value, out var parsed) ? parsed : null;
     }
 
-    private static (int Width, int Height, string OutputControllerName) ParseAddPayload(string? payload, string toyName)
-    {
-        if (string.IsNullOrWhiteSpace(payload))
-        {
-            throw new InvalidOperationException($"Missing add payload for virtual toy '{toyName}'.");
-        }
-
-        var parts = payload.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        var parsed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var part in parts)
-        {
-            var equals = part.IndexOf('=');
-            if (equals <= 0)
-            {
-                continue;
-            }
-
-            var key = part[..equals].Trim();
-            var value = part[(equals + 1)..].Trim();
-            parsed[key] = value;
-        }
-
-        if (!parsed.TryGetValue("Width", out var widthText) || !int.TryParse(widthText, out var width))
-        {
-            throw new InvalidOperationException($"Add payload for '{toyName}' is missing Width.");
-        }
-
-        if (!parsed.TryGetValue("Height", out var heightText) || !int.TryParse(heightText, out var height))
-        {
-            throw new InvalidOperationException($"Add payload for '{toyName}' is missing Height.");
-        }
-
-        if (!parsed.TryGetValue("Controller", out var controllerName) || string.IsNullOrWhiteSpace(controllerName))
-        {
-            throw new InvalidOperationException($"Add payload for '{toyName}' is missing Controller.");
-        }
-
-        return (width, height, controllerName);
-    }
-
     private static void SetOrCreateChildValue(XElement parent, string elementName, string value)
     {
         var child = parent.Elements().FirstOrDefault(x => x.Name.LocalName == elementName);
@@ -499,7 +477,12 @@ public sealed record VirtualLedToyDefinition(
 
 public sealed record CabinetXmlMergePlan(
     IReadOnlyList<CabinetXmlMergeChange> PlannedChanges,
-    IReadOnlyList<string> ManagedToyOrder);
+    IReadOnlyList<string> ManagedToyOrder)
+{
+    // Conversational note: keep desired toy definitions on the plan so Apply does not reparse string payloads.
+    public IReadOnlyDictionary<string, VirtualLedToyDefinition> DesiredVirtualToysByName { get; init; }
+        = new Dictionary<string, VirtualLedToyDefinition>(StringComparer.OrdinalIgnoreCase);
+}
 
 public sealed record CabinetXmlMergeChange(
     CabinetXmlMergeChangeType ChangeType,

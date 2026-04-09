@@ -152,6 +152,19 @@ Confirm it matches your intended matrix size and arrangement from your config ex
 
 If your app/window resolution settings are changed later, keep Cabinet.xml matrix dimensions in sync.
 
+When **Auto-update Cabinet on resolution change** is enabled in app settings, the app now does a safe 2-step write:
+
+1. Shows a dry-run summary of the exact virtual-toy changes it plans to make.
+2. Writes `Cabinet.xml` only after you click **Yes** in that confirmation prompt.
+
+What gets changed:
+
+- Managed virtual LED toy fields for that target toy (for example width/height/controller link).
+
+What stays untouched:
+
+- Non-managed/hardware toys and unrelated sections of `Cabinet.xml`.
+
 ---
 
 ## 3) First launch order

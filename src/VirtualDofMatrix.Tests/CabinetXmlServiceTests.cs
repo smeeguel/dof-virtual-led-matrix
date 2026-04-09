@@ -79,6 +79,7 @@ public sealed class CabinetXmlServiceTests
         Assert.All(plan.PlannedChanges, change => Assert.Equal("VirtualA", change.ToyName));
         Assert.DoesNotContain(plan.PlannedChanges, change => change.ToyName == "HardwareA");
         Assert.Equal(["VirtualA"], plan.ManagedToyOrder);
+        Assert.True(plan.DesiredVirtualToysByName.ContainsKey("VirtualA"));
     }
 
     [Fact]
@@ -173,6 +174,32 @@ public sealed class CabinetXmlServiceTests
         Assert.True(indexVirtualA < indexVirtualB && indexVirtualB < indexVirtualZ);
 
         Assert.Contains(".bak.", string.Join('\n', Directory.GetFiles(System.IO.Path.GetDirectoryName(temp.Path)!, System.IO.Path.GetFileName(temp.Path) + ".bak.*")));
+    }
+
+    [Fact]
+    public void ApplyVirtualToyMerge_ShouldRejectAdditionsAgainstNonVirtualControllers()
+    {
+        var xml = """
+            <Cabinet>
+              <OutputControllers>
+                <TeensyStripController><Name>Hardware Controller</Name></TeensyStripController>
+              </OutputControllers>
+              <Toys>
+              </Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+        var plan = service.BuildVirtualToyMergePlan(
+            temp.Path,
+            [new VirtualLedToyDefinition("VirtualA", 32, 8, "Hardware Controller")],
+            removeMissingManagedToys: false);
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            service.ApplyVirtualToyMerge(temp.Path, plan, dryRun: false));
+
+        Assert.Contains("not virtual", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class TempCabinetXml : IDisposable

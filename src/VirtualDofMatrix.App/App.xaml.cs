@@ -304,7 +304,41 @@ public partial class App : System.Windows.Application
 
         try
         {
-            _cabinetXmlService.UpdateLedStripResolution(resolvedPath, _config.Settings.CabinetToyName, width, height);
+            var controllerName = _cabinetXmlService.GetLedStripOutputControllerName(resolvedPath, _config.Settings.CabinetToyName);
+            if (string.IsNullOrWhiteSpace(controllerName))
+            {
+                throw new InvalidOperationException(
+                    $"Could not resolve OutputControllerName for LedStrip toy '{_config.Settings.CabinetToyName}'.");
+            }
+
+            var mergePlan = _cabinetXmlService.BuildVirtualToyMergePlan(
+                resolvedPath,
+                [new VirtualLedToyDefinition(_config.Settings.CabinetToyName, width, height, controllerName)],
+                removeMissingManagedToys: false);
+
+            if (!mergePlan.PlannedChanges.Any())
+            {
+                return false;
+            }
+
+            // Conversational note: we always show a dry-run summary first so Cabinet.xml writes are explicit
+            // and users can cancel if the planned managed virtual-toy edits look wrong.
+            var dryRunResult = _cabinetXmlService.ApplyVirtualToyMerge(resolvedPath, mergePlan, dryRun: true);
+            var confirmationMessage = $"{dryRunResult.Summary}\n\nApply these Cabinet.xml changes now?";
+            var confirm = WpfMessageBox.Show(
+                _window,
+                confirmationMessage,
+                "Review Cabinet.xml changes",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes)
+            {
+                AppLogger.Info("[cabinet] user cancelled Cabinet.xml write after dry-run preview.");
+                return false;
+            }
+
+            _cabinetXmlService.ApplyVirtualToyMerge(resolvedPath, mergePlan, dryRun: false);
             _config.Settings.CabinetXmlPath = resolvedPath;
             return true;
         }
