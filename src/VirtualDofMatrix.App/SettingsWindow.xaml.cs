@@ -207,14 +207,27 @@ public partial class SettingsWindow : Window
         try
         {
             var inventory = _cabinetXmlService.GetToyInventory(cabinetPath);
-            _virtualToys = inventory.VirtualToys
+            // Conversational note: settings toggles must map 1:1 to routing toy IDs; using cabinet-only names can create ghost windows.
+            _virtualToys = _working.Routing.Toys
                 .Select(entry => new VirtualToyListItem
                 {
-                    Name = entry.Name,
-                    Enabled = ResolveEnabled(entry.Name),
+                    Name = entry.Id,
+                    Enabled = entry.Enabled,
                 })
                 .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+
+            if (_virtualToys.Count == 0)
+            {
+                _virtualToys = inventory.VirtualToys
+                    .Select(entry => new VirtualToyListItem
+                    {
+                        Name = entry.Name,
+                        Enabled = ResolveEnabled(entry.Name),
+                    })
+                    .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
 
             _hardwareToys = inventory.HardwareToys
                 .Select(entry => new VirtualToyListItem
@@ -557,11 +570,7 @@ public partial class SettingsWindow : Window
             var toy = config.Routing.Toys.FirstOrDefault(x => x.Id.Equals(item.Name, StringComparison.OrdinalIgnoreCase));
             if (toy is null)
             {
-                config.Routing.Toys.Add(new ToyRouteConfig
-                {
-                    Id = item.Name,
-                    Enabled = item.Enabled,
-                });
+                // Conversational note: only mutate known routing toys; creating new toys from UI labels can spawn unintended windows.
                 continue;
             }
 

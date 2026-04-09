@@ -79,7 +79,7 @@ public partial class App : System.Windows.Application
         var routingPlanProvider = new ConfigRoutingPlanProvider(_config);
         var toyRouter = new ToyRouter(_config.Routing.Policy);
         _broadcastAdapter = new NamedPipeBroadcastAdapter(_config);
-        _windowOutputAdapter = new WpfWindowOutputAdapter(Dispatcher, _config, _window, PersistWindowSettings);
+        _windowOutputAdapter = new WpfWindowOutputAdapter(Dispatcher, _config, _window, PersistWindowSettings, ShowSettingsDialog);
         var outputAdapters = new List<IOutputAdapter>
         {
             _windowOutputAdapter,

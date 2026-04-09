@@ -14,14 +14,21 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly AppConfig _config;
     private readonly MainWindow _mainWindow;
     private readonly Action _persistConfig;
+    private readonly Action _openSettings;
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
 
-    public WpfWindowOutputAdapter(Dispatcher dispatcher, AppConfig config, MainWindow mainWindow, Action persistConfig)
+    public WpfWindowOutputAdapter(
+        Dispatcher dispatcher,
+        AppConfig config,
+        MainWindow mainWindow,
+        Action persistConfig,
+        Action openSettings)
     {
         _dispatcher = dispatcher;
         _config = config;
         _mainWindow = mainWindow;
         _persistConfig = persistConfig;
+        _openSettings = openSettings;
         EnsureInitialViewerToyWindows();
     }
 
@@ -145,6 +152,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
 
         toyWindow.Show();
+        toyWindow.SettingsRequested += (_, _) => _openSettings();
         WireGeometryPersistence(toyWindow, toyId);
 
         return new ToyWindowBinding(toyWindow, frame => toyWindow.ApplyPresentation(ToPresentation(frame)));
