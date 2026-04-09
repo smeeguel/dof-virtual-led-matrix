@@ -207,6 +207,12 @@ public sealed class CabinetXmlService
         var desiredByName = desiredVirtualToys
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x => x.Name, x => x, StringComparer.OrdinalIgnoreCase);
+        var duplicatedFirstLedNumbers = desiredByName.Values
+            .Where(x => x.FirstLedNumber.HasValue)
+            .GroupBy(x => x.FirstLedNumber!.Value)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet();
 
         var changes = new List<CabinetXmlMergeChange>();
 
@@ -214,7 +220,8 @@ public sealed class CabinetXmlService
         {
             var lookupName = desired.Name;
             if (!existingByName.TryGetValue(lookupName, out var current)
-                && desired.FirstLedNumber.HasValue)
+                && desired.FirstLedNumber.HasValue
+                && !duplicatedFirstLedNumbers.Contains(desired.FirstLedNumber.Value))
             {
                 current = existingManaged.FirstOrDefault(x =>
                     x.FirstLedNumber == desired.FirstLedNumber
@@ -266,7 +273,9 @@ public sealed class CabinetXmlService
                 changes.Add(new CabinetXmlMergeChange(CabinetXmlMergeChangeType.Updated, lookupName, "OutputControllerName", controllerText, desired.OutputControllerName));
             }
 
-            if (desired.FirstLedNumber.HasValue && ParseIntOrNull(firstLedText) != desired.FirstLedNumber)
+            if (desired.FirstLedNumber.HasValue
+                && !duplicatedFirstLedNumbers.Contains(desired.FirstLedNumber.Value)
+                && ParseIntOrNull(firstLedText) != desired.FirstLedNumber)
             {
                 changes.Add(new CabinetXmlMergeChange(
                     CabinetXmlMergeChangeType.Updated,

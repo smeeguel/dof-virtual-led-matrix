@@ -369,6 +369,61 @@ public sealed class CabinetXmlServiceTests
         Assert.Contains("<OutputName>Topper2</OutputName>", merged);
     }
 
+    [Fact]
+    public void BuildVirtualToyMergePlanFromRouting_ShouldNotForceFirstLedRenumberWhenRoutingStartsCollide()
+    {
+        var xml = """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController><Name>LED Strips 0</Name></VirtualLEDStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>Matrix1</Name>
+                  <Width>128</Width>
+                  <Height>32</Height>
+                  <FirstLedNumber>1</FirstLedNumber>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+                <LedStrip>
+                  <Name>Matrix2</Name>
+                  <Width>5</Width>
+                  <Height>1</Height>
+                  <FirstLedNumber>4097</FirstLedNumber>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+              </Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+        var routing = new[]
+        {
+            new ToyRouteConfig
+            {
+                Id = "matrix-1",
+                Name = "Matrix1",
+                Enabled = true,
+                Mapping = new ToyMappingConfig { Width = 128, Height = 32 },
+                Source = new ToySourceConfig { CanonicalStart = 0, Length = 4096 },
+            },
+            new ToyRouteConfig
+            {
+                Id = "matrix-2",
+                Name = "Matrix2",
+                Enabled = true,
+                Mapping = new ToyMappingConfig { Width = 5, Height = 1 },
+                Source = new ToySourceConfig { CanonicalStart = 0, Length = 5 },
+            },
+        };
+
+        var plan = service.BuildVirtualToyMergePlanFromRouting(temp.Path, routing, removeMissingManagedToys: false);
+        Assert.DoesNotContain(plan.PlannedChanges, change =>
+            change.ToyName == "Matrix2"
+            && change.Field == "FirstLedNumber");
+    }
+
     private sealed class TempCabinetXml : IDisposable
     {
         public TempCabinetXml(string xml)
