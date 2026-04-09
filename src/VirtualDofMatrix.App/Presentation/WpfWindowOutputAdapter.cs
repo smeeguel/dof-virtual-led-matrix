@@ -189,10 +189,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             DataContext = toyWindowConfig,
         };
 
-        if (_mainWindow.IsLoaded)
-        {
-            toyWindow.Owner = _mainWindow;
-        }
+        // Conversational note: keep toy windows unowned so each window's layout popup can render reliably above its own swapchain surface.
+        // Owned-window z-order behavior can suppress per-window overlay popups for secondary toys while Settings is open.
 
         toyWindow.Show();
         toyWindow.SettingsRequested += (_, _) => _openSettings();
