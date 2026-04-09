@@ -48,6 +48,7 @@ public partial class MainWindow : Window
 
     public event EventHandler? SettingsRequested;
     public event EventHandler? ExitRequested;
+    public event EventHandler? LayoutWindowSelected;
 
     public bool IsAspectRatioLocked => _config.Window.LockAspectRatio;
 
@@ -323,8 +324,17 @@ public partial class MainWindow : Window
     {
         if (e.ButtonState == MouseButtonState.Pressed)
         {
+            LayoutWindowSelected?.Invoke(this, EventArgs.Empty);
             DragMove();
         }
+    }
+
+    public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected)
+    {
+        LayoutToyNameText.Text = string.IsNullOrWhiteSpace(toyLabel) ? "(unnamed toy)" : toyLabel;
+        LayoutToyNameOverlay.Visibility = isEditModeEnabled ? Visibility.Visible : Visibility.Collapsed;
+        LayoutSelectionBorder.BorderThickness = isEditModeEnabled && isSelected ? new Thickness(4) : new Thickness(0);
+        LayoutSelectionBorder.BorderBrush = isSelected ? WpfBrushes.Yellow : WpfBrushes.Transparent;
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)

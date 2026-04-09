@@ -37,6 +37,14 @@
             <ColumnDefinition x:Name="DebugPanelColumn" Width="Auto" />
         </Grid.ColumnDefinitions>
 
+        <Border x:Name="LayoutSelectionBorder"
+                Grid.Column="0"
+                BorderBrush="#FFFFCC00"
+                BorderThickness="0"
+                Margin="2"
+                Panel.ZIndex="4"
+                IsHitTestVisible="False" />
+
         <Border x:Name="MatrixViewportBorder" Grid.Column="0" Background="Black" BorderBrush="#222" BorderThickness="1" Padding="8">
             <Viewbox Stretch="Uniform" StretchDirection="Both">
                 <Grid Background="Black">
@@ -44,6 +52,25 @@
                     <Image x:Name="MatrixImage" Stretch="None" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                 </Grid>
             </Viewbox>
+        </Border>
+
+        <Border x:Name="LayoutToyNameOverlay"
+                Grid.Column="0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Margin="12"
+                Padding="8,4"
+                Background="#66000000"
+                BorderBrush="#66FFFFFF"
+                BorderThickness="1"
+                CornerRadius="3"
+                Panel.ZIndex="6"
+                IsHitTestVisible="False"
+                Visibility="Collapsed">
+            <TextBlock x:Name="LayoutToyNameText"
+                       Foreground="White"
+                       FontWeight="SemiBold"
+                       Text="Toy" />
         </Border>
 
         <Border Grid.Column="0"

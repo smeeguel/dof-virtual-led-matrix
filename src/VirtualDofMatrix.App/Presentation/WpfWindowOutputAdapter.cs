@@ -16,8 +16,11 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly Action _persistConfig;
     private readonly Action _openSettings;
     private readonly Action _requestAppExit;
+    private readonly Action<string> _notifyToyWindowSelected;
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _enabledAtStartup = new(StringComparer.OrdinalIgnoreCase);
+    private bool _layoutEditModeEnabled;
+    private string? _selectedToyId;
 
     public WpfWindowOutputAdapter(
         Dispatcher dispatcher,
@@ -25,7 +28,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         MainWindow mainWindow,
         Action persistConfig,
         Action openSettings,
-        Action requestAppExit)
+        Action requestAppExit,
+        Action<string> notifyToyWindowSelected)
     {
         _dispatcher = dispatcher;
         _config = config;
@@ -33,6 +37,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _persistConfig = persistConfig;
         _openSettings = openSettings;
         _requestAppExit = requestAppExit;
+        _notifyToyWindowSelected = notifyToyWindowSelected;
         foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
         {
             _enabledAtStartup.Add(toy.Id);
@@ -81,6 +86,17 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
 
         _dispatcher.Invoke(() => FocusToyWindowOnUiThread(toyId));
+    }
+
+    public void SetLayoutEditMode(bool enabled)
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            SetLayoutEditModeOnUiThread(enabled);
+            return;
+        }
+
+        _dispatcher.Invoke(() => SetLayoutEditModeOnUiThread(enabled));
     }
 
     private void EnsureInitialViewerToyWindows()
@@ -154,6 +170,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         if (isPrimaryToy && _enabledAtStartup.Contains(toyId))
         {
             WireGeometryPersistence(_mainWindow, toyId);
+            WireWindowSelectionCallbacks(_mainWindow, toyId);
+            ApplyLayoutOverlay(toyId, _mainWindow);
             return new ToyWindowBinding(_mainWindow, frame => _mainWindow.ApplyPresentation(ToPresentation(frame)));
         }
 
@@ -179,6 +197,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         toyWindow.Show();
         toyWindow.SettingsRequested += (_, _) => _openSettings();
         toyWindow.ExitRequested += (_, _) => _requestAppExit();
+        WireWindowSelectionCallbacks(toyWindow, toyId);
+        ApplyLayoutOverlay(toyId, toyWindow);
         WireGeometryPersistence(toyWindow, toyId);
 
         return new ToyWindowBinding(toyWindow, frame => toyWindow.ApplyPresentation(ToPresentation(frame)));
@@ -390,6 +410,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 binding.Window.Show();
             }
 
+            ApplyLayoutOverlay(toyId, binding.Window);
+
             return;
         }
 
@@ -423,6 +445,45 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         binding.Window.Activate();
         binding.Window.Focus();
         binding.Window.Topmost = wasTopmost;
+        _selectedToyId = toyId;
+        _notifyToyWindowSelected(toyId);
+        RefreshLayoutOverlays();
+    }
+
+    private void WireWindowSelectionCallbacks(MainWindow window, string toyId)
+    {
+        window.LayoutWindowSelected += (_, _) =>
+        {
+            _selectedToyId = toyId;
+            _notifyToyWindowSelected(toyId);
+            RefreshLayoutOverlays();
+        };
+    }
+
+    private void SetLayoutEditModeOnUiThread(bool enabled)
+    {
+        _layoutEditModeEnabled = enabled;
+        RefreshLayoutOverlays();
+    }
+
+    private void RefreshLayoutOverlays()
+    {
+        foreach (var pair in _bindings)
+        {
+            ApplyLayoutOverlay(pair.Key, pair.Value.Window);
+        }
+    }
+
+    private void ApplyLayoutOverlay(string toyId, Window window)
+    {
+        if (window is not MainWindow toyWindow)
+        {
+            return;
+        }
+
+        var selected = !string.IsNullOrWhiteSpace(_selectedToyId)
+            && string.Equals(_selectedToyId, toyId, StringComparison.OrdinalIgnoreCase);
+        toyWindow.SetLayoutEditOverlay(toyId, _layoutEditModeEnabled, selected);
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);

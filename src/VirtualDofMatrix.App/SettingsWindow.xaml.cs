@@ -25,6 +25,8 @@ public partial class SettingsWindow : Window
     private readonly Action<AppConfig>? _applyScopedSave;
     private Dictionary<string, bool> _lastSavedToyEnabledStates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyToggleByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DockPanel> _toyRowById = new(StringComparer.OrdinalIgnoreCase);
+    private string? _selectedToyId;
 
     public SettingsWindow(
         AppConfig source,
@@ -260,6 +262,7 @@ public partial class SettingsWindow : Window
     private void RenderVirtualToyRows()
     {
         _toyToggleByName.Clear();
+        _toyRowById.Clear();
         var rows = _virtualToys
             .Select(item =>
         {
@@ -286,6 +289,7 @@ public partial class SettingsWindow : Window
             enabledToggle.Checked += OnVirtualToyEnabledToggled;
             enabledToggle.Unchecked += OnVirtualToyEnabledToggled;
             _toyToggleByName[item.RouteId] = enabledToggle;
+            _toyRowById[item.RouteId] = row;
 
             var name = new TextBlock
             {
@@ -303,6 +307,7 @@ public partial class SettingsWindow : Window
             .ToArray();
 
         VirtualToysList.ItemsSource = rows;
+        RefreshToyRowHighlight();
         RefreshToyToggleInterlocks();
     }
 
@@ -314,6 +319,34 @@ public partial class SettingsWindow : Window
         }
 
         ToySelected?.Invoke(this, toyId);
+        _selectedToyId = toyId;
+        RefreshToyRowHighlight();
+    }
+
+    public void SelectToy(string toyId)
+    {
+        if (string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        _selectedToyId = toyId;
+        RefreshToyRowHighlight();
+    }
+
+    private void RefreshToyRowHighlight()
+    {
+        foreach (var row in _toyRowById.Values)
+        {
+            row.Background = System.Windows.Media.Brushes.Transparent;
+        }
+
+        if (_selectedToyId is null || !_toyRowById.TryGetValue(_selectedToyId, out var selected))
+        {
+            return;
+        }
+
+        selected.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(80, 255, 255, 0));
     }
 
     private void OnVirtualToyEnabledToggled(object sender, RoutedEventArgs e)

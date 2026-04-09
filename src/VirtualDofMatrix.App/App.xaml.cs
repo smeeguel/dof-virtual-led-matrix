@@ -81,7 +81,14 @@ public partial class App : System.Windows.Application
         var routingPlanProvider = new ConfigRoutingPlanProvider(_config);
         var toyRouter = new ToyRouter(_config.Routing.Policy);
         _broadcastAdapter = new NamedPipeBroadcastAdapter(_config);
-        _windowOutputAdapter = new WpfWindowOutputAdapter(Dispatcher, _config, _window, PersistWindowSettings, ShowSettingsDialog, Shutdown);
+        _windowOutputAdapter = new WpfWindowOutputAdapter(
+            Dispatcher,
+            _config,
+            _window,
+            PersistWindowSettings,
+            ShowSettingsDialog,
+            Shutdown,
+            toyId => _settingsWindow?.SelectToy(toyId));
         var outputAdapters = new List<IOutputAdapter>
         {
             _windowOutputAdapter,
@@ -157,9 +164,11 @@ public partial class App : System.Windows.Application
         dialog.ToySelected += (_, toyId) => _windowOutputAdapter?.FocusToyWindow(toyId);
         dialog.Closed += (_, _) =>
         {
+            _windowOutputAdapter?.SetLayoutEditMode(false);
             _settingsWindow = null;
         };
         _settingsWindow = dialog;
+        _windowOutputAdapter?.SetLayoutEditMode(true);
         dialog.Show();
     }
 
