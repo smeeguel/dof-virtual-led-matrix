@@ -27,6 +27,7 @@ public partial class App : System.Windows.Application
     private AppConfig? _config;
     private StartupConfigStatus? _startupConfigStatus;
     private MainWindow? _window;
+    private SettingsWindow? _settingsWindow;
     private FrameTransportHost? _transportHost;
     private NamedPipeBroadcastAdapter? _broadcastAdapter;
     private WpfWindowOutputAdapter? _windowOutputAdapter;
@@ -140,17 +141,25 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+
         var tableScope = !string.IsNullOrWhiteSpace(_runtimeTableOrRomName) ? _runtimeTableOrRomName : _activeTableOrRomName;
         var dialog = new SettingsWindow(_config, _cabinetXmlService, tableScope, ApplySettings)
         {
             Owner = _window,
         };
 
-        var accepted = dialog.ShowDialog();
-        if (accepted == true && dialog.Result is not null)
+        dialog.SettingsApplied += (_, appliedConfig) => ApplySettings(appliedConfig);
+        dialog.Closed += (_, _) =>
         {
-            ApplySettings(dialog.Result);
-        }
+            _settingsWindow = null;
+        };
+        _settingsWindow = dialog;
+        dialog.Show();
     }
 
     private void ApplySettings(AppConfig updated)

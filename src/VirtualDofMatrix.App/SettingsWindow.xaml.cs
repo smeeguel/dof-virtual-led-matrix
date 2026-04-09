@@ -47,6 +47,7 @@ public partial class SettingsWindow : Window
     }
 
     public AppConfig? Result { get; private set; }
+    public event EventHandler<AppConfig>? SettingsApplied;
 
     private void PopulateControls()
     {
@@ -380,13 +381,12 @@ public partial class SettingsWindow : Window
         }
 
         Result = config;
-        DialogResult = true;
+        SettingsApplied?.Invoke(this, config);
         Close();
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
         Close();
     }
 
