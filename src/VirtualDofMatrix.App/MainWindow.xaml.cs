@@ -181,15 +181,14 @@ public partial class MainWindow : Window
 
     private void ApplyStartupStatus()
     {
-        var isSecondaryToyWindow = _startupConfigStatus.CabinetFileStatus.Contains("mirrors primary window", StringComparison.OrdinalIgnoreCase);
-        StartupStatusOverlay.Visibility = isSecondaryToyWindow ? Visibility.Collapsed : Visibility.Visible;
-        StartupConfigPathText.Text = $"Active config path: {_startupConfigStatus.ActiveConfigPath}";
-        StartupCabinetStatusText.Text = _startupConfigStatus.CabinetFileStatus;
-        StartupLoadedAtText.Text = $"Last loaded UTC: {_startupConfigStatus.LastLoadedUtc:O}";
-
-        var hasHint = !string.IsNullOrWhiteSpace(_startupConfigStatus.RemediationHint);
-        StartupRemediationText.Visibility = hasHint ? Visibility.Visible : Visibility.Collapsed;
-        StartupRemediationText.Text = hasHint ? $"Fix: {_startupConfigStatus.RemediationHint}" : string.Empty;
+        // Conversational note: startup diagnostics are logged instead of rendered in-window to keep viewer windows uncluttered.
+        AppLogger.Info($"[startup] activeConfigPath={_startupConfigStatus.ActiveConfigPath}");
+        AppLogger.Info($"[startup] cabinetStatus={_startupConfigStatus.CabinetFileStatus}");
+        AppLogger.Info($"[startup] lastLoadedUtc={_startupConfigStatus.LastLoadedUtc:O}");
+        if (!string.IsNullOrWhiteSpace(_startupConfigStatus.RemediationHint))
+        {
+            AppLogger.Warn($"[startup] remediationHint={_startupConfigStatus.RemediationHint}");
+        }
     }
 
     private void ApplyDebugVisibility()

@@ -75,27 +75,6 @@
                        Text="Toy" />
         </Border>
 
-        <Border x:Name="StartupStatusOverlay"
-                Grid.Column="0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Top"
-                Margin="12"
-                Padding="10,8"
-                Background="#AA101010"
-                BorderBrush="#66404040"
-                BorderThickness="1"
-                CornerRadius="4"
-                Panel.ZIndex="5"
-                IsHitTestVisible="False">
-            <StackPanel>
-                <TextBlock Foreground="#E6FFFFFF" FontWeight="SemiBold" Text="Startup status" />
-                <TextBlock x:Name="StartupConfigPathText" Margin="0,6,0,0" Foreground="#E6FFFFFF" Text="Active config path: (resolving...)" />
-                <TextBlock x:Name="StartupCabinetStatusText" Foreground="#E6FFFFFF" Text="Cabinet.xml: (checking...)" />
-                <TextBlock x:Name="StartupLoadedAtText" Foreground="#E6FFFFFF" Text="Last loaded UTC: (checking...)" />
-                <TextBlock x:Name="StartupRemediationText" Margin="0,4,0,0" Foreground="#FFD27E7E" TextWrapping="Wrap" Visibility="Collapsed" />
-            </StackPanel>
-        </Border>
-
         <StackPanel x:Name="DebugPanel" Grid.Column="2">
             <TextBlock Foreground="Lime" FontSize="20" FontWeight="Bold" Text="Virtual DOF Matrix" />
             <TextBlock x:Name="RendererText" Margin="0,12,0,0" Foreground="White" Text="Renderer: (none)" />
