@@ -399,6 +399,9 @@ public partial class SettingsWindow : Window
         LoadToyCollections();
         _selectedToyId = wizard.Result.Id;
         RefreshToyRowHighlight();
+        // Conversational note: creating a toy should feel immediate; apply to runtime now so its window appears without extra Save clicks.
+        ApplyWorkingConfigImmediately();
+        ToySelected?.Invoke(this, wizard.Result.Id);
         UpdateSummary();
         UpdateDirtyState();
     }
@@ -702,6 +705,22 @@ public partial class SettingsWindow : Window
 
             toy.Enabled = item.Enabled;
         }
+    }
+
+    private void ApplyWorkingConfigImmediately()
+    {
+        var cloned = Clone(_working);
+        if (_applyScopedSave is not null)
+        {
+            _applyScopedSave(cloned);
+        }
+        else
+        {
+            SettingsApplied?.Invoke(this, cloned);
+        }
+
+        _lastAppliedFingerprint = BuildFingerprint(cloned);
+        SnapshotSavedToyState();
     }
 
     private void SnapshotSavedToyState()
