@@ -22,7 +22,38 @@
             </StackPanel>
         </Border>
 
-        <TabControl Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+        <TabControl x:Name="SettingsTabs" Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <TabItem Header="Virtual Toys" ToolTip="Virtual toys are editable; hardware toys are summarized as read-only.">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <WrapPanel Grid.Row="0" Margin="0,0,0,10">
+                        <ToggleButton x:Name="FilterEnabledChip" Margin="0,0,8,0" Padding="10,4" Content="Enabled" Checked="OnVirtualToyFilterChanged" Unchecked="OnVirtualToyFilterChanged" />
+                        <ToggleButton x:Name="FilterDisabledChip" Margin="0,0,8,0" Padding="10,4" Content="Disabled" Checked="OnVirtualToyFilterChanged" Unchecked="OnVirtualToyFilterChanged" />
+                        <ToggleButton x:Name="FilterGlobalChip" Margin="0,0,8,0" Padding="10,4" Content="Global" Checked="OnVirtualToyFilterChanged" Unchecked="OnVirtualToyFilterChanged" />
+                        <ToggleButton x:Name="FilterTableOverrideChip" Margin="0,0,8,0" Padding="10,4" Content="Table Override" Checked="OnVirtualToyFilterChanged" Unchecked="OnVirtualToyFilterChanged" />
+                    </WrapPanel>
+
+                    <ListBox x:Name="VirtualToysList" Grid.Row="1" IsHitTestVisible="True" />
+
+                    <Border Grid.Row="2" Margin="0,12,0,0" Padding="10,8" BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA">
+                        <StackPanel>
+                            <TextBlock x:Name="HardwareSummaryHeaderText" FontWeight="SemiBold" Text="Hardware Toys (read-only): 0" />
+                            <ItemsControl x:Name="HardwareNamesItemsControl" Margin="0,6,0,0" IsHitTestVisible="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Foreground="#444" Text="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
             <TabItem Header="Display" ToolTip="Display settings for matrix size and render quality.">
                 <Grid Margin="8">
                     <Grid.RowDefinitions>

@@ -19,6 +19,8 @@ public partial class SettingsWindow : Window
     private AppConfig _working;
     private readonly CabinetXmlService _cabinetXmlService;
     private string _lastAppliedFingerprint = string.Empty;
+    private IReadOnlyList<VirtualToyListItem> _virtualToys = [];
+    private IReadOnlyList<VirtualToyListItem> _hardwareToys = [];
 
     public SettingsWindow(AppConfig source, CabinetXmlService cabinetXmlService)
     {
@@ -27,6 +29,8 @@ public partial class SettingsWindow : Window
 
         InitializeComponent();
         PopulateControls();
+        LoadToyCollections();
+        SettingsTabs.SelectedIndex = 0;
         CaptureCurrentAsCleanState();
         UpdateSummary();
     }
@@ -67,6 +71,11 @@ public partial class SettingsWindow : Window
         UpdateAdvancedControlState();
 
         RefreshLedStripList(_working.Settings.CabinetXmlPath);
+        // Conversational note: default landing filter shows the most actionable list for day-one workflows.
+        FilterEnabledChip.IsChecked = true;
+        FilterDisabledChip.IsChecked = true;
+        FilterGlobalChip.IsChecked = true;
+        FilterTableOverrideChip.IsChecked = true;
         UpdateSelectionTooltips();
     }
 
@@ -138,8 +147,14 @@ public partial class SettingsWindow : Window
         {
             CabinetPathTextBox.Text = picker.FileName;
             RefreshLedStripList(picker.FileName);
+            LoadToyCollections();
             OnSettingChanged(sender, e);
         }
+    }
+
+    private void OnVirtualToyFilterChanged(object sender, RoutedEventArgs e)
+    {
+        ApplyVirtualToyFilter();
     }
 
     private void RefreshLedStripList(string? cabinetPath)
@@ -171,6 +186,78 @@ public partial class SettingsWindow : Window
         {
             LedStripCombo.Text = _working.Settings.CabinetToyName;
         }
+    }
+
+    private void LoadToyCollections()
+    {
+        _virtualToys = [];
+        _hardwareToys = [];
+
+        var cabinetPath = CabinetPathTextBox.Text;
+        if (!File.Exists(cabinetPath))
+        {
+            HardwareSummaryHeaderText.Text = "Hardware Toys (read-only): 0";
+            HardwareNamesItemsControl.ItemsSource = Array.Empty<string>();
+            VirtualToysList.ItemsSource = Array.Empty<string>();
+            return;
+        }
+
+        try
+        {
+            var inventory = _cabinetXmlService.GetToyInventory(cabinetPath);
+            _virtualToys = inventory.VirtualToys
+                .Select(entry => new VirtualToyListItem(
+                    Name: entry.Name,
+                    Enabled: ResolveEnabled(entry.Name),
+                    IsGlobal: true,
+                    IsTableOverride: false))
+                .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            _hardwareToys = inventory.HardwareToys
+                .Select(entry => new VirtualToyListItem(
+                    Name: entry.Name,
+                    Enabled: ResolveEnabled(entry.Name),
+                    IsGlobal: true,
+                    IsTableOverride: false))
+                .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch
+        {
+            // Keep startup/settings resilient to malformed XML; UI falls back to an empty summary instead of crashing.
+            _virtualToys = [];
+            _hardwareToys = [];
+        }
+
+        HardwareSummaryHeaderText.Text = $"Hardware Toys (read-only): {_hardwareToys.Count}";
+        HardwareNamesItemsControl.ItemsSource = _hardwareToys.Select(x => x.Name).ToArray();
+        ApplyVirtualToyFilter();
+    }
+
+    private void ApplyVirtualToyFilter()
+    {
+        var showEnabled = FilterEnabledChip.IsChecked == true;
+        var showDisabled = FilterDisabledChip.IsChecked == true;
+        var showGlobal = FilterGlobalChip.IsChecked == true;
+        var showTableOverride = FilterTableOverrideChip.IsChecked == true;
+
+        var filtered = _virtualToys.Where(item =>
+        {
+            var enabledPass = (showEnabled && item.Enabled) || (showDisabled && !item.Enabled);
+            var scopePass = (showGlobal && item.IsGlobal) || (showTableOverride && item.IsTableOverride);
+            return enabledPass && scopePass;
+        });
+
+        VirtualToysList.ItemsSource = filtered
+            .Select(x => $"{x.Name}  •  {(x.Enabled ? "Enabled" : "Disabled")}  •  {(x.IsTableOverride ? "Table Override" : "Global")}")
+            .ToArray();
+    }
+
+    private bool ResolveEnabled(string toyName)
+    {
+        var configuredToy = _working.Routing.Toys.FirstOrDefault(x => x.Id.Equals(toyName, StringComparison.OrdinalIgnoreCase));
+        return configuredToy?.Enabled ?? true;
     }
 
     private void OnOk(object sender, RoutedEventArgs e)
@@ -425,4 +512,10 @@ public partial class SettingsWindow : Window
             },
         };
     }
+
+    private sealed record VirtualToyListItem(
+        string Name,
+        bool Enabled,
+        bool IsGlobal,
+        bool IsTableOverride);
 }
