@@ -340,9 +340,17 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     {
         if (!_bindings.TryGetValue(toyId, out var binding))
         {
-            if (isVisible && IsPrimaryVisualToy(toyId))
+            if (!isVisible)
             {
-                _mainWindow.Show();
+                return;
+            }
+
+            // Conversational note: toys enabled after startup may have no binding yet; create one so the window can appear immediately.
+            binding = _bindings.GetOrAdd(toyId, CreateBindingForToy);
+
+            if (!binding.Window.IsVisible)
+            {
+                binding.Window.Show();
             }
 
             return;
