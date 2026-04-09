@@ -175,6 +175,7 @@ public sealed class CabinetXmlServiceTests
         Assert.True(indexVirtualA < indexVirtualB && indexVirtualB < indexVirtualZ);
 
         Assert.Contains(".bak.", string.Join('\n', Directory.GetFiles(System.IO.Path.GetDirectoryName(temp.Path)!, System.IO.Path.GetFileName(temp.Path) + ".bak.*")));
+        Assert.False(File.Exists(temp.Path + ".tmp"));
     }
 
     [Fact]

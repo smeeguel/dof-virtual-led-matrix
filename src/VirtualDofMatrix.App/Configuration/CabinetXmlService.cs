@@ -470,15 +470,20 @@ public sealed class CabinetXmlService
             File.Copy(cabinetXmlPath, backupPath, overwrite: false);
 
             var tempPath = Path.Combine(Path.GetDirectoryName(cabinetXmlPath)!, $"{Path.GetFileName(cabinetXmlPath)}.tmp");
-            using var writer = XmlWriter.Create(tempPath, new XmlWriterSettings
+            var writerSettings = new XmlWriterSettings
             {
                 Indent = true,
                 IndentChars = "\t",
                 NewLineChars = "\r\n",
                 NewLineHandling = NewLineHandling.Replace,
                 OmitXmlDeclaration = false,
-            });
-            document.Save(writer);
+            };
+            // Conversational note: dispose the XmlWriter before replacing Cabinet.xml so Windows does not keep
+            // the temp file handle open and trigger "file is being used by another process" on File.Move.
+            using (var writer = XmlWriter.Create(tempPath, writerSettings))
+            {
+                document.Save(writer);
+            }
             File.Move(tempPath, cabinetXmlPath, overwrite: true);
         }
 
