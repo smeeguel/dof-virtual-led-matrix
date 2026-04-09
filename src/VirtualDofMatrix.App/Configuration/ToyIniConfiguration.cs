@@ -16,6 +16,7 @@ internal static class ToyIniConfiguration
 
         var sections = ParseSections(File.ReadAllLines(iniPath));
         var modified = false;
+        var toyIdsInIni = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (sections.TryGetValue("policy", out var policyValues))
         {
@@ -35,7 +36,24 @@ internal static class ToyIniConfiguration
                 continue;
             }
 
+            toyIdsInIni.Add(toyId);
             modified |= ApplyToySection(config, toyId, section.Value);
+        }
+
+        if (toyIdsInIni.Count > 0)
+        {
+            // Conversational note: when toys.ini is present, it is the authoritative toy list; drop stale extras from settings.json.
+            var compacted = config.Routing.Toys
+                .Where(toy => toyIdsInIni.Contains(toy.Id))
+                .GroupBy(toy => toy.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.Last())
+                .ToList();
+
+            if (compacted.Count != config.Routing.Toys.Count)
+            {
+                config.Routing.Toys = compacted;
+                modified = true;
+            }
         }
 
         return modified;
