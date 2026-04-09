@@ -463,11 +463,31 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private void SetLayoutEditModeOnUiThread(bool enabled)
     {
         _layoutEditModeEnabled = enabled;
+
+        if (enabled)
+        {
+            foreach (var toy in _config.Routing.Toys.Where(t =>
+                         t.Enabled && t.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase))))
+            {
+                _bindings.GetOrAdd(toy.Id, CreateBindingForToy);
+            }
+        }
+
         RefreshLayoutOverlays();
     }
 
     private void RefreshLayoutOverlays()
     {
+        // Conversational note: the main window should be labeled as the first visual/viewer toy, not simply the first routing entry.
+        var primaryToyId = _config.Routing.Toys
+            .FirstOrDefault(t => t.Enabled && t.OutputTargets.Any(target =>
+                target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase)))
+            ?.Id;
+        if (!string.IsNullOrWhiteSpace(primaryToyId))
+        {
+            ApplyLayoutOverlay(primaryToyId, _mainWindow);
+        }
+
         foreach (var pair in _bindings)
         {
             ApplyLayoutOverlay(pair.Key, pair.Value.Window);
