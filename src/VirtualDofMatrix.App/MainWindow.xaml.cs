@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using System.Runtime.InteropServices;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.App.Logging;
@@ -34,6 +35,10 @@ public partial class MainWindow : Window
     private bool _pendingViewportReinitialize;
     private bool _layoutEditModeActive;
     private string? _savedGpuPresentModeBeforeLayout;
+    private Window? _layoutOverlayWindow;
+    private Border? _layoutOverlaySelectionBorder;
+    private Border? _layoutOverlayNameBorder;
+    private TextBlock? _layoutOverlayNameText;
     private AspectLockAxis _activeResizeAspectAxis = AspectLockAxis.None;
     private double _lockedAspectRatio;
 
@@ -47,6 +52,16 @@ public partial class MainWindow : Window
     private int _framesSinceFpsSample;
     private DateTimeOffset _fpsSampleStartUtc = DateTimeOffset.UtcNow;
     private int _forcedRenderBurstsRemaining;
+    private const int GwlExStyle = -20;
+    private const int WsExTransparent = 0x00000020;
+    private const int WsExToolWindow = 0x00000080;
+    private const int WsExNoActivate = 0x08000000;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     public event EventHandler? SettingsRequested;
     public event EventHandler? ExitRequested;
@@ -88,11 +103,17 @@ public partial class MainWindow : Window
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) => ReinitializeRendererForViewport();
         SizeChanged += OnWindowSizeChanged;
+        LocationChanged += (_, _) => SyncLayoutOverlayWindowBounds();
         Closed += (_, _) =>
         {
             _idleClearTimer.Stop();
             _fpsTimer.Stop();
             _matrixRenderer.Dispose();
+            if (_layoutOverlayWindow is not null)
+            {
+                _layoutOverlayWindow.Close();
+                _layoutOverlayWindow = null;
+            }
         };
         _idleClearTimer.Start();
         _fpsTimer.Start();
@@ -368,6 +389,121 @@ public partial class MainWindow : Window
         LayoutToyNameOverlay.Visibility = isEditModeEnabled ? Visibility.Visible : Visibility.Collapsed;
         LayoutSelectionBorder.BorderThickness = isEditModeEnabled && isSelected ? new Thickness(4) : new Thickness(0);
         LayoutSelectionBorder.BorderBrush = isSelected ? WpfBrushes.Yellow : WpfBrushes.Transparent;
+
+        // Conversational note: this companion overlay window guarantees labels/outlines stay above all render paths, including direct-present.
+        UpdateDetachedLayoutOverlay(toyLabel, isEditModeEnabled, isSelected, compactOverlay);
+    }
+
+    private void UpdateDetachedLayoutOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected, bool compactOverlay)
+    {
+        if (!isEditModeEnabled)
+        {
+            _layoutOverlayWindow?.Hide();
+            return;
+        }
+
+        EnsureLayoutOverlayWindow();
+        SyncLayoutOverlayWindowBounds();
+        if (_layoutOverlayWindow is null || _layoutOverlaySelectionBorder is null || _layoutOverlayNameBorder is null || _layoutOverlayNameText is null)
+        {
+            return;
+        }
+
+        _layoutOverlayNameBorder.Margin = compactOverlay ? new Thickness(2) : new Thickness(6);
+        _layoutOverlayNameBorder.Padding = compactOverlay ? new Thickness(4, 2, 4, 2) : new Thickness(6, 3, 6, 3);
+        _layoutOverlayNameText.FontSize = compactOverlay ? 10 : 12;
+        _layoutOverlayNameText.Text = string.IsNullOrWhiteSpace(toyLabel) ? "(unnamed toy)" : toyLabel;
+        _layoutOverlaySelectionBorder.BorderThickness = isSelected ? new Thickness(4) : new Thickness(0);
+        _layoutOverlaySelectionBorder.BorderBrush = isSelected ? WpfBrushes.Yellow : WpfBrushes.Transparent;
+
+        if (!_layoutOverlayWindow.IsVisible)
+        {
+            _layoutOverlayWindow.Show();
+        }
+    }
+
+    private void EnsureLayoutOverlayWindow()
+    {
+        if (_layoutOverlayWindow is not null)
+        {
+            return;
+        }
+
+        var overlayRoot = new Grid
+        {
+            Background = Brushes.Transparent,
+            IsHitTestVisible = false,
+        };
+
+        _layoutOverlaySelectionBorder = new Border
+        {
+            BorderBrush = WpfBrushes.Yellow,
+            BorderThickness = new Thickness(0),
+            Margin = new Thickness(2),
+            IsHitTestVisible = false,
+        };
+        overlayRoot.Children.Add(_layoutOverlaySelectionBorder);
+
+        _layoutOverlayNameText = new TextBlock
+        {
+            Foreground = WpfBrushes.White,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Text = "Toy",
+        };
+        _layoutOverlayNameBorder = new Border
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(6),
+            Padding = new Thickness(6, 3, 6, 3),
+            Background = new SolidColorBrush(Color.FromArgb(136, 0, 0, 0)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(153, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            MaxWidth = 420,
+            Child = _layoutOverlayNameText,
+            IsHitTestVisible = false,
+        };
+        overlayRoot.Children.Add(_layoutOverlayNameBorder);
+
+        _layoutOverlayWindow = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            Topmost = true,
+            AllowsTransparency = true,
+            Background = Brushes.Transparent,
+            Content = overlayRoot,
+            Width = Math.Max(1, ActualWidth),
+            Height = Math.Max(1, ActualHeight),
+            IsHitTestVisible = false,
+            Owner = this,
+        };
+
+        _layoutOverlayWindow.SourceInitialized += (_, _) =>
+        {
+            if (new WindowInteropHelper(_layoutOverlayWindow).Handle is var hwnd && hwnd != IntPtr.Zero)
+            {
+                var exStyle = GetWindowLong(hwnd, GwlExStyle);
+                SetWindowLong(hwnd, GwlExStyle, exStyle | WsExTransparent | WsExToolWindow | WsExNoActivate);
+            }
+        };
+    }
+
+    private void SyncLayoutOverlayWindowBounds()
+    {
+        if (_layoutOverlayWindow is null)
+        {
+            return;
+        }
+
+        _layoutOverlayWindow.Left = Left;
+        _layoutOverlayWindow.Top = Top;
+        _layoutOverlayWindow.Width = Math.Max(1, ActualWidth);
+        _layoutOverlayWindow.Height = Math.Max(1, ActualHeight);
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
