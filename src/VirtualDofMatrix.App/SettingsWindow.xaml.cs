@@ -248,7 +248,7 @@ public partial class SettingsWindow : Window
                 Margin = new Thickness(0, 4, 0, 4),
             };
 
-            var enabledToggle = new CheckBox
+            var enabledToggle = new System.Windows.Controls.CheckBox
             {
                 IsChecked = item.Enabled,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -279,7 +279,7 @@ public partial class SettingsWindow : Window
 
     private void OnVirtualToyEnabledToggled(object sender, RoutedEventArgs e)
     {
-        if (sender is not CheckBox { Tag: string toyName } toggle)
+        if (sender is not System.Windows.Controls.CheckBox { Tag: string toyName } toggle)
         {
             return;
         }
