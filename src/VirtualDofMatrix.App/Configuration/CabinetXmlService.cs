@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 using VirtualDofMatrix.Core;
 
@@ -84,7 +85,10 @@ public sealed class CabinetXmlService
                     Name: toyName,
                     Width: toy.Mapping.Width,
                     Height: toy.Mapping.Height,
-                    OutputControllerName: controllerName);
+                    OutputControllerName: controllerName,
+                    FirstLedNumber: toy.Source.CanonicalStart.HasValue ? toy.Source.CanonicalStart.Value + 1 : null,
+                    LedCount: toy.Source.Length > 0 ? toy.Source.Length : toy.Mapping.Width * toy.Mapping.Height,
+                    ToyId: toy.Id);
             })
             .ToArray();
 
@@ -187,14 +191,18 @@ public sealed class CabinetXmlService
                 Element = x,
                 Name = GetChildValue(x, "Name"),
                 OutputControllerName = GetChildValue(x, "OutputControllerName"),
+                FirstLedNumber = ParseIntOrNull(GetChildValue(x, "FirstLedNumber")),
             })
             .Where(x => !string.IsNullOrWhiteSpace(x.Name) && !string.IsNullOrWhiteSpace(x.OutputControllerName))
             .Where(x => controllerKindsByName.TryGetValue(x.OutputControllerName!, out var kind)
                 && kind.Contains("Virtual", StringComparison.OrdinalIgnoreCase))
-            .ToDictionary(
-                x => x.Name!,
-                x => x.Element,
-                StringComparer.OrdinalIgnoreCase);
+            .ToArray();
+
+        var existingByName = existingManaged.ToDictionary(
+            x => x.Name!,
+            x => x,
+            StringComparer.OrdinalIgnoreCase);
+        var unmatchedExistingNames = new HashSet<string>(existingByName.Keys, StringComparer.OrdinalIgnoreCase);
 
         var desiredByName = desiredVirtualToys
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
@@ -204,7 +212,26 @@ public sealed class CabinetXmlService
 
         foreach (var desired in desiredByName.Values)
         {
-            if (!existingManaged.TryGetValue(desired.Name, out var current))
+            var lookupName = desired.Name;
+            if (!existingByName.TryGetValue(lookupName, out var current)
+                && desired.FirstLedNumber.HasValue)
+            {
+                current = existingManaged.FirstOrDefault(x =>
+                    x.FirstLedNumber == desired.FirstLedNumber
+                    && unmatchedExistingNames.Contains(x.Name!));
+                if (current is not null)
+                {
+                    lookupName = current.Name!;
+                    changes.Add(new CabinetXmlMergeChange(
+                        CabinetXmlMergeChangeType.Updated,
+                        lookupName,
+                        "Name",
+                        current.Name,
+                        desired.Name));
+                }
+            }
+
+            if (current is null)
             {
                 changes.Add(new CabinetXmlMergeChange(
                     ChangeType: CabinetXmlMergeChangeType.Added,
@@ -215,31 +242,44 @@ public sealed class CabinetXmlService
                 continue;
             }
 
-            var widthText = GetChildValue(current, "Width");
-            var heightText = GetChildValue(current, "Height");
-            var controllerText = GetChildValue(current, "OutputControllerName");
+            unmatchedExistingNames.Remove(current.Name!);
+
+            var widthText = GetChildValue(current.Element, "Width");
+            var heightText = GetChildValue(current.Element, "Height");
+            var controllerText = GetChildValue(current.Element, "OutputControllerName");
+            var firstLedText = GetChildValue(current.Element, "FirstLedNumber");
             var oldWidth = ParseIntOrNull(widthText);
             var oldHeight = ParseIntOrNull(heightText);
 
             if (oldWidth != desired.Width)
             {
-                changes.Add(new CabinetXmlMergeChange(CabinetXmlMergeChangeType.Updated, desired.Name, "Width", widthText, desired.Width.ToString()));
+                changes.Add(new CabinetXmlMergeChange(CabinetXmlMergeChangeType.Updated, lookupName, "Width", widthText, desired.Width.ToString()));
             }
 
             if (oldHeight != desired.Height)
             {
-                changes.Add(new CabinetXmlMergeChange(CabinetXmlMergeChangeType.Updated, desired.Name, "Height", heightText, desired.Height.ToString()));
+                changes.Add(new CabinetXmlMergeChange(CabinetXmlMergeChangeType.Updated, lookupName, "Height", heightText, desired.Height.ToString()));
             }
 
             if (!string.Equals(controllerText, desired.OutputControllerName, StringComparison.OrdinalIgnoreCase))
             {
-                changes.Add(new CabinetXmlMergeChange(CabinetXmlMergeChangeType.Updated, desired.Name, "OutputControllerName", controllerText, desired.OutputControllerName));
+                changes.Add(new CabinetXmlMergeChange(CabinetXmlMergeChangeType.Updated, lookupName, "OutputControllerName", controllerText, desired.OutputControllerName));
+            }
+
+            if (desired.FirstLedNumber.HasValue && ParseIntOrNull(firstLedText) != desired.FirstLedNumber)
+            {
+                changes.Add(new CabinetXmlMergeChange(
+                    CabinetXmlMergeChangeType.Updated,
+                    lookupName,
+                    "FirstLedNumber",
+                    firstLedText,
+                    desired.FirstLedNumber.Value.ToString()));
             }
         }
 
         if (removeMissingManagedToys)
         {
-            foreach (var existing in existingManaged.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+            foreach (var existing in unmatchedExistingNames.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
             {
                 if (desiredByName.ContainsKey(existing))
                 {
@@ -255,10 +295,12 @@ public sealed class CabinetXmlService
             }
         }
 
-        var managedToyOrdering = desiredByName.Keys
-            .Concat(existingManaged.Keys.Where(name => !desiredByName.ContainsKey(name)))
+        var managedToyOrdering = desiredByName.Values
+            .OrderBy(x => x.FirstLedNumber ?? int.MaxValue)
+            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.Name)
+            .Concat(existingByName.Keys.Where(name => !desiredByName.ContainsKey(name)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         return new CabinetXmlMergePlan(changes, managedToyOrdering)
@@ -306,6 +348,7 @@ public sealed class CabinetXmlService
                     && kind.Contains("Virtual", StringComparison.OrdinalIgnoreCase);
             })
             .ToDictionary(x => GetChildValue(x, "Name")!, StringComparer.OrdinalIgnoreCase);
+        var renameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var change in plan.PlannedChanges)
         {
@@ -327,6 +370,11 @@ public sealed class CabinetXmlService
                     new XElement(ns + "Name", change.ToyName),
                     new XElement(ns + "Width", desiredToy.Width),
                     new XElement(ns + "Height", desiredToy.Height),
+                    new XElement(ns + "LedStripArrangement", "TopDownAlternateRightLeft"),
+                    new XElement(ns + "ColorOrder", "RGB"),
+                    new XElement(ns + "FirstLedNumber", desiredToy.FirstLedNumber ?? 1),
+                    new XElement(ns + "FadingCurveName", "SwissLizardsLedCurve"),
+                    new XElement(ns + "Brightness", "100"),
                     new XElement(ns + "OutputControllerName", desiredToy.OutputControllerName));
 
                 managedExisting[change.ToyName] = ledStrip;
@@ -344,8 +392,18 @@ public sealed class CabinetXmlService
                 continue;
             }
 
+            if (string.Equals(change.Field, "Name", StringComparison.OrdinalIgnoreCase))
+            {
+                renameMap[change.ToyName] = change.NewValue ?? change.ToyName;
+            }
+
             SetOrCreateChildValue(targetToy, change.Field, change.NewValue ?? string.Empty);
         }
+
+        var managedByCurrentName = managedExisting.Values
+            .Select(x => new { Element = x, Name = GetChildValue(x, "Name") })
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .ToDictionary(x => x.Name!, x => x.Element, StringComparer.OrdinalIgnoreCase);
 
         // Conversational note: deterministic ordering is only enforced for managed virtual toys; non-managed toys
         // keep their original order so unrelated Cabinet.xml sections do not churn.
@@ -353,19 +411,19 @@ public sealed class CabinetXmlService
         var nonManagedChildren = allChildren
             .Where(node => node.Name.LocalName != "LedStrip"
                 || string.IsNullOrWhiteSpace(GetChildValue(node, "Name"))
-                || !managedExisting.ContainsKey(GetChildValue(node, "Name")!))
+                || !managedByCurrentName.ContainsKey(GetChildValue(node, "Name")!))
             .ToList();
 
         var managedChildrenOrdered = plan.ManagedToyOrder
-            .Where(managedExisting.ContainsKey)
-            .Select(name => managedExisting[name])
+            .Where(managedByCurrentName.ContainsKey)
+            .Select(name => managedByCurrentName[name])
             .ToList();
 
         toysRoot.RemoveNodes();
         var firstManagedIndex = allChildren.FindIndex(node =>
         {
             var name = GetChildValue(node, "Name");
-            return !string.IsNullOrWhiteSpace(name) && managedExisting.ContainsKey(name!);
+            return !string.IsNullOrWhiteSpace(name) && managedByCurrentName.ContainsKey(name!);
         });
 
         if (firstManagedIndex < 0)
@@ -396,11 +454,22 @@ public sealed class CabinetXmlService
 
         if (!dryRun)
         {
+            SyncVirtualControllerLedCounts(document, managedByCurrentName.Values);
+            SyncLedWizEquivalentOutputs(toysRoot, renameMap, plan.DesiredVirtualToysByName.Values);
+
             var backupPath = $"{cabinetXmlPath}.bak.{DateTime.UtcNow:yyyyMMddHHmmss}";
             File.Copy(cabinetXmlPath, backupPath, overwrite: false);
 
             var tempPath = Path.Combine(Path.GetDirectoryName(cabinetXmlPath)!, $"{Path.GetFileName(cabinetXmlPath)}.tmp");
-            document.Save(tempPath, SaveOptions.DisableFormatting);
+            using var writer = XmlWriter.Create(tempPath, new XmlWriterSettings
+            {
+                Indent = true,
+                IndentChars = "\t",
+                NewLineChars = "\r\n",
+                NewLineHandling = NewLineHandling.Replace,
+                OmitXmlDeclaration = false,
+            });
+            document.Save(writer);
             File.Move(tempPath, cabinetXmlPath, overwrite: true);
         }
 
@@ -504,6 +573,101 @@ public sealed class CabinetXmlService
         return int.TryParse(value, out var parsed) ? parsed : null;
     }
 
+    private static void SyncVirtualControllerLedCounts(XDocument document, IEnumerable<XElement> managedLedStrips)
+    {
+        var totalsByController = managedLedStrips
+            .Select(toy =>
+            {
+                var controllerName = GetChildValue(toy, "OutputControllerName");
+                var firstLed = ParseIntOrNull(GetChildValue(toy, "FirstLedNumber")) ?? 1;
+                var width = ParseIntOrNull(GetChildValue(toy, "Width")) ?? 0;
+                var height = ParseIntOrNull(GetChildValue(toy, "Height")) ?? 0;
+                var ledCount = width > 0 && height > 0 ? width * height : 0;
+                var lastLed = firstLed + Math.Max(ledCount - 1, 0);
+                return new { controllerName, lastLed };
+            })
+            .Where(x => !string.IsNullOrWhiteSpace(x.controllerName))
+            .GroupBy(x => x.controllerName!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Max(x => x.lastLed), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var controller in document
+            .Descendants()
+            .Where(x => x.Name.LocalName.EndsWith("Controller", StringComparison.OrdinalIgnoreCase)))
+        {
+            var controllerName = GetChildValue(controller, "Name");
+            if (string.IsNullOrWhiteSpace(controllerName) || !totalsByController.TryGetValue(controllerName, out var maxLed))
+            {
+                continue;
+            }
+
+            SetOrCreateChildValue(controller, "NumberOfLedsStrip1", Math.Max(maxLed, 0).ToString());
+        }
+    }
+
+    private static void SyncLedWizEquivalentOutputs(
+        XElement toysRoot,
+        IReadOnlyDictionary<string, string> renameMap,
+        IEnumerable<VirtualLedToyDefinition> desiredToys)
+    {
+        var desiredByName = desiredToys
+            .ToDictionary(x => x.Name, x => x, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var equivalent in toysRoot.Elements().Where(x => x.Name.LocalName == "LedWizEquivalent"))
+        {
+            var outputsNode = equivalent.Elements().FirstOrDefault(x => x.Name.LocalName == "Outputs");
+            if (outputsNode is null)
+            {
+                continue;
+            }
+
+            foreach (var output in outputsNode.Elements().Where(x => x.Name.LocalName == "LedWizEquivalentOutput"))
+            {
+                var outputName = GetChildValue(output, "OutputName");
+                if (!string.IsNullOrWhiteSpace(outputName) && renameMap.TryGetValue(outputName, out var renamed))
+                {
+                    SetOrCreateChildValue(output, "OutputName", renamed);
+                }
+            }
+
+            var outputsByName = outputsNode
+                .Elements()
+                .Where(x => x.Name.LocalName == "LedWizEquivalentOutput")
+                .Select(x => new { Element = x, Name = GetChildValue(x, "OutputName") })
+                .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+                .ToDictionary(x => x.Name!, x => x.Element, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var desired in desiredByName.Values)
+            {
+                if (outputsByName.ContainsKey(desired.Name))
+                {
+                    continue;
+                }
+
+                var output = new XElement(outputsNode.GetDefaultNamespace() + "LedWizEquivalentOutput",
+                    new XElement(outputsNode.GetDefaultNamespace() + "OutputName", desired.Name),
+                    new XElement(outputsNode.GetDefaultNamespace() + "LedWizEquivalentOutputNumber", 0));
+                outputsNode.Add(output);
+                outputsByName[desired.Name] = output;
+            }
+
+            var desiredOrder = desiredByName.Values
+                .OrderBy(x => x.FirstLedNumber ?? int.MaxValue)
+                .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var slot = 1;
+            foreach (var desired in desiredOrder)
+            {
+                if (!outputsByName.TryGetValue(desired.Name, out var output))
+                {
+                    continue;
+                }
+
+                SetOrCreateChildValue(output, "LedWizEquivalentOutputNumber", slot.ToString());
+                slot++;
+            }
+        }
+    }
+
     private static void SetOrCreateChildValue(XElement parent, string elementName, string value)
     {
         var child = parent.Elements().FirstOrDefault(x => x.Name.LocalName == elementName);
@@ -521,7 +685,10 @@ public sealed record VirtualLedToyDefinition(
     string Name,
     int Width,
     int Height,
-    string OutputControllerName = "Virtual Controller");
+    string OutputControllerName = "Virtual Controller",
+    int? FirstLedNumber = null,
+    int? LedCount = null,
+    string? ToyId = null);
 
 public sealed record CabinetXmlMergePlan(
     IReadOnlyList<CabinetXmlMergeChange> PlannedChanges,

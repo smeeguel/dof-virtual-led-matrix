@@ -297,6 +297,78 @@ public sealed class CabinetXmlServiceTests
         Assert.Contains("virtual output controller", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void ApplyVirtualToyMerge_FromRoutingShouldHandleRename_AddLedWizOutput_AndRealignControllerTotals()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController>
+                  <Name>LED Strips 0</Name>
+                  <NumberOfLedsStrip1>4101</NumberOfLedsStrip1>
+                </VirtualLEDStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>Matrix1</Name>
+                  <Width>128</Width>
+                  <Height>32</Height>
+                  <FirstLedNumber>1</FirstLedNumber>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+                <LedWizEquivalent>
+                  <Name>LedWizEquivalent 30</Name>
+                  <LedWizNumber>30</LedWizNumber>
+                  <Outputs>
+                    <LedWizEquivalentOutput>
+                      <OutputName>Matrix1</OutputName>
+                      <LedWizEquivalentOutputNumber>1</LedWizEquivalentOutputNumber>
+                    </LedWizEquivalentOutput>
+                  </Outputs>
+                </LedWizEquivalent>
+              </Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+        var routing = new[]
+        {
+            new ToyRouteConfig
+            {
+                Id = "matrix-main",
+                Name = "BackglassMain",
+                Enabled = true,
+                Mapping = new ToyMappingConfig { Width = 128, Height = 32 },
+                Source = new ToySourceConfig { CanonicalStart = 0, Length = 4096 },
+            },
+            new ToyRouteConfig
+            {
+                Id = "topper",
+                Name = "Topper2",
+                Enabled = true,
+                Mapping = new ToyMappingConfig { Width = 5, Height = 1 },
+                Source = new ToySourceConfig { CanonicalStart = 4096, Length = 5 },
+            },
+        };
+
+        var plan = service.BuildVirtualToyMergePlanFromRouting(temp.Path, routing, removeMissingManagedToys: false);
+        service.ApplyVirtualToyMerge(temp.Path, plan, dryRun: false);
+
+        var merged = File.ReadAllText(temp.Path);
+        Assert.Contains("\r\n", merged);
+        Assert.Contains("\t<", merged);
+        Assert.Contains("<Name>BackglassMain</Name>", merged);
+        Assert.DoesNotContain("<Name>Matrix1</Name>", merged);
+        Assert.Contains("<Name>Topper2</Name>", merged);
+        Assert.Contains("<FirstLedNumber>1</FirstLedNumber>", merged);
+        Assert.Contains("<FirstLedNumber>4097</FirstLedNumber>", merged);
+        Assert.Contains("<NumberOfLedsStrip1>4101</NumberOfLedsStrip1>", merged);
+        Assert.Contains("<OutputName>BackglassMain</OutputName>", merged);
+        Assert.Contains("<OutputName>Topper2</OutputName>", merged);
+    }
+
     private sealed class TempCabinetXml : IDisposable
     {
         public TempCabinetXml(string xml)
