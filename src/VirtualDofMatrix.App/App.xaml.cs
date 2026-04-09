@@ -194,14 +194,19 @@ public partial class App : System.Windows.Application
         var previousRenderer = _config.Matrix.Renderer;
         var originalWidth = _config.Matrix.Width;
         var originalHeight = _config.Matrix.Height;
+        var originalRoutingFingerprint = BuildRoutingFingerprint(_config.Routing.Toys);
 
         CopyConfig(updated, _config);
         AppLogger.SetEnabled(_config.Debug.LogProtocol);
 
-        if (_config.Settings.AutoUpdateCabinetOnResolutionChange
-            && (originalWidth != _config.Matrix.Width || originalHeight != _config.Matrix.Height))
+        var resolutionChanged = originalWidth != _config.Matrix.Width || originalHeight != _config.Matrix.Height;
+        var routingChanged = !string.Equals(
+            originalRoutingFingerprint,
+            BuildRoutingFingerprint(_config.Routing.Toys),
+            StringComparison.Ordinal);
+        if (_config.Settings.AutoUpdateCabinetOnResolutionChange && (resolutionChanged || routingChanged))
         {
-            var updatedCabinet = TryUpdateCabinetResolution(_config.Matrix.Width, _config.Matrix.Height);
+            var updatedCabinet = TrySyncCabinetManagedVirtualToys();
             if (updatedCabinet)
             {
                 WpfMessageBox.Show(_window,
@@ -280,7 +285,7 @@ public partial class App : System.Windows.Application
             : arg;
     }
 
-    private bool TryUpdateCabinetResolution(int width, int height)
+    private bool TrySyncCabinetManagedVirtualToys()
     {
         if (_config is null || _window is null)
         {
@@ -304,17 +309,29 @@ public partial class App : System.Windows.Application
 
         try
         {
-            var controllerName = _cabinetXmlService.GetLedStripOutputControllerName(resolvedPath, _config.Settings.CabinetToyName);
-            if (string.IsNullOrWhiteSpace(controllerName))
+            var hasEnabledRoutingToys = _config.Routing.Toys.Any(toy => toy.Enabled);
+            CabinetXmlMergePlan mergePlan;
+            if (hasEnabledRoutingToys)
             {
-                throw new InvalidOperationException(
-                    $"Could not resolve OutputControllerName for LedStrip toy '{_config.Settings.CabinetToyName}'.");
+                mergePlan = _cabinetXmlService.BuildVirtualToyMergePlanFromRouting(
+                    resolvedPath,
+                    _config.Routing.Toys,
+                    removeMissingManagedToys: false);
             }
+            else
+            {
+                var controllerName = _cabinetXmlService.GetLedStripOutputControllerName(resolvedPath, _config.Settings.CabinetToyName);
+                if (string.IsNullOrWhiteSpace(controllerName))
+                {
+                    throw new InvalidOperationException(
+                        $"Could not resolve OutputControllerName for LedStrip toy '{_config.Settings.CabinetToyName}'.");
+                }
 
-            var mergePlan = _cabinetXmlService.BuildVirtualToyMergePlan(
-                resolvedPath,
-                [new VirtualLedToyDefinition(_config.Settings.CabinetToyName, width, height, controllerName)],
-                removeMissingManagedToys: false);
+                mergePlan = _cabinetXmlService.BuildVirtualToyMergePlan(
+                    resolvedPath,
+                    [new VirtualLedToyDefinition(_config.Settings.CabinetToyName, _config.Matrix.Width, _config.Matrix.Height, controllerName)],
+                    removeMissingManagedToys: false);
+            }
 
             if (!mergePlan.PlannedChanges.Any())
             {
@@ -351,6 +368,16 @@ public partial class App : System.Windows.Application
                 MessageBoxImage.Warning);
             return false;
         }
+    }
+
+    private static string BuildRoutingFingerprint(IEnumerable<ToyRouteConfig> toys)
+    {
+        // Conversational note: this keeps Cabinet.xml prompts focused on real toy layout changes instead of
+        // unrelated settings edits elsewhere in the app.
+        var items = toys
+            .OrderBy(toy => toy.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(toy => $"{toy.Id}|{toy.Name}|{toy.Enabled}|{toy.Mapping.Width}|{toy.Mapping.Height}");
+        return string.Join("||", items);
     }
 
     private static void CopyConfig(AppConfig source, AppConfig destination)

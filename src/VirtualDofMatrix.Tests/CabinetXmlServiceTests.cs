@@ -265,6 +265,38 @@ public sealed class CabinetXmlServiceTests
         Assert.DoesNotContain(plan.PlannedChanges, change => change.ToyName == "HardwareA");
     }
 
+    [Fact]
+    public void BuildVirtualToyMergePlanFromRouting_ShouldFailWhenNoVirtualControllerExists()
+    {
+        var xml = """
+            <Cabinet>
+              <OutputControllers>
+                <TeensyStripController><Name>Hardware Controller</Name></TeensyStripController>
+              </OutputControllers>
+              <Toys></Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+
+        var routingToys = new[]
+        {
+            new ToyRouteConfig
+            {
+                Id = "matrix",
+                Name = "Matrix",
+                Enabled = true,
+                Mapping = new ToyMappingConfig { Width = 32, Height = 8 },
+            },
+        };
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            service.BuildVirtualToyMergePlanFromRouting(temp.Path, routingToys, removeMissingManagedToys: false));
+
+        Assert.Contains("virtual output controller", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class TempCabinetXml : IDisposable
     {
         public TempCabinetXml(string xml)
