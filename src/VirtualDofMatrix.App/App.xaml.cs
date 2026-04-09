@@ -23,7 +23,6 @@ public partial class App : System.Windows.Application
     private readonly AppConfigurationStore _configurationStore = new();
     private readonly CabinetXmlService _cabinetXmlService = new();
     private readonly ConfigFolderBootstrapService _configFolderBootstrapService = new();
-    private readonly TableContextService _tableContextService = new();
 
     private AppConfig? _config;
     private StartupConfigStatus? _startupConfigStatus;
@@ -34,8 +33,7 @@ public partial class App : System.Windows.Application
     private CancellationTokenSource? _controlCts;
     private Task? _controlTask;
     private bool _isAppReady;
-    private TableContextSnapshot _activeTableContext = TableContextSnapshot.Global();
-    private DispatcherTimer? _tableContextPollTimer;
+    private string? _activeTableOrRomName;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -45,9 +43,7 @@ public partial class App : System.Windows.Application
         AppLogger.ClearForNewLaunch();
         _config = _configurationStore.Load(ConfigFilePath);
         _startupConfigStatus = _configFolderBootstrapService.ResolveAndPersist(_config);
-        var (startupTable, startupRom) = TableContextService.ParseExplicitArgs(e.Args);
-        _tableContextService.UpdateExplicitContext(startupTable, startupRom);
-        _activeTableContext = _tableContextService.ResolveCurrentContext(_config.Settings.DofConfigFolderPath);
+        _activeTableOrRomName = ResolveActiveTableOrRomName(e.Args);
         _configurationStore.Save(ConfigFilePath, _config);
         AppLogger.Configure(_config.Debug.LogProtocol);
 
@@ -78,22 +74,6 @@ public partial class App : System.Windows.Application
         _window.SizeChanged += (_, _) => ScheduleWindowSettingsPersist();
         _window.Closing += (_, _) => PersistWindowSettings();
 
-        // Conversational note: polling keeps settings scope in sync with active table context even when launch args are sparse.
-        _tableContextPollTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(2),
-        };
-        _tableContextPollTimer.Tick += (_, _) =>
-        {
-            if (_config is null)
-            {
-                return;
-            }
-
-            _activeTableContext = _tableContextService.ResolveCurrentContext(_config.Settings.DofConfigFolderPath);
-        };
-        _tableContextPollTimer.Start();
-
         var routingPlanProvider = new ConfigRoutingPlanProvider(_config);
         var toyRouter = new ToyRouter(_config.Routing.Policy);
         _broadcastAdapter = new NamedPipeBroadcastAdapter(_config);
@@ -122,8 +102,6 @@ public partial class App : System.Windows.Application
         {
             _controlCts.Cancel();
         }
-
-        _tableContextPollTimer?.Stop();
 
         if (_controlTask is not null)
         {
@@ -157,7 +135,7 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        var dialog = new SettingsWindow(_config, _cabinetXmlService, _activeTableContext)
+        var dialog = new SettingsWindow(_config, _cabinetXmlService, _activeTableOrRomName)
         {
             Owner = _window,
         };
@@ -430,16 +408,71 @@ public partial class App : System.Windows.Application
         if (commandText.Equals("table-launch", StringComparison.OrdinalIgnoreCase))
         {
             var tokens = command.Args ?? [];
-            var (tableName, romName) = TableContextService.ParseExplicitArgs(tokens);
-            _tableContextService.UpdateExplicitContext(tableName, romName);
-            if (_config is not null)
-            {
-                _activeTableContext = _tableContextService.ResolveCurrentContext(_config.Settings.DofConfigFolderPath);
-            }
+            _activeTableOrRomName = ResolveActiveTableOrRomName(tokens);
             var defaultVisible = HasArg(tokens, "--default-show-virtual-led");
             var show = PopperLaunchOptions.ResolveTableLaunchVisibility(tokens, defaultVisible);
             SetMatrixVisibility(show, "table-launch");
         }
+    }
+
+    private static string? ResolveActiveTableOrRomName(IEnumerable<string> args)
+    {
+        var tableName = TryGetNamedArg(args, "--table")
+            ?? TryGetNamedArg(args, "--table-name")
+            ?? TryGetNamedArg(args, "table");
+        var romName = TryGetNamedArg(args, "--rom")
+            ?? TryGetNamedArg(args, "--rom-name")
+            ?? TryGetNamedArg(args, "rom");
+
+        if (!string.IsNullOrWhiteSpace(tableName))
+        {
+            return tableName;
+        }
+
+        return !string.IsNullOrWhiteSpace(romName) ? romName : null;
+    }
+
+    private static string? TryGetNamedArg(IEnumerable<string> args, string expectedKey)
+    {
+        var values = args as string[] ?? args.ToArray();
+        for (var i = 0; i < values.Length; i++)
+        {
+            var current = values[i];
+            if (string.IsNullOrWhiteSpace(current))
+            {
+                continue;
+            }
+
+            if (current.Equals(expectedKey, StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < values.Length && !string.IsNullOrWhiteSpace(values[i + 1]))
+                {
+                    return values[i + 1];
+                }
+
+                continue;
+            }
+
+            var delimiterIndex = current.IndexOf('=');
+            if (delimiterIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = current[..delimiterIndex];
+            if (!key.Equals(expectedKey, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = current[(delimiterIndex + 1)..];
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return null;
     }
 
     private void SetMatrixVisibility(bool visible, string reason)
