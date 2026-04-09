@@ -70,4 +70,48 @@ public sealed class AppConfigurationStoreToyIniTests
             }
         }
     }
+
+    [Fact]
+    public void Load_WhenToyIniUsesEscapedNewlines_StillParsesAndPrunesStaleToys()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+
+            File.WriteAllText(settingsPath, """
+            {
+              "routing": {
+                "toyConfigIniPath": "toys.ini",
+                "toys": [
+                  { "id": "backglass-main", "kind": "matrix", "enabled": true },
+                  { "id": "flasher-5bulb", "kind": "flasher", "enabled": false },
+                  { "id": "Matrix1", "kind": "matrix", "enabled": true },
+                  { "id": "Flasher5", "kind": "flasher", "enabled": true }
+                ]
+              }
+            }
+            """);
+
+            var escapedIni = "[toy:backglass-main]\\nenabled = true\\nkind = matrix\\nwidth = 128\\nheight = 32\\nsourceLength = 4096\\noutputTargets = viewer\\n\\n[toy:flasher-5bulb]\\nenabled = false\\nkind = flasher\\nwidth = 5\\nheight = 1\\nsourceLength = 5\\noutputTargets = viewer\\n";
+            File.WriteAllText(iniPath, escapedIni);
+
+            var store = new AppConfigurationStore();
+            var loaded = store.Load(settingsPath);
+
+            Assert.Equal(2, loaded.Routing.Toys.Count);
+            Assert.Contains(loaded.Routing.Toys, toy => toy.Id.Equals("backglass-main", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(loaded.Routing.Toys, toy => toy.Id.Equals("flasher-5bulb", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
 }

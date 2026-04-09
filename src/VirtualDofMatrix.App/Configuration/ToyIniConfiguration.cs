@@ -14,7 +14,7 @@ internal static class ToyIniConfiguration
             return false;
         }
 
-        var sections = ParseSections(File.ReadAllLines(iniPath));
+        var sections = ParseSections(ReadIniLines(iniPath));
         var modified = false;
         var toyIdsInIni = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -212,6 +212,24 @@ internal static class ToyIniConfiguration
         }
 
         return sections;
+    }
+
+    private static IEnumerable<string> ReadIniLines(string iniPath)
+    {
+        var raw = File.ReadAllText(iniPath);
+
+        // Conversational note: some field reports include escaped "\\n" sequences written as literal text.
+        // If no real newline exists, normalize escapes so section parsing still works.
+        if (!raw.Contains('\n') && raw.Contains("\\n", StringComparison.Ordinal))
+        {
+            raw = raw
+                .Replace("\\r\\n", "\n", StringComparison.Ordinal)
+                .Replace("\\n", "\n", StringComparison.Ordinal);
+        }
+
+        return raw
+            .Split('\n')
+            .Select(line => line.TrimEnd('\r'));
     }
 
     private static bool ApplyPolicy(RoutingPolicyConfig policy, Dictionary<string, string> values)
