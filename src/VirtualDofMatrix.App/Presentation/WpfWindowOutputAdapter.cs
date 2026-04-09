@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using VirtualDofMatrix.App.Configuration;
@@ -17,6 +18,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly Action _openSettings;
     private readonly Action _requestAppExit;
     private readonly Action<string> _notifyToyWindowSelected;
+    private readonly Action<string> _requestToyEdit;
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _enabledAtStartup = new(StringComparer.OrdinalIgnoreCase);
     private bool _layoutEditModeEnabled;
@@ -29,7 +31,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         Action persistConfig,
         Action openSettings,
         Action requestAppExit,
-        Action<string> notifyToyWindowSelected)
+        Action<string> notifyToyWindowSelected,
+        Action<string> requestToyEdit)
     {
         _dispatcher = dispatcher;
         _config = config;
@@ -38,6 +41,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _openSettings = openSettings;
         _requestAppExit = requestAppExit;
         _notifyToyWindowSelected = notifyToyWindowSelected;
+        _requestToyEdit = requestToyEdit;
         foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
         {
             _enabledAtStartup.Add(toy.Id);
@@ -172,6 +176,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             WireGeometryPersistence(_mainWindow, toyId);
             WireWindowSelectionCallbacks(_mainWindow, toyId);
             ApplyLayoutOverlay(toyId, _mainWindow);
+            EnsureEditToyContextMenuItem(_mainWindow, toyId);
             return new ToyWindowBinding(_mainWindow, frame => _mainWindow.ApplyPresentation(ToPresentation(frame)));
         }
 
@@ -197,6 +202,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         toyWindow.ExitRequested += (_, _) => _requestAppExit();
         WireWindowSelectionCallbacks(toyWindow, toyId);
         ApplyLayoutOverlay(toyId, toyWindow);
+        EnsureEditToyContextMenuItem(toyWindow, toyId);
         WireGeometryPersistence(toyWindow, toyId);
 
         return new ToyWindowBinding(toyWindow, frame => toyWindow.ApplyPresentation(ToPresentation(frame)));
@@ -293,6 +299,25 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
 
         return bytes;
+    }
+
+    private void EnsureEditToyContextMenuItem(Window window, string toyId)
+    {
+        window.ContextMenu ??= new System.Windows.Controls.ContextMenu();
+
+        if (window.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>()
+            .Any(item => string.Equals(item.Tag as string, $"edit-toy:{toyId}", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        var editToyItem = new System.Windows.Controls.MenuItem
+        {
+            Header = "Edit Toy...",
+            Tag = $"edit-toy:{toyId}",
+        };
+        editToyItem.Click += (_, _) => _requestToyEdit(toyId);
+        window.ContextMenu.Items.Insert(0, editToyItem);
     }
 
     private void ApplyToyWindowConfig(Window window, ToyWindowOptionsConfig? options)

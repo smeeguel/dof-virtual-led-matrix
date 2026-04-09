@@ -88,7 +88,8 @@ public partial class App : System.Windows.Application
             PersistWindowSettings,
             ShowSettingsDialog,
             Shutdown,
-            toyId => _settingsWindow?.SelectToy(toyId));
+            toyId => _settingsWindow?.SelectToy(toyId),
+            OpenToyEditorFromWindow);
         var outputAdapters = new List<IOutputAdapter>
         {
             _windowOutputAdapter,
@@ -170,6 +171,17 @@ public partial class App : System.Windows.Application
         _settingsWindow = dialog;
         _windowOutputAdapter?.SetLayoutEditMode(true);
         dialog.Show();
+    }
+
+    private void OpenToyEditorFromWindow(string toyId)
+    {
+        if (string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        ShowSettingsDialog();
+        _settingsWindow?.BeginEditToy(toyId);
     }
 
     private void ApplySettings(AppConfig updated)

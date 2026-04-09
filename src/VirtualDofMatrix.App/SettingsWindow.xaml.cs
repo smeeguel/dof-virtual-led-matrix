@@ -413,6 +413,23 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        EditToyById(toyId);
+    }
+
+    public void BeginEditToy(string toyId)
+    {
+        if (string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        _selectedToyId = toyId;
+        RefreshToyRowHighlight();
+        EditToyById(toyId);
+    }
+
+    private void EditToyById(string toyId)
+    {
         var existing = _working.Routing.Toys.FirstOrDefault(x => x.Id.Equals(toyId, StringComparison.OrdinalIgnoreCase));
         if (existing is null)
         {
