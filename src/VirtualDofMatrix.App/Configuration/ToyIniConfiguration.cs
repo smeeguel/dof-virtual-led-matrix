@@ -87,6 +87,8 @@ internal static class ToyIniConfiguration
             lines.Add(string.Empty);
             lines.Add($"[toy:{toy.Id}]");
             lines.Add("; --- identity ---");
+            lines.Add("; name options: unique user-facing toy name (example: Matrix1)");
+            lines.Add($"name = {(string.IsNullOrWhiteSpace(toy.Name) ? toy.Id : toy.Name)}");
             lines.Add("; enabled options: true | false (example: true)");
             lines.Add($"enabled = {toy.Enabled.ToString().ToLowerInvariant()}");
             lines.Add("; kind options: matrix | topper | flasher | <custom-name> (example: matrix)");
@@ -253,6 +255,7 @@ internal static class ToyIniConfiguration
 
         var modified = false;
 
+        modified |= SetIfPresent(values, "name", value => toy.Name = value);
         modified |= SetIfPresent(values, "enabled", value => toy.Enabled = ParseBool(value, toy.Enabled));
         modified |= SetIfPresent(values, "kind", value => toy.Kind = value);
         modified |= SetIfPresent(values, "width", value => toy.Mapping.Width = ParseInt(value, toy.Mapping.Width));

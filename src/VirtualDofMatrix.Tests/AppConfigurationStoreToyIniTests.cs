@@ -114,4 +114,75 @@ public sealed class AppConfigurationStoreToyIniTests
             }
         }
     }
+
+    [Fact]
+    public void Load_AssignsAndNormalizesUniqueToyNames()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+
+            File.WriteAllText(settingsPath, """
+            {
+              "routing": {
+                "toyConfigIniPath": "toys.ini",
+                "toys": [
+                  { "id": "backglass-main", "kind": "matrix", "enabled": true, "name": "Matrix1" },
+                  { "id": "flasher-5bulb", "kind": "flasher", "enabled": true, "name": "Matrix1" },
+                  { "id": "topper-main", "kind": "topper", "enabled": true }
+                ]
+              }
+            }
+            """);
+
+            File.WriteAllText(iniPath, """
+            [toy:backglass-main]
+            name = Matrix1
+            enabled = true
+            kind = matrix
+            width = 128
+            height = 32
+            sourceLength = 4096
+            outputTargets = viewer
+
+            [toy:flasher-5bulb]
+            name = Matrix1
+            enabled = true
+            kind = flasher
+            width = 5
+            height = 1
+            sourceLength = 5
+            outputTargets = viewer
+
+            [toy:topper-main]
+            enabled = true
+            kind = topper
+            width = 64
+            height = 8
+            sourceLength = 512
+            outputTargets = viewer
+            """);
+
+            var store = new AppConfigurationStore();
+            var loaded = store.Load(settingsPath);
+            var names = loaded.Routing.Toys.Select(t => t.Name).ToArray();
+
+            Assert.Equal(3, names.Length);
+            Assert.Equal(3, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+            Assert.Contains(names, name => name.Equals("Matrix1", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(names, name => name.Equals("Matrix2", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(names, name => name.Equals("Matrix3", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
 }

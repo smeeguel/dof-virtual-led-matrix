@@ -504,9 +504,15 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             return;
         }
 
+        var toyLabel = FindToyConfig(toyId)?.Name;
+        if (string.IsNullOrWhiteSpace(toyLabel))
+        {
+            toyLabel = toyId;
+        }
+
         var selected = !string.IsNullOrWhiteSpace(_selectedToyId)
             && string.Equals(_selectedToyId, toyId, StringComparison.OrdinalIgnoreCase);
-        toyWindow.SetLayoutEditOverlay(toyId, _layoutEditModeEnabled, selected);
+        toyWindow.SetLayoutEditOverlay(toyLabel, _layoutEditModeEnabled, selected);
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);
