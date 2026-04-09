@@ -363,6 +363,7 @@ public sealed class CabinetXmlServiceTests
         Assert.Contains("<Name>BackglassMain</Name>", merged);
         Assert.DoesNotContain("<Name>Matrix1</Name>", merged);
         Assert.Contains("<Name>Topper2</Name>", merged);
+        Assert.Contains("</LedStrip>\r\n\r\n\t\t<LedStrip>", merged);
         Assert.Contains("<FirstLedNumber>1</FirstLedNumber>", merged);
         Assert.Contains("<FirstLedNumber>4097</FirstLedNumber>", merged);
         Assert.Contains("<NumberOfLedsStrip1>4101</NumberOfLedsStrip1>", merged);

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 using VirtualDofMatrix.Core;
@@ -484,6 +485,7 @@ public sealed class CabinetXmlService
             {
                 document.Save(writer);
             }
+            ApplyReadableLedStripSpacing(tempPath);
             File.Move(tempPath, cabinetXmlPath, overwrite: true);
         }
 
@@ -680,6 +682,21 @@ public sealed class CabinetXmlService
                 slot++;
             }
         }
+    }
+
+    private static void ApplyReadableLedStripSpacing(string xmlPath)
+    {
+        var xml = File.ReadAllText(xmlPath);
+
+        // Conversational note: keep one blank line between adjacent LedStrip blocks so newly inserted toys are
+        // visually separated and easy to review in Cabinet.xml.
+        var normalized = Regex.Replace(
+            xml,
+            @"(</LedStrip>\r\n)([ \t]*<LedStrip>)",
+            "$1\r\n$2",
+            RegexOptions.CultureInvariant);
+
+        File.WriteAllText(xmlPath, normalized);
     }
 
     private static void SetOrCreateChildValue(XElement parent, string elementName, string value)
