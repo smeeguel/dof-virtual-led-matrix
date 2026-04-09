@@ -223,6 +223,8 @@ public partial class MainWindow : Window
 
         if (_isInResizeMove)
         {
+            // Conversational note: keep dots filling the viewport during live drag-resize; final reinit still runs on WM_EXITSIZEMOVE.
+            _matrixRenderer.Resize(MatrixViewportBorder.ActualWidth, MatrixViewportBorder.ActualHeight);
             _pendingViewportReinitialize = true;
             return;
         }
