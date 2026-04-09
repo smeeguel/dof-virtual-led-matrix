@@ -75,7 +75,8 @@
                        Text="Toy" />
         </Border>
 
-        <Border Grid.Column="0"
+        <Border x:Name="StartupStatusOverlay"
+                Grid.Column="0"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
                 Margin="12"

@@ -34,8 +34,6 @@ public partial class MainWindow : Window
     private bool _isApplyingAspectLock;
     private bool _isInResizeMove;
     private bool _pendingViewportReinitialize;
-    private bool _layoutEditModeActive;
-    private string? _savedGpuPresentModeBeforeLayout;
     private Window? _layoutOverlayWindow;
     private Border? _layoutOverlaySelectionBorder;
     private Border? _layoutOverlayNameBorder;
@@ -183,6 +181,8 @@ public partial class MainWindow : Window
 
     private void ApplyStartupStatus()
     {
+        var isSecondaryToyWindow = _startupConfigStatus.CabinetFileStatus.Contains("mirrors primary window", StringComparison.OrdinalIgnoreCase);
+        StartupStatusOverlay.Visibility = isSecondaryToyWindow ? Visibility.Collapsed : Visibility.Visible;
         StartupConfigPathText.Text = $"Active config path: {_startupConfigStatus.ActiveConfigPath}";
         StartupCabinetStatusText.Text = _startupConfigStatus.CabinetFileStatus;
         StartupLoadedAtText.Text = $"Last loaded UTC: {_startupConfigStatus.LastLoadedUtc:O}";
@@ -207,6 +207,8 @@ public partial class MainWindow : Window
 
     private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
     {
+        SyncLayoutOverlayWindowBounds();
+
         if (_isApplyingAspectLock || !IsLoaded)
         {
             return;
@@ -355,41 +357,11 @@ public partial class MainWindow : Window
 
     public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected)
     {
-        if (_layoutEditModeActive != isEditModeEnabled)
-        {
-            // Conversational note: direct-present can paint over WPF overlay controls, so layout mode temporarily forces legacy readback.
-            if (isEditModeEnabled)
-            {
-                _savedGpuPresentModeBeforeLayout = _config.Matrix.Visual.GpuPresentMode;
-                if (!_config.Matrix.Visual.GpuPresentMode.Equals("LegacyReadback", StringComparison.OrdinalIgnoreCase))
-                {
-                    _config.Matrix.Visual.GpuPresentMode = "LegacyReadback";
-                    ReinitializeRendererForViewport();
-                }
-            }
-            else if (!string.IsNullOrWhiteSpace(_savedGpuPresentModeBeforeLayout))
-            {
-                if (!_config.Matrix.Visual.GpuPresentMode.Equals(_savedGpuPresentModeBeforeLayout, StringComparison.OrdinalIgnoreCase))
-                {
-                    _config.Matrix.Visual.GpuPresentMode = _savedGpuPresentModeBeforeLayout;
-                    ReinitializeRendererForViewport();
-                }
-
-                _savedGpuPresentModeBeforeLayout = null;
-            }
-
-            _layoutEditModeActive = isEditModeEnabled;
-        }
-
         // Conversational note: compact mode keeps labels readable even on very short toy windows (for example narrow flashers).
         var compactOverlay = MatrixViewportBorder.ActualHeight > 0 && MatrixViewportBorder.ActualHeight < 80;
-        LayoutToyNameOverlay.Margin = compactOverlay ? new Thickness(2) : new Thickness(6);
-        LayoutToyNameOverlay.Padding = compactOverlay ? new Thickness(4, 2, 4, 2) : new Thickness(6, 3, 6, 3);
-        LayoutToyNameText.FontSize = compactOverlay ? 10 : 12;
-        LayoutToyNameText.Text = string.IsNullOrWhiteSpace(toyLabel) ? "(unnamed toy)" : toyLabel;
-        LayoutToyNameOverlay.Visibility = isEditModeEnabled ? Visibility.Visible : Visibility.Collapsed;
-        LayoutSelectionBorder.BorderThickness = isEditModeEnabled && isSelected ? new Thickness(4) : new Thickness(0);
-        LayoutSelectionBorder.BorderBrush = isSelected ? WpfBrushes.Yellow : WpfBrushes.Transparent;
+        // Conversational note: avoid duplicate artifacts by keeping the in-window overlay layer hidden and relying on detached overlay rendering.
+        LayoutToyNameOverlay.Visibility = Visibility.Collapsed;
+        LayoutSelectionBorder.BorderThickness = new Thickness(0);
 
         // Conversational note: this companion overlay window guarantees labels/outlines stay above all render paths, including direct-present.
         UpdateDetachedLayoutOverlay(toyLabel, isEditModeEnabled, isSelected, compactOverlay);
