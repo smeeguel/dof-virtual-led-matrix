@@ -264,18 +264,18 @@ public partial class ToyWizardWindow : Window
             var cell = new Border
             {
                 Margin = new Thickness(2),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(85, 85, 85)),
+                BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(85, 85, 85)),
                 BorderThickness = new Thickness(1),
-                Background = new SolidColorBrush(Color.FromRgb(17, 17, 17)),
+                Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 17, 17)),
                 Width = 40,
                 Height = 40,
                 CornerRadius = new CornerRadius(3),
                 Child = new TextBlock
                 {
                     Text = ledIndex.ToString(),
-                    Foreground = new SolidColorBrush(Color.FromRgb(237, 237, 237)),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(237, 237, 237)),
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                    VerticalAlignment = System.Windows.VerticalAlignment.Center,
                     FontSize = 11,
                 },
             };
