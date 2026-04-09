@@ -276,6 +276,8 @@ public partial class SettingsWindow : Window
                 ToolTip = "Toggle toy visibility/output. Disabled toys are hidden.",
                 Tag = item.RouteId,
             };
+            // Conversational note: keep tooltip visible even when checkbox is disabled so users see why the final toy can't be turned off.
+            ToolTipService.SetShowOnDisabled(enabledToggle, true);
 
             enabledToggle.Checked += OnVirtualToyEnabledToggled;
             enabledToggle.Unchecked += OnVirtualToyEnabledToggled;
