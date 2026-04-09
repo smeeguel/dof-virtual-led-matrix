@@ -10,6 +10,7 @@ using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 using WpfBrushes = System.Windows.Media.Brushes;
+using WpfColor = System.Windows.Media.Color;
 
 namespace VirtualDofMatrix.App;
 
@@ -431,7 +432,7 @@ public partial class MainWindow : Window
 
         var overlayRoot = new Grid
         {
-            Background = Brushes.Transparent,
+            Background = WpfBrushes.Transparent,
             IsHitTestVisible = false,
         };
 
@@ -453,12 +454,12 @@ public partial class MainWindow : Window
         };
         _layoutOverlayNameBorder = new Border
         {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            VerticalAlignment = System.Windows.VerticalAlignment.Top,
             Margin = new Thickness(6),
             Padding = new Thickness(6, 3, 6, 3),
-            Background = new SolidColorBrush(Color.FromArgb(136, 0, 0, 0)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(153, 255, 255, 255)),
+            Background = new SolidColorBrush(WpfColor.FromArgb(136, 0, 0, 0)),
+            BorderBrush = new SolidColorBrush(WpfColor.FromArgb(153, 255, 255, 255)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(3),
             MaxWidth = 420,
@@ -475,7 +476,7 @@ public partial class MainWindow : Window
             ShowActivated = false,
             Topmost = true,
             AllowsTransparency = true,
-            Background = Brushes.Transparent,
+            Background = WpfBrushes.Transparent,
             Content = overlayRoot,
             Width = Math.Max(1, ActualWidth),
             Height = Math.Max(1, ActualHeight),
