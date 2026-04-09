@@ -331,6 +331,8 @@ public partial class MainWindow : Window
 
     public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected)
     {
+        // Conversational note: keep overlays in a Popup so labels/selection outlines remain visible above direct-present GPU content.
+        LayoutOverlayPopup.IsOpen = isEditModeEnabled;
         LayoutToyNameText.Text = string.IsNullOrWhiteSpace(toyLabel) ? "(unnamed toy)" : toyLabel;
         LayoutToyNameOverlay.Visibility = isEditModeEnabled ? Visibility.Visible : Visibility.Collapsed;
         LayoutSelectionBorder.BorderThickness = isEditModeEnabled && isSelected ? new Thickness(4) : new Thickness(0);
