@@ -752,6 +752,7 @@ public partial class SettingsWindow : Window
                 Toys = config.Routing.Toys.Select(toy => new ToyRouteConfig
                 {
                     Id = toy.Id,
+                    Name = toy.Name,
                     Enabled = toy.Enabled,
                     Kind = toy.Kind,
                     Source = new ToySourceConfig
@@ -808,6 +809,11 @@ public partial class SettingsWindow : Window
 
     private string ResolveDisplayName(ToyRouteConfig routeToy, List<CabinetToyEntry> remainingVirtualCabinetEntries)
     {
+        if (!string.IsNullOrWhiteSpace(routeToy.Name))
+        {
+            return routeToy.Name;
+        }
+
         if (remainingVirtualCabinetEntries.Count == 0)
         {
             return routeToy.Id;
