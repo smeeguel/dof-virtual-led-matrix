@@ -24,6 +24,7 @@ public partial class SettingsWindow : Window
     private readonly bool _isTableScoped;
     private readonly Action<AppConfig>? _applyScopedSave;
     private Dictionary<string, bool> _lastSavedToyEnabledStates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyToggleByName = new(StringComparer.OrdinalIgnoreCase);
 
     public SettingsWindow(
         AppConfig source,
@@ -239,6 +240,7 @@ public partial class SettingsWindow : Window
 
     private void RenderVirtualToyRows()
     {
+        _toyToggleByName.Clear();
         var rows = _virtualToys
             .Select(item =>
         {
@@ -260,6 +262,7 @@ public partial class SettingsWindow : Window
 
             enabledToggle.Checked += OnVirtualToyEnabledToggled;
             enabledToggle.Unchecked += OnVirtualToyEnabledToggled;
+            _toyToggleByName[item.Name] = enabledToggle;
 
             var name = new TextBlock
             {
@@ -275,6 +278,7 @@ public partial class SettingsWindow : Window
             .ToArray();
 
         VirtualToysList.ItemsSource = rows;
+        RefreshToyToggleInterlocks();
     }
 
     private void OnVirtualToyEnabledToggled(object sender, RoutedEventArgs e)
@@ -292,7 +296,52 @@ public partial class SettingsWindow : Window
 
         // Conversational note: we mirror switch state immediately into the in-memory toy list so dirty/save UX stays predictable.
         toy.Enabled = toggle.IsChecked == true;
+        EnsureAtLeastOneToyEnabled(toy);
+        RefreshToyToggleInterlocks();
         UpdateDirtyState();
+    }
+
+    private void EnsureAtLeastOneToyEnabled(VirtualToyListItem changedToy)
+    {
+        if (_virtualToys.Count == 0)
+        {
+            return;
+        }
+
+        if (_virtualToys.Any(x => x.Enabled))
+        {
+            return;
+        }
+
+        // Conversational note: never allow the final enabled toy to be turned off; keep one viewer target active.
+        changedToy.Enabled = true;
+        if (_toyToggleByName.TryGetValue(changedToy.Name, out var toggle))
+        {
+            toggle.IsChecked = true;
+        }
+    }
+
+    private void RefreshToyToggleInterlocks()
+    {
+        var enabledCount = _virtualToys.Count(x => x.Enabled);
+        var onlyEnabledToyName = enabledCount == 1
+            ? _virtualToys.First(x => x.Enabled).Name
+            : null;
+
+        foreach (var toy in _virtualToys)
+        {
+            if (!_toyToggleByName.TryGetValue(toy.Name, out var toggle))
+            {
+                continue;
+            }
+
+            var lockLastEnabled = onlyEnabledToyName is not null
+                && onlyEnabledToyName.Equals(toy.Name, StringComparison.OrdinalIgnoreCase);
+            toggle.IsEnabled = !lockLastEnabled;
+            toggle.ToolTip = lockLastEnabled
+                ? "At least one toy must be enabled"
+                : "Toggle toy visibility/output. Disabled toys are hidden.";
+        }
     }
 
     private bool ResolveEnabled(string toyName)

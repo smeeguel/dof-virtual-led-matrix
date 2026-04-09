@@ -304,11 +304,27 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void SyncVisibilityFromConfigOnUiThread()
     {
+        var enabledToyIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var toy in _config.Routing.Toys)
         {
             var enabledForViewer = toy.Enabled
                 && toy.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
+            if (enabledForViewer)
+            {
+                enabledToyIds.Add(toy.Id);
+            }
+
             SetBindingVisible(toy.Id, enabledForViewer);
+        }
+
+        // Conversational note: bindings can outlive config edits; hide any stale viewer windows no longer enabled in routing.
+        foreach (var bindingToyId in _bindings.Keys)
+        {
+            if (!enabledToyIds.Contains(bindingToyId))
+            {
+                SetBindingVisible(bindingToyId, isVisible: false);
+            }
         }
     }
 
