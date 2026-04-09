@@ -61,6 +61,7 @@ public partial class App : System.Windows.Application
         };
 
         _window.SettingsRequested += (_, _) => ShowSettingsDialog();
+        _window.ExitRequested += (_, _) => Shutdown();
 
         _windowSettingsSaveTimer = new DispatcherTimer
         {
@@ -79,7 +80,7 @@ public partial class App : System.Windows.Application
         var routingPlanProvider = new ConfigRoutingPlanProvider(_config);
         var toyRouter = new ToyRouter(_config.Routing.Policy);
         _broadcastAdapter = new NamedPipeBroadcastAdapter(_config);
-        _windowOutputAdapter = new WpfWindowOutputAdapter(Dispatcher, _config, _window, PersistWindowSettings, ShowSettingsDialog);
+        _windowOutputAdapter = new WpfWindowOutputAdapter(Dispatcher, _config, _window, PersistWindowSettings, ShowSettingsDialog, Shutdown);
         var outputAdapters = new List<IOutputAdapter>
         {
             _windowOutputAdapter,

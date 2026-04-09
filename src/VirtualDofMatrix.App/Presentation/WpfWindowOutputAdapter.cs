@@ -15,6 +15,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly MainWindow _mainWindow;
     private readonly Action _persistConfig;
     private readonly Action _openSettings;
+    private readonly Action _requestAppExit;
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _enabledAtStartup = new(StringComparer.OrdinalIgnoreCase);
 
@@ -23,13 +24,15 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         AppConfig config,
         MainWindow mainWindow,
         Action persistConfig,
-        Action openSettings)
+        Action openSettings,
+        Action requestAppExit)
     {
         _dispatcher = dispatcher;
         _config = config;
         _mainWindow = mainWindow;
         _persistConfig = persistConfig;
         _openSettings = openSettings;
+        _requestAppExit = requestAppExit;
         foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
         {
             _enabledAtStartup.Add(toy.Id);
@@ -159,6 +162,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
         toyWindow.Show();
         toyWindow.SettingsRequested += (_, _) => _openSettings();
+        toyWindow.ExitRequested += (_, _) => _requestAppExit();
         WireGeometryPersistence(toyWindow, toyId);
 
         return new ToyWindowBinding(toyWindow, frame => toyWindow.ApplyPresentation(ToPresentation(frame)));

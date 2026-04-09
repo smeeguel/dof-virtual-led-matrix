@@ -47,6 +47,7 @@ public partial class MainWindow : Window
     private int _forcedRenderBurstsRemaining;
 
     public event EventHandler? SettingsRequested;
+    public event EventHandler? ExitRequested;
 
     public bool IsAspectRatioLocked => _config.Window.LockAspectRatio;
 
@@ -433,7 +434,10 @@ public partial class MainWindow : Window
         _lockedAspectRatio = Math.Max(1.0 / 64.0, width / Math.Max(1.0, height));
     }
 
-    private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
+    private void OnExitMenuClick(object sender, RoutedEventArgs e)
+    {
+        ExitRequested?.Invoke(this, EventArgs.Empty);
+    }
 
     private void OnIdleClearTick(object? sender, EventArgs e)
     {
