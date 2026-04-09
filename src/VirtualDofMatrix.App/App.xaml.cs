@@ -228,6 +228,7 @@ public partial class App : System.Windows.Application
         }
 
         _window.ApplyRuntimeSettings();
+        _windowOutputAdapter?.RebuildViewerBindings();
         _windowOutputAdapter?.SyncVisibilityFromConfig();
         PersistWindowSettings();
     }

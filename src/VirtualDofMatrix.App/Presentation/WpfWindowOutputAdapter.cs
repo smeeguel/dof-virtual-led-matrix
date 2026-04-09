@@ -76,6 +76,17 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _dispatcher.Invoke(SyncVisibilityFromConfigOnUiThread);
     }
 
+    public void RebuildViewerBindings()
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            RebuildViewerBindingsOnUiThread();
+            return;
+        }
+
+        _dispatcher.Invoke(RebuildViewerBindingsOnUiThread);
+    }
+
     public void FocusToyWindow(string toyId)
     {
         if (string.IsNullOrWhiteSpace(toyId))
@@ -112,6 +123,30 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
 
         _dispatcher.Invoke(EnsureInitialViewerToyWindowsOnUiThread);
+    }
+
+    private void RebuildViewerBindingsOnUiThread()
+    {
+        // Conversational note: when toy geometry changes at runtime, secondary windows keep their old renderer
+        // dimensions unless we recreate bindings. We intentionally keep MainWindow alive and rebuild others.
+        foreach (var pair in _bindings.ToArray())
+        {
+            if (!ReferenceEquals(pair.Value.Window, _mainWindow))
+            {
+                pair.Value.Window.Close();
+            }
+        }
+
+        _bindings.Clear();
+        _enabledAtStartup.Clear();
+        foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
+        {
+            _enabledAtStartup.Add(toy.Id);
+        }
+
+        CreateInitialViewerBindings();
+        SyncVisibilityFromConfigOnUiThread();
+        RefreshLayoutOverlays();
     }
 
     private void EnsureInitialViewerToyWindowsOnUiThread()
