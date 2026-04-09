@@ -22,14 +22,17 @@ public partial class SettingsWindow : Window
     private IReadOnlyList<VirtualToyListItem> _virtualToys = [];
     private IReadOnlyList<VirtualToyListItem> _hardwareToys = [];
     private readonly string _activeScopeLabel;
+    private readonly string _activeScopeProvenanceLabel;
     private readonly bool _isTableScoped;
 
-    public SettingsWindow(AppConfig source, CabinetXmlService cabinetXmlService, string? activeTableOrRomName = null)
+    public SettingsWindow(AppConfig source, CabinetXmlService cabinetXmlService, TableContextSnapshot? tableContext = null)
     {
         _working = Clone(source);
         _cabinetXmlService = cabinetXmlService;
-        _isTableScoped = !string.IsNullOrWhiteSpace(activeTableOrRomName);
-        _activeScopeLabel = _isTableScoped ? $"Table/ROM: {activeTableOrRomName}" : "Global";
+        var resolvedContext = tableContext ?? TableContextSnapshot.Global();
+        _isTableScoped = resolvedContext.HasActiveTable;
+        _activeScopeLabel = resolvedContext.BuildScopeLabel();
+        _activeScopeProvenanceLabel = resolvedContext.BuildProvenanceLabel();
 
         InitializeComponent();
         PopulateControls();
@@ -78,7 +81,7 @@ public partial class SettingsWindow : Window
         // Conversational note: default landing filter shows the most actionable list for day-one workflows.
         FilterShowEnabledOnlyChip.IsChecked = false;
         FilterGlobalChip.IsChecked = !_isTableScoped;
-        ToyScopeText.Text = $"Scope: {_activeScopeLabel}";
+        ToyScopeText.Text = $"Scope: {_activeScopeLabel} ({_activeScopeProvenanceLabel})";
         UpdateSelectionTooltips();
     }
 
@@ -249,7 +252,7 @@ public partial class SettingsWindow : Window
         });
 
         VirtualToysList.ItemsSource = filtered
-            .Select(x => $"{x.Name}  •  {(x.Enabled ? "Enabled" : "Disabled")}  •  {(_isTableScoped ? _activeScopeLabel : "Global")}")
+            .Select(x => $"{x.Name}  •  {(x.Enabled ? "Enabled" : "Disabled")}  •  {_activeScopeLabel}")
             .ToArray();
     }
 
