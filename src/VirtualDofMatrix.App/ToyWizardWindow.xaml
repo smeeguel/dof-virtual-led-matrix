@@ -68,8 +68,8 @@
                     <ComboBox x:Name="MappingCombo" Margin="0,4,0,0" SelectionChanged="OnInputsChanged"
                               ToolTip="Select how LED numbers map to matrix positions.">
                         <ComboBoxItem Content="TopDownAlternateRightLeft" />
-                        <ComboBoxItem Content="LeftRightTopDown" />
-                        <ComboBoxItem Content="TopDownLeftRight" />
+                        <ComboBoxItem Content="RowMajor" />
+                        <ComboBoxItem Content="ColumnMajor" />
                     </ComboBox>
                 </StackPanel>
 
@@ -77,6 +77,12 @@
                     <TextBlock Text="Bulb count" ToolTip="Number of LEDs in this strip." />
                     <TextBox x:Name="StripLengthTextBox" Margin="0,4,0,0" Width="150" TextChanged="OnInputsChanged"
                              ToolTip="Enter total strip LEDs (safe max per strip is 1100)." />
+                    <TextBlock Margin="0,8,0,0" Text="Direction" ToolTip="Choose whether the strip should run left-to-right or top-to-bottom." />
+                    <ComboBox x:Name="StripOrientationCombo" Margin="0,4,0,0" Width="170" SelectionChanged="OnInputsChanged"
+                              ToolTip="Horizontal creates a single row strip. Vertical creates a single column strip.">
+                        <ComboBoxItem Content="Horizontal" />
+                        <ComboBoxItem Content="Vertical" />
+                    </ComboBox>
                 </StackPanel>
 
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="4) Advanced visual options" />

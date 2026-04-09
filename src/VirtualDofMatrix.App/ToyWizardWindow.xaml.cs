@@ -44,6 +44,7 @@ public partial class ToyWizardWindow : Window
         MatrixPresetCombo.SelectedIndex = 0;
         MappingCombo.SelectedIndex = 0;
         DotShapeCombo.SelectedIndex = 0;
+        StripOrientationCombo.SelectedIndex = 0;
 
         if (_editingToy is null)
         {
@@ -122,6 +123,11 @@ public partial class ToyWizardWindow : Window
         if (isStrip)
         {
             TypeCombo.SelectedIndex = 0;
+            // Conversational note: strip toys can be one row or one column; infer orientation from mapping and dimensions.
+            StripOrientationCombo.SelectedIndex = toy.Mapping.Mode.Equals("ColumnMajor", StringComparison.OrdinalIgnoreCase)
+                || (toy.Mapping.Width == 1 && toy.Mapping.Height > 1)
+                ? 1
+                : 0;
         }
     }
 
@@ -238,6 +244,7 @@ public partial class ToyWizardWindow : Window
     }
 
     private bool IsStripTypeSelected() => (TypeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() == "Single strip";
+    private bool IsVerticalStripSelected() => (StripOrientationCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() == "Vertical";
 
     private void UpdatePreviewAndValidation()
     {
@@ -257,8 +264,25 @@ public partial class ToyWizardWindow : Window
 
         // Conversational note: we keep preview bounded so the settings UI stays responsive on very large toy sizes.
         PreviewGrid.Children.Clear();
-        PreviewGrid.Columns = IsStripTypeSelected() ? Math.Min(previewCount, 32) : width;
-        PreviewGrid.Rows = IsStripTypeSelected() ? (int)Math.Ceiling(previewCount / 32d) : height;
+        if (IsStripTypeSelected())
+        {
+            // Conversational note: strip previews stay one-dimensional by design (single row or single column).
+            if (IsVerticalStripSelected())
+            {
+                PreviewGrid.Columns = 1;
+                PreviewGrid.Rows = previewCount;
+            }
+            else
+            {
+                PreviewGrid.Columns = previewCount;
+                PreviewGrid.Rows = 1;
+            }
+        }
+        else
+        {
+            PreviewGrid.Columns = width;
+            PreviewGrid.Rows = height;
+        }
         for (var ledIndex = 1; ledIndex <= previewCount; ledIndex++)
         {
             var cell = new Border
@@ -376,8 +400,16 @@ public partial class ToyWizardWindow : Window
                 return false;
             }
 
-            width = stripLength;
-            height = 1;
+            if (IsVerticalStripSelected())
+            {
+                width = 1;
+                height = stripLength;
+            }
+            else
+            {
+                width = stripLength;
+                height = 1;
+            }
             total = stripLength;
             return true;
         }
@@ -409,7 +441,9 @@ public partial class ToyWizardWindow : Window
 
         var name = NameTextBox.Text.Trim();
         var id = _editingToy?.Id ?? BuildUniqueRouteId(name);
-        var mapping = IsStripTypeSelected() ? "LeftRightTopDown" : ((MappingCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "TopDownAlternateRightLeft");
+        var mapping = IsStripTypeSelected()
+            ? (IsVerticalStripSelected() ? "ColumnMajor" : "RowMajor")
+            : ((MappingCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "TopDownAlternateRightLeft");
 
         Result = new ToyRouteConfig
         {
