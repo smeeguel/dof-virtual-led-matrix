@@ -461,6 +461,11 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private void SetLayoutEditModeOnUiThread(bool enabled)
     {
         _layoutEditModeEnabled = enabled;
+        if (enabled)
+        {
+            // Conversational note: start each settings/layout session with no pre-selected toy so outlines only appear after an explicit user action.
+            _selectedToyId = null;
+        }
 
         if (enabled)
         {

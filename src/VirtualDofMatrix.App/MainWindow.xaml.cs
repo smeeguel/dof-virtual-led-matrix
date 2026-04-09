@@ -331,8 +331,11 @@ public partial class MainWindow : Window
 
     public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected)
     {
-        // Conversational note: keep overlays in a Popup so labels/selection outlines remain visible above direct-present GPU content.
-        LayoutOverlayPopup.IsOpen = isEditModeEnabled;
+        // Conversational note: compact mode keeps labels readable even on very short toy windows (for example narrow flashers).
+        var compactOverlay = MatrixViewportBorder.ActualHeight > 0 && MatrixViewportBorder.ActualHeight < 80;
+        LayoutToyNameOverlay.Margin = compactOverlay ? new Thickness(2) : new Thickness(6);
+        LayoutToyNameOverlay.Padding = compactOverlay ? new Thickness(4, 2, 4, 2) : new Thickness(6, 3, 6, 3);
+        LayoutToyNameText.FontSize = compactOverlay ? 10 : 12;
         LayoutToyNameText.Text = string.IsNullOrWhiteSpace(toyLabel) ? "(unnamed toy)" : toyLabel;
         LayoutToyNameOverlay.Visibility = isEditModeEnabled ? Visibility.Visible : Visibility.Collapsed;
         LayoutSelectionBorder.BorderThickness = isEditModeEnabled && isSelected ? new Thickness(4) : new Thickness(0);

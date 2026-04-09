@@ -46,40 +46,34 @@
             </Viewbox>
         </Border>
 
-        <Popup x:Name="LayoutOverlayPopup"
-               Placement="Relative"
-               PlacementTarget="{Binding ElementName=MatrixViewportBorder}"
-               AllowsTransparency="True"
-               StaysOpen="True"
-               IsHitTestVisible="False"
-               IsOpen="False">
-            <Grid Width="{Binding ElementName=MatrixViewportBorder, Path=ActualWidth}"
-                  Height="{Binding ElementName=MatrixViewportBorder, Path=ActualHeight}"
-                  IsHitTestVisible="False">
-                <Border x:Name="LayoutSelectionBorder"
-                        BorderBrush="#FFFFCC00"
-                        BorderThickness="0"
-                        Margin="2"
-                        IsHitTestVisible="False" />
+        <Border x:Name="LayoutSelectionBorder"
+                Grid.Column="0"
+                BorderBrush="#FFFFCC00"
+                BorderThickness="0"
+                Margin="2"
+                Panel.ZIndex="100"
+                IsHitTestVisible="False" />
 
-                <Border x:Name="LayoutToyNameOverlay"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Top"
-                        Margin="12"
-                        Padding="8,4"
-                        Background="#66000000"
-                        BorderBrush="#66FFFFFF"
-                        BorderThickness="1"
-                        CornerRadius="3"
-                        IsHitTestVisible="False"
-                        Visibility="Collapsed">
-                    <TextBlock x:Name="LayoutToyNameText"
-                               Foreground="White"
-                               FontWeight="SemiBold"
-                               Text="Toy" />
-                </Border>
-            </Grid>
-        </Popup>
+        <Border x:Name="LayoutToyNameOverlay"
+                Grid.Column="0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Margin="6"
+                Padding="6,3"
+                Background="#88000000"
+                BorderBrush="#99FFFFFF"
+                BorderThickness="1"
+                CornerRadius="3"
+                Panel.ZIndex="101"
+                MaxWidth="420"
+                IsHitTestVisible="False"
+                Visibility="Collapsed">
+            <TextBlock x:Name="LayoutToyNameText"
+                       Foreground="White"
+                       FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis"
+                       Text="Toy" />
+        </Border>
 
         <Border Grid.Column="0"
                 HorizontalAlignment="Left"
