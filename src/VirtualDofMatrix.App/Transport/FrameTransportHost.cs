@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Pipes;
+using System.Text;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 using VirtualDofMatrix.Core.Toys;
@@ -16,6 +17,8 @@ public sealed class FrameTransportHost
     private readonly HashSet<string> _loggedFirstSuccessfulRoutes = new(StringComparer.OrdinalIgnoreCase);
     private volatile bool _isActive = true;
     private ulong _connectionEpoch;
+
+    public event Action<TableContextMetadata>? TableContextMetadataReceived;
 
     private CancellationTokenSource? _cts;
     private Task? _runTask;
@@ -123,10 +126,10 @@ public sealed class FrameTransportHost
                         throw new InvalidDataException("Invalid named-pipe frame magic. Expected 'VDMF'.");
                     }
 
-                    var version = header[4];
-                    if (version != 1)
+                    var messageType = header[4];
+                    if (messageType != 1 && messageType != 2)
                     {
-                        throw new InvalidDataException($"Unsupported named-pipe frame version {version}.");
+                        throw new InvalidDataException($"Unsupported named-pipe message type {messageType}.");
                     }
 
                     var rawSequence = unchecked((uint)BitConverter.ToInt32(header, 5));
@@ -143,7 +146,13 @@ public sealed class FrameTransportHost
                     var sequence = (_connectionEpoch << 32) | rawSequence;
                     if (_config.Debug.LogProtocol && _config.Debug.LogFrames)
                     {
-                        AppLogger.Info($"Pipe frame seq={sequence}, payload={payloadLength} bytes.");
+                        AppLogger.Info($"Pipe message seq={sequence}, type={messageType}, payload={payloadLength} bytes.");
+                    }
+
+                    if (messageType == 2)
+                    {
+                        HandleTableContextMetadata(payload, sequence);
+                        continue;
                     }
 
                     if (!_isActive)
@@ -151,7 +160,7 @@ public sealed class FrameTransportHost
                         continue;
                     }
 
-                    RouteAndPublish(payload, sequence, version);
+                    RouteAndPublish(payload, sequence, messageType);
                 }
             }
             catch (OperationCanceledException)
@@ -176,6 +185,25 @@ public sealed class FrameTransportHost
                     AppLogger.Error($"Named pipe error: {ex.Message}");
                 }
             }
+        }
+    }
+
+    private void HandleTableContextMetadata(byte[] payload, ulong sequence)
+    {
+        var text = Encoding.UTF8.GetString(payload ?? Array.Empty<byte>());
+        var parts = text.Split('\t');
+        var tableName = parts.Length > 0 ? parts[0] : string.Empty;
+        var romName = parts.Length > 1 ? parts[1] : string.Empty;
+
+        TableContextMetadataReceived?.Invoke(new TableContextMetadata(
+            TableName: tableName,
+            RomName: romName,
+            Sequence: sequence,
+            ReceivedAtUtc: DateTimeOffset.UtcNow));
+
+        if (_config.Debug.LogProtocol)
+        {
+            AppLogger.Info($"[context] seq={sequence} table='{tableName}' rom='{romName}'.");
         }
     }
 

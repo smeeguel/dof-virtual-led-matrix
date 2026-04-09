@@ -34,6 +34,7 @@ public partial class App : System.Windows.Application
     private Task? _controlTask;
     private bool _isAppReady;
     private string? _activeTableOrRomName;
+    private string? _runtimeTableOrRomName;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -84,6 +85,7 @@ public partial class App : System.Windows.Application
         };
 
         _transportHost = new FrameTransportHost(_config, toyRouter, routingPlanProvider, outputAdapters);
+        _transportHost.TableContextMetadataReceived += OnTableContextMetadataReceived;
 
         await _transportHost.StartAsync();
         StartControlServer(_config);
@@ -135,7 +137,8 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        var dialog = new SettingsWindow(_config, _cabinetXmlService, _activeTableOrRomName)
+        var tableScope = !string.IsNullOrWhiteSpace(_runtimeTableOrRomName) ? _runtimeTableOrRomName : _activeTableOrRomName;
+        var dialog = new SettingsWindow(_config, _cabinetXmlService, tableScope)
         {
             Owner = _window,
         };
@@ -413,6 +416,12 @@ public partial class App : System.Windows.Application
             var show = PopperLaunchOptions.ResolveTableLaunchVisibility(tokens, defaultVisible);
             SetMatrixVisibility(show, "table-launch");
         }
+    }
+
+    private void OnTableContextMetadataReceived(TableContextMetadata metadata)
+    {
+        var contextValue = !string.IsNullOrWhiteSpace(metadata.TableName) ? metadata.TableName : metadata.RomName;
+        _runtimeTableOrRomName = string.IsNullOrWhiteSpace(contextValue) ? null : contextValue;
     }
 
     private static string? ResolveActiveTableOrRomName(IEnumerable<string> args)
