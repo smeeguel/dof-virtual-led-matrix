@@ -216,7 +216,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private bool IsPrimaryVisualToy(string toyId)
     {
-        var primary = _config.Routing.Toys.FirstOrDefault(t => t.Enabled);
+        // Conversational note: keep one stable primary toy identity so windows don't swap roles when enabled flags change.
+        var primary = _config.Routing.Toys.FirstOrDefault();
         return primary is not null && string.Equals(primary.Id, toyId, StringComparison.OrdinalIgnoreCase);
     }
 
