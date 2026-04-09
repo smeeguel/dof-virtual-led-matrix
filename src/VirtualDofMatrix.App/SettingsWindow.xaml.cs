@@ -207,14 +207,16 @@ public partial class SettingsWindow : Window
         try
         {
             var inventory = _cabinetXmlService.GetToyInventory(cabinetPath);
-            // Conversational note: settings toggles must map 1:1 to routing toy IDs; using cabinet-only names can create ghost windows.
+            // Conversational note: toggles are keyed by routing IDs; cabinet names are only used as user-facing labels.
+            var remainingVirtualCabinetEntries = new List<CabinetToyEntry>(inventory.VirtualToys);
             _virtualToys = _working.Routing.Toys
                 .Select(entry => new VirtualToyListItem
                 {
-                    Name = entry.Id,
+                    RouteId = entry.Id,
+                    DisplayName = ResolveDisplayName(entry, remainingVirtualCabinetEntries),
                     Enabled = entry.Enabled,
                 })
-                .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             if (_virtualToys.Count == 0)
@@ -222,20 +224,22 @@ public partial class SettingsWindow : Window
                 _virtualToys = inventory.VirtualToys
                     .Select(entry => new VirtualToyListItem
                     {
-                        Name = entry.Name,
+                        RouteId = entry.Name,
+                        DisplayName = entry.Name,
                         Enabled = ResolveEnabled(entry.Name),
                     })
-                    .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
             }
 
             _hardwareToys = inventory.HardwareToys
                 .Select(entry => new VirtualToyListItem
                 {
-                    Name = entry.Name,
+                    RouteId = entry.Name,
+                    DisplayName = entry.Name,
                     Enabled = ResolveEnabled(entry.Name),
                 })
-                .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
         catch
@@ -246,7 +250,7 @@ public partial class SettingsWindow : Window
         }
 
         HardwareSummaryHeaderText.Text = $"Hardware Toys (read-only): {_hardwareToys.Count}";
-        HardwareNamesItemsControl.ItemsSource = _hardwareToys.Select(x => x.Name).ToArray();
+        HardwareNamesItemsControl.ItemsSource = _hardwareToys.Select(x => x.DisplayName).ToArray();
         RenderVirtualToyRows();
         SnapshotSavedToyState();
     }
@@ -270,16 +274,18 @@ public partial class SettingsWindow : Window
                 Margin = new Thickness(0, 0, 12, 0),
                 MinWidth = 42,
                 ToolTip = "Toggle toy visibility/output. Disabled toys are hidden.",
-                Tag = item.Name,
+                Tag = item.RouteId,
             };
 
             enabledToggle.Checked += OnVirtualToyEnabledToggled;
             enabledToggle.Unchecked += OnVirtualToyEnabledToggled;
-            _toyToggleByName[item.Name] = enabledToggle;
+            _toyToggleByName[item.RouteId] = enabledToggle;
 
             var name = new TextBlock
             {
-                Text = item.Name,
+                Text = item.DisplayName.Equals(item.RouteId, StringComparison.OrdinalIgnoreCase)
+                    ? item.DisplayName
+                    : $"{item.DisplayName} ({item.RouteId})",
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(51, 51, 51)),
             };
@@ -301,7 +307,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var toy = _virtualToys.FirstOrDefault(x => x.Name.Equals(toyName, StringComparison.OrdinalIgnoreCase));
+        var toy = _virtualToys.FirstOrDefault(x => x.RouteId.Equals(toyName, StringComparison.OrdinalIgnoreCase));
         if (toy is null)
         {
             return;
@@ -328,7 +334,7 @@ public partial class SettingsWindow : Window
 
         // Conversational note: never allow the final enabled toy to be turned off; keep one viewer target active.
         changedToy.Enabled = true;
-        if (_toyToggleByName.TryGetValue(changedToy.Name, out var toggle))
+        if (_toyToggleByName.TryGetValue(changedToy.RouteId, out var toggle))
         {
             toggle.IsChecked = true;
         }
@@ -338,18 +344,18 @@ public partial class SettingsWindow : Window
     {
         var enabledCount = _virtualToys.Count(x => x.Enabled);
         var onlyEnabledToyName = enabledCount == 1
-            ? _virtualToys.First(x => x.Enabled).Name
+            ? _virtualToys.First(x => x.Enabled).RouteId
             : null;
 
         foreach (var toy in _virtualToys)
         {
-            if (!_toyToggleByName.TryGetValue(toy.Name, out var toggle))
+            if (!_toyToggleByName.TryGetValue(toy.RouteId, out var toggle))
             {
                 continue;
             }
 
             var lockLastEnabled = onlyEnabledToyName is not null
-                && onlyEnabledToyName.Equals(toy.Name, StringComparison.OrdinalIgnoreCase);
+                && onlyEnabledToyName.Equals(toy.RouteId, StringComparison.OrdinalIgnoreCase);
             toggle.IsEnabled = !lockLastEnabled;
             toggle.ToolTip = lockLastEnabled
                 ? "At least one toy must be enabled"
@@ -527,7 +533,7 @@ public partial class SettingsWindow : Window
 
         var isConfigDirty = BuildFingerprint(config) != _lastAppliedFingerprint;
         var isToyDirty = _virtualToys.Any(item =>
-            !_lastSavedToyEnabledStates.TryGetValue(item.Name, out var previous) || previous != item.Enabled);
+            !_lastSavedToyEnabledStates.TryGetValue(item.RouteId, out var previous) || previous != item.Enabled);
 
         var hasToyChanges = isConfigDirty || isToyDirty;
         SaveGlobalButton.Visibility = hasToyChanges ? Visibility.Visible : Visibility.Collapsed;
@@ -567,7 +573,7 @@ public partial class SettingsWindow : Window
 
         foreach (var item in _virtualToys)
         {
-            var toy = config.Routing.Toys.FirstOrDefault(x => x.Id.Equals(item.Name, StringComparison.OrdinalIgnoreCase));
+            var toy = config.Routing.Toys.FirstOrDefault(x => x.Id.Equals(item.RouteId, StringComparison.OrdinalIgnoreCase));
             if (toy is null)
             {
                 // Conversational note: only mutate known routing toys; creating new toys from UI labels can spawn unintended windows.
@@ -580,7 +586,7 @@ public partial class SettingsWindow : Window
 
     private void SnapshotSavedToyState()
     {
-        _lastSavedToyEnabledStates = _virtualToys.ToDictionary(x => x.Name, x => x.Enabled, StringComparer.OrdinalIgnoreCase);
+        _lastSavedToyEnabledStates = _virtualToys.ToDictionary(x => x.RouteId, x => x.Enabled, StringComparer.OrdinalIgnoreCase);
     }
 
     private static string BuildFingerprint(AppConfig config) => JsonSerializer.Serialize(config, FingerprintSerializerOptions);
@@ -752,9 +758,49 @@ public partial class SettingsWindow : Window
         };
     }
 
+    private string ResolveDisplayName(ToyRouteConfig routeToy, List<CabinetToyEntry> remainingVirtualCabinetEntries)
+    {
+        if (remainingVirtualCabinetEntries.Count == 0)
+        {
+            return routeToy.Id;
+        }
+
+        // Conversational note: route IDs are machine-focused labels; this resolves a cabinet-visible name for the UI row.
+        var exact = remainingVirtualCabinetEntries.FirstOrDefault(entry =>
+            entry.Name.Equals(routeToy.Id, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            remainingVirtualCabinetEntries.Remove(exact);
+            return exact.Name;
+        }
+
+        var preferredKind = routeToy.Kind.Equals("matrix", StringComparison.OrdinalIgnoreCase)
+            ? "LedStrip"
+            : routeToy.Kind.Equals("flasher", StringComparison.OrdinalIgnoreCase)
+                ? "Flasher"
+                : string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(preferredKind))
+        {
+            var kindMatch = remainingVirtualCabinetEntries.FirstOrDefault(entry =>
+                entry.Kind.Contains(preferredKind, StringComparison.OrdinalIgnoreCase));
+            if (kindMatch is not null)
+            {
+                remainingVirtualCabinetEntries.Remove(kindMatch);
+                return kindMatch.Name;
+            }
+        }
+
+        var first = remainingVirtualCabinetEntries[0];
+        remainingVirtualCabinetEntries.RemoveAt(0);
+        return first.Name;
+    }
+
     private sealed class VirtualToyListItem
     {
-        public required string Name { get; init; }
+        public required string RouteId { get; init; }
+
+        public required string DisplayName { get; init; }
 
         public bool Enabled { get; set; }
     }
