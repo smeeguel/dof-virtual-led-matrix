@@ -293,7 +293,7 @@ public partial class SettingsWindow : Window
             _toyToggleByName[item.RouteId] = enabledToggle;
             _toyRowById[item.RouteId] = row;
 
-            var editButton = new Button
+            var editButton = new System.Windows.Controls.Button
             {
                 Content = "Edit",
                 Width = 64,

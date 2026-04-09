@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.Core;
 using WpfMessageBox = System.Windows.MessageBox;
@@ -244,20 +246,40 @@ public partial class ToyWizardWindow : Window
 
         if (!validation.IsValid)
         {
-            PreviewItemsControl.ItemsSource = Array.Empty<string>();
+            PreviewGrid.Children.Clear();
             return;
         }
 
-        var (width, height, total) = validation;
+        var width = validation.Width;
+        var height = validation.Height;
+        var total = validation.Total;
         var previewCount = Math.Min(total, PreviewLedCap);
-        var preview = Enumerable.Range(1, previewCount).Select(i => i.ToString()).ToArray();
 
         // Conversational note: we keep preview bounded so the settings UI stays responsive on very large toy sizes.
-        PreviewItemsControl.ItemsSource = preview;
-        if (PreviewItemsControl.ItemsPanelRoot is UniformGrid grid)
+        PreviewGrid.Children.Clear();
+        PreviewGrid.Columns = IsStripTypeSelected() ? Math.Min(previewCount, 32) : width;
+        PreviewGrid.Rows = IsStripTypeSelected() ? (int)Math.Ceiling(previewCount / 32d) : height;
+        for (var ledIndex = 1; ledIndex <= previewCount; ledIndex++)
         {
-            grid.Columns = IsStripTypeSelected() ? Math.Min(previewCount, 32) : width;
-            grid.Rows = IsStripTypeSelected() ? (int)Math.Ceiling(previewCount / 32d) : height;
+            var cell = new Border
+            {
+                Margin = new Thickness(2),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(85, 85, 85)),
+                BorderThickness = new Thickness(1),
+                Background = new SolidColorBrush(Color.FromRgb(17, 17, 17)),
+                Width = 40,
+                Height = 40,
+                CornerRadius = new CornerRadius(3),
+                Child = new TextBlock
+                {
+                    Text = ledIndex.ToString(),
+                    Foreground = new SolidColorBrush(Color.FromRgb(237, 237, 237)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    FontSize = 11,
+                },
+            };
+            PreviewGrid.Children.Add(cell);
         }
 
         var suffix = total > PreviewLedCap ? $" (showing first {PreviewLedCap})" : string.Empty;

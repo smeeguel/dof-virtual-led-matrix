@@ -167,20 +167,7 @@
                 <TextBlock Grid.Row="1" Margin="0,4,0,10" x:Name="PreviewStatusText" Foreground="#666"
                            Text="Preview updates while you type." />
                 <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="PreviewItemsControl">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid x:Name="PreviewGrid" Rows="1" Columns="1"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Margin="2" BorderBrush="#555" BorderThickness="1" Background="#111" Width="40" Height="40" CornerRadius="3">
-                                    <TextBlock Text="{Binding}" Foreground="#EDEDED" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11"/>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <UniformGrid x:Name="PreviewGrid" Rows="1" Columns="1"/>
                 </ScrollViewer>
             </Grid>
         </Border>
