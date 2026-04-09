@@ -21,11 +21,15 @@ public partial class SettingsWindow : Window
     private string _lastAppliedFingerprint = string.Empty;
     private IReadOnlyList<VirtualToyListItem> _virtualToys = [];
     private IReadOnlyList<VirtualToyListItem> _hardwareToys = [];
+    private readonly string _activeScopeLabel;
+    private readonly bool _isTableScoped;
 
-    public SettingsWindow(AppConfig source, CabinetXmlService cabinetXmlService)
+    public SettingsWindow(AppConfig source, CabinetXmlService cabinetXmlService, string? activeTableOrRomName = null)
     {
         _working = Clone(source);
         _cabinetXmlService = cabinetXmlService;
+        _isTableScoped = !string.IsNullOrWhiteSpace(activeTableOrRomName);
+        _activeScopeLabel = _isTableScoped ? $"Table/ROM: {activeTableOrRomName}" : "Global";
 
         InitializeComponent();
         PopulateControls();
@@ -72,10 +76,9 @@ public partial class SettingsWindow : Window
 
         RefreshLedStripList(_working.Settings.CabinetXmlPath);
         // Conversational note: default landing filter shows the most actionable list for day-one workflows.
-        FilterEnabledChip.IsChecked = true;
-        FilterDisabledChip.IsChecked = true;
-        FilterGlobalChip.IsChecked = true;
-        FilterTableOverrideChip.IsChecked = true;
+        FilterShowEnabledOnlyChip.IsChecked = false;
+        FilterGlobalChip.IsChecked = !_isTableScoped;
+        ToyScopeText.Text = $"Scope: {_activeScopeLabel}";
         UpdateSelectionTooltips();
     }
 
@@ -209,8 +212,7 @@ public partial class SettingsWindow : Window
                 .Select(entry => new VirtualToyListItem(
                     Name: entry.Name,
                     Enabled: ResolveEnabled(entry.Name),
-                    IsGlobal: true,
-                    IsTableOverride: false))
+                    IsGlobal: !_isTableScoped))
                 .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
@@ -218,8 +220,7 @@ public partial class SettingsWindow : Window
                 .Select(entry => new VirtualToyListItem(
                     Name: entry.Name,
                     Enabled: ResolveEnabled(entry.Name),
-                    IsGlobal: true,
-                    IsTableOverride: false))
+                    IsGlobal: !_isTableScoped))
                 .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
@@ -237,20 +238,18 @@ public partial class SettingsWindow : Window
 
     private void ApplyVirtualToyFilter()
     {
-        var showEnabled = FilterEnabledChip.IsChecked == true;
-        var showDisabled = FilterDisabledChip.IsChecked == true;
+        var showEnabledOnly = FilterShowEnabledOnlyChip.IsChecked == true;
         var showGlobal = FilterGlobalChip.IsChecked == true;
-        var showTableOverride = FilterTableOverrideChip.IsChecked == true;
 
         var filtered = _virtualToys.Where(item =>
         {
-            var enabledPass = (showEnabled && item.Enabled) || (showDisabled && !item.Enabled);
-            var scopePass = (showGlobal && item.IsGlobal) || (showTableOverride && item.IsTableOverride);
+            var enabledPass = !showEnabledOnly || item.Enabled;
+            var scopePass = !showGlobal || item.IsGlobal;
             return enabledPass && scopePass;
         });
 
         VirtualToysList.ItemsSource = filtered
-            .Select(x => $"{x.Name}  •  {(x.Enabled ? "Enabled" : "Disabled")}  •  {(x.IsTableOverride ? "Table Override" : "Global")}")
+            .Select(x => $"{x.Name}  •  {(x.Enabled ? "Enabled" : "Disabled")}  •  {(_isTableScoped ? _activeScopeLabel : "Global")}")
             .ToArray();
     }
 
@@ -516,6 +515,5 @@ public partial class SettingsWindow : Window
     private sealed record VirtualToyListItem(
         string Name,
         bool Enabled,
-        bool IsGlobal,
-        bool IsTableOverride);
+        bool IsGlobal);
 }

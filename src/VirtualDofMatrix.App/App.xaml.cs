@@ -33,6 +33,7 @@ public partial class App : System.Windows.Application
     private CancellationTokenSource? _controlCts;
     private Task? _controlTask;
     private bool _isAppReady;
+    private string? _activeTableOrRomName;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -42,6 +43,7 @@ public partial class App : System.Windows.Application
         AppLogger.ClearForNewLaunch();
         _config = _configurationStore.Load(ConfigFilePath);
         _startupConfigStatus = _configFolderBootstrapService.ResolveAndPersist(_config);
+        _activeTableOrRomName = ResolveActiveTableOrRomName(e.Args);
         _configurationStore.Save(ConfigFilePath, _config);
         AppLogger.Configure(_config.Debug.LogProtocol);
 
@@ -133,7 +135,7 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        var dialog = new SettingsWindow(_config, _cabinetXmlService)
+        var dialog = new SettingsWindow(_config, _cabinetXmlService, _activeTableOrRomName)
         {
             Owner = _window,
         };
@@ -406,10 +408,71 @@ public partial class App : System.Windows.Application
         if (commandText.Equals("table-launch", StringComparison.OrdinalIgnoreCase))
         {
             var tokens = command.Args ?? [];
+            _activeTableOrRomName = ResolveActiveTableOrRomName(tokens);
             var defaultVisible = HasArg(tokens, "--default-show-virtual-led");
             var show = PopperLaunchOptions.ResolveTableLaunchVisibility(tokens, defaultVisible);
             SetMatrixVisibility(show, "table-launch");
         }
+    }
+
+    private static string? ResolveActiveTableOrRomName(IEnumerable<string> args)
+    {
+        var tableName = TryGetNamedArg(args, "--table")
+            ?? TryGetNamedArg(args, "--table-name")
+            ?? TryGetNamedArg(args, "table");
+        var romName = TryGetNamedArg(args, "--rom")
+            ?? TryGetNamedArg(args, "--rom-name")
+            ?? TryGetNamedArg(args, "rom");
+
+        if (!string.IsNullOrWhiteSpace(tableName))
+        {
+            return tableName;
+        }
+
+        return !string.IsNullOrWhiteSpace(romName) ? romName : null;
+    }
+
+    private static string? TryGetNamedArg(IEnumerable<string> args, string expectedKey)
+    {
+        var values = args as string[] ?? args.ToArray();
+        for (var i = 0; i < values.Length; i++)
+        {
+            var current = values[i];
+            if (string.IsNullOrWhiteSpace(current))
+            {
+                continue;
+            }
+
+            if (current.Equals(expectedKey, StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < values.Length && !string.IsNullOrWhiteSpace(values[i + 1]))
+                {
+                    return values[i + 1];
+                }
+
+                continue;
+            }
+
+            var delimiterIndex = current.IndexOf('=');
+            if (delimiterIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = current[..delimiterIndex];
+            if (!key.Equals(expectedKey, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = current[(delimiterIndex + 1)..];
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return null;
     }
 
     private void SetMatrixVisibility(bool visible, string reason)

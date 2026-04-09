@@ -32,10 +32,9 @@
                     </Grid.RowDefinitions>
 
                     <WrapPanel Grid.Row="0" Margin="0,0,0,10">
-                        <ToggleButton x:Name="FilterEnabledChip" Margin="0,0,8,0" Padding="10,4" Content="Enabled" Checked="OnVirtualToyFilterChanged" Unchecked="OnVirtualToyFilterChanged" />
-                        <ToggleButton x:Name="FilterDisabledChip" Margin="0,0,8,0" Padding="10,4" Content="Disabled" Checked="OnVirtualToyFilterChanged" Unchecked="OnVirtualToyFilterChanged" />
+                        <TextBlock x:Name="ToyScopeText" Margin="0,0,12,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Scope: Global" />
+                        <ToggleButton x:Name="FilterShowEnabledOnlyChip" Margin="0,0,8,0" Padding="10,4" Content="Show Enabled Only" Checked="OnVirtualToyFilterChanged" Unchecked="OnVirtualToyFilterChanged" />
                         <ToggleButton x:Name="FilterGlobalChip" Margin="0,0,8,0" Padding="10,4" Content="Global" Checked="OnVirtualToyFilterChanged" Unchecked="OnVirtualToyFilterChanged" />
-                        <ToggleButton x:Name="FilterTableOverrideChip" Margin="0,0,8,0" Padding="10,4" Content="Table Override" Checked="OnVirtualToyFilterChanged" Unchecked="OnVirtualToyFilterChanged" />
                     </WrapPanel>
 
                     <ListBox x:Name="VirtualToysList" Grid.Row="1" IsHitTestVisible="True" />
