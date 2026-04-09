@@ -5,6 +5,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 using VirtualDofMatrix.Core.Toys;
+using Image = System.Windows.Controls.Image;
+using WpfBrushes = System.Windows.Media.Brushes;
 
 namespace VirtualDofMatrix.App.Presentation;
 
@@ -16,7 +18,7 @@ public sealed class TopperStripWindow : Window
     public TopperStripWindow(string toyId)
     {
         Title = $"Virtual DOF {toyId}";
-        Background = Brushes.Black;
+        Background = WpfBrushes.Black;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.CanResize;
         ShowInTaskbar = false;
@@ -37,8 +39,8 @@ public sealed class TopperStripWindow : Window
         {
             Stretch = Stretch.Uniform,
             SnapsToDevicePixels = true,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
+            VerticalAlignment = System.Windows.VerticalAlignment.Stretch,
         };
 
         Content = _image;

@@ -17,6 +17,7 @@ using VirtualDofMatrix.Core;
 using static Vortice.Direct3D11.D3D11;
 using DxgiFormat = Vortice.DXGI.Format;
 using Viewport = Vortice.Mathematics.Viewport;
+using Image = System.Windows.Controls.Image;
 
 namespace VirtualDofMatrix.App.Rendering;
 

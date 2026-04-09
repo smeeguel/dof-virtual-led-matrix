@@ -14,8 +14,9 @@ internal static class ToyIniConfiguration
             return false;
         }
 
-        var sections = ParseSections(File.ReadAllLines(iniPath));
+        var sections = ParseSections(ReadIniLines(iniPath));
         var modified = false;
+        var toyIdsInIni = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (sections.TryGetValue("policy", out var policyValues))
         {
@@ -35,7 +36,24 @@ internal static class ToyIniConfiguration
                 continue;
             }
 
+            toyIdsInIni.Add(toyId);
             modified |= ApplyToySection(config, toyId, section.Value);
+        }
+
+        if (toyIdsInIni.Count > 0)
+        {
+            // Conversational note: when toys.ini is present, it is the authoritative toy list; drop stale extras from settings.json.
+            var compacted = config.Routing.Toys
+                .Where(toy => toyIdsInIni.Contains(toy.Id))
+                .GroupBy(toy => toy.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.Last())
+                .ToList();
+
+            if (compacted.Count != config.Routing.Toys.Count)
+            {
+                config.Routing.Toys = compacted;
+                modified = true;
+            }
         }
 
         return modified;
@@ -69,6 +87,8 @@ internal static class ToyIniConfiguration
             lines.Add(string.Empty);
             lines.Add($"[toy:{toy.Id}]");
             lines.Add("; --- identity ---");
+            lines.Add("; name options: unique user-facing toy name (example: Matrix1)");
+            lines.Add($"name = {(string.IsNullOrWhiteSpace(toy.Name) ? toy.Id : toy.Name)}");
             lines.Add("; enabled options: true | false (example: true)");
             lines.Add($"enabled = {toy.Enabled.ToString().ToLowerInvariant()}");
             lines.Add("; kind options: matrix | topper | flasher | <custom-name> (example: matrix)");
@@ -196,6 +216,24 @@ internal static class ToyIniConfiguration
         return sections;
     }
 
+    private static IEnumerable<string> ReadIniLines(string iniPath)
+    {
+        var raw = File.ReadAllText(iniPath);
+
+        // Conversational note: some field reports include escaped "\\n" sequences written as literal text.
+        // If no real newline exists, normalize escapes so section parsing still works.
+        if (!raw.Contains('\n') && raw.Contains("\\n", StringComparison.Ordinal))
+        {
+            raw = raw
+                .Replace("\\r\\n", "\n", StringComparison.Ordinal)
+                .Replace("\\n", "\n", StringComparison.Ordinal);
+        }
+
+        return raw
+            .Split('\n')
+            .Select(line => line.TrimEnd('\r'));
+    }
+
     private static bool ApplyPolicy(RoutingPolicyConfig policy, Dictionary<string, string> values)
     {
         var modified = false;
@@ -217,6 +255,7 @@ internal static class ToyIniConfiguration
 
         var modified = false;
 
+        modified |= SetIfPresent(values, "name", value => toy.Name = value);
         modified |= SetIfPresent(values, "enabled", value => toy.Enabled = ParseBool(value, toy.Enabled));
         modified |= SetIfPresent(values, "kind", value => toy.Kind = value);
         modified |= SetIfPresent(values, "width", value => toy.Mapping.Width = ParseInt(value, toy.Mapping.Width));

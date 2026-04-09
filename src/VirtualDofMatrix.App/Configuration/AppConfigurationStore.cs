@@ -66,6 +66,19 @@ public sealed class AppConfigurationStore
             shouldPersist = true;
         }
 
+        if (string.IsNullOrWhiteSpace(config.Settings.DofConfigFolderPath))
+        {
+            // Keep first-run behavior predictable by defaulting to the canonical DOF config location.
+            config.Settings.DofConfigFolderPath = ConfigFolderBootstrapService.DefaultConfigFolderPath;
+            shouldPersist = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Settings.CabinetXmlPath))
+        {
+            config.Settings.CabinetXmlPath = Path.Combine(config.Settings.DofConfigFolderPath, "Cabinet.xml");
+            shouldPersist = true;
+        }
+
         if (string.IsNullOrWhiteSpace(config.Settings.VisualQuality))
         {
             config.Settings.VisualQuality = "High";
@@ -365,6 +378,64 @@ public sealed class AppConfigurationStore
             }
         }
 
+        modified |= EnsureUniqueToyNames(config.Routing.Toys);
+
+        return modified;
+    }
+
+    private static bool EnsureUniqueToyNames(IReadOnlyList<ToyRouteConfig> toys)
+    {
+        var modified = false;
+        var nextMatrixIndex = 1;
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var toy in toys)
+        {
+            if (!string.IsNullOrWhiteSpace(toy.Name))
+            {
+                usedNames.Add(toy.Name.Trim());
+            }
+        }
+
+        foreach (var toy in toys)
+        {
+            if (!string.IsNullOrWhiteSpace(toy.Name))
+            {
+                continue;
+            }
+
+            while (usedNames.Contains($"Matrix{nextMatrixIndex}"))
+            {
+                nextMatrixIndex++;
+            }
+
+            toy.Name = $"Matrix{nextMatrixIndex}";
+            usedNames.Add(toy.Name);
+            nextMatrixIndex++;
+            modified = true;
+        }
+
+        // Conversational note: if users duplicate names manually, normalize collisions deterministically into MatrixN names.
+        usedNames.Clear();
+        foreach (var toy in toys)
+        {
+            var candidate = toy.Name.Trim();
+            if (usedNames.Add(candidate))
+            {
+                continue;
+            }
+
+            while (usedNames.Contains($"Matrix{nextMatrixIndex}"))
+            {
+                nextMatrixIndex++;
+            }
+
+            toy.Name = $"Matrix{nextMatrixIndex}";
+            usedNames.Add(toy.Name);
+            nextMatrixIndex++;
+            modified = true;
+        }
+
         return modified;
     }
 
@@ -406,6 +477,7 @@ public sealed class AppConfigurationStore
         var defaultToy = new ToyRouteConfig
         {
             Id = "backglass-main",
+            Name = "Matrix1",
             Enabled = true,
             Kind = "matrix",
             Source = new ToySourceConfig
@@ -576,6 +648,8 @@ onFrameRateSpike = latest-wins
 defaultStripLength = 1100
 
 [toy:backglass-main]
+; name options: unique user-facing toy name (example: Matrix1, Matrix2, ...)
+name = Matrix1
 ; enabled options: true | false
 enabled = true
 ; kind options: matrix | topper | <custom-name>

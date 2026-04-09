@@ -22,7 +22,46 @@
             </StackPanel>
         </Border>
 
-        <TabControl Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+        <TabControl x:Name="SettingsTabs" Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <TabItem Header="Virtual Toys" ToolTip="Virtual toys are editable; hardware toys are summarized as read-only.">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <ListBox x:Name="VirtualToysList" Grid.Row="1" IsHitTestVisible="True" Margin="0,0,0,8" />
+
+                    <Border Grid.Row="2" Margin="0,12,0,0" Padding="10,8" BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,8">
+                                <Button x:Name="SaveGlobalButton"
+                                        DockPanel.Dock="Right"
+                                        Content="Save Global"
+                                        Width="110"
+                                        Visibility="Collapsed"
+                                        Click="OnSaveGlobalVirtualToys" />
+                                <Button x:Name="SaveScopeButton"
+                                        DockPanel.Dock="Right"
+                                        Content="Save Scope"
+                                        Width="140"
+                                        Margin="0,0,8,0"
+                                        Visibility="Collapsed"
+                                        Click="OnSaveScopedVirtualToys" />
+                            </DockPanel>
+                            <TextBlock x:Name="HardwareSummaryHeaderText" FontWeight="SemiBold" Text="Hardware Toys (read-only): 0" />
+                            <ItemsControl x:Name="HardwareNamesItemsControl" Margin="0,6,0,0" IsHitTestVisible="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Foreground="#444" Text="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
             <TabItem Header="Display" ToolTip="Display settings for matrix size and render quality.">
                 <Grid Margin="8">
                     <Grid.RowDefinitions>

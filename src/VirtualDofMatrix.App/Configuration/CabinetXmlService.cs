@@ -32,6 +32,61 @@ public sealed class CabinetXmlService
             .ToArray();
     }
 
+    // Conversational note: this inventory parser gives the UI a single, read-only view of toys grouped by
+    // virtual-vs-hardware controller backing without forcing callers to understand Cabinet.xml internals.
+    public CabinetToyInventory GetToyInventory(string cabinetXmlPath)
+    {
+        var document = XDocument.Load(cabinetXmlPath);
+
+        var controllerKindsByName = document
+            .Descendants()
+            .Where(x => x.Parent?.Name.LocalName == "OutputControllers")
+            .Select(x =>
+            {
+                var controllerName = x.Elements().FirstOrDefault(e => e.Name.LocalName == "Name")?.Value ?? string.Empty;
+                var controllerKind = x.Name.LocalName;
+                return new { controllerName, controllerKind };
+            })
+            .Where(x => !string.IsNullOrWhiteSpace(x.controllerName))
+            .ToDictionary(
+                x => x.controllerName,
+                x => x.controllerKind,
+                StringComparer.OrdinalIgnoreCase);
+
+        var toysRoot = document.Descendants().FirstOrDefault(x => x.Name.LocalName == "Toys");
+        if (toysRoot is null)
+        {
+            return new CabinetToyInventory([], []);
+        }
+
+        var toyEntries = toysRoot
+            .Elements()
+            .Select(x =>
+            {
+                var toyName = x.Elements().FirstOrDefault(e => e.Name.LocalName == "Name")?.Value;
+                var outputController = x.Elements().FirstOrDefault(e => e.Name.LocalName == "OutputControllerName")?.Value;
+                var controllerKind = !string.IsNullOrWhiteSpace(outputController) && controllerKindsByName.TryGetValue(outputController, out var value)
+                    ? value
+                    : string.Empty;
+
+                var isVirtual = controllerKind.Contains("Virtual", StringComparison.OrdinalIgnoreCase);
+
+                return new CabinetToyEntry(
+                    Name: string.IsNullOrWhiteSpace(toyName) ? "(unnamed)" : toyName!,
+                    Kind: x.Name.LocalName,
+                    ControllerName: outputController ?? string.Empty,
+                    ControllerKind: controllerKind,
+                    IsVirtual: isVirtual);
+            })
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var virtualToys = toyEntries.Where(x => x.IsVirtual).ToArray();
+        var hardwareToys = toyEntries.Where(x => !x.IsVirtual).ToArray();
+
+        return new CabinetToyInventory(virtualToys, hardwareToys);
+    }
+
     public void UpdateLedStripResolution(string cabinetXmlPath, string toyName, int width, int height)
     {
         // We validate aggressively before touching XML so accidental bad UI values cannot corrupt cabinet config.
@@ -113,3 +168,14 @@ public sealed class CabinetXmlService
         SetOrCreateChildValue(controller, "NumberOfLedsStrip1", totalLeds.ToString());
     }
 }
+
+public sealed record CabinetToyInventory(
+    IReadOnlyList<CabinetToyEntry> VirtualToys,
+    IReadOnlyList<CabinetToyEntry> HardwareToys);
+
+public sealed record CabinetToyEntry(
+    string Name,
+    string Kind,
+    string ControllerName,
+    string ControllerKind,
+    bool IsVirtual);

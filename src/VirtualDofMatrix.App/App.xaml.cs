@@ -11,25 +11,32 @@ using System.IO.Pipes;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using WpfMessageBox = System.Windows.MessageBox;
 
 namespace VirtualDofMatrix.App;
 
 // Overview: App wires together config loading, transport startup, UI lifecycle, and local control commands.
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private const string ConfigFilePath = "settings.json";
 
     private readonly AppConfigurationStore _configurationStore = new();
     private readonly CabinetXmlService _cabinetXmlService = new();
+    private readonly ConfigFolderBootstrapService _configFolderBootstrapService = new();
 
     private AppConfig? _config;
+    private StartupConfigStatus? _startupConfigStatus;
     private MainWindow? _window;
+    private SettingsWindow? _settingsWindow;
     private FrameTransportHost? _transportHost;
     private NamedPipeBroadcastAdapter? _broadcastAdapter;
+    private WpfWindowOutputAdapter? _windowOutputAdapter;
     private DispatcherTimer? _windowSettingsSaveTimer;
     private CancellationTokenSource? _controlCts;
     private Task? _controlTask;
     private bool _isAppReady;
+    private string? _activeTableOrRomName;
+    private string? _runtimeTableOrRomName;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -38,6 +45,8 @@ public partial class App : Application
         // Start each launch from a predictable baseline so logs/config-backed defaults are deterministic.
         AppLogger.ClearForNewLaunch();
         _config = _configurationStore.Load(ConfigFilePath);
+        _startupConfigStatus = _configFolderBootstrapService.ResolveAndPersist(_config);
+        _activeTableOrRomName = ResolveActiveTableOrRomName(e.Args);
         _configurationStore.Save(ConfigFilePath, _config);
         AppLogger.Configure(_config.Debug.LogProtocol);
 
@@ -47,12 +56,13 @@ public partial class App : Application
             return;
         }
 
-        _window = new MainWindow(_config)
+        _window = new MainWindow(_config, _startupConfigStatus)
         {
             DataContext = _config,
         };
 
         _window.SettingsRequested += (_, _) => ShowSettingsDialog();
+        _window.ExitRequested += (_, _) => Shutdown();
 
         _windowSettingsSaveTimer = new DispatcherTimer
         {
@@ -71,13 +81,22 @@ public partial class App : Application
         var routingPlanProvider = new ConfigRoutingPlanProvider(_config);
         var toyRouter = new ToyRouter(_config.Routing.Policy);
         _broadcastAdapter = new NamedPipeBroadcastAdapter(_config);
+        _windowOutputAdapter = new WpfWindowOutputAdapter(
+            Dispatcher,
+            _config,
+            _window,
+            PersistWindowSettings,
+            ShowSettingsDialog,
+            Shutdown,
+            toyId => _settingsWindow?.SelectToy(toyId));
         var outputAdapters = new List<IOutputAdapter>
         {
-            new WpfWindowOutputAdapter(Dispatcher, _config, _window, PersistWindowSettings),
+            _windowOutputAdapter,
             _broadcastAdapter,
         };
 
         _transportHost = new FrameTransportHost(_config, toyRouter, routingPlanProvider, outputAdapters);
+        _transportHost.TableContextMetadataReceived += OnTableContextMetadataReceived;
 
         await _transportHost.StartAsync();
         StartControlServer(_config);
@@ -129,16 +148,28 @@ public partial class App : Application
             return;
         }
 
-        var dialog = new SettingsWindow(_config, _cabinetXmlService)
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+
+        var tableScope = !string.IsNullOrWhiteSpace(_runtimeTableOrRomName) ? _runtimeTableOrRomName : _activeTableOrRomName;
+        var dialog = new SettingsWindow(_config, _cabinetXmlService, tableScope, ApplySettings)
         {
             Owner = _window,
         };
 
-        var accepted = dialog.ShowDialog();
-        if (accepted == true && dialog.Result is not null)
+        dialog.SettingsApplied += (_, appliedConfig) => ApplySettings(appliedConfig);
+        dialog.ToySelected += (_, toyId) => _windowOutputAdapter?.FocusToyWindow(toyId);
+        dialog.Closed += (_, _) =>
         {
-            ApplySettings(dialog.Result);
-        }
+            _windowOutputAdapter?.SetLayoutEditMode(false);
+            _settingsWindow = null;
+        };
+        _settingsWindow = dialog;
+        _windowOutputAdapter?.SetLayoutEditMode(true);
+        dialog.Show();
     }
 
     private void ApplySettings(AppConfig updated)
@@ -161,7 +192,7 @@ public partial class App : Application
             var updatedCabinet = TryUpdateCabinetResolution(_config.Matrix.Width, _config.Matrix.Height);
             if (updatedCabinet)
             {
-                MessageBox.Show(_window,
+                WpfMessageBox.Show(_window,
                     "Cabinet.xml was updated. Restart the current table (or reset DOF) so DOF reloads the new matrix settings.",
                     "DOF restart required",
                     MessageBoxButton.OK,
@@ -180,6 +211,7 @@ public partial class App : Application
         }
 
         _window.ApplyRuntimeSettings();
+        _windowOutputAdapter?.SyncVisibilityFromConfig();
         PersistWindowSettings();
     }
 
@@ -216,7 +248,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            MessageBox.Show(_window,
+            WpfMessageBox.Show(_window,
                 $"CPU renderer selection was saved, but automatic restart failed: {ex.Message}\nPlease restart Virtual DOF Matrix manually.",
                 "Restart required for GPU -> CPU switch",
                 MessageBoxButton.OK,
@@ -246,7 +278,7 @@ public partial class App : Application
         var resolvedPath = _cabinetXmlService.ResolveCabinetXmlPath(_config.Settings.CabinetXmlPath);
         if (string.IsNullOrWhiteSpace(resolvedPath))
         {
-            var browse = MessageBox.Show(_window,
+            var browse = WpfMessageBox.Show(_window,
                 "Cabinet.xml could not be found. It is typically located in DirectOutput/Config.\n\nWould you like to browse for Cabinet.xml now?",
                 "Cabinet.xml not found",
                 MessageBoxButton.YesNo,
@@ -266,7 +298,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            MessageBox.Show(_window,
+            WpfMessageBox.Show(_window,
                 $"Failed to update Cabinet.xml: {ex.Message}",
                 "Cabinet update failed",
                 MessageBoxButton.OK,
@@ -402,10 +434,77 @@ public partial class App : Application
         if (commandText.Equals("table-launch", StringComparison.OrdinalIgnoreCase))
         {
             var tokens = command.Args ?? [];
+            _activeTableOrRomName = ResolveActiveTableOrRomName(tokens);
             var defaultVisible = HasArg(tokens, "--default-show-virtual-led");
             var show = PopperLaunchOptions.ResolveTableLaunchVisibility(tokens, defaultVisible);
             SetMatrixVisibility(show, "table-launch");
         }
+    }
+
+    private void OnTableContextMetadataReceived(TableContextMetadata metadata)
+    {
+        var contextValue = !string.IsNullOrWhiteSpace(metadata.TableName) ? metadata.TableName : metadata.RomName;
+        _runtimeTableOrRomName = string.IsNullOrWhiteSpace(contextValue) ? null : contextValue;
+    }
+
+    private static string? ResolveActiveTableOrRomName(IEnumerable<string> args)
+    {
+        var tableName = TryGetNamedArg(args, "--table")
+            ?? TryGetNamedArg(args, "--table-name")
+            ?? TryGetNamedArg(args, "table");
+        var romName = TryGetNamedArg(args, "--rom")
+            ?? TryGetNamedArg(args, "--rom-name")
+            ?? TryGetNamedArg(args, "rom");
+
+        if (!string.IsNullOrWhiteSpace(tableName))
+        {
+            return tableName;
+        }
+
+        return !string.IsNullOrWhiteSpace(romName) ? romName : null;
+    }
+
+    private static string? TryGetNamedArg(IEnumerable<string> args, string expectedKey)
+    {
+        var values = args as string[] ?? args.ToArray();
+        for (var i = 0; i < values.Length; i++)
+        {
+            var current = values[i];
+            if (string.IsNullOrWhiteSpace(current))
+            {
+                continue;
+            }
+
+            if (current.Equals(expectedKey, StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < values.Length && !string.IsNullOrWhiteSpace(values[i + 1]))
+                {
+                    return values[i + 1];
+                }
+
+                continue;
+            }
+
+            var delimiterIndex = current.IndexOf('=');
+            if (delimiterIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = current[..delimiterIndex];
+            if (!key.Equals(expectedKey, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = current[(delimiterIndex + 1)..];
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return null;
     }
 
     private void SetMatrixVisibility(bool visible, string reason)

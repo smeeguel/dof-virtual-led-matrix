@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
+using System.Text;
+using DirectOutput.Cab.Overrides;
 
 namespace DirectOutput.Cab.Out.AdressableLedStrip
 {
@@ -57,6 +59,8 @@ namespace DirectOutput.Cab.Out.AdressableLedStrip
 
         private NamedPipeClientStream Pipe;
         private int Sequence = 0;
+        private string LastPublishedTableName = string.Empty;
+        private string LastPublishedRomName = string.Empty;
 
         protected override int GetNumberOfConfiguredOutputs()
         {
@@ -97,6 +101,8 @@ namespace DirectOutput.Cab.Out.AdressableLedStrip
                 Pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.Out, PipeOptions.WriteThrough);
                 Pipe.Connect(ConnectTimeoutMs);
                 Sequence = 0;
+                LastPublishedTableName = string.Empty;
+                LastPublishedRomName = string.Empty;
                 Log.Write("{0} \"{1}\" connected to named pipe \"{2}\".".Build(this.GetType().Name, Name, PipeName));
             }
             catch (Exception ex)
@@ -109,6 +115,8 @@ namespace DirectOutput.Cab.Out.AdressableLedStrip
         {
             if (Pipe != null)
             {
+                TryPublishTableContextMetadata(string.Empty, string.Empty);
+
                 try
                 {
                     Pipe.Flush();
@@ -137,33 +145,68 @@ namespace DirectOutput.Cab.Out.AdressableLedStrip
                 throw new IOException("Named pipe is not connected.");
             }
 
+            PublishTableContextIfChanged();
+
             // Branch task note: lightweight binary frame envelope (little-endian):
             // [0..3]   Magic "VDMF"
-            // [4]      Version (1)
+            // [4]      Message discriminator: 1=RGB frame, 2=table context metadata
             // [5..8]   Int32 sequence
             // [9..12]  Int32 payload length
             // [13..]   RGB payload bytes
             int payloadLength = OutputValues != null ? OutputValues.Length : 0;
-            byte[] frame = new byte[13 + payloadLength];
-            frame[0] = (byte)'V';
-            frame[1] = (byte)'D';
-            frame[2] = (byte)'M';
-            frame[3] = (byte)'F';
-            frame[4] = 1;
-            Buffer.BlockCopy(BitConverter.GetBytes(Sequence++), 0, frame, 5, 4);
-            Buffer.BlockCopy(BitConverter.GetBytes(payloadLength), 0, frame, 9, 4);
-            if (payloadLength > 0)
-            {
-                Buffer.BlockCopy(OutputValues, 0, frame, 13, payloadLength);
-            }
-
-            Pipe.Write(frame, 0, frame.Length);
-            Pipe.Flush();
+            WriteMessage(1, OutputValues ?? new byte[0], payloadLength);
 
             if (FrameThrottleMs > 0)
             {
                 System.Threading.Thread.Sleep(FrameThrottleMs);
             }
+        }
+
+        private void PublishTableContextIfChanged()
+        {
+            var tableName = TableOverrideSettings.Instance.activetableName ?? string.Empty;
+            var romName = TableOverrideSettings.Instance.activeromName ?? string.Empty;
+
+            if (tableName.Equals(LastPublishedTableName, StringComparison.OrdinalIgnoreCase)
+                && romName.Equals(LastPublishedRomName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            TryPublishTableContextMetadata(tableName, romName);
+        }
+
+        private void TryPublishTableContextMetadata(string tableName, string romName)
+        {
+            if (Pipe == null || !Pipe.IsConnected)
+            {
+                return;
+            }
+
+            var payloadText = "{0}\t{1}\t".Build(tableName ?? string.Empty, romName ?? string.Empty);
+            var payloadBytes = Encoding.UTF8.GetBytes(payloadText);
+            WriteMessage(2, payloadBytes, payloadBytes.Length);
+            LastPublishedTableName = tableName ?? string.Empty;
+            LastPublishedRomName = romName ?? string.Empty;
+        }
+
+        private void WriteMessage(byte messageType, byte[] payloadBytes, int payloadLength)
+        {
+            byte[] frame = new byte[13 + payloadLength];
+            frame[0] = (byte)'V';
+            frame[1] = (byte)'D';
+            frame[2] = (byte)'M';
+            frame[3] = (byte)'F';
+            frame[4] = messageType;
+            Buffer.BlockCopy(BitConverter.GetBytes(Sequence++), 0, frame, 5, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(payloadLength), 0, frame, 9, 4);
+            if (payloadLength > 0)
+            {
+                Buffer.BlockCopy(payloadBytes, 0, frame, 13, payloadLength);
+            }
+
+            Pipe.Write(frame, 0, frame.Length);
+            Pipe.Flush();
         }
 
         public VirtualLEDStripController()

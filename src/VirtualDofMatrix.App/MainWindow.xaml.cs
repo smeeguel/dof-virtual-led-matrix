@@ -4,9 +4,13 @@ using System.Windows.Media;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using System.Runtime.InteropServices;
+using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.App.Rendering;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
+using WpfBrushes = System.Windows.Media.Brushes;
+using WpfColor = System.Windows.Media.Color;
 
 namespace VirtualDofMatrix.App;
 
@@ -25,10 +29,15 @@ public partial class MainWindow : Window
     private const int HardMinimumDotSpacing = 2;
     private static readonly TimeSpan MinRenderInterval = TimeSpan.FromMilliseconds(33);
     private readonly AppConfig _config;
+    private readonly StartupConfigStatus _startupConfigStatus;
     private IMatrixRenderer _matrixRenderer;
     private bool _isApplyingAspectLock;
     private bool _isInResizeMove;
     private bool _pendingViewportReinitialize;
+    private Window? _layoutOverlayWindow;
+    private Border? _layoutOverlaySelectionBorder;
+    private Border? _layoutOverlayNameBorder;
+    private TextBlock? _layoutOverlayNameText;
     private AspectLockAxis _activeResizeAspectAxis = AspectLockAxis.None;
     private double _lockedAspectRatio;
 
@@ -42,19 +51,32 @@ public partial class MainWindow : Window
     private int _framesSinceFpsSample;
     private DateTimeOffset _fpsSampleStartUtc = DateTimeOffset.UtcNow;
     private int _forcedRenderBurstsRemaining;
+    private const int GwlExStyle = -20;
+    private const int WsExTransparent = 0x00000020;
+    private const int WsExToolWindow = 0x00000080;
+    private const int WsExNoActivate = 0x08000000;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     public event EventHandler? SettingsRequested;
+    public event EventHandler? ExitRequested;
+    public event EventHandler? LayoutWindowSelected;
 
     public bool IsAspectRatioLocked => _config.Window.LockAspectRatio;
 
-    public MainWindow(AppConfig config)
-        : this(config, CreateRenderer(config))
+    public MainWindow(AppConfig config, StartupConfigStatus startupConfigStatus)
+        : this(config, startupConfigStatus, CreateRenderer(config))
     {
     }
 
-    internal MainWindow(AppConfig config, IMatrixRenderer matrixRenderer)
+    internal MainWindow(AppConfig config, StartupConfigStatus startupConfigStatus, IMatrixRenderer matrixRenderer)
     {
         _config = config;
+        _startupConfigStatus = startupConfigStatus;
         _matrixRenderer = matrixRenderer;
 
         InitializeComponent();
@@ -73,17 +95,24 @@ public partial class MainWindow : Window
 
         ApplyPersistedWindowSettings();
         ApplyPersistedVisualSettings();
+        ApplyStartupStatus();
         ApplyDebugVisibility();
         RefreshLockedAspectRatioFromWindow();
 
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) => ReinitializeRendererForViewport();
         SizeChanged += OnWindowSizeChanged;
+        LocationChanged += (_, _) => SyncLayoutOverlayWindowBounds();
         Closed += (_, _) =>
         {
             _idleClearTimer.Stop();
             _fpsTimer.Stop();
             _matrixRenderer.Dispose();
+            if (_layoutOverlayWindow is not null)
+            {
+                _layoutOverlayWindow.Close();
+                _layoutOverlayWindow = null;
+            }
         };
         _idleClearTimer.Start();
         _fpsTimer.Start();
@@ -140,7 +169,7 @@ public partial class MainWindow : Window
 
     private void ApplyPersistedVisualSettings()
     {
-        Background = Brushes.Black;
+        Background = WpfBrushes.Black;
         RendererText.Text = $"Renderer: {NormalizeRendererLabel(_config.Matrix.Renderer)}";
         VisualQualityText.Text = $"Visual quality: {_config.Settings.VisualQuality}";
         DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape}";
@@ -148,6 +177,18 @@ public partial class MainWindow : Window
         DotSpacingText.Text = "Min dot spacing: auto";
         BrightnessText.Text = $"Brightness: {_config.Matrix.Brightness:0.###}";
         GammaText.Text = $"Gamma: {_config.Matrix.Gamma:0.###}";
+    }
+
+    private void ApplyStartupStatus()
+    {
+        // Conversational note: startup diagnostics are logged instead of rendered in-window to keep viewer windows uncluttered.
+        AppLogger.Info($"[startup] activeConfigPath={_startupConfigStatus.ActiveConfigPath}");
+        AppLogger.Info($"[startup] cabinetStatus={_startupConfigStatus.CabinetFileStatus}");
+        AppLogger.Info($"[startup] lastLoadedUtc={_startupConfigStatus.LastLoadedUtc:O}");
+        if (!string.IsNullOrWhiteSpace(_startupConfigStatus.RemediationHint))
+        {
+            AppLogger.Warn($"[startup] remediationHint={_startupConfigStatus.RemediationHint}");
+        }
     }
 
     private void ApplyDebugVisibility()
@@ -165,6 +206,8 @@ public partial class MainWindow : Window
 
     private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
     {
+        SyncLayoutOverlayWindowBounds();
+
         if (_isApplyingAspectLock || !IsLoaded)
         {
             return;
@@ -180,6 +223,8 @@ public partial class MainWindow : Window
 
         if (_isInResizeMove)
         {
+            // Conversational note: keep dots filling the viewport during live drag-resize; final reinit still runs on WM_EXITSIZEMOVE.
+            _matrixRenderer.Resize(MatrixViewportBorder.ActualWidth, MatrixViewportBorder.ActualHeight);
             _pendingViewportReinitialize = true;
             return;
         }
@@ -306,8 +351,133 @@ public partial class MainWindow : Window
     {
         if (e.ButtonState == MouseButtonState.Pressed)
         {
+            LayoutWindowSelected?.Invoke(this, EventArgs.Empty);
             DragMove();
         }
+    }
+
+    public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected)
+    {
+        // Conversational note: compact mode keeps labels readable even on very short toy windows (for example narrow flashers).
+        var compactOverlay = MatrixViewportBorder.ActualHeight > 0 && MatrixViewportBorder.ActualHeight < 80;
+        // Conversational note: avoid duplicate artifacts by keeping the in-window overlay layer hidden and relying on detached overlay rendering.
+        LayoutToyNameOverlay.Visibility = Visibility.Collapsed;
+        LayoutSelectionBorder.BorderThickness = new Thickness(0);
+
+        // Conversational note: this companion overlay window guarantees labels/outlines stay above all render paths, including direct-present.
+        UpdateDetachedLayoutOverlay(toyLabel, isEditModeEnabled, isSelected, compactOverlay);
+    }
+
+    private void UpdateDetachedLayoutOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected, bool compactOverlay)
+    {
+        if (!isEditModeEnabled)
+        {
+            _layoutOverlayWindow?.Hide();
+            return;
+        }
+
+        EnsureLayoutOverlayWindow();
+        SyncLayoutOverlayWindowBounds();
+        if (_layoutOverlayWindow is null || _layoutOverlaySelectionBorder is null || _layoutOverlayNameBorder is null || _layoutOverlayNameText is null)
+        {
+            return;
+        }
+
+        _layoutOverlayNameBorder.Margin = compactOverlay ? new Thickness(2) : new Thickness(6);
+        _layoutOverlayNameBorder.Padding = compactOverlay ? new Thickness(4, 2, 4, 2) : new Thickness(6, 3, 6, 3);
+        _layoutOverlayNameText.FontSize = compactOverlay ? 10 : 12;
+        _layoutOverlayNameText.Text = string.IsNullOrWhiteSpace(toyLabel) ? "(unnamed toy)" : toyLabel;
+        _layoutOverlaySelectionBorder.BorderThickness = isSelected ? new Thickness(4) : new Thickness(0);
+        _layoutOverlaySelectionBorder.BorderBrush = isSelected ? WpfBrushes.Yellow : WpfBrushes.Transparent;
+
+        if (!_layoutOverlayWindow.IsVisible)
+        {
+            _layoutOverlayWindow.Show();
+        }
+    }
+
+    private void EnsureLayoutOverlayWindow()
+    {
+        if (_layoutOverlayWindow is not null)
+        {
+            return;
+        }
+
+        var overlayRoot = new Grid
+        {
+            Background = WpfBrushes.Transparent,
+            IsHitTestVisible = false,
+        };
+
+        _layoutOverlaySelectionBorder = new Border
+        {
+            BorderBrush = WpfBrushes.Yellow,
+            BorderThickness = new Thickness(0),
+            Margin = new Thickness(2),
+            IsHitTestVisible = false,
+        };
+        overlayRoot.Children.Add(_layoutOverlaySelectionBorder);
+
+        _layoutOverlayNameText = new TextBlock
+        {
+            Foreground = WpfBrushes.White,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Text = "Toy",
+        };
+        _layoutOverlayNameBorder = new Border
+        {
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            VerticalAlignment = System.Windows.VerticalAlignment.Top,
+            Margin = new Thickness(6),
+            Padding = new Thickness(6, 3, 6, 3),
+            Background = new SolidColorBrush(WpfColor.FromArgb(136, 0, 0, 0)),
+            BorderBrush = new SolidColorBrush(WpfColor.FromArgb(153, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            MaxWidth = 420,
+            Child = _layoutOverlayNameText,
+            IsHitTestVisible = false,
+        };
+        overlayRoot.Children.Add(_layoutOverlayNameBorder);
+
+        _layoutOverlayWindow = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            Topmost = true,
+            AllowsTransparency = true,
+            Background = WpfBrushes.Transparent,
+            Content = overlayRoot,
+            Width = Math.Max(1, ActualWidth),
+            Height = Math.Max(1, ActualHeight),
+            IsHitTestVisible = false,
+            Owner = this,
+        };
+
+        _layoutOverlayWindow.SourceInitialized += (_, _) =>
+        {
+            if (new WindowInteropHelper(_layoutOverlayWindow).Handle is var hwnd && hwnd != IntPtr.Zero)
+            {
+                var exStyle = GetWindowLong(hwnd, GwlExStyle);
+                SetWindowLong(hwnd, GwlExStyle, exStyle | WsExTransparent | WsExToolWindow | WsExNoActivate);
+            }
+        };
+    }
+
+    private void SyncLayoutOverlayWindowBounds()
+    {
+        if (_layoutOverlayWindow is null)
+        {
+            return;
+        }
+
+        _layoutOverlayWindow.Left = Left;
+        _layoutOverlayWindow.Top = Top;
+        _layoutOverlayWindow.Width = Math.Max(1, ActualWidth);
+        _layoutOverlayWindow.Height = Math.Max(1, ActualHeight);
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -417,7 +587,10 @@ public partial class MainWindow : Window
         _lockedAspectRatio = Math.Max(1.0 / 64.0, width / Math.Max(1.0, height));
     }
 
-    private void OnExitMenuClick(object sender, RoutedEventArgs e) => Close();
+    private void OnExitMenuClick(object sender, RoutedEventArgs e)
+    {
+        ExitRequested?.Invoke(this, EventArgs.Empty);
+    }
 
     private void OnIdleClearTick(object? sender, EventArgs e)
     {

@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
+using Image = System.Windows.Controls.Image;
 
 namespace VirtualDofMatrix.App.Rendering;
 

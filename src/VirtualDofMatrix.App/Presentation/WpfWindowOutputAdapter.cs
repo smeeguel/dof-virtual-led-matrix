@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Windows;
 using System.Windows.Threading;
+using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.Core;
 using VirtualDofMatrix.Core.Toys;
 
@@ -13,14 +14,35 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly AppConfig _config;
     private readonly MainWindow _mainWindow;
     private readonly Action _persistConfig;
+    private readonly Action _openSettings;
+    private readonly Action _requestAppExit;
+    private readonly Action<string> _notifyToyWindowSelected;
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _enabledAtStartup = new(StringComparer.OrdinalIgnoreCase);
+    private bool _layoutEditModeEnabled;
+    private string? _selectedToyId;
 
-    public WpfWindowOutputAdapter(Dispatcher dispatcher, AppConfig config, MainWindow mainWindow, Action persistConfig)
+    public WpfWindowOutputAdapter(
+        Dispatcher dispatcher,
+        AppConfig config,
+        MainWindow mainWindow,
+        Action persistConfig,
+        Action openSettings,
+        Action requestAppExit,
+        Action<string> notifyToyWindowSelected)
     {
         _dispatcher = dispatcher;
         _config = config;
         _mainWindow = mainWindow;
         _persistConfig = persistConfig;
+        _openSettings = openSettings;
+        _requestAppExit = requestAppExit;
+        _notifyToyWindowSelected = notifyToyWindowSelected;
+        foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
+        {
+            _enabledAtStartup.Add(toy.Id);
+        }
+
         EnsureInitialViewerToyWindows();
     }
 
@@ -37,6 +59,44 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
 
         _dispatcher.BeginInvoke(() => WriteOnUiThread(frame));
+    }
+
+    public void SyncVisibilityFromConfig()
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            SyncVisibilityFromConfigOnUiThread();
+            return;
+        }
+
+        _dispatcher.Invoke(SyncVisibilityFromConfigOnUiThread);
+    }
+
+    public void FocusToyWindow(string toyId)
+    {
+        if (string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            FocusToyWindowOnUiThread(toyId);
+            return;
+        }
+
+        _dispatcher.Invoke(() => FocusToyWindowOnUiThread(toyId));
+    }
+
+    public void SetLayoutEditMode(bool enabled)
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            SetLayoutEditModeOnUiThread(enabled);
+            return;
+        }
+
+        _dispatcher.Invoke(() => SetLayoutEditModeOnUiThread(enabled));
     }
 
     private void EnsureInitialViewerToyWindows()
@@ -86,6 +146,18 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void WriteOnUiThread(ToyFrame frame)
     {
+        var toyConfig = FindToyConfig(frame.ToyId);
+        var toyEnabledForViewer = toyConfig is not null
+            && toyConfig.Enabled
+            && toyConfig.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
+
+        if (!toyEnabledForViewer)
+        {
+            SetBindingVisible(frame.ToyId, isVisible: false);
+            return;
+        }
+
+        SetBindingVisible(frame.ToyId, isVisible: true);
         var binding = _bindings.GetOrAdd(frame.ToyId, CreateBindingForToy);
         binding.Render(frame);
     }
@@ -95,25 +167,36 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         var toyConfig = FindToyConfig(toyId);
         var isPrimaryToy = IsPrimaryVisualToy(toyId);
 
-        if (isPrimaryToy)
+        if (isPrimaryToy && _enabledAtStartup.Contains(toyId))
         {
             WireGeometryPersistence(_mainWindow, toyId);
+            WireWindowSelectionCallbacks(_mainWindow, toyId);
+            ApplyLayoutOverlay(toyId, _mainWindow);
             return new ToyWindowBinding(_mainWindow, frame => _mainWindow.ApplyPresentation(ToPresentation(frame)));
         }
 
         // Conversational note: secondary toys now reuse MainWindow rendering stack for consistent dot/bloom behavior.
         var toyWindowConfig = BuildToyWindowAppConfig(toyConfig, toyId);
-        var toyWindow = new MainWindow(toyWindowConfig)
+        var toyWindow = new MainWindow(
+            toyWindowConfig,
+            new StartupConfigStatus
+            {
+                ActiveConfigPath = _config.Settings.DofConfigFolderPath,
+                CabinetFileStatus = "Cabinet.xml status mirrors primary window",
+                LastLoadedUtc = DateTimeOffset.UtcNow,
+            })
         {
             DataContext = toyWindowConfig,
         };
 
-        if (_mainWindow.IsLoaded)
-        {
-            toyWindow.Owner = _mainWindow;
-        }
+        // Conversational note: keep toy windows unowned so each window's layout popup can render reliably above its own swapchain surface.
+        // Owned-window z-order behavior can suppress per-window overlay popups for secondary toys while Settings is open.
 
         toyWindow.Show();
+        toyWindow.SettingsRequested += (_, _) => _openSettings();
+        toyWindow.ExitRequested += (_, _) => _requestAppExit();
+        WireWindowSelectionCallbacks(toyWindow, toyId);
+        ApplyLayoutOverlay(toyId, toyWindow);
         WireGeometryPersistence(toyWindow, toyId);
 
         return new ToyWindowBinding(toyWindow, frame => toyWindow.ApplyPresentation(ToPresentation(frame)));
@@ -177,7 +260,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private bool IsPrimaryVisualToy(string toyId)
     {
-        var primary = _config.Routing.Toys.FirstOrDefault(t => t.Enabled);
+        // Conversational note: keep one stable primary toy identity so windows don't swap roles when enabled flags change.
+        var primary = _config.Routing.Toys.FirstOrDefault();
         return primary is not null && string.Equals(primary.Id, toyId, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -269,6 +353,166 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         window.LocationChanged += (_, _) => Sync();
         window.SizeChanged += (_, _) => Sync();
         window.Closed += (_, _) => _bindings.TryRemove(toyId, out _);
+    }
+
+    private void SyncVisibilityFromConfigOnUiThread()
+    {
+        var enabledToyIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var toy in _config.Routing.Toys)
+        {
+            var enabledForViewer = toy.Enabled
+                && toy.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
+            if (enabledForViewer)
+            {
+                enabledToyIds.Add(toy.Id);
+            }
+
+            SetBindingVisible(toy.Id, enabledForViewer);
+        }
+
+        // Conversational note: bindings can outlive config edits; hide any stale viewer windows no longer enabled in routing.
+        foreach (var bindingToyId in _bindings.Keys)
+        {
+            if (!enabledToyIds.Contains(bindingToyId))
+            {
+                SetBindingVisible(bindingToyId, isVisible: false);
+            }
+        }
+    }
+
+    private void SetBindingVisible(string toyId, bool isVisible)
+    {
+        if (!_bindings.TryGetValue(toyId, out var binding))
+        {
+            if (!isVisible)
+            {
+                return;
+            }
+
+            // Conversational note: toys enabled after startup may have no binding yet; create one so the window can appear immediately.
+            binding = _bindings.GetOrAdd(toyId, CreateBindingForToy);
+
+            if (!binding.Window.IsVisible)
+            {
+                binding.Window.Show();
+            }
+
+            return;
+        }
+
+        if (isVisible)
+        {
+            if (!binding.Window.IsVisible)
+            {
+                binding.Window.Show();
+            }
+
+            ApplyLayoutOverlay(toyId, binding.Window);
+
+            return;
+        }
+
+        if (binding.Window.IsVisible)
+        {
+            binding.Window.Hide();
+        }
+    }
+
+    private void FocusToyWindowOnUiThread(string toyId)
+    {
+        var toyConfig = FindToyConfig(toyId);
+        var enabledForViewer = toyConfig is not null
+            && toyConfig.Enabled
+            && toyConfig.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
+
+        if (!enabledForViewer)
+        {
+            return;
+        }
+
+        var binding = _bindings.GetOrAdd(toyId, CreateBindingForToy);
+        if (!binding.Window.IsVisible)
+        {
+            binding.Window.Show();
+        }
+
+        // Conversational note: topmost pulse nudges focus/highlight without permanently changing user window preferences.
+        var wasTopmost = binding.Window.Topmost;
+        binding.Window.Topmost = true;
+        binding.Window.Activate();
+        binding.Window.Focus();
+        binding.Window.Topmost = wasTopmost;
+        _selectedToyId = toyId;
+        _notifyToyWindowSelected(toyId);
+        RefreshLayoutOverlays();
+    }
+
+    private void WireWindowSelectionCallbacks(MainWindow window, string toyId)
+    {
+        window.LayoutWindowSelected += (_, _) =>
+        {
+            _selectedToyId = toyId;
+            _notifyToyWindowSelected(toyId);
+            RefreshLayoutOverlays();
+        };
+    }
+
+    private void SetLayoutEditModeOnUiThread(bool enabled)
+    {
+        _layoutEditModeEnabled = enabled;
+        if (enabled)
+        {
+            // Conversational note: start each settings/layout session with no pre-selected toy so outlines only appear after an explicit user action.
+            _selectedToyId = null;
+        }
+
+        if (enabled)
+        {
+            foreach (var toy in _config.Routing.Toys.Where(t =>
+                         t.Enabled && t.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase))))
+            {
+                _bindings.GetOrAdd(toy.Id, CreateBindingForToy);
+            }
+        }
+
+        RefreshLayoutOverlays();
+    }
+
+    private void RefreshLayoutOverlays()
+    {
+        // Conversational note: the main window should be labeled as the first visual/viewer toy, not simply the first routing entry.
+        var primaryToyId = _config.Routing.Toys
+            .FirstOrDefault(t => t.Enabled && t.OutputTargets.Any(target =>
+                target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase)))
+            ?.Id;
+        if (!string.IsNullOrWhiteSpace(primaryToyId))
+        {
+            ApplyLayoutOverlay(primaryToyId, _mainWindow);
+        }
+
+        foreach (var pair in _bindings)
+        {
+            ApplyLayoutOverlay(pair.Key, pair.Value.Window);
+        }
+    }
+
+    private void ApplyLayoutOverlay(string toyId, Window window)
+    {
+        if (window is not MainWindow toyWindow)
+        {
+            return;
+        }
+
+        var toyLabel = FindToyConfig(toyId)?.Name;
+        if (string.IsNullOrWhiteSpace(toyLabel))
+        {
+            toyLabel = toyId;
+        }
+
+        var selected = !string.IsNullOrWhiteSpace(_selectedToyId)
+            && string.Equals(_selectedToyId, toyId, StringComparison.OrdinalIgnoreCase);
+        toyWindow.SetLayoutEditOverlay(toyLabel, _layoutEditModeEnabled, selected);
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);
