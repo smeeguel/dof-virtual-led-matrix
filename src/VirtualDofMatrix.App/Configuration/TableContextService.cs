@@ -6,7 +6,7 @@ namespace VirtualDofMatrix.App.Configuration;
 
 public sealed class TableContextService
 {
-    private static readonly Regex VpxPathRegex = new("\"(?<quoted>[^\"]+\\.vpx)\"|(?<plain>[^\s]+\\.vpx)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex VpxPathRegex = new("\"(?<quoted>[^\"]+\\.vpx)\"|(?<plain>[^\\s]+\\.vpx)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private readonly Func<IReadOnlyList<string>> _vpxCommandLineProvider;
 
     private string? _explicitTableName;
