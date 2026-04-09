@@ -48,6 +48,7 @@ public partial class SettingsWindow : Window
 
     public AppConfig? Result { get; private set; }
     public event EventHandler<AppConfig>? SettingsApplied;
+    public event EventHandler<string>? ToySelected;
 
     private void PopulateControls()
     {
@@ -266,7 +267,9 @@ public partial class SettingsWindow : Window
             {
                 LastChildFill = true,
                 Margin = new Thickness(0, 4, 0, 4),
+                Tag = item.RouteId,
             };
+            row.MouseLeftButtonUp += OnVirtualToyRowSelected;
 
             var enabledToggle = new System.Windows.Controls.CheckBox
             {
@@ -301,6 +304,16 @@ public partial class SettingsWindow : Window
 
         VirtualToysList.ItemsSource = rows;
         RefreshToyToggleInterlocks();
+    }
+
+    private void OnVirtualToyRowSelected(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is not DockPanel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        ToySelected?.Invoke(this, toyId);
     }
 
     private void OnVirtualToyEnabledToggled(object sender, RoutedEventArgs e)

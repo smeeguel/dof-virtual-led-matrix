@@ -154,6 +154,7 @@ public partial class App : System.Windows.Application
         };
 
         dialog.SettingsApplied += (_, appliedConfig) => ApplySettings(appliedConfig);
+        dialog.ToySelected += (_, toyId) => _windowOutputAdapter?.FocusToyWindow(toyId);
         dialog.Closed += (_, _) =>
         {
             _settingsWindow = null;

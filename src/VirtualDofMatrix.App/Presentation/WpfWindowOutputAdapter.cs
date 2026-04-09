@@ -67,6 +67,22 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _dispatcher.Invoke(SyncVisibilityFromConfigOnUiThread);
     }
 
+    public void FocusToyWindow(string toyId)
+    {
+        if (string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            FocusToyWindowOnUiThread(toyId);
+            return;
+        }
+
+        _dispatcher.Invoke(() => FocusToyWindowOnUiThread(toyId));
+    }
+
     private void EnsureInitialViewerToyWindows()
     {
         if (_dispatcher.CheckAccess())
@@ -381,6 +397,32 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         {
             binding.Window.Hide();
         }
+    }
+
+    private void FocusToyWindowOnUiThread(string toyId)
+    {
+        var toyConfig = FindToyConfig(toyId);
+        var enabledForViewer = toyConfig is not null
+            && toyConfig.Enabled
+            && toyConfig.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
+
+        if (!enabledForViewer)
+        {
+            return;
+        }
+
+        var binding = _bindings.GetOrAdd(toyId, CreateBindingForToy);
+        if (!binding.Window.IsVisible)
+        {
+            binding.Window.Show();
+        }
+
+        // Conversational note: topmost pulse nudges focus/highlight without permanently changing user window preferences.
+        var wasTopmost = binding.Window.Topmost;
+        binding.Window.Topmost = true;
+        binding.Window.Activate();
+        binding.Window.Focus();
+        binding.Window.Topmost = wasTopmost;
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);
