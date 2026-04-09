@@ -1,0 +1,194 @@
+<Window x:Class="VirtualDofMatrix.App.ToyWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Toy Setup Wizard"
+        Width="980"
+        Height="700"
+        MinWidth="900"
+        MinHeight="620"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize">
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="1.3*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Grid.ColumnSpan="2" BorderThickness="1" BorderBrush="#DDD" Background="#F7F7F7" Padding="10" Margin="0,0,0,8">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold" Text="Add or Edit Virtual Toy" />
+                <TextBlock Foreground="#555" Text="This wizard helps you set up where LEDs live and how they look on screen." />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,10,0">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold" Text="1) What are you adding?" />
+                <TextBlock Margin="0,2,0,6" Foreground="#666" Text="Choose a simple strip or a full grid. You can change this later." />
+                <ComboBox x:Name="TypeCombo" SelectionChanged="OnInputsChanged" ToolTip="Single strip = one LED line. Full matrix = rows and columns.">
+                    <ComboBoxItem Content="Single strip" />
+                    <ComboBoxItem Content="Full matrix" />
+                </ComboBox>
+
+                <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="2) Name" />
+                <TextBlock Margin="0,2,0,6" Foreground="#666" Text="Pick a friendly name so it is easy to find later." />
+                <TextBox x:Name="NameTextBox" TextChanged="OnInputsChanged" ToolTip="Example names: Strip3, Matrix2." />
+
+                <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="3) Size and layout" />
+                <TextBlock Margin="0,2,0,6" Foreground="#666" Text="Set the LED count. Stay under the safe bulb limit for best compatibility." />
+
+                <StackPanel x:Name="MatrixDimensionsPanel">
+                    <TextBlock Text="Matrix size" ToolTip="Preset sizes are quick-start options. Choose Custom to type your own size." />
+                    <ComboBox x:Name="MatrixPresetCombo" Margin="0,4,0,0" SelectionChanged="OnMatrixPresetChanged"
+                              ToolTip="Quick presets for common matrix sizes.">
+                        <ComboBoxItem Content="32 x 8" />
+                        <ComboBoxItem Content="64 x 16" />
+                        <ComboBoxItem Content="128 x 32" />
+                        <ComboBoxItem Content="128 x 64" />
+                        <ComboBoxItem Content="Custom" />
+                    </ComboBox>
+
+                    <StackPanel x:Name="CustomMatrixPanel" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed">
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Columns" ToolTip="How many LEDs wide." />
+                            <TextBox x:Name="MatrixWidthTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Enter matrix width in LEDs." />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Rows" ToolTip="How many LEDs tall." />
+                            <TextBox x:Name="MatrixHeightTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Enter matrix height in LEDs." />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Margin="0,8,0,0" Text="Layout path" ToolTip="How incoming LED data flows across the matrix." />
+                    <ComboBox x:Name="MappingCombo" Margin="0,4,0,0" SelectionChanged="OnInputsChanged"
+                              ToolTip="Select how LED numbers map to matrix positions.">
+                        <ComboBoxItem Content="TopDownAlternateRightLeft" />
+                        <ComboBoxItem Content="LeftRightTopDown" />
+                        <ComboBoxItem Content="TopDownLeftRight" />
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel x:Name="StripDimensionsPanel" Visibility="Collapsed">
+                    <TextBlock Text="Bulb count" ToolTip="Number of LEDs in this strip." />
+                    <TextBox x:Name="StripLengthTextBox" Margin="0,4,0,0" Width="150" TextChanged="OnInputsChanged"
+                             ToolTip="Enter total strip LEDs (safe max per strip is 1100)." />
+                </StackPanel>
+
+                <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="4) Advanced visual options" />
+                <TextBlock Margin="0,2,0,6" Foreground="#666" Text="These options change look and feel only. They do not change source LED data." />
+
+                <WrapPanel>
+                    <StackPanel Margin="0,0,16,6">
+                        <TextBlock Text="Dot shape" ToolTip="Circle has rounded LEDs; square gives block pixels." />
+                        <ComboBox x:Name="DotShapeCombo" Width="150" SelectionChanged="OnInputsChanged"
+                                  ToolTip="Circle or square LED style.">
+                            <ComboBoxItem Content="circle" />
+                            <ComboBoxItem Content="square" />
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Margin="0,0,16,6">
+                        <TextBlock Text="Dot spacing" ToolTip="Gap between adjacent LED dots in render pixels." />
+                        <TextBox x:Name="MinDotSpacingTextBox" Width="130" TextChanged="OnInputsChanged"
+                                 ToolTip="Minimum pixel spacing between dots." />
+                    </StackPanel>
+
+                    <StackPanel Margin="0,0,16,6">
+                        <TextBlock Text="Brightness" ToolTip="0.0 to 1.0 output multiplier." />
+                        <TextBox x:Name="BrightnessTextBox" Width="130" TextChanged="OnInputsChanged"
+                                 ToolTip="Higher values make LEDs brighter." />
+                    </StackPanel>
+
+                    <StackPanel Margin="0,0,16,6">
+                        <TextBlock Text="Gamma" ToolTip="Perceptual brightness curve adjustment." />
+                        <TextBox x:Name="GammaTextBox" Width="130" TextChanged="OnInputsChanged"
+                                 ToolTip="Lower values brighten dark colors, higher values darken them." />
+                    </StackPanel>
+                </WrapPanel>
+
+                <WrapPanel Margin="0,6,0,0">
+                    <CheckBox x:Name="FillGapCheckBox" Content="Fill gap" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                              ToolTip="Smoothly fills between dots to reduce visible spacing." />
+                    <CheckBox x:Name="UseGlobalWindowCheckBox" Content="Use global window settings" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                              ToolTip="When on, this toy follows the app-level window position and style." />
+                    <CheckBox x:Name="WindowAlwaysOnTopCheckBox" Content="Always on top" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                              ToolTip="Keep this toy window above other windows when using toy-specific window settings." />
+                    <CheckBox x:Name="WindowBorderlessCheckBox" Content="Borderless" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                              ToolTip="Hide title bar and borders for this toy window." />
+                    <CheckBox x:Name="WindowLockAspectCheckBox" Content="Lock aspect ratio" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                              ToolTip="Preserve width/height ratio while resizing this toy window." />
+                </WrapPanel>
+
+                <WrapPanel Margin="0,8,0,0">
+                    <CheckBox x:Name="BloomEnabledCheckBox" Content="Glow" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                              ToolTip="Turns bloom/glow effect on or off." />
+                    <StackPanel Margin="0,0,12,6">
+                        <TextBlock Text="Glow threshold" ToolTip="Brightness required before glow starts." />
+                        <TextBox x:Name="BloomThresholdTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Recommended range: 0.0 to 1.0." />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,6">
+                        <TextBlock Text="Glow soft knee" ToolTip="How gradually glow transitions in above threshold." />
+                        <TextBox x:Name="BloomSoftKneeTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Higher values create smoother glow ramps." />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,6">
+                        <TextBlock Text="Near radius" ToolTip="Small close-range glow radius in pixels." />
+                        <TextBox x:Name="BloomNearRadiusTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls tight halo size." />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,6">
+                        <TextBlock Text="Far radius" ToolTip="Wide halo radius in pixels." />
+                        <TextBox x:Name="BloomFarRadiusTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls large outer glow size." />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,6">
+                        <TextBlock Text="Near strength" ToolTip="Intensity of the tight glow layer." />
+                        <TextBox x:Name="BloomNearStrengthTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls near glow intensity." />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,6">
+                        <TextBlock Text="Far strength" ToolTip="Intensity of the wide glow layer." />
+                        <TextBox x:Name="BloomFarStrengthTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls outer glow intensity." />
+                    </StackPanel>
+                </WrapPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="1" Grid.Column="1" BorderBrush="#DDD" BorderThickness="1" Padding="10" Background="#FAFAFA">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock FontWeight="SemiBold" Text="Live preview" ToolTip="Shows LED numbering so you can verify size and orientation." />
+                <TextBlock Grid.Row="1" Margin="0,4,0,10" x:Name="PreviewStatusText" Foreground="#666"
+                           Text="Preview updates while you type." />
+                <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="PreviewItemsControl">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid x:Name="PreviewGrid" Rows="1" Columns="1"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="2" BorderBrush="#555" BorderThickness="1" Background="#111" Width="40" Height="40" CornerRadius="3">
+                                    <TextBlock Text="{Binding}" Foreground="#EDEDED" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <TextBlock x:Name="ValidationText" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#B00020" />
+            <Button Content="Save" Width="92" Margin="0,0,8,0" Click="OnSave" />
+            <Button Content="Cancel" Width="92" IsCancel="True" Click="OnCancel" />
+        </StackPanel>
+    </Grid>
+</Window>

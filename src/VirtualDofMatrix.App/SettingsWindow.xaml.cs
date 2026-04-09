@@ -219,6 +219,7 @@ public partial class SettingsWindow : Window
                     RouteId = entry.Id,
                     DisplayName = ResolveDisplayName(entry, remainingVirtualCabinetEntries),
                     Enabled = entry.Enabled,
+                    RouteConfig = entry,
                 })
                 .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -231,6 +232,7 @@ public partial class SettingsWindow : Window
                         RouteId = entry.Name,
                         DisplayName = entry.Name,
                         Enabled = ResolveEnabled(entry.Name),
+                        RouteConfig = _working.Routing.Toys.FirstOrDefault(x => x.Id.Equals(entry.Name, StringComparison.OrdinalIgnoreCase)),
                     })
                     .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
@@ -291,6 +293,16 @@ public partial class SettingsWindow : Window
             _toyToggleByName[item.RouteId] = enabledToggle;
             _toyRowById[item.RouteId] = row;
 
+            var editButton = new Button
+            {
+                Content = "Edit",
+                Width = 64,
+                Margin = new Thickness(0, 0, 8, 0),
+                Tag = item.RouteId,
+                ToolTip = "Edit this toy's dimensions and visual settings.",
+            };
+            editButton.Click += OnEditToyClicked;
+
             var name = new TextBlock
             {
                 Text = item.DisplayName.Equals(item.RouteId, StringComparison.OrdinalIgnoreCase)
@@ -301,6 +313,7 @@ public partial class SettingsWindow : Window
             };
 
             row.Children.Add(enabledToggle);
+            row.Children.Add(editButton);
             row.Children.Add(name);
             return row;
         })
@@ -366,6 +379,65 @@ public partial class SettingsWindow : Window
         toy.Enabled = toggle.IsChecked == true;
         EnsureAtLeastOneToyEnabled(toy);
         RefreshToyToggleInterlocks();
+        UpdateDirtyState();
+    }
+
+    private void OnAddToyClicked(object sender, RoutedEventArgs e)
+    {
+        var wizard = new ToyWizardWindow(_working.Routing.Toys)
+        {
+            Owner = this,
+        };
+
+        if (wizard.ShowDialog() != true || wizard.Result is null)
+        {
+            return;
+        }
+
+        // Conversational note: new toys are appended to routing config first, then list rows are rebuilt from that source of truth.
+        _working.Routing.Toys.Add(wizard.Result);
+        LoadToyCollections();
+        _selectedToyId = wizard.Result.Id;
+        RefreshToyRowHighlight();
+        UpdateSummary();
+        UpdateDirtyState();
+    }
+
+    private void OnEditToyClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        var existing = _working.Routing.Toys.FirstOrDefault(x => x.Id.Equals(toyId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            WpfMessageBox.Show(this, "This toy only exists in Cabinet.xml and cannot be edited here yet.", "Edit unavailable", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var wizard = new ToyWizardWindow(_working.Routing.Toys, CloneToy(existing))
+        {
+            Owner = this,
+        };
+        if (wizard.ShowDialog() != true || wizard.Result is null)
+        {
+            return;
+        }
+
+        var index = _working.Routing.Toys.FindIndex(x => x.Id.Equals(existing.Id, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            return;
+        }
+
+        wizard.Result.Enabled = existing.Enabled;
+        _working.Routing.Toys[index] = wizard.Result;
+        LoadToyCollections();
+        _selectedToyId = wizard.Result.Id;
+        RefreshToyRowHighlight();
+        UpdateSummary();
         UpdateDirtyState();
     }
 
@@ -875,5 +947,66 @@ public partial class SettingsWindow : Window
         public required string DisplayName { get; init; }
 
         public bool Enabled { get; set; }
+
+        public ToyRouteConfig? RouteConfig { get; init; }
+    }
+
+    private static ToyRouteConfig CloneToy(ToyRouteConfig toy)
+    {
+        return new ToyRouteConfig
+        {
+            Id = toy.Id,
+            Name = toy.Name,
+            Enabled = toy.Enabled,
+            Kind = toy.Kind,
+            Source = new ToySourceConfig
+            {
+                CanonicalStart = toy.Source.CanonicalStart,
+                Length = toy.Source.Length,
+                StripIndex = toy.Source.StripIndex,
+                StripOffset = toy.Source.StripOffset,
+            },
+            Mapping = new ToyMappingConfig
+            {
+                Width = toy.Mapping.Width,
+                Height = toy.Mapping.Height,
+                Mode = toy.Mapping.Mode,
+            },
+            Window = new ToyWindowOptionsConfig
+            {
+                UseGlobalWindow = toy.Window.UseGlobalWindow,
+                AlwaysOnTop = toy.Window.AlwaysOnTop,
+                Borderless = toy.Window.Borderless,
+                LockAspectRatio = toy.Window.LockAspectRatio,
+                Left = toy.Window.Left,
+                Top = toy.Window.Top,
+                Width = toy.Window.Width,
+                Height = toy.Window.Height,
+            },
+            Render = new ToyRenderOptionsConfig
+            {
+                DotShape = toy.Render.DotShape,
+                MinDotSpacing = toy.Render.MinDotSpacing,
+                FillGapEnabled = toy.Render.FillGapEnabled,
+                Brightness = toy.Render.Brightness,
+                Gamma = toy.Render.Gamma,
+            },
+            Bloom = new ToyBloomOptionsConfig
+            {
+                Enabled = toy.Bloom.Enabled,
+                Threshold = toy.Bloom.Threshold,
+                SoftKnee = toy.Bloom.SoftKnee,
+                NearRadiusPx = toy.Bloom.NearRadiusPx,
+                FarRadiusPx = toy.Bloom.FarRadiusPx,
+                NearStrength = toy.Bloom.NearStrength,
+                FarStrength = toy.Bloom.FarStrength,
+            },
+            OutputTargets = toy.OutputTargets.Select(target => new ToyAdapterTargetConfig
+            {
+                Adapter = target.Adapter,
+                Enabled = target.Enabled,
+                Options = new Dictionary<string, string>(target.Options, StringComparer.OrdinalIgnoreCase),
+            }).ToList(),
+        };
     }
 }
