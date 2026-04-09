@@ -32,6 +32,8 @@ public partial class MainWindow : Window
     private bool _isApplyingAspectLock;
     private bool _isInResizeMove;
     private bool _pendingViewportReinitialize;
+    private bool _layoutEditModeActive;
+    private string? _savedGpuPresentModeBeforeLayout;
     private AspectLockAxis _activeResizeAspectAxis = AspectLockAxis.None;
     private double _lockedAspectRatio;
 
@@ -331,6 +333,32 @@ public partial class MainWindow : Window
 
     public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected)
     {
+        if (_layoutEditModeActive != isEditModeEnabled)
+        {
+            // Conversational note: direct-present can paint over WPF overlay controls, so layout mode temporarily forces legacy readback.
+            if (isEditModeEnabled)
+            {
+                _savedGpuPresentModeBeforeLayout = _config.Matrix.Visual.GpuPresentMode;
+                if (!_config.Matrix.Visual.GpuPresentMode.Equals("LegacyReadback", StringComparison.OrdinalIgnoreCase))
+                {
+                    _config.Matrix.Visual.GpuPresentMode = "LegacyReadback";
+                    ReinitializeRendererForViewport();
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(_savedGpuPresentModeBeforeLayout))
+            {
+                if (!_config.Matrix.Visual.GpuPresentMode.Equals(_savedGpuPresentModeBeforeLayout, StringComparison.OrdinalIgnoreCase))
+                {
+                    _config.Matrix.Visual.GpuPresentMode = _savedGpuPresentModeBeforeLayout;
+                    ReinitializeRendererForViewport();
+                }
+
+                _savedGpuPresentModeBeforeLayout = null;
+            }
+
+            _layoutEditModeActive = isEditModeEnabled;
+        }
+
         // Conversational note: compact mode keeps labels readable even on very short toy windows (for example narrow flashers).
         var compactOverlay = MatrixViewportBorder.ActualHeight > 0 && MatrixViewportBorder.ActualHeight < 80;
         LayoutToyNameOverlay.Margin = compactOverlay ? new Thickness(2) : new Thickness(6);
