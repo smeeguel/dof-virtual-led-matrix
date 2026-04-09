@@ -16,6 +16,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly Action _persistConfig;
     private readonly Action _openSettings;
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _enabledAtStartup = new(StringComparer.OrdinalIgnoreCase);
 
     public WpfWindowOutputAdapter(
         Dispatcher dispatcher,
@@ -29,6 +30,11 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _mainWindow = mainWindow;
         _persistConfig = persistConfig;
         _openSettings = openSettings;
+        foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
+        {
+            _enabledAtStartup.Add(toy.Id);
+        }
+
         EnsureInitialViewerToyWindows();
     }
 
@@ -126,7 +132,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         var toyConfig = FindToyConfig(toyId);
         var isPrimaryToy = IsPrimaryVisualToy(toyId);
 
-        if (isPrimaryToy)
+        if (isPrimaryToy && _enabledAtStartup.Contains(toyId))
         {
             WireGeometryPersistence(_mainWindow, toyId);
             return new ToyWindowBinding(_mainWindow, frame => _mainWindow.ApplyPresentation(ToPresentation(frame)));
