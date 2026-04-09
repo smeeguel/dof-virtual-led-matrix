@@ -774,6 +774,24 @@ public partial class SettingsWindow : Window
             return exact.Name;
         }
 
+        // Conversational note: prefer obvious name affinity first so toggles line up with what users expect in mixed naming schemes.
+        var id = routeToy.Id;
+        var nameHint = id.Contains("flasher", StringComparison.OrdinalIgnoreCase) ? "flasher"
+            : (id.Contains("matrix", StringComparison.OrdinalIgnoreCase) || id.Contains("backglass", StringComparison.OrdinalIgnoreCase)) ? "matrix"
+            : id.Contains("topper", StringComparison.OrdinalIgnoreCase) ? "topper"
+            : string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(nameHint))
+        {
+            var nameMatch = remainingVirtualCabinetEntries.FirstOrDefault(entry =>
+                entry.Name.Contains(nameHint, StringComparison.OrdinalIgnoreCase));
+            if (nameMatch is not null)
+            {
+                remainingVirtualCabinetEntries.Remove(nameMatch);
+                return nameMatch.Name;
+            }
+        }
+
         var preferredKind = routeToy.Kind.Equals("matrix", StringComparison.OrdinalIgnoreCase)
             ? "LedStrip"
             : routeToy.Kind.Equals("flasher", StringComparison.OrdinalIgnoreCase)
