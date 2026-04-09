@@ -1,4 +1,3 @@
-using Microsoft.Win32;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -21,15 +20,22 @@ public partial class SettingsWindow : Window
     private string _lastAppliedFingerprint = string.Empty;
     private IReadOnlyList<VirtualToyListItem> _virtualToys = [];
     private IReadOnlyList<VirtualToyListItem> _hardwareToys = [];
-    private readonly string _activeScopeLabel;
+    private readonly string _activeScopeName;
     private readonly bool _isTableScoped;
+    private readonly Action<AppConfig>? _applyScopedSave;
+    private Dictionary<string, bool> _lastSavedToyEnabledStates = new(StringComparer.OrdinalIgnoreCase);
 
-    public SettingsWindow(AppConfig source, CabinetXmlService cabinetXmlService, string? activeTableOrRomName = null)
+    public SettingsWindow(
+        AppConfig source,
+        CabinetXmlService cabinetXmlService,
+        string? activeTableOrRomName = null,
+        Action<AppConfig>? applyScopedSave = null)
     {
         _working = Clone(source);
         _cabinetXmlService = cabinetXmlService;
         _isTableScoped = !string.IsNullOrWhiteSpace(activeTableOrRomName);
-        _activeScopeLabel = _isTableScoped ? $"Table/ROM: {activeTableOrRomName}" : "Global";
+        _activeScopeName = string.IsNullOrWhiteSpace(activeTableOrRomName) ? "Global" : activeTableOrRomName.Trim();
+        _applyScopedSave = applyScopedSave;
 
         InitializeComponent();
         PopulateControls();
@@ -75,10 +81,7 @@ public partial class SettingsWindow : Window
         UpdateAdvancedControlState();
 
         RefreshLedStripList(_working.Settings.CabinetXmlPath);
-        // Conversational note: default landing filter shows the most actionable list for day-one workflows.
-        FilterShowEnabledOnlyChip.IsChecked = false;
-        FilterGlobalChip.IsChecked = !_isTableScoped;
-        ToyScopeText.Text = $"Scope: {_activeScopeLabel}";
+        SaveScopeButton.Content = _isTableScoped ? $"Save {_activeScopeName}" : "Save Scope";
         UpdateSelectionTooltips();
     }
 
@@ -155,11 +158,6 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void OnVirtualToyFilterChanged(object sender, RoutedEventArgs e)
-    {
-        ApplyVirtualToyFilter();
-    }
-
     private void RefreshLedStripList(string? cabinetPath)
     {
         LedStripCombo.ItemsSource = Array.Empty<string>();
@@ -209,18 +207,20 @@ public partial class SettingsWindow : Window
         {
             var inventory = _cabinetXmlService.GetToyInventory(cabinetPath);
             _virtualToys = inventory.VirtualToys
-                .Select(entry => new VirtualToyListItem(
-                    Name: entry.Name,
-                    Enabled: ResolveEnabled(entry.Name),
-                    IsGlobal: !_isTableScoped))
+                .Select(entry => new VirtualToyListItem
+                {
+                    Name = entry.Name,
+                    Enabled = ResolveEnabled(entry.Name),
+                })
                 .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             _hardwareToys = inventory.HardwareToys
-                .Select(entry => new VirtualToyListItem(
-                    Name: entry.Name,
-                    Enabled: ResolveEnabled(entry.Name),
-                    IsGlobal: !_isTableScoped))
+                .Select(entry => new VirtualToyListItem
+                {
+                    Name = entry.Name,
+                    Enabled = ResolveEnabled(entry.Name),
+                })
                 .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
@@ -233,24 +233,66 @@ public partial class SettingsWindow : Window
 
         HardwareSummaryHeaderText.Text = $"Hardware Toys (read-only): {_hardwareToys.Count}";
         HardwareNamesItemsControl.ItemsSource = _hardwareToys.Select(x => x.Name).ToArray();
-        ApplyVirtualToyFilter();
+        RenderVirtualToyRows();
+        SnapshotSavedToyState();
     }
 
-    private void ApplyVirtualToyFilter()
+    private void RenderVirtualToyRows()
     {
-        var showEnabledOnly = FilterShowEnabledOnlyChip.IsChecked == true;
-        var showGlobal = FilterGlobalChip.IsChecked == true;
-
-        var filtered = _virtualToys.Where(item =>
+        var rows = _virtualToys
+            .Select(item =>
         {
-            var enabledPass = !showEnabledOnly || item.Enabled;
-            var scopePass = !showGlobal || item.IsGlobal;
-            return enabledPass && scopePass;
-        });
+            var row = new DockPanel
+            {
+                LastChildFill = true,
+                Margin = new Thickness(0, 4, 0, 4),
+            };
 
-        VirtualToysList.ItemsSource = filtered
-            .Select(x => $"{x.Name}  •  {(x.Enabled ? "Enabled" : "Disabled")}  •  {(_isTableScoped ? _activeScopeLabel : "Global")}")
+            var enabledToggle = new CheckBox
+            {
+                IsChecked = item.Enabled,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 12, 0),
+                MinWidth = 42,
+                ToolTip = "Toggle toy visibility/output. Disabled toys are hidden.",
+                Tag = item.Name,
+            };
+
+            enabledToggle.Checked += OnVirtualToyEnabledToggled;
+            enabledToggle.Unchecked += OnVirtualToyEnabledToggled;
+
+            var name = new TextBlock
+            {
+                Text = item.Name,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(51, 51, 51)),
+            };
+
+            row.Children.Add(enabledToggle);
+            row.Children.Add(name);
+            return row;
+        })
             .ToArray();
+
+        VirtualToysList.ItemsSource = rows;
+    }
+
+    private void OnVirtualToyEnabledToggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox { Tag: string toyName } toggle)
+        {
+            return;
+        }
+
+        var toy = _virtualToys.FirstOrDefault(x => x.Name.Equals(toyName, StringComparison.OrdinalIgnoreCase));
+        if (toy is null)
+        {
+            return;
+        }
+
+        // Conversational note: we mirror switch state immediately into the in-memory toy list so dirty/save UX stays predictable.
+        toy.Enabled = toggle.IsChecked == true;
+        UpdateDirtyState();
     }
 
     private bool ResolveEnabled(string toyName)
@@ -338,6 +380,7 @@ public partial class SettingsWindow : Window
         config.Settings.CabinetXmlPath = CabinetPathTextBox.Text.Trim();
         config.Settings.DofConfigFolderPath = Path.GetDirectoryName(config.Settings.CabinetXmlPath) ?? config.Settings.DofConfigFolderPath;
         config.Settings.CabinetToyName = string.IsNullOrWhiteSpace(LedStripCombo.Text) ? "Matrix1" : LedStripCombo.Text.Trim();
+        ApplyVirtualToyEnabledStates(config);
 
         return true;
     }
@@ -407,15 +450,79 @@ public partial class SettingsWindow : Window
             _lastAppliedFingerprint = string.Empty;
         }
 
+        SnapshotSavedToyState();
         UpdateDirtyState();
     }
 
     private void UpdateDirtyState()
     {
-        if (!TryBuildConfig(out _, out _))
+        if (!TryBuildConfig(out var config, out _))
         {
+            SaveGlobalButton.Visibility = Visibility.Collapsed;
+            SaveScopeButton.Visibility = Visibility.Collapsed;
             return;
         }
+
+        var isConfigDirty = BuildFingerprint(config) != _lastAppliedFingerprint;
+        var isToyDirty = _virtualToys.Any(item =>
+            !_lastSavedToyEnabledStates.TryGetValue(item.Name, out var previous) || previous != item.Enabled);
+
+        var hasToyChanges = isConfigDirty || isToyDirty;
+        SaveGlobalButton.Visibility = hasToyChanges ? Visibility.Visible : Visibility.Collapsed;
+        SaveScopeButton.Visibility = _isTableScoped && hasToyChanges ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnSaveGlobalVirtualToys(object sender, RoutedEventArgs e)
+    {
+        SaveVirtualToyState("global");
+    }
+
+    private void OnSaveScopedVirtualToys(object sender, RoutedEventArgs e)
+    {
+        SaveVirtualToyState(_activeScopeName);
+    }
+
+    private void SaveVirtualToyState(string scopeLabel)
+    {
+        if (!TryBuildConfig(out var config, out var error))
+        {
+            WpfMessageBox.Show(this, error, "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _working = Clone(config);
+        _applyScopedSave?.Invoke(Clone(config));
+        _lastAppliedFingerprint = BuildFingerprint(config);
+        SnapshotSavedToyState();
+        UpdateDirtyState();
+        SummaryStatusText.Text = $"Status: saved virtual toy changes to {scopeLabel}.";
+    }
+
+    private void ApplyVirtualToyEnabledStates(AppConfig config)
+    {
+        config.Routing ??= new RoutingConfig();
+        config.Routing.Toys ??= [];
+
+        foreach (var item in _virtualToys)
+        {
+            var toy = config.Routing.Toys.FirstOrDefault(x => x.Id.Equals(item.Name, StringComparison.OrdinalIgnoreCase));
+            if (toy is null)
+            {
+                config.Routing.Toys.Add(new ToyRouteConfig
+                {
+                    Id = item.Name,
+                    Enabled = item.Enabled,
+                });
+                continue;
+            }
+
+            toy.Enabled = item.Enabled;
+        }
+    }
+
+    private void SnapshotSavedToyState()
+    {
+        _lastSavedToyEnabledStates = _virtualToys.ToDictionary(x => x.Name, x => x.Enabled, StringComparer.OrdinalIgnoreCase);
     }
 
     private static string BuildFingerprint(AppConfig config) => JsonSerializer.Serialize(config, FingerprintSerializerOptions);
@@ -439,7 +546,13 @@ public partial class SettingsWindow : Window
     {
         return new AppConfig
         {
-            Transport = new TransportConfig { PipeName = config.Transport.PipeName },
+            Transport = new TransportConfig
+            {
+                PipeName = config.Transport.PipeName,
+                ControlPipeName = config.Transport.ControlPipeName,
+                BroadcastPipeName = config.Transport.BroadcastPipeName,
+                BroadcastMaxQueuePerClient = config.Transport.BroadcastMaxQueuePerClient,
+            },
             Matrix = new MatrixConfig
             {
                 Renderer = config.Matrix.Renderer,
@@ -448,6 +561,7 @@ public partial class SettingsWindow : Window
                 Mapping = config.Matrix.Mapping,
                 DotShape = config.Matrix.DotShape,
                 MinDotSpacing = config.Matrix.MinDotSpacing,
+                FillGapEnabled = config.Matrix.FillGapEnabled,
                 Brightness = config.Matrix.Brightness,
                 Gamma = config.Matrix.Gamma,
                 ToneMapping = new ToneMappingConfig
@@ -490,6 +604,7 @@ public partial class SettingsWindow : Window
             {
                 AlwaysOnTop = config.Window.AlwaysOnTop,
                 Borderless = config.Window.Borderless,
+                LockAspectRatio = config.Window.LockAspectRatio,
                 Left = config.Window.Left,
                 Top = config.Window.Top,
                 Width = config.Window.Width,
@@ -509,11 +624,80 @@ public partial class SettingsWindow : Window
                 AutoUpdateCabinetOnResolutionChange = config.Settings.AutoUpdateCabinetOnResolutionChange,
                 VisualQuality = config.Settings.VisualQuality,
             },
+            Routing = new RoutingConfig
+            {
+                RoutingSchemaVersion = config.Routing.RoutingSchemaVersion,
+                ToyConfigIniPath = config.Routing.ToyConfigIniPath,
+                Policy = new RoutingPolicyConfig
+                {
+                    DefaultStripLength = config.Routing.Policy.DefaultStripLength,
+                    SkipInvalidToys = config.Routing.Policy.SkipInvalidToys,
+                    FallbackToMatrixMapping = config.Routing.Policy.FallbackToMatrixMapping,
+                    OnMissingData = config.Routing.Policy.OnMissingData,
+                    OnOversizeRange = config.Routing.Policy.OnOversizeRange,
+                    OnFrameRateSpike = config.Routing.Policy.OnFrameRateSpike,
+                },
+                Toys = config.Routing.Toys.Select(toy => new ToyRouteConfig
+                {
+                    Id = toy.Id,
+                    Enabled = toy.Enabled,
+                    Kind = toy.Kind,
+                    Source = new ToySourceConfig
+                    {
+                        CanonicalStart = toy.Source.CanonicalStart,
+                        Length = toy.Source.Length,
+                        StripIndex = toy.Source.StripIndex,
+                        StripOffset = toy.Source.StripOffset,
+                    },
+                    Mapping = new ToyMappingConfig
+                    {
+                        Width = toy.Mapping.Width,
+                        Height = toy.Mapping.Height,
+                        Mode = toy.Mapping.Mode,
+                    },
+                    Window = new ToyWindowOptionsConfig
+                    {
+                        UseGlobalWindow = toy.Window.UseGlobalWindow,
+                        AlwaysOnTop = toy.Window.AlwaysOnTop,
+                        Borderless = toy.Window.Borderless,
+                        LockAspectRatio = toy.Window.LockAspectRatio,
+                        Left = toy.Window.Left,
+                        Top = toy.Window.Top,
+                        Width = toy.Window.Width,
+                        Height = toy.Window.Height,
+                    },
+                    Render = new ToyRenderOptionsConfig
+                    {
+                        DotShape = toy.Render.DotShape,
+                        MinDotSpacing = toy.Render.MinDotSpacing,
+                        FillGapEnabled = toy.Render.FillGapEnabled,
+                        Brightness = toy.Render.Brightness,
+                        Gamma = toy.Render.Gamma,
+                    },
+                    Bloom = new ToyBloomOptionsConfig
+                    {
+                        Enabled = toy.Bloom.Enabled,
+                        Threshold = toy.Bloom.Threshold,
+                        SoftKnee = toy.Bloom.SoftKnee,
+                        NearRadiusPx = toy.Bloom.NearRadiusPx,
+                        FarRadiusPx = toy.Bloom.FarRadiusPx,
+                        NearStrength = toy.Bloom.NearStrength,
+                        FarStrength = toy.Bloom.FarStrength,
+                    },
+                    OutputTargets = toy.OutputTargets.Select(target => new ToyAdapterTargetConfig
+                    {
+                        Adapter = target.Adapter,
+                        Enabled = target.Enabled,
+                    }).ToList(),
+                }).ToList(),
+            },
         };
     }
 
-    private sealed record VirtualToyListItem(
-        string Name,
-        bool Enabled,
-        bool IsGlobal);
+    private sealed class VirtualToyListItem
+    {
+        public required string Name { get; init; }
+
+        public bool Enabled { get; set; }
+    }
 }

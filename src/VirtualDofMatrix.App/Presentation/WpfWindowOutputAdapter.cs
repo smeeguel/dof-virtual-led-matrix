@@ -40,6 +40,17 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _dispatcher.BeginInvoke(() => WriteOnUiThread(frame));
     }
 
+    public void SyncVisibilityFromConfig()
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            SyncVisibilityFromConfigOnUiThread();
+            return;
+        }
+
+        _dispatcher.Invoke(SyncVisibilityFromConfigOnUiThread);
+    }
+
     private void EnsureInitialViewerToyWindows()
     {
         if (_dispatcher.CheckAccess())
@@ -87,6 +98,18 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void WriteOnUiThread(ToyFrame frame)
     {
+        var toyConfig = FindToyConfig(frame.ToyId);
+        var toyEnabledForViewer = toyConfig is not null
+            && toyConfig.Enabled
+            && toyConfig.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
+
+        if (!toyEnabledForViewer)
+        {
+            SetBindingVisible(frame.ToyId, isVisible: false);
+            return;
+        }
+
+        SetBindingVisible(frame.ToyId, isVisible: true);
         var binding = _bindings.GetOrAdd(frame.ToyId, CreateBindingForToy);
         binding.Render(frame);
     }
@@ -277,6 +300,44 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         window.LocationChanged += (_, _) => Sync();
         window.SizeChanged += (_, _) => Sync();
         window.Closed += (_, _) => _bindings.TryRemove(toyId, out _);
+    }
+
+    private void SyncVisibilityFromConfigOnUiThread()
+    {
+        foreach (var toy in _config.Routing.Toys)
+        {
+            var enabledForViewer = toy.Enabled
+                && toy.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
+            SetBindingVisible(toy.Id, enabledForViewer);
+        }
+    }
+
+    private void SetBindingVisible(string toyId, bool isVisible)
+    {
+        if (!_bindings.TryGetValue(toyId, out var binding))
+        {
+            if (isVisible && IsPrimaryVisualToy(toyId))
+            {
+                _mainWindow.Show();
+            }
+
+            return;
+        }
+
+        if (isVisible)
+        {
+            if (!binding.Window.IsVisible)
+            {
+                binding.Window.Show();
+            }
+
+            return;
+        }
+
+        if (binding.Window.IsVisible)
+        {
+            binding.Window.Hide();
+        }
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);

@@ -29,6 +29,7 @@ public partial class App : System.Windows.Application
     private MainWindow? _window;
     private FrameTransportHost? _transportHost;
     private NamedPipeBroadcastAdapter? _broadcastAdapter;
+    private WpfWindowOutputAdapter? _windowOutputAdapter;
     private DispatcherTimer? _windowSettingsSaveTimer;
     private CancellationTokenSource? _controlCts;
     private Task? _controlTask;
@@ -78,9 +79,10 @@ public partial class App : System.Windows.Application
         var routingPlanProvider = new ConfigRoutingPlanProvider(_config);
         var toyRouter = new ToyRouter(_config.Routing.Policy);
         _broadcastAdapter = new NamedPipeBroadcastAdapter(_config);
+        _windowOutputAdapter = new WpfWindowOutputAdapter(Dispatcher, _config, _window, PersistWindowSettings);
         var outputAdapters = new List<IOutputAdapter>
         {
-            new WpfWindowOutputAdapter(Dispatcher, _config, _window, PersistWindowSettings),
+            _windowOutputAdapter,
             _broadcastAdapter,
         };
 
@@ -138,7 +140,7 @@ public partial class App : System.Windows.Application
         }
 
         var tableScope = !string.IsNullOrWhiteSpace(_runtimeTableOrRomName) ? _runtimeTableOrRomName : _activeTableOrRomName;
-        var dialog = new SettingsWindow(_config, _cabinetXmlService, tableScope)
+        var dialog = new SettingsWindow(_config, _cabinetXmlService, tableScope, ApplySettings)
         {
             Owner = _window,
         };
@@ -189,6 +191,7 @@ public partial class App : System.Windows.Application
         }
 
         _window.ApplyRuntimeSettings();
+        _windowOutputAdapter?.SyncVisibilityFromConfig();
         PersistWindowSettings();
     }
 
