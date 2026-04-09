@@ -1,5 +1,6 @@
 using System.IO;
 using VirtualDofMatrix.App.Configuration;
+using VirtualDofMatrix.Core;
 using Xunit;
 
 namespace VirtualDofMatrix.Tests;
@@ -200,6 +201,68 @@ public sealed class CabinetXmlServiceTests
             service.ApplyVirtualToyMerge(temp.Path, plan, dryRun: false));
 
         Assert.Contains("not virtual", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BuildVirtualToyMergePlanFromRouting_ShouldMapEnabledRoutingToysToManagedDefinitions()
+    {
+        var xml = """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController><Name>Virtual Controller</Name></VirtualLEDStripController>
+                <TeensyStripController><Name>Hardware Controller</Name></TeensyStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>BackglassMain</Name>
+                  <Width>32</Width>
+                  <Height>8</Height>
+                  <OutputControllerName>Virtual Controller</OutputControllerName>
+                </LedStrip>
+                <LedStrip>
+                  <Name>HardwareA</Name>
+                  <Width>10</Width>
+                  <Height>10</Height>
+                  <OutputControllerName>Hardware Controller</OutputControllerName>
+                </LedStrip>
+              </Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+
+        var routingToys = new[]
+        {
+            new ToyRouteConfig
+            {
+                Id = "backglass-main",
+                Name = "BackglassMain",
+                Enabled = true,
+                Mapping = new ToyMappingConfig { Width = 128, Height = 32 },
+            },
+            new ToyRouteConfig
+            {
+                Id = "topper-2",
+                Name = "Topper2",
+                Enabled = true,
+                Mapping = new ToyMappingConfig { Width = 64, Height = 16 },
+            },
+            new ToyRouteConfig
+            {
+                Id = "disabled-ignored",
+                Name = "Ignored",
+                Enabled = false,
+                Mapping = new ToyMappingConfig { Width = 8, Height = 8 },
+            },
+        };
+
+        var plan = service.BuildVirtualToyMergePlanFromRouting(temp.Path, routingToys, removeMissingManagedToys: false);
+
+        Assert.Contains(plan.DesiredVirtualToysByName.Keys, key => key == "BackglassMain");
+        Assert.Contains(plan.DesiredVirtualToysByName.Keys, key => key == "Topper2");
+        Assert.DoesNotContain(plan.DesiredVirtualToysByName.Keys, key => key == "Ignored");
+        Assert.DoesNotContain(plan.PlannedChanges, change => change.ToyName == "HardwareA");
     }
 
     private sealed class TempCabinetXml : IDisposable

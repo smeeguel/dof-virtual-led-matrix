@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Xml.Linq;
+using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Configuration;
 
@@ -41,6 +42,53 @@ public sealed class CabinetXmlService
             .Where(x => x.Name.LocalName == "LedStrip")
             .FirstOrDefault(x => string.Equals(GetChildValue(x, "Name"), toyName, StringComparison.OrdinalIgnoreCase));
         return toy is null ? null : GetChildValue(toy, "OutputControllerName");
+    }
+
+    public string? GetDefaultVirtualControllerName(string cabinetXmlPath)
+    {
+        var document = LoadCabinetDocument(cabinetXmlPath);
+        var controllerKindsByName = GetControllerKindsByName(document);
+        return controllerKindsByName
+            .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(x => x.Value.Contains("Virtual", StringComparison.OrdinalIgnoreCase))
+            .Key;
+    }
+
+    // Conversational note: this adapter lets routing toy edits drive Cabinet.xml managed virtual-toy sync in one pass.
+    public CabinetXmlMergePlan BuildVirtualToyMergePlanFromRouting(
+        string cabinetXmlPath,
+        IEnumerable<ToyRouteConfig> routingToys,
+        bool removeMissingManagedToys)
+    {
+        var defaultVirtualController = GetDefaultVirtualControllerName(cabinetXmlPath);
+        if (string.IsNullOrWhiteSpace(defaultVirtualController))
+        {
+            throw new InvalidOperationException("Cabinet.xml does not define a virtual output controller.");
+        }
+
+        var desired = routingToys
+            .Where(toy => toy.Enabled)
+            .Select(toy =>
+            {
+                var toyName = !string.IsNullOrWhiteSpace(toy.Name) ? toy.Name : toy.Id;
+                if (string.IsNullOrWhiteSpace(toyName))
+                {
+                    throw new InvalidOperationException("Routing toy requires Name or Id.");
+                }
+
+                // Prefer an existing controller link for this toy if one already exists in Cabinet.xml.
+                var controllerName = GetLedStripOutputControllerName(cabinetXmlPath, toyName)
+                    ?? defaultVirtualController;
+
+                return new VirtualLedToyDefinition(
+                    Name: toyName,
+                    Width: toy.Mapping.Width,
+                    Height: toy.Mapping.Height,
+                    OutputControllerName: controllerName);
+            })
+            .ToArray();
+
+        return BuildVirtualToyMergePlan(cabinetXmlPath, desired, removeMissingManagedToys);
     }
 
     // Conversational note: this inventory parser gives the UI a single, read-only view of toys grouped by
