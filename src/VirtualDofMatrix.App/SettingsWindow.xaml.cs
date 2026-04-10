@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
     private static readonly JsonSerializerOptions FingerprintSerializerOptions = new(JsonSerializerDefaults.Web);
 
     private AppConfig _working;
+    private readonly AppConfig _liveSource;
     private readonly CabinetXmlService _cabinetXmlService;
     private string _lastAppliedFingerprint = string.Empty;
     private IReadOnlyList<VirtualToyListItem> _virtualToys = [];
@@ -34,6 +35,7 @@ public partial class SettingsWindow : Window
         string? activeTableOrRomName = null,
         Action<AppConfig>? applyScopedSave = null)
     {
+        _liveSource = source;
         _working = Clone(source);
         _cabinetXmlService = cabinetXmlService;
         _isTableScoped = !string.IsNullOrWhiteSpace(activeTableOrRomName);
@@ -589,8 +591,37 @@ public partial class SettingsWindow : Window
         config.Settings.DofConfigFolderPath = Path.GetDirectoryName(config.Settings.CabinetXmlPath) ?? config.Settings.DofConfigFolderPath;
         config.Settings.CabinetToyName = string.IsNullOrWhiteSpace(LedStripCombo.Text) ? "Matrix1" : LedStripCombo.Text.Trim();
         ApplyVirtualToyEnabledStates(config);
+        MergeLiveToyWindowState(config);
 
         return true;
+    }
+
+    private void MergeLiveToyWindowState(AppConfig config)
+    {
+        if (_liveSource.Routing?.Toys is null || _liveSource.Routing.Toys.Count == 0)
+        {
+            return;
+        }
+
+        // Conversational note: while Settings stays open, toy windows can still be dragged/resized live.
+        // We merge those latest runtime geometry edits so pressing OK doesn't snap toys back to defaults.
+        foreach (var toy in config.Routing.Toys)
+        {
+            var liveToy = _liveSource.Routing.Toys.FirstOrDefault(x => x.Id.Equals(toy.Id, StringComparison.OrdinalIgnoreCase));
+            if (liveToy?.Window is null)
+            {
+                continue;
+            }
+
+            toy.Window ??= new ToyWindowOptionsConfig();
+            toy.Window.Left = liveToy.Window.Left;
+            toy.Window.Top = liveToy.Window.Top;
+            toy.Window.Width = liveToy.Window.Width;
+            toy.Window.Height = liveToy.Window.Height;
+            toy.Window.AlwaysOnTop = liveToy.Window.AlwaysOnTop;
+            toy.Window.Borderless = liveToy.Window.Borderless;
+            toy.Window.LockAspectRatio = liveToy.Window.LockAspectRatio;
+        }
     }
 
     private void UpdateSummary()
