@@ -93,7 +93,13 @@ public sealed class CabinetXmlService
             })
             .ToArray();
 
-        return BuildVirtualToyMergePlan(cabinetXmlPath, desired, removeMissingManagedToys);
+        // Conversational note: routing sync should never rename an existing Cabinet.xml toy solely because
+        // FirstLedNumber happens to match; new routing toys should be added as new managed entries.
+        return BuildVirtualToyMergePlan(
+            cabinetXmlPath,
+            desired,
+            removeMissingManagedToys,
+            allowFirstLedNameRebind: false);
     }
 
     // Conversational note: this inventory parser gives the UI a single, read-only view of toys grouped by
@@ -172,7 +178,8 @@ public sealed class CabinetXmlService
     public CabinetXmlMergePlan BuildVirtualToyMergePlan(
         string cabinetXmlPath,
         IReadOnlyCollection<VirtualLedToyDefinition> desiredVirtualToys,
-        bool removeMissingManagedToys)
+        bool removeMissingManagedToys,
+        bool allowFirstLedNameRebind = true)
     {
         var document = LoadCabinetDocument(cabinetXmlPath);
         var controllerKindsByName = GetControllerKindsByName(document);
@@ -221,6 +228,7 @@ public sealed class CabinetXmlService
         {
             var lookupName = desired.Name;
             if (!existingByName.TryGetValue(lookupName, out var current)
+                && allowFirstLedNameRebind
                 && desired.FirstLedNumber.HasValue
                 && !duplicatedFirstLedNumbers.Contains(desired.FirstLedNumber.Value))
             {

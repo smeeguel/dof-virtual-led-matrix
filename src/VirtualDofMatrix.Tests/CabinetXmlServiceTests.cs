@@ -299,7 +299,7 @@ public sealed class CabinetXmlServiceTests
     }
 
     [Fact]
-    public void ApplyVirtualToyMerge_FromRoutingShouldHandleRename_AddLedWizOutput_AndRealignControllerTotals()
+    public void ApplyVirtualToyMerge_FromRoutingShouldNotRenameExistingMatrixWhenAddingNewToy()
     {
         var xml = """
             <?xml version="1.0" encoding="utf-8"?>
@@ -338,37 +338,34 @@ public sealed class CabinetXmlServiceTests
         {
             new ToyRouteConfig
             {
-                Id = "matrix-main",
-                Name = "BackglassMain",
-                Enabled = true,
-                Mapping = new ToyMappingConfig { Width = 128, Height = 32 },
-                Source = new ToySourceConfig { CanonicalStart = 0, Length = 4096 },
-            },
-            new ToyRouteConfig
-            {
-                Id = "topper",
-                Name = "Topper2",
+                Id = "top-strip",
+                Name = "TopStrip",
                 Enabled = true,
                 Mapping = new ToyMappingConfig { Width = 5, Height = 1 },
-                Source = new ToySourceConfig { CanonicalStart = 4096, Length = 5 },
+                Source = new ToySourceConfig { CanonicalStart = 0, Length = 5 },
             },
         };
 
         var plan = service.BuildVirtualToyMergePlanFromRouting(temp.Path, routing, removeMissingManagedToys: false);
+        // Conversational note: routing additions should append new managed toys; they should not "rename over"
+        // an existing Matrix1 entry just because both point at FirstLedNumber=1.
+        Assert.DoesNotContain(plan.PlannedChanges, change =>
+            change.ChangeType == CabinetXmlMergeChangeType.Updated
+            && change.Field.Equals("Name", StringComparison.OrdinalIgnoreCase)
+            && change.ToyName.Equals("Matrix1", StringComparison.OrdinalIgnoreCase));
         service.ApplyVirtualToyMerge(temp.Path, plan, dryRun: false);
 
         var merged = File.ReadAllText(temp.Path);
         Assert.Contains("\r\n", merged);
         Assert.Contains("\t<", merged);
-        Assert.Contains("<Name>BackglassMain</Name>", merged);
-        Assert.DoesNotContain("<Name>Matrix1</Name>", merged);
-        Assert.Contains("<Name>Topper2</Name>", merged);
+        Assert.Contains("<Name>Matrix1</Name>", merged);
+        Assert.Contains("<Name>TopStrip</Name>", merged);
         Assert.Contains("</LedStrip>\r\n\r\n\t\t<LedStrip>", merged);
         Assert.Contains("<FirstLedNumber>1</FirstLedNumber>", merged);
         Assert.Contains("<FirstLedNumber>4097</FirstLedNumber>", merged);
         Assert.Contains("<NumberOfLedsStrip1>4101</NumberOfLedsStrip1>", merged);
-        Assert.Contains("<OutputName>BackglassMain</OutputName>", merged);
-        Assert.Contains("<OutputName>Topper2</OutputName>", merged);
+        Assert.Contains("<OutputName>Matrix1</OutputName>", merged);
+        Assert.Contains("<OutputName>TopStrip</OutputName>", merged);
     }
 
     [Fact]
