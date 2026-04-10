@@ -647,8 +647,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        // We prefer shader-driven bloom, but keep CPU fallback alive so unsupported GPUs still render correctly.
-        if (!_useCpuBloomFallback && _gpuBloomSupported)
+        // We only run shader bloom when this frame actually has a GPU-rendered base surface.
+        // Conversational note: CPU dot fallback surfaces are authored in `_bgra`; running GPU bloom there can
+        // composite against stale/black GPU buffers and produce full-strip dark bars in transparent modes.
+        if (baseFrameIsGpuRendered && !_useCpuBloomFallback && _gpuBloomSupported)
         {
             try
             {
