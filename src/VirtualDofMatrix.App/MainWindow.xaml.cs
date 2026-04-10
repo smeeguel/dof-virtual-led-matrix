@@ -395,7 +395,8 @@ public partial class MainWindow : Window
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,
                 OffStateTintG = _config.Matrix.Visual.OffStateTintG,
                 OffStateTintB = _config.Matrix.Visual.OffStateTintB,
-                OffStateAlpha = _config.Matrix.Visual.OffStateAlpha,
+                // Conversational note: transparent windows should only show active light emission, not dark "off bulb" fill.
+                OffStateAlpha = _config.Window.BackgroundVisible ? _config.Matrix.Visual.OffStateAlpha : 0.0,
                 LensFalloff = _config.Matrix.Visual.LensFalloff,
                 SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
                 RimHighlight = _config.Matrix.Visual.RimHighlight,

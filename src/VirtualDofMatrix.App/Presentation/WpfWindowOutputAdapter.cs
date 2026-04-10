@@ -283,7 +283,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                     OffStateTintR = _config.Matrix.Visual.OffStateTintR,
                     OffStateTintG = _config.Matrix.Visual.OffStateTintG,
                     OffStateTintB = _config.Matrix.Visual.OffStateTintB,
-                    OffStateAlpha = _config.Matrix.Visual.OffStateAlpha,
+                    // Conversational note: transparent toy windows should avoid dim off-state fill behind active LEDs.
+                    OffStateAlpha = toy.Window.BackgroundVisible ? _config.Matrix.Visual.OffStateAlpha : 0.0,
                     LensFalloff = _config.Matrix.Visual.LensFalloff,
                     SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
                     RimHighlight = _config.Matrix.Visual.RimHighlight,
