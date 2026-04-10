@@ -18,6 +18,33 @@ public partial class ToyWizardWindow : Window
     private const int DefaultStripBulbWidth = 18;
     private const int DefaultStripBulbHeight = 18;
     private static readonly Regex NumberedNameRegex = new("^(Strip|Matrix)(\\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly IReadOnlyList<ColorPresetOption> BackgroundColorPresets =
+    [
+        new("Black", "#000000"),
+        new("Charcoal", "#202020"),
+        new("Slate", "#2F4F4F"),
+        new("Silver", "#C0C0C0"),
+        new("White", "#FFFFFF"),
+        new("Crimson", "#DC143C"),
+        new("Firebrick", "#B22222"),
+        new("Orange Red", "#FF4500"),
+        new("Orange", "#FFA500"),
+        new("Gold", "#FFD700"),
+        new("Khaki", "#F0E68C"),
+        new("Lime Green", "#32CD32"),
+        new("Forest Green", "#228B22"),
+        new("Teal", "#008080"),
+        new("Cyan", "#00FFFF"),
+        new("Dodger Blue", "#1E90FF"),
+        new("Royal Blue", "#4169E1"),
+        new("Navy", "#000080"),
+        new("Purple", "#800080"),
+        new("Magenta", "#FF00FF"),
+        new("Hot Pink", "#FF69B4"),
+        new("Brown", "#8B4513"),
+        new("Chocolate", "#D2691E"),
+        new("Beige", "#F5F5DC"),
+    ];
 
     private readonly IReadOnlyList<ToyRouteConfig> _existingToys;
     private readonly ToyRouteConfig? _editingToy;
@@ -47,6 +74,7 @@ public partial class ToyWizardWindow : Window
         MappingCombo.SelectedIndex = 0;
         DotShapeCombo.SelectedIndex = 0;
         StripOrientationCombo.SelectedIndex = 0;
+        WindowBackgroundColorCombo.ItemsSource = BackgroundColorPresets;
 
         if (_editingToy is null)
         {
@@ -82,7 +110,7 @@ public partial class ToyWizardWindow : Window
         WindowBorderlessCheckBox.IsChecked = true;
         WindowLockAspectCheckBox.IsChecked = true;
         WindowBackgroundVisibleCheckBox.IsChecked = true;
-        WindowBackgroundColorTextBox.Text = "#000000";
+        SelectBackgroundPreset("#000000");
 
         BloomEnabledCheckBox.IsChecked = true;
         BloomThresholdTextBox.Text = "0.72";
@@ -116,7 +144,7 @@ public partial class ToyWizardWindow : Window
         WindowBorderlessCheckBox.IsChecked = toy.Window.Borderless;
         WindowLockAspectCheckBox.IsChecked = toy.Window.LockAspectRatio;
         WindowBackgroundVisibleCheckBox.IsChecked = toy.Window.BackgroundVisible;
-        WindowBackgroundColorTextBox.Text = string.IsNullOrWhiteSpace(toy.Window.BackgroundColor) ? "#000000" : toy.Window.BackgroundColor;
+        SelectBackgroundPreset(string.IsNullOrWhiteSpace(toy.Window.BackgroundColor) ? "#000000" : toy.Window.BackgroundColor);
 
         BloomEnabledCheckBox.IsChecked = toy.Bloom.Enabled;
         BloomThresholdTextBox.Text = toy.Bloom.Threshold.ToString("0.###");
@@ -347,11 +375,6 @@ public partial class ToyWizardWindow : Window
             return (false, "Dot spacing must be a whole number (0 or higher).", 0, 0, 0);
         }
 
-        if (WindowBackgroundVisibleCheckBox.IsChecked == true && !IsValidColor(WindowBackgroundColorTextBox.Text))
-        {
-            return (false, "Background color must be a valid WPF color (for example #000000).", 0, 0, 0);
-        }
-
         if (!TryParseDouble(BrightnessTextBox.Text, out var brightness) || brightness < 0 || brightness > 1)
         {
             return (false, "Brightness must be between 0.0 and 1.0.", 0, 0, 0);
@@ -487,7 +510,7 @@ public partial class ToyWizardWindow : Window
                 Borderless = WindowBorderlessCheckBox.IsChecked == true,
                 LockAspectRatio = WindowLockAspectCheckBox.IsChecked == true,
                 BackgroundVisible = WindowBackgroundVisibleCheckBox.IsChecked == true,
-                BackgroundColor = WindowBackgroundColorTextBox.Text.Trim(),
+                BackgroundColor = GetSelectedBackgroundColorHex(),
                 Left = _editingToy?.Window.Left,
                 Top = _editingToy?.Window.Top,
                 Width = ResolveWindowWidth(validation.Total),
@@ -522,21 +545,16 @@ public partial class ToyWizardWindow : Window
 
     private static bool TryParseDouble(string raw, out double value) => double.TryParse(raw?.Trim(), out value);
 
-    private static bool IsValidColor(string raw)
+    private void SelectBackgroundPreset(string hex)
     {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return false;
-        }
+        var selected = BackgroundColorPresets.FirstOrDefault(preset => preset.Hex.Equals(hex, StringComparison.OrdinalIgnoreCase))
+            ?? BackgroundColorPresets[0];
+        WindowBackgroundColorCombo.SelectedItem = selected;
+    }
 
-        try
-        {
-            return System.Windows.Media.ColorConverter.ConvertFromString(raw.Trim()) is System.Windows.Media.Color;
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
+    private string GetSelectedBackgroundColorHex()
+    {
+        return (WindowBackgroundColorCombo.SelectedItem as ColorPresetOption)?.Hex ?? "#000000";
     }
 
     private double? ResolveWindowWidth(int stripLength)
@@ -661,5 +679,24 @@ public partial class ToyWizardWindow : Window
     {
         DialogResult = false;
         Close();
+    }
+
+    private sealed class ColorPresetOption
+    {
+        public ColorPresetOption(string name, string hex)
+        {
+            Name = name;
+            Hex = hex;
+            Label = $"{name} ({hex})";
+            SwatchBrush = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex));
+        }
+
+        public string Name { get; }
+
+        public string Hex { get; }
+
+        public string Label { get; }
+
+        public SolidColorBrush SwatchBrush { get; }
     }
 }
