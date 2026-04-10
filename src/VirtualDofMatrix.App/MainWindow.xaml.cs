@@ -160,9 +160,12 @@ public partial class MainWindow : Window
     {
         Topmost = _config.Window.AlwaysOnTop;
         WindowStyle = _config.Window.Borderless ? WindowStyle.None : WindowStyle.SingleBorderWindow;
-        // Conversational note: WPF only shows per-pixel alpha when AllowsTransparency is enabled.
-        // We only enable it for borderless transparent windows to avoid unnecessary software-composition cost.
-        AllowsTransparency = _config.Window.Borderless && !_config.Window.BackgroundVisible;
+        // Conversational note: WPF forbids changing AllowsTransparency after a window handle exists.
+        // Apply it only during pre-show initialization; runtime toggles are deferred until window recreation.
+        if (!IsLoaded && !IsVisible)
+        {
+            AllowsTransparency = _config.Window.Borderless && !_config.Window.BackgroundVisible;
+        }
 
         Left = _config.Window.Left;
         Top = _config.Window.Top;
