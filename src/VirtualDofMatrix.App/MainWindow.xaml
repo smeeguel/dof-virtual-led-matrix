@@ -39,7 +39,7 @@
 
         <Border x:Name="MatrixViewportBorder" Grid.Column="0" Background="Black" BorderBrush="#222" BorderThickness="1" Padding="8">
             <Viewbox Stretch="Uniform" StretchDirection="Both">
-                <Grid Background="Black">
+                <Grid x:Name="MatrixHostGrid" Background="Black">
                     <Canvas x:Name="MatrixCanvas" Background="Black" />
                     <Image x:Name="MatrixImage" Stretch="None" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                 </Grid>

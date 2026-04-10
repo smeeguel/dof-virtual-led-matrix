@@ -160,6 +160,9 @@ public partial class MainWindow : Window
     {
         Topmost = _config.Window.AlwaysOnTop;
         WindowStyle = _config.Window.Borderless ? WindowStyle.None : WindowStyle.SingleBorderWindow;
+        // Conversational note: WPF only shows per-pixel alpha when AllowsTransparency is enabled.
+        // We only enable it for borderless transparent windows to avoid unnecessary software-composition cost.
+        AllowsTransparency = _config.Window.Borderless && !_config.Window.BackgroundVisible;
 
         Left = _config.Window.Left;
         Top = _config.Window.Top;
@@ -185,6 +188,7 @@ public partial class MainWindow : Window
         var brush = BuildWindowBackgroundBrush(_config.Window);
         Background = brush;
         MatrixViewportBorder.Background = brush;
+        MatrixHostGrid.Background = brush;
         MatrixCanvas.Background = brush;
     }
 
