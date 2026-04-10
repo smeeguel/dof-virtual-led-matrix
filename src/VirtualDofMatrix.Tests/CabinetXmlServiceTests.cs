@@ -564,6 +564,62 @@ public sealed class CabinetXmlServiceTests
         Assert.Contains("<NumberOfLedsStrip1>4101</NumberOfLedsStrip1>", merged);
     }
 
+    [Fact]
+    public void ApplyVirtualToyMerge_ShouldKeepExistingLedWizOrderAndAppendNewToys()
+    {
+        var xml = """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController>
+                  <Name>LED Strips 0</Name>
+                  <NumberOfLedsStrip1>4096</NumberOfLedsStrip1>
+                </VirtualLEDStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>Matrix1</Name>
+                  <Width>128</Width>
+                  <Height>32</Height>
+                  <FirstLedNumber>1</FirstLedNumber>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+                <LedWizEquivalent>
+                  <Name>LedWizEquivalent 30</Name>
+                  <LedWizNumber>30</LedWizNumber>
+                  <Outputs>
+                    <LedWizEquivalentOutput>
+                      <OutputName>Matrix1</OutputName>
+                      <LedWizEquivalentOutputNumber>1</LedWizEquivalentOutputNumber>
+                    </LedWizEquivalentOutput>
+                  </Outputs>
+                </LedWizEquivalent>
+              </Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+        var plan = service.BuildVirtualToyMergePlan(
+            temp.Path,
+            [
+                new VirtualLedToyDefinition("Matrix1", 128, 32, "LED Strips 0", FirstLedNumber: 1, LedCount: 4096),
+                new VirtualLedToyDefinition("FlasherTop", 16, 1, "LED Strips 0", FirstLedNumber: 4097, LedCount: 16),
+                new VirtualLedToyDefinition("FlasherLeft", 16, 1, "LED Strips 0", FirstLedNumber: 4113, LedCount: 16),
+            ],
+            removeMissingManagedToys: false);
+
+        service.ApplyVirtualToyMerge(temp.Path, plan, dryRun: false);
+        var merged = File.ReadAllText(temp.Path);
+
+        Assert.Contains("<OutputName>Matrix1</OutputName>", merged);
+        Assert.Contains("<LedWizEquivalentOutputNumber>1</LedWizEquivalentOutputNumber>", merged);
+        Assert.Contains("<OutputName>FlasherTop</OutputName>", merged);
+        Assert.Contains("<LedWizEquivalentOutputNumber>2</LedWizEquivalentOutputNumber>", merged);
+        Assert.Contains("<OutputName>FlasherLeft</OutputName>", merged);
+        Assert.Contains("<LedWizEquivalentOutputNumber>3</LedWizEquivalentOutputNumber>", merged);
+        Assert.Contains("</LedStrip>\r\n\r\n\t\t<LedStrip>", merged);
+    }
+
     private sealed class TempCabinetXml : IDisposable
     {
         public TempCabinetXml(string xml)

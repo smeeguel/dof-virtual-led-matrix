@@ -493,6 +493,7 @@ public sealed class CabinetXmlService
         {
             SyncVirtualControllerLedCounts(document, managedByCurrentName.Values);
             SyncLedWizEquivalentOutputs(toysRoot, renameMap, plan.DesiredVirtualToysByName.Values);
+            RemoveWhitespaceTextNodes(toysRoot);
 
             var backupPath = $"{cabinetXmlPath}.bak.{DateTime.UtcNow:yyyyMMddHHmmss}";
             File.Copy(cabinetXmlPath, backupPath, overwrite: false);
@@ -727,6 +728,7 @@ public sealed class CabinetXmlService
                 .Select(x => new { Element = x, Name = GetChildValue(x, "OutputName") })
                 .Where(x => !string.IsNullOrWhiteSpace(x.Name))
                 .ToDictionary(x => x.Name!, x => x.Element, StringComparer.OrdinalIgnoreCase);
+            var newlyAddedNames = new List<string>();
 
             foreach (var desired in desiredByName.Values)
             {
@@ -740,22 +742,50 @@ public sealed class CabinetXmlService
                     new XElement(outputsNode.GetDefaultNamespace() + "LedWizEquivalentOutputNumber", 0));
                 outputsNode.Add(output);
                 outputsByName[desired.Name] = output;
+                newlyAddedNames.Add(desired.Name);
             }
 
-            var desiredOrder = desiredByName.Values
-                .OrderBy(x => x.FirstLedNumber ?? int.MaxValue)
-                .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            var slot = 1;
-            foreach (var desired in desiredOrder)
+            // Conversational note: keep existing LedWiz output numbers stable for existing toys, and only append
+            // new toys at the end so Matrix1 stays slot 1 while additional toys become 2, 3, etc.
+            var occupiedSlots = outputsByName
+                .Where(pair => !newlyAddedNames.Contains(pair.Key, StringComparer.OrdinalIgnoreCase))
+                .Select(pair => ParseIntOrNull(GetChildValue(pair.Value, "LedWizEquivalentOutputNumber")) ?? 0)
+                .Where(number => number > 0)
+                .ToHashSet();
+
+            var nextSlot = occupiedSlots.Count == 0 ? 1 : occupiedSlots.Max() + 1;
+            foreach (var name in newlyAddedNames)
             {
-                if (!outputsByName.TryGetValue(desired.Name, out var output))
+                if (!outputsByName.TryGetValue(name, out var output))
                 {
                     continue;
                 }
 
-                SetOrCreateChildValue(output, "LedWizEquivalentOutputNumber", slot.ToString());
-                slot++;
+                while (occupiedSlots.Contains(nextSlot))
+                {
+                    nextSlot++;
+                }
+
+                SetOrCreateChildValue(output, "LedWizEquivalentOutputNumber", nextSlot.ToString());
+                occupiedSlots.Add(nextSlot);
+                nextSlot++;
+            }
+        }
+    }
+
+    private static void RemoveWhitespaceTextNodes(XElement element)
+    {
+        foreach (var node in element.Nodes().ToList())
+        {
+            if (node is XText textNode && string.IsNullOrWhiteSpace(textNode.Value))
+            {
+                textNode.Remove();
+                continue;
+            }
+
+            if (node is XElement child)
+            {
+                RemoveWhitespaceTextNodes(child);
             }
         }
     }
