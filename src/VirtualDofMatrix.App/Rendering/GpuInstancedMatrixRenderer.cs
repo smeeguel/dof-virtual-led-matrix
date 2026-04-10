@@ -1452,6 +1452,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                     var bloomG = (nearG * nearStrength) + (farG * farStrength);
                     var bloomB = (nearB * nearStrength) + (farB * farStrength);
                     var alpha = (byte)Math.Clamp(Math.Max(bloomR, Math.Max(bloomG, bloomB)), 0f, 255f);
+                    if (alpha < 6)
+                    {
+                        alpha = 0;
+                    }
                     target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
                 }
             }
@@ -1486,6 +1490,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 {
                     // Conversational note: preserve off-state dots while only expanding alpha where bloom actually adds light.
                     var alpha = (byte)Math.Clamp(Math.Max(laneR, Math.Max(laneG, laneB)) * laneStrength, 0f, 255f);
+                    if (alpha < 6)
+                    {
+                        alpha = 0;
+                    }
                     target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
                 }
             }

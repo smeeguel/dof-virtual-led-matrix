@@ -779,6 +779,10 @@ internal sealed class MatrixFrameRasterComposer
                     var bloomG = (nearRowG[xIndex] * nearStrength) + (farRowG[xIndex] * farStrength);
                     var bloomB = (nearRowB[xIndex] * nearStrength) + (farRowB[xIndex] * farStrength);
                     var alpha = (byte)Math.Clamp(Math.Max(bloomR, Math.Max(bloomG, bloomB)), 0f, 255f);
+                    if (alpha < 6)
+                    {
+                        alpha = 0;
+                    }
                     target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
                 }
                 targetOffset += 4;
@@ -833,6 +837,10 @@ internal sealed class MatrixFrameRasterComposer
                 {
                     // Conversational note: preserve off-state dot alpha and only add alpha where bloom lane contributes.
                     var alpha = (byte)Math.Clamp(Math.Max(laneRowR[xIndex], Math.Max(laneRowG[xIndex], laneRowB[xIndex])) * strength, 0f, 255f);
+                    if (alpha < 6)
+                    {
+                        alpha = 0;
+                    }
                     target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
                 }
                 targetOffset += 4;

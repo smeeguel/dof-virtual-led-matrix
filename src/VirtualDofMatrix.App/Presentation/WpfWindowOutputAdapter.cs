@@ -283,7 +283,10 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                     OffStateTintR = _config.Matrix.Visual.OffStateTintR,
                     OffStateTintG = _config.Matrix.Visual.OffStateTintG,
                     OffStateTintB = _config.Matrix.Visual.OffStateTintB,
-                    OffStateAlpha = _config.Matrix.Visual.OffStateAlpha,
+                    // Conversational note: keep off-state dots in transparent toys, but tone down opacity to avoid dark strip fill.
+                    OffStateAlpha = toy.Window.BackgroundVisible
+                        ? _config.Matrix.Visual.OffStateAlpha
+                        : Math.Min(_config.Matrix.Visual.OffStateAlpha, 0.08),
                     LensFalloff = _config.Matrix.Visual.LensFalloff,
                     SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
                     RimHighlight = _config.Matrix.Visual.RimHighlight,

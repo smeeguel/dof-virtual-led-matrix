@@ -395,7 +395,11 @@ public partial class MainWindow : Window
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,
                 OffStateTintG = _config.Matrix.Visual.OffStateTintG,
                 OffStateTintB = _config.Matrix.Visual.OffStateTintB,
-                OffStateAlpha = _config.Matrix.Visual.OffStateAlpha,
+                // Conversational note: transparent strips still show off-state dots, but with reduced alpha so they
+                // don't read as a solid dark bar once active LEDs begin updating.
+                OffStateAlpha = _config.Window.BackgroundVisible
+                    ? _config.Matrix.Visual.OffStateAlpha
+                    : Math.Min(_config.Matrix.Visual.OffStateAlpha, 0.08),
                 LensFalloff = _config.Matrix.Visual.LensFalloff,
                 SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
                 RimHighlight = _config.Matrix.Visual.RimHighlight,
