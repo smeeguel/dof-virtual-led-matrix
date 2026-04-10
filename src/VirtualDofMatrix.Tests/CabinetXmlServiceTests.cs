@@ -614,9 +614,9 @@ public sealed class CabinetXmlServiceTests
         Assert.Contains("<OutputName>Matrix1</OutputName>", merged);
         Assert.Contains("<LedWizEquivalentOutputNumber>1</LedWizEquivalentOutputNumber>", merged);
         Assert.Contains("<OutputName>FlasherTop</OutputName>", merged);
-        Assert.Contains("<LedWizEquivalentOutputNumber>2</LedWizEquivalentOutputNumber>", merged);
+        Assert.Contains("<LedWizEquivalentOutputNumber>4</LedWizEquivalentOutputNumber>", merged);
         Assert.Contains("<OutputName>FlasherLeft</OutputName>", merged);
-        Assert.Contains("<LedWizEquivalentOutputNumber>3</LedWizEquivalentOutputNumber>", merged);
+        Assert.Contains("<LedWizEquivalentOutputNumber>7</LedWizEquivalentOutputNumber>", merged);
         Assert.Contains("</LedStrip>\r\n\r\n\t\t<LedStrip>", merged);
     }
 

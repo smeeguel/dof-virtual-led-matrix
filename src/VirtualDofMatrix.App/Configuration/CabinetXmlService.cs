@@ -748,14 +748,20 @@ public sealed class CabinetXmlService
             }
 
             // Conversational note: keep existing LedWiz output numbers stable for existing toys, and only append
-            // new toys at the end so Matrix1 stays slot 1 while additional toys become 2, 3, etc.
+            // new toys at RGB-aligned starts (1,4,7,...) so DOF Config Tool mappings stay channel-aligned.
             var occupiedSlots = outputsByName
                 .Where(pair => !newlyAddedNames.Contains(pair.Key, StringComparer.OrdinalIgnoreCase))
                 .Select(pair => ParseIntOrNull(GetChildValue(pair.Value, "LedWizEquivalentOutputNumber")) ?? 0)
                 .Where(number => number > 0)
                 .ToHashSet();
 
+            const int rgbChannelWidth = 3;
             var nextSlot = occupiedSlots.Count == 0 ? 1 : occupiedSlots.Max() + 1;
+            while (!IsRgbAlignedSlotAvailable(occupiedSlots, nextSlot, rgbChannelWidth))
+            {
+                nextSlot++;
+            }
+
             foreach (var name in newlyAddedNames)
             {
                 if (!outputsByName.TryGetValue(name, out var output))
@@ -763,16 +769,43 @@ public sealed class CabinetXmlService
                     continue;
                 }
 
-                while (occupiedSlots.Contains(nextSlot))
+                while (!IsRgbAlignedSlotAvailable(occupiedSlots, nextSlot, rgbChannelWidth))
                 {
                     nextSlot++;
                 }
 
                 SetOrCreateChildValue(output, "LedWizEquivalentOutputNumber", nextSlot.ToString());
                 occupiedSlots.Add(nextSlot);
-                nextSlot++;
+                occupiedSlots.Add(nextSlot + 1);
+                occupiedSlots.Add(nextSlot + 2);
+                nextSlot += rgbChannelWidth;
             }
         }
+    }
+
+    private static bool IsRgbAlignedSlotAvailable(HashSet<int> occupiedSlots, int candidateStart, int rgbChannelWidth)
+    {
+        if (candidateStart < 1)
+        {
+            return false;
+        }
+
+        // Conversational note: RGB outputs occupy a contiguous triplet (R,G,B), so all three positions must be
+        // free and the start index must follow LedWiz-style channel boundaries (1,4,7,...).
+        if ((candidateStart - 1) % rgbChannelWidth != 0)
+        {
+            return false;
+        }
+
+        for (var offset = 0; offset < rgbChannelWidth; offset++)
+        {
+            if (occupiedSlots.Contains(candidateStart + offset))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void RemoveWhitespaceTextNodes(XElement element)
