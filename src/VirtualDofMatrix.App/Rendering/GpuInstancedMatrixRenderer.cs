@@ -727,18 +727,18 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var compositeStart = Stopwatch.GetTimestamp();
         if (nearActive && farActive)
         {
-            CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, effectiveNearStrength, effectiveFarStrength, bloomProfile);
+            CompositeBloom(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveFarRadius, effectiveNearStrength, effectiveFarStrength, bloomProfile, _transparentBackground);
             _cpuBloomNearCompositePassCount++;
             _cpuBloomFarCompositePassCount++;
         }
         else if (nearActive)
         {
-            CompositeBloomSingleLane(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveNearStrength, bloomProfile);
+            CompositeBloomSingleLane(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveNearRadius, effectiveNearStrength, bloomProfile, _transparentBackground);
             _cpuBloomNearCompositePassCount++;
         }
         else
         {
-            CompositeBloomSingleLane(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveFarRadius, effectiveFarStrength, bloomProfile);
+            CompositeBloomSingleLane(_bgra, _surfaceWidth, _surfaceHeight, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, minBloomX, minBloomY, maxBloomX, maxBloomY, effectiveFarRadius, effectiveFarStrength, bloomProfile, _transparentBackground);
             _cpuBloomFarCompositePassCount++;
         }
 
@@ -1416,7 +1416,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
     }
 
-    private static void CompositeBloom(byte[] target, int width, int height, float[] nearBlur, float[] farBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, int effectiveNearRadius, int effectiveFarRadius, float effectiveNearStrength, float effectiveFarStrength, BloomProfile profile)
+    private static void CompositeBloom(byte[] target, int width, int height, float[] nearBlur, float[] farBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, int effectiveNearRadius, int effectiveFarRadius, float effectiveNearStrength, float effectiveFarStrength, BloomProfile profile, bool transparentBackground)
     {
         var nearStrength = effectiveNearStrength;
         var farStrength = effectiveFarStrength;
@@ -1445,11 +1445,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (nearR * nearStrength) + (farR * farStrength), 0f, 255f);
                 target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (nearG * nearStrength) + (farG * farStrength), 0f, 255f);
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (nearB * nearStrength) + (farB * farStrength), 0f, 255f);
+                if (transparentBackground)
+                {
+                    var alpha = Math.Max(target[targetOffset], Math.Max(target[targetOffset + 1], target[targetOffset + 2]));
+                    target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
+                }
             }
         }
     }
 
-    private static void CompositeBloomSingleLane(byte[] target, int width, int height, float[] laneBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, int effectiveLaneRadius, float effectiveLaneStrength, BloomProfile profile)
+    private static void CompositeBloomSingleLane(byte[] target, int width, int height, float[] laneBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, int effectiveLaneRadius, float effectiveLaneStrength, BloomProfile profile, bool transparentBackground)
     {
         var laneStrength = effectiveLaneStrength;
         var pad = effectiveLaneRadius + 1;
@@ -1473,6 +1478,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (laneR * laneStrength), 0f, 255f);
                 target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (laneG * laneStrength), 0f, 255f);
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (laneB * laneStrength), 0f, 255f);
+                if (transparentBackground)
+                {
+                    var alpha = Math.Max(target[targetOffset], Math.Max(target[targetOffset + 1], target[targetOffset + 2]));
+                    target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
+                }
             }
         }
     }
