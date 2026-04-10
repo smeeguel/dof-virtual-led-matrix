@@ -376,9 +376,15 @@ public sealed class CabinetXmlService
                         $"Output controller '{desiredToy.OutputControllerName}' is missing or not virtual for toy '{change.ToyName}'.");
                 }
 
-                var firstLedNumber = desiredToy.FirstLedNumber
-                    ?? GetNextAvailableFirstLedNumber(managedExisting.Values, desiredToy.OutputControllerName);
                 var ledCount = desiredToy.LedCount ?? Math.Max(1, desiredToy.Width * desiredToy.Height);
+                var nextAvailableFirstLed = GetNextAvailableFirstLedNumber(managedExisting.Values, desiredToy.OutputControllerName);
+                var firstLedNumber = desiredToy.FirstLedNumber ?? nextAvailableFirstLed;
+                if (!IsLedRangeAvailable(managedExisting.Values, desiredToy.OutputControllerName, firstLedNumber, ledCount))
+                {
+                    // Conversational note: if a routing toy comes in with a default/overlapping first LED (for
+                    // example 1), move it to the next free slot rather than stacking ranges at the same address.
+                    firstLedNumber = nextAvailableFirstLed;
+                }
 
                 var ledStrip = new XElement(ns + "LedStrip",
                     new XElement(ns + "Name", change.ToyName),
@@ -612,6 +618,37 @@ public sealed class CabinetXmlService
             .Max();
 
         return lastUsed + 1;
+    }
+
+    private static bool IsLedRangeAvailable(
+        IEnumerable<XElement> managedLedStrips,
+        string controllerName,
+        int firstLedNumber,
+        int ledCount)
+    {
+        var candidateStart = firstLedNumber;
+        var candidateEnd = firstLedNumber + Math.Max(ledCount - 1, 0);
+
+        foreach (var toy in managedLedStrips)
+        {
+            if (!string.Equals(GetChildValue(toy, "OutputControllerName"), controllerName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var existingStart = ParseIntOrNull(GetChildValue(toy, "FirstLedNumber")) ?? 1;
+            var existingCount = ParseIntOrNull(GetChildValue(toy, "LedCount"))
+                ?? ((ParseIntOrNull(GetChildValue(toy, "Width")) ?? 0) * (ParseIntOrNull(GetChildValue(toy, "Height")) ?? 0));
+            var existingEnd = existingStart + Math.Max(existingCount - 1, 0);
+
+            var overlaps = candidateStart <= existingEnd && existingStart <= candidateEnd;
+            if (overlaps)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void SyncVirtualControllerLedCounts(XDocument document, IEnumerable<XElement> managedLedStrips)
