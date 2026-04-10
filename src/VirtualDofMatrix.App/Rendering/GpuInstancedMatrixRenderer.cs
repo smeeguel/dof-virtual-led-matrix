@@ -1447,7 +1447,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (nearB * nearStrength) + (farB * farStrength), 0f, 255f);
                 if (transparentBackground)
                 {
-                    var alpha = Math.Max(target[targetOffset], Math.Max(target[targetOffset + 1], target[targetOffset + 2]));
+                    // Conversational note: alpha should reflect bloom contribution only, not pre-existing dark off-state shading.
+                    var bloomR = (nearR * nearStrength) + (farR * farStrength);
+                    var bloomG = (nearG * nearStrength) + (farG * farStrength);
+                    var bloomB = (nearB * nearStrength) + (farB * farStrength);
+                    var alpha = (byte)Math.Clamp(Math.Max(bloomR, Math.Max(bloomG, bloomB)), 0f, 255f);
                     target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
                 }
             }
@@ -1480,7 +1484,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (laneB * laneStrength), 0f, 255f);
                 if (transparentBackground)
                 {
-                    var alpha = Math.Max(target[targetOffset], Math.Max(target[targetOffset + 1], target[targetOffset + 2]));
+                    // Conversational note: preserve off-state dots while only expanding alpha where bloom actually adds light.
+                    var alpha = (byte)Math.Clamp(Math.Max(laneR, Math.Max(laneG, laneB)) * laneStrength, 0f, 255f);
                     target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
                 }
             }

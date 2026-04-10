@@ -774,7 +774,11 @@ internal sealed class MatrixFrameRasterComposer
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (nearRowB[xIndex] * nearStrength) + (farRowB[xIndex] * farStrength), 0f, 255f);
                 if (transparentBackground)
                 {
-                    var alpha = Math.Max(target[targetOffset], Math.Max(target[targetOffset + 1], target[targetOffset + 2]));
+                    // Conversational note: alpha expansion for transparent mode should track bloom-only energy, not dark base shading.
+                    var bloomR = (nearRowR[xIndex] * nearStrength) + (farRowR[xIndex] * farStrength);
+                    var bloomG = (nearRowG[xIndex] * nearStrength) + (farRowG[xIndex] * farStrength);
+                    var bloomB = (nearRowB[xIndex] * nearStrength) + (farRowB[xIndex] * farStrength);
+                    var alpha = (byte)Math.Clamp(Math.Max(bloomR, Math.Max(bloomG, bloomB)), 0f, 255f);
                     target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
                 }
                 targetOffset += 4;
@@ -827,7 +831,8 @@ internal sealed class MatrixFrameRasterComposer
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (laneRowB[xIndex] * strength), 0f, 255f);
                 if (transparentBackground)
                 {
-                    var alpha = Math.Max(target[targetOffset], Math.Max(target[targetOffset + 1], target[targetOffset + 2]));
+                    // Conversational note: preserve off-state dot alpha and only add alpha where bloom lane contributes.
+                    var alpha = (byte)Math.Clamp(Math.Max(laneRowR[xIndex], Math.Max(laneRowG[xIndex], laneRowB[xIndex])) * strength, 0f, 255f);
                     target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
                 }
                 targetOffset += 4;
