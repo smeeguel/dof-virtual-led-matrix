@@ -560,7 +560,9 @@ public sealed class CabinetXmlService
 
     private static XDocument LoadCabinetDocument(string cabinetXmlPath)
     {
-        return XDocument.Load(cabinetXmlPath, LoadOptions.PreserveWhitespace);
+        var raw = File.ReadAllText(cabinetXmlPath);
+        var normalized = NormalizeEscapedNewlines(raw);
+        return XDocument.Parse(normalized, LoadOptions.PreserveWhitespace);
     }
 
     private static Dictionary<string, string> GetControllerKindsByName(XDocument document)
@@ -792,17 +794,29 @@ public sealed class CabinetXmlService
 
     private static void ApplyReadableLedStripSpacing(string xmlPath)
     {
-        var xml = File.ReadAllText(xmlPath);
+        var xml = NormalizeEscapedNewlines(File.ReadAllText(xmlPath));
 
         // Conversational note: keep one blank line between adjacent LedStrip blocks so newly inserted toys are
         // visually separated and easy to review in Cabinet.xml.
         var normalized = Regex.Replace(
             xml,
-            @"(</LedStrip>\r\n)([ \t]*<LedStrip>)",
+            @"(</LedStrip>(?:\r\n|\n))([ \t]*<LedStrip>)",
             "$1\r\n$2",
             RegexOptions.CultureInvariant);
 
         File.WriteAllText(xmlPath, normalized);
+    }
+
+    private static string NormalizeEscapedNewlines(string raw)
+    {
+        if (!raw.Contains("\\n", StringComparison.Ordinal))
+        {
+            return raw;
+        }
+
+        return raw
+            .Replace("\\r\\n", "\r\n", StringComparison.Ordinal)
+            .Replace("\\n", "\n", StringComparison.Ordinal);
     }
 
     private static void SetOrCreateChildValue(XElement parent, string elementName, string value)
