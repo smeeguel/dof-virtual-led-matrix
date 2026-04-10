@@ -595,21 +595,12 @@ public partial class SettingsWindow : Window
 
     private void UpdateSummary()
     {
-        var widthText = WidthTextBox.Text;
-        var heightText = HeightTextBox.Text;
-
-        if (!int.TryParse(widthText, out var width) || !int.TryParse(heightText, out var height) || width <= 0 || height <= 0)
-        {
-            SummaryText.Text = "Summary: enter a valid positive width/height.";
-            SummaryStatusText.Text = "Status: invalid resolution.";
-            return;
-        }
-
-        var total = width * height;
-        SummaryText.Text = $"Summary: {width}x{height} ({total} LEDs), toy '{(string.IsNullOrWhiteSpace(LedStripCombo.Text) ? "Matrix1" : LedStripCombo.Text)}'.";
-        SummaryStatusText.Text = total <= CabinetXmlService.SafeMaxLedTotal
-            ? $"Status: compatible with safe DOF target (<= {CabinetXmlService.SafeMaxLedTotal})."
-            : $"Status: exceeds safe DOF target (<= {CabinetXmlService.SafeMaxLedTotal}).";
+        var enabledToys = _working.Routing.Toys.Where(t => t.Enabled).ToArray();
+        var totalEnabledLeds = enabledToys.Sum(t => Math.Max(1, t.Mapping.Width * t.Mapping.Height));
+        SummaryText.Text = $"Summary: {enabledToys.Length} enabled virtual toy(s), {totalEnabledLeds} routed LEDs total.";
+        SummaryStatusText.Text = totalEnabledLeds <= CabinetXmlService.SafeMaxLedTotal
+            ? $"Status: combined enabled toy LEDs are within safe DOF target (<= {CabinetXmlService.SafeMaxLedTotal})."
+            : $"Status: combined enabled toy LEDs exceed safe DOF target (<= {CabinetXmlService.SafeMaxLedTotal}).";
     }
 
     private void UpdateSelectionTooltips()

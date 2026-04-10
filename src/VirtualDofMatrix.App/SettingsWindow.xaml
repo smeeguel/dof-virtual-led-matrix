@@ -74,7 +74,7 @@
                     </Border>
                 </Grid>
             </TabItem>
-            <TabItem Header="Display" ToolTip="Display settings for matrix size and render quality.">
+            <TabItem Header="Display" ToolTip="Global renderer and quality settings.">
                 <Grid Margin="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
@@ -83,50 +83,40 @@
 
                     <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Text="Dot Resolution"
-                                   ToolTip="Pick a predefined resolution or choose Custom for manual width/height." />
-                        <ComboBox x:Name="ResolutionPresetCombo" Margin="0,4,0,0" SelectionChanged="OnResolutionPresetChanged"
-                                  ToolTip="SD=32x8, HD=64x16, Ultra=128x32, Custom=manual dimensions."/>
-
-                        <StackPanel x:Name="CustomResolutionPanel" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed">
-                            <StackPanel Margin="0,0,12,0">
-                                <TextBlock Text="Width" ToolTip="Horizontal LED count."/>
-                                <TextBox x:Name="WidthTextBox" Width="120" TextChanged="OnTextSettingChanged"
-                                         ToolTip="Number of horizontal dots (LED columns)."/>
+                        <StackPanel Visibility="Collapsed">
+                            <TextBlock FontWeight="SemiBold" Text="Dot Resolution"
+                                       ToolTip="Legacy global matrix controls are now managed per toy in Virtual Toys." />
+                            <ComboBox x:Name="ResolutionPresetCombo" Margin="0,4,0,0" SelectionChanged="OnResolutionPresetChanged"/>
+                            <StackPanel x:Name="CustomResolutionPanel" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed">
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Text="Width"/>
+                                    <TextBox x:Name="WidthTextBox" Width="120" TextChanged="OnTextSettingChanged"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Height"/>
+                                    <TextBox x:Name="HeightTextBox" Width="120" TextChanged="OnTextSettingChanged"/>
+                                </StackPanel>
                             </StackPanel>
-                            <StackPanel>
-                                <TextBlock Text="Height" ToolTip="Vertical LED count."/>
-                                <TextBox x:Name="HeightTextBox" Width="120" TextChanged="OnTextSettingChanged"
-                                         ToolTip="Number of vertical dots (LED rows)."/>
+                            <CheckBox x:Name="AlwaysOnTopCheckBox" Content="Always on top" Margin="0,12,0,0" Checked="OnSettingChanged" Unchecked="OnSettingChanged"/>
+                            <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Dot shape"/>
+                            <ComboBox x:Name="DotShapeCombo" Margin="0,4,0,0" SelectionChanged="OnDotShapeChanged"/>
+                            <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Dot brightness"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0" VerticalAlignment="Center">
+                                <Slider x:Name="DotBrightnessSlider"
+                                        Width="260"
+                                        Minimum="0"
+                                        Maximum="1"
+                                        TickFrequency="0.05"
+                                        IsSnapToTickEnabled="True"
+                                        SmallChange="0.05"
+                                        LargeChange="0.05"
+                                        ValueChanged="OnDotBrightnessChanged" />
+                                <TextBlock x:Name="DotBrightnessValueText"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="#333"
+                                           Text="1.00" />
                             </StackPanel>
-                        </StackPanel>
-
-                        <CheckBox x:Name="AlwaysOnTopCheckBox" Content="Always on top" Margin="0,12,0,0" Checked="OnSettingChanged" Unchecked="OnSettingChanged"
-                                  ToolTip="Keep matrix window above other windows."/>
-
-                        <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Dot shape"
-                                   ToolTip="Circle simulates rounded LED lenses; square provides crisp pixel look."/>
-                        <ComboBox x:Name="DotShapeCombo" Margin="0,4,0,0" SelectionChanged="OnDotShapeChanged"
-                                  ToolTip="Choose dot geometry for matrix rendering."/>
-
-                        <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Dot brightness"
-                                   ToolTip="0.0 to 1.0 output multiplier. 1.0 preserves full RGB channel strength."/>
-                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0" VerticalAlignment="Center">
-                            <Slider x:Name="DotBrightnessSlider"
-                                    Width="260"
-                                    Minimum="0"
-                                    Maximum="1"
-                                    TickFrequency="0.05"
-                                    IsSnapToTickEnabled="True"
-                                    SmallChange="0.05"
-                                    LargeChange="0.05"
-                                    ValueChanged="OnDotBrightnessChanged"
-                                    ToolTip="Dot brightness in 0.05 steps from 0.0 to 1.0." />
-                            <TextBlock x:Name="DotBrightnessValueText"
-                                       Margin="12,0,0,0"
-                                       VerticalAlignment="Center"
-                                       Foreground="#333"
-                                       Text="1.00" />
                         </StackPanel>
 
                         <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Visual quality"
