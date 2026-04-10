@@ -197,7 +197,7 @@ public partial class MainWindow : Window
         TransparentHoverCapture.Background = WpfBrushes.Transparent;
     }
 
-    private void OnTransparentHoverCaptureMouseEnter(object sender, MouseEventArgs e)
+    private void OnTransparentHoverCaptureMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (_config.Window.BackgroundVisible)
         {
@@ -208,7 +208,7 @@ public partial class MainWindow : Window
         TransparentHoverCapture.Background = new SolidColorBrush(WpfColor.FromArgb(160, 0, 0, 0));
     }
 
-    private void OnTransparentHoverCaptureMouseLeave(object sender, MouseEventArgs e)
+    private void OnTransparentHoverCaptureMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (_config.Window.BackgroundVisible)
         {
