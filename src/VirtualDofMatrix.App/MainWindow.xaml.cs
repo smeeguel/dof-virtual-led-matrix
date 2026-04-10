@@ -188,7 +188,7 @@ public partial class MainWindow : Window
         MatrixCanvas.Background = brush;
     }
 
-    private static Brush BuildWindowBackgroundBrush(WindowConfig window)
+    private static System.Windows.Media.Brush BuildWindowBackgroundBrush(WindowConfig window)
     {
         if (!window.BackgroundVisible)
         {
