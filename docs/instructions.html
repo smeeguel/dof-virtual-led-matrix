@@ -169,6 +169,7 @@ What gets changed:
 - If a new toy requests a first LED that overlaps an existing managed range, it is automatically moved to the next free slot.
 - Matching `LedWizEquivalent` output names/numbers for managed virtual toys (so renamed/new toys stay aligned).
 - Virtual controller `NumberOfLedsStrip1` is recalculated from managed toy first LED + size ranges.
+- If a toy's bulb count is reduced, its managed LED count is reduced too, and controller totals are recalculated downward.
 
 What stays untouched:
 

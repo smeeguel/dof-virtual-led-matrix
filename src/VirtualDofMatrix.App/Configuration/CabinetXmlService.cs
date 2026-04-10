@@ -256,8 +256,11 @@ public sealed class CabinetXmlService
             var heightText = GetChildValue(current.Element, "Height");
             var controllerText = GetChildValue(current.Element, "OutputControllerName");
             var firstLedText = GetChildValue(current.Element, "FirstLedNumber");
+            var ledCountText = GetChildValue(current.Element, "LedCount");
             var oldWidth = ParseIntOrNull(widthText);
             var oldHeight = ParseIntOrNull(heightText);
+            var oldLedCount = ParseIntOrNull(ledCountText);
+            var desiredLedCount = desired.LedCount ?? Math.Max(1, desired.Width * desired.Height);
 
             if (oldWidth != desired.Width)
             {
@@ -284,6 +287,16 @@ public sealed class CabinetXmlService
                     "FirstLedNumber",
                     firstLedText,
                     desired.FirstLedNumber.Value.ToString()));
+            }
+
+            if (oldLedCount != desiredLedCount)
+            {
+                changes.Add(new CabinetXmlMergeChange(
+                    CabinetXmlMergeChangeType.Updated,
+                    lookupName,
+                    "LedCount",
+                    ledCountText,
+                    desiredLedCount.ToString()));
             }
         }
 
