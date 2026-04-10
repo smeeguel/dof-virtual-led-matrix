@@ -165,6 +165,7 @@ This applies when either:
 What gets changed:
 
 - Managed virtual LED toy fields for that target toy (for example width/height/controller link).
+- New managed toys without an explicit first LED are assigned the next unused LED index on that controller.
 - Matching `LedWizEquivalent` output names/numbers for managed virtual toys (so renamed/new toys stay aligned).
 - Virtual controller `NumberOfLedsStrip1` is recalculated from managed toy first LED + size ranges.
 

@@ -376,16 +376,24 @@ public sealed class CabinetXmlService
                         $"Output controller '{desiredToy.OutputControllerName}' is missing or not virtual for toy '{change.ToyName}'.");
                 }
 
+                var firstLedNumber = desiredToy.FirstLedNumber
+                    ?? GetNextAvailableFirstLedNumber(managedExisting.Values, desiredToy.OutputControllerName);
+                var ledCount = desiredToy.LedCount ?? Math.Max(1, desiredToy.Width * desiredToy.Height);
+
                 var ledStrip = new XElement(ns + "LedStrip",
                     new XElement(ns + "Name", change.ToyName),
                     new XElement(ns + "Width", desiredToy.Width),
                     new XElement(ns + "Height", desiredToy.Height),
                     new XElement(ns + "LedStripArrangement", "TopDownAlternateRightLeft"),
                     new XElement(ns + "ColorOrder", "RGB"),
-                    new XElement(ns + "FirstLedNumber", desiredToy.FirstLedNumber ?? 1),
+                    new XElement(ns + "FirstLedNumber", firstLedNumber),
                     new XElement(ns + "FadingCurveName", "SwissLizardsLedCurve"),
                     new XElement(ns + "Brightness", "100"),
                     new XElement(ns + "OutputControllerName", desiredToy.OutputControllerName));
+
+                // Conversational note: keep an explicit LED count hint so downstream total calculations can use
+                // source length if it differs from Width*Height for non-matrix strip toys.
+                SetOrCreateChildValue(ledStrip, "LedCount", ledCount.ToString());
 
                 managedExisting[change.ToyName] = ledStrip;
                 continue;
@@ -589,6 +597,23 @@ public sealed class CabinetXmlService
         return int.TryParse(value, out var parsed) ? parsed : null;
     }
 
+    private static int GetNextAvailableFirstLedNumber(IEnumerable<XElement> managedLedStrips, string controllerName)
+    {
+        var lastUsed = managedLedStrips
+            .Where(toy => string.Equals(GetChildValue(toy, "OutputControllerName"), controllerName, StringComparison.OrdinalIgnoreCase))
+            .Select(toy =>
+            {
+                var firstLed = ParseIntOrNull(GetChildValue(toy, "FirstLedNumber")) ?? 1;
+                var ledCount = ParseIntOrNull(GetChildValue(toy, "LedCount"))
+                    ?? ((ParseIntOrNull(GetChildValue(toy, "Width")) ?? 0) * (ParseIntOrNull(GetChildValue(toy, "Height")) ?? 0));
+                return firstLed + Math.Max(ledCount - 1, 0);
+            })
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return lastUsed + 1;
+    }
+
     private static void SyncVirtualControllerLedCounts(XDocument document, IEnumerable<XElement> managedLedStrips)
     {
         var totalsByController = managedLedStrips
@@ -598,7 +623,8 @@ public sealed class CabinetXmlService
                 var firstLed = ParseIntOrNull(GetChildValue(toy, "FirstLedNumber")) ?? 1;
                 var width = ParseIntOrNull(GetChildValue(toy, "Width")) ?? 0;
                 var height = ParseIntOrNull(GetChildValue(toy, "Height")) ?? 0;
-                var ledCount = width > 0 && height > 0 ? width * height : 0;
+                var ledCount = ParseIntOrNull(GetChildValue(toy, "LedCount"))
+                    ?? (width > 0 && height > 0 ? width * height : 0);
                 var lastLed = firstLed + Math.Max(ledCount - 1, 0);
                 return new { controllerName, lastLed };
             })

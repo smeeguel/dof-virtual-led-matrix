@@ -426,6 +426,55 @@ public sealed class CabinetXmlServiceTests
             && change.Field == "FirstLedNumber");
     }
 
+    [Fact]
+    public void ApplyVirtualToyMerge_ShouldAssignFirstUnusedLedAndIncreaseControllerTotalForNewToy()
+    {
+        var xml = """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController>
+                  <Name>LED Strips 0</Name>
+                  <NumberOfLedsStrip1>4101</NumberOfLedsStrip1>
+                </VirtualLEDStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>Matrix1</Name>
+                  <Width>128</Width>
+                  <Height>32</Height>
+                  <FirstLedNumber>1</FirstLedNumber>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+                <LedStrip>
+                  <Name>Matrix2</Name>
+                  <Width>5</Width>
+                  <Height>1</Height>
+                  <FirstLedNumber>4097</FirstLedNumber>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+              </Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+        var plan = service.BuildVirtualToyMergePlan(
+            temp.Path,
+            [
+                new VirtualLedToyDefinition("Matrix1", 128, 32, "LED Strips 0", FirstLedNumber: 1, LedCount: 4096),
+                new VirtualLedToyDefinition("Matrix2", 5, 1, "LED Strips 0", FirstLedNumber: 4097, LedCount: 5),
+                new VirtualLedToyDefinition("VerticalStrip3", 1, 16, "LED Strips 0", FirstLedNumber: null, LedCount: 16),
+            ],
+            removeMissingManagedToys: false);
+
+        service.ApplyVirtualToyMerge(temp.Path, plan, dryRun: false);
+        var merged = File.ReadAllText(temp.Path);
+
+        Assert.Contains("<Name>VerticalStrip3</Name>", merged);
+        Assert.Contains("<FirstLedNumber>4102</FirstLedNumber>", merged);
+        Assert.Contains("<NumberOfLedsStrip1>4117</NumberOfLedsStrip1>", merged);
+    }
+
     private sealed class TempCabinetXml : IDisposable
     {
         public TempCabinetXml(string xml)
