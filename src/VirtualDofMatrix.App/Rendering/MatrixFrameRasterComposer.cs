@@ -576,18 +576,18 @@ internal sealed class MatrixFrameRasterComposer
         var compositeStart = Stopwatch.GetTimestamp();
         if (nearActive && farActive)
         {
-            CompositeBloom(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveNearStrength, effectiveFarStrength, bloomProfile);
+            CompositeBloom(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveNearStrength, effectiveFarStrength, bloomProfile, _transparentBackground);
             _bloomNearCompositePassCount++;
             _bloomFarCompositePassCount++;
         }
         else if (nearActive)
         {
-            CompositeBloomSingleLane(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveNearStrength, bloomProfile);
+            CompositeBloomSingleLane(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomNearRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveNearStrength, bloomProfile, _transparentBackground);
             _bloomNearCompositePassCount++;
         }
         else
         {
-            CompositeBloomSingleLane(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveFarStrength, bloomProfile);
+            CompositeBloomSingleLane(_surfaceBgra, _surfaceWidth, _surfaceHeight, _screenBloomFarRgb, _downsampleWidth, _downsampleHeight, compositeMinX, compositeMinY, compositeMaxX, compositeMaxY, effectiveFarStrength, bloomProfile, _transparentBackground);
             _bloomFarCompositePassCount++;
         }
 
@@ -721,7 +721,7 @@ internal sealed class MatrixFrameRasterComposer
         return any;
     }
 
-    private static void CompositeBloom(byte[] target, int width, int height, RgbPlaneBuffer nearBlur, RgbPlaneBuffer farBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, float effectiveNearStrength, float effectiveFarStrength, BloomProfile profile)
+    private static void CompositeBloom(byte[] target, int width, int height, RgbPlaneBuffer nearBlur, RgbPlaneBuffer farBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, float effectiveNearStrength, float effectiveFarStrength, BloomProfile profile, bool transparentBackground)
     {
         var nearStrength = effectiveNearStrength;
         var farStrength = effectiveFarStrength;
@@ -772,12 +772,17 @@ internal sealed class MatrixFrameRasterComposer
                 target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (nearRowR[xIndex] * nearStrength) + (farRowR[xIndex] * farStrength), 0f, 255f);
                 target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (nearRowG[xIndex] * nearStrength) + (farRowG[xIndex] * farStrength), 0f, 255f);
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (nearRowB[xIndex] * nearStrength) + (farRowB[xIndex] * farStrength), 0f, 255f);
+                if (transparentBackground)
+                {
+                    var alpha = Math.Max(target[targetOffset], Math.Max(target[targetOffset + 1], target[targetOffset + 2]));
+                    target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
+                }
                 targetOffset += 4;
             }
         }
     }
 
-    private static void CompositeBloomSingleLane(byte[] target, int width, int height, RgbPlaneBuffer laneBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, float effectiveStrength, BloomProfile profile)
+    private static void CompositeBloomSingleLane(byte[] target, int width, int height, RgbPlaneBuffer laneBlur, int bloomWidth, int bloomHeight, int minBloomX, int minBloomY, int maxBloomX, int maxBloomY, float effectiveStrength, BloomProfile profile, bool transparentBackground)
     {
         var strength = effectiveStrength;
         var startX = Math.Max(0, minBloomX * profile.ScaleDivisor);
@@ -820,6 +825,11 @@ internal sealed class MatrixFrameRasterComposer
                 target[targetOffset + 2] = (byte)Math.Clamp(target[targetOffset + 2] + (laneRowR[xIndex] * strength), 0f, 255f);
                 target[targetOffset + 1] = (byte)Math.Clamp(target[targetOffset + 1] + (laneRowG[xIndex] * strength), 0f, 255f);
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (laneRowB[xIndex] * strength), 0f, 255f);
+                if (transparentBackground)
+                {
+                    var alpha = Math.Max(target[targetOffset], Math.Max(target[targetOffset + 1], target[targetOffset + 2]));
+                    target[targetOffset + 3] = (byte)Math.Max(target[targetOffset + 3], alpha);
+                }
                 targetOffset += 4;
             }
         }

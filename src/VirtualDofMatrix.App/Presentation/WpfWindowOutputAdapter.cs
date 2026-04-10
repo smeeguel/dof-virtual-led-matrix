@@ -290,8 +290,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 },
                 Bloom = new BloomConfig
                 {
-                    // Conversational note: transparent toys disable bloom for now to avoid opaque full-frame composites.
-                    Enabled = toy.Window.BackgroundVisible && toy.Bloom.Enabled,
+                    Enabled = toy.Bloom.Enabled,
                     Threshold = toy.Bloom.Threshold,
                     SoftKnee = toy.Bloom.SoftKnee,
                     DownsampleDivisor = _config.Matrix.Bloom.DownsampleDivisor,

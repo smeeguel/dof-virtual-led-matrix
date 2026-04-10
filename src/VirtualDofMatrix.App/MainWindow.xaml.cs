@@ -402,9 +402,7 @@ public partial class MainWindow : Window
             },
             Bloom = new BloomConfig
             {
-                // Conversational note: transparent windows avoid bloom compositing because full-screen bloom passes can
-                // force opaque-alpha output in layered-window presentation paths.
-                Enabled = _config.Window.BackgroundVisible && _config.Matrix.Bloom.Enabled,
+                Enabled = _config.Matrix.Bloom.Enabled,
                 Threshold = _config.Matrix.Bloom.Threshold,
                 SoftKnee = _config.Matrix.Bloom.SoftKnee,
                 DownsampleDivisor = _config.Matrix.Bloom.DownsampleDivisor,
