@@ -621,6 +621,8 @@ public partial class SettingsWindow : Window
             toy.Window.AlwaysOnTop = liveToy.Window.AlwaysOnTop;
             toy.Window.Borderless = liveToy.Window.Borderless;
             toy.Window.LockAspectRatio = liveToy.Window.LockAspectRatio;
+            toy.Window.BackgroundVisible = liveToy.Window.BackgroundVisible;
+            toy.Window.BackgroundColor = liveToy.Window.BackgroundColor;
         }
     }
 
@@ -904,6 +906,8 @@ public partial class SettingsWindow : Window
                         AlwaysOnTop = toy.Window.AlwaysOnTop,
                         Borderless = toy.Window.Borderless,
                         LockAspectRatio = toy.Window.LockAspectRatio,
+                        BackgroundVisible = toy.Window.BackgroundVisible,
+                        BackgroundColor = toy.Window.BackgroundColor,
                         Left = toy.Window.Left,
                         Top = toy.Window.Top,
                         Width = toy.Window.Width,
@@ -1036,6 +1040,8 @@ public partial class SettingsWindow : Window
                 AlwaysOnTop = toy.Window.AlwaysOnTop,
                 Borderless = toy.Window.Borderless,
                 LockAspectRatio = toy.Window.LockAspectRatio,
+                BackgroundVisible = toy.Window.BackgroundVisible,
+                BackgroundColor = toy.Window.BackgroundColor,
                 Left = toy.Window.Left,
                 Top = toy.Window.Top,
                 Width = toy.Window.Width,

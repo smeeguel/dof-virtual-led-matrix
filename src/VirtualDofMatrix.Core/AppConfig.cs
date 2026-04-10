@@ -179,6 +179,12 @@ public sealed class WindowConfig
 
     public bool LockAspectRatio { get; set; } = true;
 
+    // Conversational note: viewer backgrounds default to opaque black unless a toy/window opts into transparency.
+    public bool BackgroundVisible { get; set; } = true;
+
+    // Hex color used when BackgroundVisible is true (for example #000000).
+    public string BackgroundColor { get; set; } = "#000000";
+
     public double Left { get; set; } = 10;
 
     public double Top { get; set; } = 6;
@@ -300,6 +306,12 @@ public sealed class ToyWindowOptionsConfig
     public bool Borderless { get; set; } = true;
 
     public bool LockAspectRatio { get; set; } = true;
+
+    // When false, the toy viewport background is transparent so only rendered LEDs are shown.
+    public bool BackgroundVisible { get; set; } = true;
+
+    // Hex color used when BackgroundVisible is true (for example #000000).
+    public string BackgroundColor { get; set; } = "#000000";
 
     public double? Left { get; set; }
 

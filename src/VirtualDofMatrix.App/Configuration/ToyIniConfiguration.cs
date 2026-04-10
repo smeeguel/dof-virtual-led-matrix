@@ -133,6 +133,10 @@ internal static class ToyIniConfiguration
             lines.Add($"windowBorderless = {toy.Window.Borderless.ToString().ToLowerInvariant()}");
             lines.Add("; windowLockAspectRatio options: true | false (example: true)");
             lines.Add($"windowLockAspectRatio = {toy.Window.LockAspectRatio.ToString().ToLowerInvariant()}");
+            lines.Add("; windowBackgroundVisible options: true | false (example: true)");
+            lines.Add($"windowBackgroundVisible = {toy.Window.BackgroundVisible.ToString().ToLowerInvariant()}");
+            lines.Add("; windowBackgroundColor options: WPF color (example: #000000)");
+            lines.Add($"windowBackgroundColor = {toy.Window.BackgroundColor}");
             lines.Add(string.Empty);
             lines.Add("; --- render ---");
             lines.Add("; renderDotShape options: circle | square (example: circle)");
@@ -274,6 +278,8 @@ internal static class ToyIniConfiguration
         modified |= SetIfPresent(values, "windowAlwaysOnTop", value => toy.Window.AlwaysOnTop = ParseBool(value, toy.Window.AlwaysOnTop));
         modified |= SetIfPresent(values, "windowBorderless", value => toy.Window.Borderless = ParseBool(value, toy.Window.Borderless));
         modified |= SetIfPresent(values, "windowLockAspectRatio", value => toy.Window.LockAspectRatio = ParseBool(value, toy.Window.LockAspectRatio));
+        modified |= SetIfPresent(values, "windowBackgroundVisible", value => toy.Window.BackgroundVisible = ParseBool(value, toy.Window.BackgroundVisible));
+        modified |= SetIfPresent(values, "windowBackgroundColor", value => toy.Window.BackgroundColor = value);
 
         modified |= SetIfPresent(values, "renderDotShape", value => toy.Render.DotShape = value);
         modified |= SetIfPresent(values, "renderMinDotSpacing", value => toy.Render.MinDotSpacing = ParseInt(value, toy.Render.MinDotSpacing));

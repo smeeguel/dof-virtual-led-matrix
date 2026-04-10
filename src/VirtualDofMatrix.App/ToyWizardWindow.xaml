@@ -131,6 +131,16 @@
                 </WrapPanel>
 
                 <WrapPanel Margin="0,8,0,0">
+                    <CheckBox x:Name="WindowBackgroundVisibleCheckBox" Content="Show background color" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                              ToolTip="Turn off for transparent/invisible toy background." />
+                    <StackPanel Margin="0,0,12,6">
+                        <TextBlock Text="Background color" ToolTip="Any WPF color string, for example #000000 or #FF202020." />
+                        <TextBox x:Name="WindowBackgroundColorTextBox" Width="150" TextChanged="OnInputsChanged"
+                                 ToolTip="Used only when Show background color is enabled." />
+                    </StackPanel>
+                </WrapPanel>
+
+                <WrapPanel Margin="0,8,0,0">
                     <CheckBox x:Name="BloomEnabledCheckBox" Content="Glow" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
                               ToolTip="Turns bloom/glow effect on or off." />
                     <StackPanel Margin="0,0,12,6">

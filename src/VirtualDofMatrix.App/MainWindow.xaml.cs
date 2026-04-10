@@ -169,7 +169,7 @@ public partial class MainWindow : Window
 
     private void ApplyPersistedVisualSettings()
     {
-        Background = WpfBrushes.Black;
+        ApplyWindowBackground();
         RendererText.Text = $"Renderer: {NormalizeRendererLabel(_config.Matrix.Renderer)}";
         VisualQualityText.Text = $"Visual quality: {_config.Settings.VisualQuality}";
         DotShapeText.Text = $"Dot shape: {_config.Matrix.DotShape}";
@@ -177,6 +177,40 @@ public partial class MainWindow : Window
         DotSpacingText.Text = "Min dot spacing: auto";
         BrightnessText.Text = $"Brightness: {_config.Matrix.Brightness:0.###}";
         GammaText.Text = $"Gamma: {_config.Matrix.Gamma:0.###}";
+    }
+
+    private void ApplyWindowBackground()
+    {
+        // Conversational note: toy windows can now request transparent backgrounds so strips can float over arbitrary artwork.
+        var brush = BuildWindowBackgroundBrush(_config.Window);
+        Background = brush;
+        MatrixViewportBorder.Background = brush;
+        MatrixCanvas.Background = brush;
+    }
+
+    private static Brush BuildWindowBackgroundBrush(WindowConfig window)
+    {
+        if (!window.BackgroundVisible)
+        {
+            return WpfBrushes.Transparent;
+        }
+
+        if (!string.IsNullOrWhiteSpace(window.BackgroundColor))
+        {
+            try
+            {
+                if (ColorConverter.ConvertFromString(window.BackgroundColor) is WpfColor parsed)
+                {
+                    return new SolidColorBrush(parsed);
+                }
+            }
+            catch (FormatException)
+            {
+                // Conversational note: invalid color input safely falls back to black instead of blocking startup.
+            }
+        }
+
+        return WpfBrushes.Black;
     }
 
     private void ApplyStartupStatus()

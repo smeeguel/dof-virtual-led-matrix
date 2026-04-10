@@ -15,6 +15,8 @@ public partial class ToyWizardWindow : Window
     private const int SafeMaxBulbs = CabinetXmlService.SafeMaxLedTotal;
     private const int SafeMaxStripBulbs = 1100;
     private const int PreviewLedCap = 512;
+    private const int DefaultStripBulbWidth = 18;
+    private const int DefaultStripBulbHeight = 18;
     private static readonly Regex NumberedNameRegex = new("^(Strip|Matrix)(\\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly IReadOnlyList<ToyRouteConfig> _existingToys;
@@ -79,6 +81,8 @@ public partial class ToyWizardWindow : Window
         WindowAlwaysOnTopCheckBox.IsChecked = true;
         WindowBorderlessCheckBox.IsChecked = true;
         WindowLockAspectCheckBox.IsChecked = true;
+        WindowBackgroundVisibleCheckBox.IsChecked = true;
+        WindowBackgroundColorTextBox.Text = "#000000";
 
         BloomEnabledCheckBox.IsChecked = true;
         BloomThresholdTextBox.Text = "0.72";
@@ -111,6 +115,8 @@ public partial class ToyWizardWindow : Window
         WindowAlwaysOnTopCheckBox.IsChecked = toy.Window.AlwaysOnTop;
         WindowBorderlessCheckBox.IsChecked = toy.Window.Borderless;
         WindowLockAspectCheckBox.IsChecked = toy.Window.LockAspectRatio;
+        WindowBackgroundVisibleCheckBox.IsChecked = toy.Window.BackgroundVisible;
+        WindowBackgroundColorTextBox.Text = string.IsNullOrWhiteSpace(toy.Window.BackgroundColor) ? "#000000" : toy.Window.BackgroundColor;
 
         BloomEnabledCheckBox.IsChecked = toy.Bloom.Enabled;
         BloomThresholdTextBox.Text = toy.Bloom.Threshold.ToString("0.###");
@@ -193,6 +199,11 @@ public partial class ToyWizardWindow : Window
         {
             _lastSuggestedName = BuildSuggestedName(IsStripTypeSelected());
             NameTextBox.Text = _lastSuggestedName;
+        }
+
+        if (ReferenceEquals(sender, TypeCombo) && !_isEdit)
+        {
+            ApplyTypeDefaultsForNewToy();
         }
 
         UpdateTypePanels();
@@ -336,6 +347,11 @@ public partial class ToyWizardWindow : Window
             return (false, "Dot spacing must be a whole number (0 or higher).", 0, 0, 0);
         }
 
+        if (WindowBackgroundVisibleCheckBox.IsChecked == true && !IsValidColor(WindowBackgroundColorTextBox.Text))
+        {
+            return (false, "Background color must be a valid WPF color (for example #000000).", 0, 0, 0);
+        }
+
         if (!TryParseDouble(BrightnessTextBox.Text, out var brightness) || brightness < 0 || brightness > 1)
         {
             return (false, "Brightness must be between 0.0 and 1.0.", 0, 0, 0);
@@ -470,10 +486,12 @@ public partial class ToyWizardWindow : Window
                 AlwaysOnTop = WindowAlwaysOnTopCheckBox.IsChecked == true,
                 Borderless = WindowBorderlessCheckBox.IsChecked == true,
                 LockAspectRatio = WindowLockAspectCheckBox.IsChecked == true,
+                BackgroundVisible = WindowBackgroundVisibleCheckBox.IsChecked == true,
+                BackgroundColor = WindowBackgroundColorTextBox.Text.Trim(),
                 Left = _editingToy?.Window.Left,
                 Top = _editingToy?.Window.Top,
-                Width = _editingToy?.Window.Width,
-                Height = _editingToy?.Window.Height,
+                Width = ResolveWindowWidth(validation.Total),
+                Height = ResolveWindowHeight(validation.Total),
             },
             Render = new ToyRenderOptionsConfig
             {
@@ -503,6 +521,59 @@ public partial class ToyWizardWindow : Window
     private static bool TryParseInt(string raw, out int value) => int.TryParse(raw?.Trim(), out value);
 
     private static bool TryParseDouble(string raw, out double value) => double.TryParse(raw?.Trim(), out value);
+
+    private static bool IsValidColor(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        try
+        {
+            return ColorConverter.ConvertFromString(raw.Trim()) is Color;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private double? ResolveWindowWidth(int stripLength)
+    {
+        if (_editingToy?.Window.Width is not null)
+        {
+            return _editingToy.Window.Width;
+        }
+
+        if (!IsStripTypeSelected())
+        {
+            return _editingToy?.Window.Width;
+        }
+
+        var spacing = Math.Max(0, int.Parse(MinDotSpacingTextBox.Text));
+        return IsVerticalStripSelected()
+            ? DefaultStripBulbWidth
+            : (DefaultStripBulbWidth + spacing) * stripLength;
+    }
+
+    private double? ResolveWindowHeight(int stripLength)
+    {
+        if (_editingToy?.Window.Height is not null)
+        {
+            return _editingToy.Window.Height;
+        }
+
+        if (!IsStripTypeSelected())
+        {
+            return _editingToy?.Window.Height;
+        }
+
+        var spacing = Math.Max(0, int.Parse(MinDotSpacingTextBox.Text));
+        return IsVerticalStripSelected()
+            ? (DefaultStripBulbHeight + spacing) * stripLength
+            : DefaultStripBulbHeight;
+    }
 
     private string BuildSuggestedName(bool isStrip)
     {
@@ -569,6 +640,21 @@ public partial class ToyWizardWindow : Window
                 Enabled = true,
             },
         ];
+    }
+
+    private void ApplyTypeDefaultsForNewToy()
+    {
+        // Conversational note: strip defaults bias toward overlay workflows (transparent background + free resize axis).
+        if (IsStripTypeSelected())
+        {
+            WindowLockAspectCheckBox.IsChecked = false;
+            WindowBackgroundVisibleCheckBox.IsChecked = false;
+        }
+        else
+        {
+            WindowLockAspectCheckBox.IsChecked = true;
+            WindowBackgroundVisibleCheckBox.IsChecked = true;
+        }
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)

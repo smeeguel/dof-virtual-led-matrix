@@ -13,7 +13,9 @@
     "fillGapEnabled": false
   },
   "window": {
-    "lockAspectRatio": true
+    "lockAspectRatio": true,
+    "backgroundVisible": true,
+    "backgroundColor": "#000000"
   },
   "debug": {
     "showDebug": false,

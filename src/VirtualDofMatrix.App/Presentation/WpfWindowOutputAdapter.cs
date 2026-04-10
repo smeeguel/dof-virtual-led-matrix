@@ -289,6 +289,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 AlwaysOnTop = toy.Window.AlwaysOnTop,
                 Borderless = toy.Window.Borderless,
                 LockAspectRatio = toy.Window.LockAspectRatio,
+                BackgroundVisible = toy.Window.BackgroundVisible,
+                BackgroundColor = toy.Window.BackgroundColor,
                 Left = toy.Window.Left ?? _config.Window.Left,
                 Top = toy.Window.Top ?? _config.Window.Top,
                 Width = toy.Window.Width ?? _config.Window.Width,

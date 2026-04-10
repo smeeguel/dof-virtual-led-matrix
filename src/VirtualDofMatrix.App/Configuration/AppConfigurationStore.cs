@@ -188,6 +188,8 @@ public sealed class AppConfigurationStore
         modified |= SetBoolIfDifferent(primaryToy.Window.AlwaysOnTop, value => config.Window.AlwaysOnTop = value, config.Window.AlwaysOnTop);
         modified |= SetBoolIfDifferent(primaryToy.Window.Borderless, value => config.Window.Borderless = value, config.Window.Borderless);
         modified |= SetBoolIfDifferent(primaryToy.Window.LockAspectRatio, value => config.Window.LockAspectRatio = value, config.Window.LockAspectRatio);
+        modified |= SetBoolIfDifferent(primaryToy.Window.BackgroundVisible, value => config.Window.BackgroundVisible = value, config.Window.BackgroundVisible);
+        modified |= SetStringIfDifferent(primaryToy.Window.BackgroundColor, value => config.Window.BackgroundColor = value, config.Window.BackgroundColor);
 
         return modified;
     }
@@ -501,6 +503,8 @@ public sealed class AppConfigurationStore
                 AlwaysOnTop = config.Window.AlwaysOnTop,
                 Borderless = config.Window.Borderless,
                 LockAspectRatio = config.Window.LockAspectRatio,
+                BackgroundVisible = config.Window.BackgroundVisible,
+                BackgroundColor = config.Window.BackgroundColor,
                 Left = config.Window.Left,
                 Top = config.Window.Top,
                 Width = config.Window.Width,
@@ -679,6 +683,10 @@ windowAlwaysOnTop = true
 windowBorderless = true
 ; windowLockAspectRatio options: true | false
 windowLockAspectRatio = true
+; windowBackgroundVisible options: true | false
+windowBackgroundVisible = true
+; windowBackgroundColor options: WPF color string
+windowBackgroundColor = #000000
 
 ; renderDotShape options: circle | square
 renderDotShape = circle

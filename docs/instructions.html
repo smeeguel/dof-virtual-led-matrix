@@ -297,6 +297,15 @@ Per toy window fields include:
 - `windowLeft`, `windowTop`
 - `windowWidth`, `windowHeight`
 - `windowAlwaysOnTop`, `windowBorderless`, `windowLockAspectRatio`
+- `windowBackgroundVisible`, `windowBackgroundColor` (set visible to `false` for transparent/invisible strip backdrops)
+
+Strip defaults in the Toy Wizard:
+
+- `windowLockAspectRatio` defaults to `false`
+- `windowBackgroundVisible` defaults to `false`
+- default strip window size is derived from bulb size + spacing:
+  - horizontal: `(bulbWidth + minSpacing) * bulbCount` by `bulbHeight`
+  - vertical: `bulbWidth` by `(bulbHeight + minSpacing) * bulbCount`
 
 ---
 
