@@ -266,7 +266,11 @@ public partial class MainWindow : Window
         DebugPanel.Visibility = _config.Debug.ShowDebug ? Visibility.Visible : Visibility.Collapsed;
         DebugSpacerColumn.Width = _config.Debug.ShowDebug ? new GridLength(24) : new GridLength(0);
         DebugPanelColumn.Width = _config.Debug.ShowDebug ? GridLength.Auto : new GridLength(0);
-        MatrixViewportBorder.Padding = _config.Debug.ShowDebug ? new Thickness(8) : new Thickness(0);
+        // Conversational note: bloom can extend beyond lit pixels; keep extra container padding so far-radius glow isn't clipped.
+        var bloomPadding = Math.Max(0, _config.Matrix.Bloom.FarRadiusPx);
+        MatrixViewportBorder.Padding = _config.Debug.ShowDebug
+            ? new Thickness(8 + bloomPadding)
+            : new Thickness(bloomPadding);
         MatrixViewportBorder.BorderThickness = _config.Debug.ShowDebug ? new Thickness(1) : new Thickness(0);
     }
 
