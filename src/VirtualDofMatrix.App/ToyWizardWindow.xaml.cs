@@ -531,7 +531,7 @@ public partial class ToyWizardWindow : Window
 
         try
         {
-            return ColorConverter.ConvertFromString(raw.Trim()) is Color;
+            return System.Windows.Media.ColorConverter.ConvertFromString(raw.Trim()) is System.Windows.Media.Color;
         }
         catch (FormatException)
         {

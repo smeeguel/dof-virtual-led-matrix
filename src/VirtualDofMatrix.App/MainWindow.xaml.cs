@@ -199,7 +199,7 @@ public partial class MainWindow : Window
         {
             try
             {
-                if (ColorConverter.ConvertFromString(window.BackgroundColor) is WpfColor parsed)
+                if (System.Windows.Media.ColorConverter.ConvertFromString(window.BackgroundColor) is WpfColor parsed)
                 {
                     return new SolidColorBrush(parsed);
                 }
