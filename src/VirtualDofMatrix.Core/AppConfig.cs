@@ -85,6 +85,9 @@ public sealed class TemporalSmoothingConfig
 
 public sealed class MatrixVisualConfig
 {
+    // When true, renderers should keep non-dot/background pixels transparent instead of opaque black.
+    public bool TransparentBackground { get; set; } = false;
+
     // Conversational note: this explicit mode keeps runtime behavior easy to reason about.
     // - DirectPresentOnly (default): stay on the swapchain present path whenever interop is available.
     // - LegacyReadback: opt-in compatibility/debug mode that always uses GPU->CPU readback presentation.
@@ -215,6 +218,9 @@ public sealed class SettingsConfig
     public bool AutoUpdateCabinetOnResolutionChange { get; set; } = true;
 
     public string VisualQuality { get; set; } = "High";
+
+    // Default strip bulb size (pixels) used by Toy Wizard initial strip window sizing.
+    public int DefaultStripBulbSize { get; set; } = 32;
 }
 
 public sealed class RoutingConfig

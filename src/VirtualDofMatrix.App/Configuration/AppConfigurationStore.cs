@@ -85,6 +85,12 @@ public sealed class AppConfigurationStore
             shouldPersist = true;
         }
 
+        if (config.Settings.DefaultStripBulbSize <= 0)
+        {
+            config.Settings.DefaultStripBulbSize = 32;
+            shouldPersist = true;
+        }
+
         if (config.Matrix.MinDotSpacing < 2)
         {
             config.Matrix.MinDotSpacing = 2;

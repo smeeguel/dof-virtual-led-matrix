@@ -386,7 +386,7 @@ public partial class SettingsWindow : Window
 
     private void OnAddToyClicked(object sender, RoutedEventArgs e)
     {
-        var wizard = new ToyWizardWindow(_working.Routing.Toys)
+        var wizard = new ToyWizardWindow(_working.Routing.Toys, defaultStripBulbSize: _working.Settings.DefaultStripBulbSize)
         {
             Owner = this,
         };
@@ -439,7 +439,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var wizard = new ToyWizardWindow(_working.Routing.Toys, CloneToy(existing))
+        var wizard = new ToyWizardWindow(_working.Routing.Toys, CloneToy(existing), _working.Settings.DefaultStripBulbSize)
         {
             Owner = this,
         };
@@ -867,6 +867,7 @@ public partial class SettingsWindow : Window
                 CabinetToyName = config.Settings.CabinetToyName,
                 AutoUpdateCabinetOnResolutionChange = config.Settings.AutoUpdateCabinetOnResolutionChange,
                 VisualQuality = config.Settings.VisualQuality,
+                DefaultStripBulbSize = config.Settings.DefaultStripBulbSize,
             },
             Routing = new RoutingConfig
             {

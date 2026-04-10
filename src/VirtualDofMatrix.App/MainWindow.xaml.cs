@@ -353,8 +353,9 @@ public partial class MainWindow : Window
             },
             Visual = new MatrixVisualConfig
             {
+                TransparentBackground = !_config.Window.BackgroundVisible,
                 GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
-                ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
+                ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || !_config.Window.BackgroundVisible,
                 EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
                 EnableDiagnosticReadbackCapture = _config.Matrix.Visual.EnableDiagnosticReadbackCapture,
                 FlatShading = _config.Matrix.Visual.FlatShading,

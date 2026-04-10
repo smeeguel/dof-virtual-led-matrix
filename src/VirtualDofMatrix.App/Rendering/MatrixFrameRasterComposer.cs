@@ -59,10 +59,12 @@ internal sealed class MatrixFrameRasterComposer
     private long _bloomFarBlurTicks;
     private long _bloomNearCompositeTicks;
     private long _bloomFarCompositeTicks;
+    private bool _transparentBackground;
 
     public void Configure(MatrixConfig config)
     {
         _config = config;
+        _transparentBackground = config.Visual.TransparentBackground;
         _dotSpacing = Math.Max(HardMinimumDotSpacing, config.MinDotSpacing);
         _dotStride = config.DotSize + _dotSpacing;
         _surfaceWidth = (config.Width * _dotStride) + _dotSpacing;
@@ -141,7 +143,7 @@ internal sealed class MatrixFrameRasterComposer
         if (fullFrameRaster)
         {
             Array.Clear(_surfaceBgra, 0, _surfaceBgra.Length);
-            EnsureOpaqueBackground(_surfaceBgra);
+            EnsureBackgroundAlpha(_surfaceBgra, _transparentBackground);
         }
         else
         {
@@ -858,8 +860,13 @@ internal sealed class MatrixFrameRasterComposer
         return Math.Max(0, configuredRadius);
     }
 
-    private static void EnsureOpaqueBackground(byte[] bgra)
+    private static void EnsureBackgroundAlpha(byte[] bgra, bool transparentBackground)
     {
+        if (transparentBackground)
+        {
+            return;
+        }
+
         // We keep the whole surface opaque black so bloom in "empty" spacing pixels remains visible.
         for (var i = 3; i < bgra.Length; i += 4)
         {
@@ -1173,6 +1180,11 @@ internal sealed class MatrixFrameRasterComposer
             var rowStart = (y * _stride) + (clampedMinX * 4);
             var rowLength = ((clampedMaxX - clampedMinX) + 1) * 4;
             Array.Clear(surface, rowStart, rowLength);
+            if (_transparentBackground)
+            {
+                continue;
+            }
+
             for (var alphaOffset = rowStart + 3; alphaOffset < rowStart + rowLength; alphaOffset += 4)
             {
                 surface[alphaOffset] = 255;

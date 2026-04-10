@@ -15,8 +15,6 @@ public partial class ToyWizardWindow : Window
     private const int SafeMaxBulbs = CabinetXmlService.SafeMaxLedTotal;
     private const int SafeMaxStripBulbs = 1100;
     private const int PreviewLedCap = 512;
-    private const int DefaultStripBulbWidth = 18;
-    private const int DefaultStripBulbHeight = 18;
     private static readonly Regex NumberedNameRegex = new("^(Strip|Matrix)(\\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly IReadOnlyList<ColorPresetOption> BackgroundColorPresets =
     [
@@ -49,14 +47,16 @@ public partial class ToyWizardWindow : Window
     private readonly IReadOnlyList<ToyRouteConfig> _existingToys;
     private readonly ToyRouteConfig? _editingToy;
     private readonly bool _isEdit;
+    private readonly int _defaultStripBulbSize;
     private bool _suppressEvents;
     private string _lastSuggestedName = string.Empty;
 
-    public ToyWizardWindow(IReadOnlyList<ToyRouteConfig> existingToys, ToyRouteConfig? editingToy = null)
+    public ToyWizardWindow(IReadOnlyList<ToyRouteConfig> existingToys, ToyRouteConfig? editingToy = null, int defaultStripBulbSize = 32)
     {
         _existingToys = existingToys;
         _editingToy = editingToy;
         _isEdit = editingToy is not null;
+        _defaultStripBulbSize = Math.Max(1, defaultStripBulbSize);
 
         InitializeComponent();
         InitializeForm();
@@ -571,8 +571,8 @@ public partial class ToyWizardWindow : Window
 
         var spacing = Math.Max(0, int.Parse(MinDotSpacingTextBox.Text));
         return IsVerticalStripSelected()
-            ? DefaultStripBulbWidth
-            : (DefaultStripBulbWidth + spacing) * stripLength;
+            ? _defaultStripBulbSize
+            : (_defaultStripBulbSize + spacing) * stripLength;
     }
 
     private double? ResolveWindowHeight(int stripLength)
@@ -589,8 +589,8 @@ public partial class ToyWizardWindow : Window
 
         var spacing = Math.Max(0, int.Parse(MinDotSpacingTextBox.Text));
         return IsVerticalStripSelected()
-            ? (DefaultStripBulbHeight + spacing) * stripLength
-            : DefaultStripBulbHeight;
+            ? (_defaultStripBulbSize + spacing) * stripLength
+            : _defaultStripBulbSize;
     }
 
     private string BuildSuggestedName(bool isStrip)

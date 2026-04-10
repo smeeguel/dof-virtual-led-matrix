@@ -27,6 +27,7 @@
     "cabinetXmlPath": "C:\\DirectOutput\\Config\\Cabinet.xml",
     "cabinetToyName": "Matrix1",
     "autoUpdateCabinetOnResolutionChange": true,
-    "visualQuality": "High"
+    "visualQuality": "High",
+    "defaultStripBulbSize": 32
   }
 }

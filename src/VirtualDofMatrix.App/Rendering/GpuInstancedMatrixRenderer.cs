@@ -131,6 +131,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private long _cpuBloomFarBlurTicks;
     private long _cpuBloomNearCompositeTicks;
     private long _cpuBloomFarCompositeTicks;
+    private bool _transparentBackground;
 
     public string BackendName => "gpu";
 
@@ -146,6 +147,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _width = width;
         _height = height;
         _style = dotStyleConfig;
+        _transparentBackground = dotStyleConfig.Visual.TransparentBackground;
         // Conversational note: cache these booleans once per initialize pass so the render hot-path stays branch-light.
         _directPresentParitySamplingEnabled = dotStyleConfig.Visual.EnableDirectPresentParitySampling;
         _diagnosticReadbackCaptureEnabled = dotStyleConfig.Visual.EnableDiagnosticReadbackCapture;
@@ -245,7 +247,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             // Conversational note: compatibility path keeps the original CPU dot raster behavior exactly intact.
             Array.Clear(_bgra, 0, _bgra.Length);
-            EnsureOpaqueBackground(_bgra);
+            EnsureBackgroundAlpha(_bgra, _transparentBackground);
             if (!TryReadProcessedLedsToCpu("cpu-dot-fallback"))
             {
                 return;
@@ -1503,8 +1505,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         return Math.Clamp(configuredRadius, 0, 8);
     }
 
-    private static void EnsureOpaqueBackground(byte[] bgra)
+    private static void EnsureBackgroundAlpha(byte[] bgra, bool transparentBackground)
     {
+        if (transparentBackground)
+        {
+            return;
+        }
+
         // We keep the surface opaque black so bloom in the spacing between dots can actually be seen.
         for (var i = 3; i < bgra.Length; i += 4)
         {
