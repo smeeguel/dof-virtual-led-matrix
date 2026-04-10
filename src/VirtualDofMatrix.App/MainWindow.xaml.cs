@@ -193,6 +193,29 @@ public partial class MainWindow : Window
         MatrixViewportBorder.Background = brush;
         MatrixHostGrid.Background = brush;
         MatrixCanvas.Background = brush;
+        TransparentHoverCapture.Visibility = _config.Window.BackgroundVisible ? Visibility.Collapsed : Visibility.Visible;
+        TransparentHoverCapture.Background = WpfBrushes.Transparent;
+    }
+
+    private void OnTransparentHoverCaptureMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (_config.Window.BackgroundVisible)
+        {
+            return;
+        }
+
+        // Conversational note: transparent windows can be hard to grab; show a temporary dark backing while hovered.
+        TransparentHoverCapture.Background = new SolidColorBrush(WpfColor.FromArgb(160, 0, 0, 0));
+    }
+
+    private void OnTransparentHoverCaptureMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (_config.Window.BackgroundVisible)
+        {
+            return;
+        }
+
+        TransparentHoverCapture.Background = WpfBrushes.Transparent;
     }
 
     private static System.Windows.Media.Brush BuildWindowBackgroundBrush(WindowConfig window)

@@ -54,6 +54,14 @@
                 Panel.ZIndex="100"
                 IsHitTestVisible="False" />
 
+        <Border x:Name="TransparentHoverCapture"
+                Grid.Column="0"
+                Background="Transparent"
+                Panel.ZIndex="90"
+                Visibility="Collapsed"
+                MouseEnter="OnTransparentHoverCaptureMouseEnter"
+                MouseLeave="OnTransparentHoverCaptureMouseLeave" />
+
         <Border x:Name="LayoutToyNameOverlay"
                 Grid.Column="0"
                 HorizontalAlignment="Left"
