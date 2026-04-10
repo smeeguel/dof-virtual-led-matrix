@@ -194,7 +194,9 @@ public partial class MainWindow : Window
         MatrixHostGrid.Background = brush;
         MatrixCanvas.Background = brush;
         TransparentHoverCapture.Visibility = _config.Window.BackgroundVisible ? Visibility.Collapsed : Visibility.Visible;
-        TransparentHoverCapture.Background = WpfBrushes.Transparent;
+        TransparentHoverCapture.Background = _config.Window.BackgroundVisible
+            ? WpfBrushes.Transparent
+            : new SolidColorBrush(WpfColor.FromArgb(1, 0, 0, 0));
     }
 
     private void OnTransparentHoverCaptureMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
@@ -215,7 +217,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        TransparentHoverCapture.Background = WpfBrushes.Transparent;
+        TransparentHoverCapture.Background = new SolidColorBrush(WpfColor.FromArgb(1, 0, 0, 0));
     }
 
     private static System.Windows.Media.Brush BuildWindowBackgroundBrush(WindowConfig window)
@@ -384,7 +386,7 @@ public partial class MainWindow : Window
             Visual = new MatrixVisualConfig
             {
                 TransparentBackground = !_config.Window.BackgroundVisible,
-                GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
+                GpuPresentMode = _config.Window.BackgroundVisible ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
                 ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || !_config.Window.BackgroundVisible,
                 EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
                 EnableDiagnosticReadbackCapture = _config.Matrix.Visual.EnableDiagnosticReadbackCapture,

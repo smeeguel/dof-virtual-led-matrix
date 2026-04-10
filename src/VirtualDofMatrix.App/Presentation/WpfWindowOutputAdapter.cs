@@ -274,7 +274,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 Visual = new MatrixVisualConfig
                 {
                     TransparentBackground = !toy.Window.BackgroundVisible,
-                    GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
+                    GpuPresentMode = toy.Window.BackgroundVisible ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
                     ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || !toy.Window.BackgroundVisible,
                     EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
                     EnableDiagnosticReadbackCapture = _config.Matrix.Visual.EnableDiagnosticReadbackCapture,
