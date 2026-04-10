@@ -705,46 +705,6 @@ bloomFarStrength = 0.2
 
 ; outputTargets options: comma list of adapter names (example: viewer,pipe-broadcast)
 outputTargets = viewer,pipe-broadcast
-
-[toy:flasher-5bulb]
-; 5-bulb flasher proof-of-concept toy (common DOF style)
-; enabled options: true | false
-enabled = false
-; kind options: matrix | topper | flasher | <custom-name>
-kind = flasher
-; width/height options: positive integer
-width = 5
-height = 1
-; mapping options: TopDownAlternateRightLeft | RowMajor | ColumnMajor
-mapping = RowMajor
-; sourceCanonicalStart options: integer >= 0 (use 0 for quick proof-of-concept visibility)
-sourceCanonicalStart = 0
-; sourceLength options: integer > 0
-sourceLength = 5
-; window values are optional for non-visual toys; kept for quick visual proofing
-windowLeft = 40
-windowTop = 420
-windowWidth = 300
-windowHeight = 80
-windowAlwaysOnTop = true
-windowBorderless = true
-windowLockAspectRatio = true
-; render values used when toy is visualized
-renderDotShape = circle
-renderMinDotSpacing = 2
-fillGapEnabled = false
-renderBrightness = 1.0
-renderGamma = 0.8
-; bloom options
-bloomEnabled = false
-bloomThreshold = 0.72
-bloomSoftKnee = 0.18
-bloomNearRadiusPx = 2
-bloomFarRadiusPx = 10
-bloomNearStrength = 1.0
-bloomFarStrength = 0.2
-; outputTargets options: comma list of adapter names
-outputTargets = viewer,pipe-broadcast
 """;
     }
 
