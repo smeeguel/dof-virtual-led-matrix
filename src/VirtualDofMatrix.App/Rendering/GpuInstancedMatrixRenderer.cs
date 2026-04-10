@@ -422,7 +422,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
         else if (style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) && !style.Visual.FlatShading)
         {
-            _dotSize = Math.Clamp(style.DotSize, 2, 5);
+            // Conversational note: aggressive clamping works for dense matrices, but 1-row/1-column strips need
+            // real pixel height/width headroom so bloom can expand vertically/horizontally without being pre-clipped.
+            _dotSize = (width == 1 || height == 1)
+                ? Math.Max(1, style.DotSize)
+                : Math.Clamp(style.DotSize, 2, 5);
         }
         else
         {
