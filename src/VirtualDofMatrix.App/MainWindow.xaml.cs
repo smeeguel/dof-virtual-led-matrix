@@ -357,15 +357,34 @@ public partial class MainWindow : Window
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
         var isSingleAxisStrip = _config.Matrix.Width == 1 || _config.Matrix.Height == 1;
-        // Conversational note: 1D strips should span the available axis by default; otherwise they look bunched in the middle.
-        // We still honor fillGapEnabled for 2D matrices where users may prefer strict square-fit behavior.
-        var shouldBiasToDominantAxis = _config.Matrix.FillGapEnabled || isSingleAxisStrip;
-        // fillGapEnabled intentionally biases toward the larger axis so narrow strips (for example 5x1) don't leave oversized visual gaps.
-        var stride = shouldBiasToDominantAxis
-            ? Math.Max(1, Math.Max(strideFromWidth, strideFromHeight))
-            : Math.Max(1, Math.Min(strideFromWidth, strideFromHeight));
         var spacing = Math.Max(HardMinimumDotSpacing, _config.Matrix.MinDotSpacing);
-        var dotSize = Math.Max(1, stride - spacing);
+        int dotSize;
+
+        if (isSingleAxisStrip)
+        {
+            var ledCount = Math.Max(_config.Matrix.Width, _config.Matrix.Height);
+            var axisPixels = _config.Matrix.Width > 1 ? viewportWidth : viewportHeight;
+            var maxStripDotSize = Math.Max(1, _config.Settings.DefaultStripBulbSize);
+            // Conversational note: we cap strip bulb size first, then spend extra axis space on inter-dot spacing
+            // so long strips keep an edge-to-edge spread instead of growing oversized center-cluster bulbs.
+            var candidateDotSize = (int)Math.Floor((axisPixels - (spacing * Math.Max(0, ledCount - 1))) / Math.Max(1, ledCount));
+            dotSize = Math.Clamp(candidateDotSize, 1, maxStripDotSize);
+
+            if (ledCount > 1)
+            {
+                var remainingAxisPixels = axisPixels - (dotSize * ledCount);
+                var stretchedSpacing = (int)Math.Floor(remainingAxisPixels / (ledCount - 1));
+                spacing = Math.Max(spacing, stretchedSpacing);
+            }
+        }
+        else
+        {
+            // fillGapEnabled intentionally biases toward the larger axis so narrow matrices don't leave oversized visual gaps.
+            var stride = _config.Matrix.FillGapEnabled
+                ? Math.Max(1, Math.Max(strideFromWidth, strideFromHeight))
+                : Math.Max(1, Math.Min(strideFromWidth, strideFromHeight));
+            dotSize = Math.Max(1, stride - spacing);
+        }
 
         return new MatrixConfig
         {
