@@ -172,6 +172,8 @@ Always start in this order:
 
 If VPX/DOF starts first, the matrix app might miss the initial connection.
 
+If you use the Popper startup automation in **Step 9**, Popper can launch the app for you. In that setup, you do not need to launch the app manually before opening Popper.
+
 ---
 
 ## 4) Toy setup workflow (Settings menu)
@@ -202,14 +204,13 @@ Tip: You can open Settings from any virtual viewer window.
 
 1. Click **Add Toy** (or the equivalent add button in your build).
 2. Choose a toy type:
-   - `matrix`
-   - `topper`
-   - `flasher`
-3. Enter a toy name you will recognize later (example: `topper-main`).
+   - **Single strip** (one row or one column of LEDs)
+   - **Full matrix** (rows and columns)
+3. Enter a toy name you will recognize later (example: `Strip2` or `Matrix2`).
 
 ### Step 5C - Set geometry and mapping
 
-In the toy editor, set:
+For **Full matrix**, set:
 
 - `width`
 - `height`
@@ -221,33 +222,30 @@ For a standard 32x8 DMD-style matrix:
 - Height = `8`
 - Mapping = `TopDownAlternateRightLeft`
 
-### Step 5D - Set source LED range (important)
+For **Single strip**, set:
 
-Set:
+- `bulb count`
+- `direction` (`Horizontal` or `Vertical`)
 
-- `sourceCanonicalStart`
-- `sourceLength`
+The wizard automatically uses row/column mapping behind the scenes for strip direction.
 
-Beginner tip:
+### Step 5D - Set visual and window options (optional)
 
-- Keep source ranges non-overlapping unless you intentionally want a mirrored/duplicate output.
+You can leave defaults, or tune options such as:
 
-### Step 5E - Set output targets
+- Dot shape, spacing, brightness, gamma
+- Fill gap
+- Window behavior (global window settings, always-on-top, borderless, lock aspect ratio)
+- Background visibility/color
+- Glow options (threshold, soft knee, radius, strength)
 
-Typical target choices:
-
-- `viewer`
-- `pipe-broadcast`
-- both (`viewer,pipe-broadcast`)
-
-Most users choose both so they can see the toy and still expose output to other consumers.
-
-### Step 5F - Save and verify
+### Step 5E - Save and verify
 
 1. Make sure the toy is **enabled**.
-2. Click **Save Global**.
+2. Click **Save** in the wizard.
 3. Confirm the new toy appears in the toy list.
-4. Launch a table and verify the toy animates.
+4. Click **Save Global** to persist changes across app restarts.
+5. Launch a table and verify the toy animates.
 
 ---
 
@@ -271,8 +269,7 @@ Helpful behavior:
 Common edits:
 
 - Toggle enabled/disabled
-- Change width/height/mapping
-- Change source range
+- Change strip or matrix dimensions/layout
 - Change window position/size
 - Change background visibility/color
 - Toggle lock aspect ratio
@@ -390,7 +387,7 @@ Supported actions:
 ### Main toy works, additional toys stay dark
 
 - In **Settings -> Virtual Toys**, verify each toy is enabled.
-- Re-check each toy's source range in Settings.
+- Re-check toy size/layout values and make sure they match what you expect to drive from DOF.
 - Confirm DOF is actually outputting those extra toy ranges.
 - Click **Save Global** after every change.
 
@@ -404,6 +401,7 @@ Supported actions:
 - Re-check both DLL locations:
   - `C:\DirectOutput\x64\DirectOutput.dll`
   - `C:\DirectOutput\x86\DirectOutput.dll`
+- If you want hands-off startup, configure Popper to auto-launch the app as shown in **Step 9**.
 
 ---
 
