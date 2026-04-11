@@ -363,16 +363,19 @@ public partial class MainWindow : Window
         if (isSingleAxisStrip)
         {
             var ledCount = Math.Max(_config.Matrix.Width, _config.Matrix.Height);
-            var axisPixels = _config.Matrix.Width > 1 ? viewportWidth : viewportHeight;
-            var maxStripDotSize = Math.Max(1, _config.Settings.DefaultStripBulbSize);
-            // Conversational note: we cap strip bulb size first, then spend extra axis space on inter-dot spacing
-            // so long strips keep an edge-to-edge spread instead of growing oversized center-cluster bulbs.
-            var candidateDotSize = (int)Math.Floor((axisPixels - (spacing * Math.Max(0, ledCount - 1))) / Math.Max(1, ledCount));
-            dotSize = Math.Clamp(candidateDotSize, 1, maxStripDotSize);
+            var majorAxisPixels = _config.Matrix.Width > 1 ? viewportWidth : viewportHeight;
+            var minorAxisPixels = _config.Matrix.Width > 1 ? viewportHeight : viewportWidth;
+            var farBloomRadius = Math.Max(0, _config.Matrix.Bloom.FarRadiusPx);
+            // Conversational note: strip bulbs should primarily size from the short axis (thickness), while bloom
+            // still needs breathing room on both sides so the glow doesn't get clipped.
+            var candidateDotSizeFromMinorAxis = (int)Math.Floor(minorAxisPixels - (farBloomRadius * 2.0));
+            // Conversational note: major-axis fit remains a safety rail so long strips still fit end-to-end.
+            var candidateDotSizeFromMajorAxis = (int)Math.Floor((majorAxisPixels - (spacing * Math.Max(0, ledCount - 1))) / Math.Max(1, ledCount));
+            dotSize = Math.Max(1, Math.Min(candidateDotSizeFromMinorAxis, candidateDotSizeFromMajorAxis));
 
             if (ledCount > 1)
             {
-                var remainingAxisPixels = axisPixels - (dotSize * ledCount);
+                var remainingAxisPixels = majorAxisPixels - (dotSize * ledCount);
                 var stretchedSpacing = (int)Math.Floor(remainingAxisPixels / (ledCount - 1));
                 spacing = Math.Max(spacing, stretchedSpacing);
             }
