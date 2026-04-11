@@ -27,13 +27,15 @@
   <div class="shell">
     <main class="page">
       <article id="content"></article>
-      <p class="footer">Last updated: 2026-04-09</p>
+      <p class="footer">Last updated: 2026-04-11</p>
     </main>
   </div>
 
   <script id="md-source" type="text/plain"># Virtual DOF Matrix End-User Setup Guide
 
 This guide is written for everyday cabinet owners, including first-time DOF users.
+
+> Important: this guide assumes you will **not manually edit `toys.ini`**. We will do everything from the app's **Settings** menu.
 
 ---
 
@@ -144,32 +146,18 @@ These two names must match exactly (same spelling, same capitalization).
 
 Tip: the provided examples use `VirtualDofMatrix`.
 
-### Step 2D - Confirm matrix toy name and dimensions
+### Step 2D - Let the app safely update Cabinet.xml when needed
 
-In the same `Cabinet.xml`, find the LED toy used for your matrix (commonly `Matrix1` in this project setup).
+When **Auto-update Cabinet on resolution change** is enabled, the app performs a safe 2-step flow:
 
-Confirm it matches your intended matrix size and arrangement from your config examples.
+1. Shows a dry-run summary of the virtual toy changes it plans to make.
+2. Writes `Cabinet.xml` only after you click **Yes** in the confirmation prompt.
 
-If your app/window resolution settings are changed later, keep Cabinet.xml matrix dimensions in sync.
+What gets updated automatically:
 
-When **Auto-update Cabinet on resolution change** is enabled in app settings, the app now does a safe 2-step write:
-
-1. Shows a dry-run summary of the exact virtual-toy changes it plans to make.
-2. Writes `Cabinet.xml` only after you click **Yes** in that confirmation prompt.
-
-This applies when either:
-
-- matrix resolution changed, or
-- enabled toy routing geometry (toy name/id + width/height) changed in Settings.
-
-What gets changed:
-
-- Managed virtual LED toy fields for that target toy (for example width/height/controller link).
-- New managed toys without an explicit first LED are assigned the next unused LED index on that controller.
-- If a new toy requests a first LED that overlaps an existing managed range, it is automatically moved to the next free slot.
-- Matching `LedWizEquivalent` output names/numbers for managed virtual toys (so renamed/new toys stay aligned).
-- Virtual controller `NumberOfLedsStrip1` is recalculated from managed toy first LED + size ranges.
-- If a toy's bulb count is reduced, its managed LED count is reduced too, and controller totals are recalculated downward.
+- Managed virtual toy geometry for targeted toys (for example width/height/controller link).
+- Matching `LedWizEquivalent` output names/numbers for managed virtual toys.
+- Virtual controller `NumberOfLedsStrip1` based on managed toy LED ranges.
 
 What stays untouched:
 
@@ -188,132 +176,133 @@ If VPX/DOF starts first, the matrix app might miss the initial connection.
 
 ---
 
-## 4) Settings split: settings.json vs toys.ini
+## 4) Important mindset: use Settings, not files
 
-- `settings.json` = global app settings (transport, defaults, debug, etc.)
-- `toys.ini` = toy-specific settings (toy definitions, source ranges, per-toy window settings, routing)
+From this point forward, treat the app UI as your control panel:
 
-Toy definitions should be managed in `toys.ini`.
+- Use **Settings -> Virtual Toys** to add, edit, enable, disable, and position toys.
+- Use **Save Global** to make changes persistent.
+- Avoid direct manual edits of `toys.ini` unless a maintainer specifically asks you to debug something advanced.
+
+If you are new, that is great—this workflow is designed for beginners.
 
 ---
 
-## 5) Add a second / third / fourth virtual toy (toys.ini)
+## 5) Add a new toy using the Settings menu (tutorial)
 
-All additional virtual outputs are configured in `toys.ini`.
+This is the recommended way to create a second, third, or fourth virtual output.
 
-### Virtual Toys tab quick note (enable/disable + save)
+### Step 5A - Open Settings
 
-In **Settings -> Virtual Toys**:
+1. Launch the app.
+2. Open the **Settings** window.
+3. Click the **Virtual Toys** tab.
 
-- Each toy row has an on/off switch on the left.
-- Toy rows may show both cabinet toy name and routing toy ID in parentheses.
-- Turning a toy off disables it and hides its viewer window.
-- At least one toy must stay enabled; if only one remains enabled, its switch is temporarily locked.
-- If you changed any toy switches, use **Save Global** to apply those toy-state changes to global config.
-- If you change toy width/height and save, the viewer windows rebuild immediately (no app restart required).
-- Display tab now focuses on global renderer/quality options; toy-specific dot/geometry controls live under Virtual Toys.
-- If a table/ROM is currently active, a second button appears so you can save using that scoped label.
-- You can open **Settings** from any virtual viewer window (not only the main matrix window).
-- **Exit** from any viewer window closes the full app.
-- Settings is modeless, so you can keep it open while dragging/resizing toy windows.
-- Clicking a toy row in Settings brings that toy window to the front for quick repositioning.
-- While Settings is open, each toy window shows its toy name overlay in white.
-- The selected toy window shows a bright inner border.
+Tip: You can open Settings from any virtual viewer window.
 
-### Step A - Open toys.ini
+### Step 5B - Start the Toy Wizard / Add Toy flow
 
-- Path is set by `routing.toyConfigIniPath` in `settings.json`.
-- Default is `toys.ini` next to `settings.json`.
-- `settings.json` is resolved from the VirtualDofMatrix app install folder (executable directory), not the caller's current working directory.
-- If missing, run the app once and it can create a starter file.
+1. Click **Add Toy** (or the equivalent add button in your build).
+2. Choose a toy type:
+   - `matrix`
+   - `topper`
+   - `flasher`
+3. Enter a toy name you will recognize later (example: `topper-main`).
 
-### Step B - Duplicate an existing toy section
+### Step 5C - Set geometry and mapping
 
-Each toy is a section such as:
-
-```ini
-[toy:backglass-main]
-```
-
-Copy/paste a section and rename it, for example:
-
-```ini
-[toy:topper-2]
-[toy:flasher-left]
-[toy:flasher-right]
-```
-
-### Step C - Choose the toy type (`kind`)
-
-Use one of:
-
-- `matrix`
-- `topper`
-- `flasher`
-
-### Step D - Enable the toy
-
-Set:
-
-```ini
-enabled = true
-```
-
-Example: to turn on a toy you added:
-
-```ini
-[toy:flasher-left]
-enabled = true
-```
-
-### Step E - Set geometry + mapping
-
-For each toy, set:
+In the toy editor, set:
 
 - `width`
 - `height`
 - `mapping` (`TopDownAlternateRightLeft`, `RowMajor`, or `ColumnMajor`)
 
-### Step F - Set the source LED range
+For a standard 32x8 DMD-style matrix:
 
-For each toy, set:
+- Width = `32`
+- Height = `8`
+- Mapping = `TopDownAlternateRightLeft`
+
+### Step 5D - Set source LED range (important)
+
+Set:
 
 - `sourceCanonicalStart`
 - `sourceLength`
 
-Keep ranges non-overlapping unless you intentionally want duplicate/mirrored output.
+Beginner tip:
 
-### Step G - Set output targets
+- Keep source ranges non-overlapping unless you intentionally want a mirrored/duplicate output.
 
-Typical values:
+### Step 5E - Set output targets
+
+Typical target choices:
 
 - `viewer`
 - `pipe-broadcast`
-- both: `viewer,pipe-broadcast`
+- both (`viewer,pipe-broadcast`)
 
-### Step H - Place each toy window
+Most users choose both so they can see the toy and still expose output to other consumers.
 
-Per toy window fields include:
+### Step 5F - Save and verify
 
-- `windowLeft`, `windowTop`
-- `windowWidth`, `windowHeight`
-- `windowAlwaysOnTop`, `windowBorderless`, `windowLockAspectRatio`
-- `windowBackgroundVisible`, `windowBackgroundColor` (Toy Wizard now offers a preset color dropdown with swatches; set visible to `false` for transparent/invisible strip backdrops)
-- Viewer runtime adds outer viewport padding equal to `bloomFarRadiusPx` so glow is less likely to clip at toy window edges.
-
-Strip defaults in the Toy Wizard:
-
-- `windowLockAspectRatio` defaults to `false`
-- `windowBackgroundVisible` defaults to `false`
-- default strip window size is derived from bulb size + spacing (bulb size comes from `settings.defaultStripBulbSize`, default `32`):
-  - horizontal: `(bulbWidth + minSpacing) * bulbCount` by `bulbHeight`
-  - vertical: `bulbWidth` by `(bulbHeight + minSpacing) * bulbCount`
+1. Make sure the toy is **enabled**.
+2. Click **Save Global**.
+3. Confirm the new toy appears in the toy list.
+4. Launch a table and verify the toy animates.
 
 ---
 
-## 6) DOF-side changes needed for extra toys
+## 6) Edit an existing toy using the Settings menu (tutorial)
 
-Adding a toy in `toys.ini` alone is not enough. DOF must also be configured to output those toy ranges.
+Use this flow when you want to tweak a toy you already created.
+
+### Step 6A - Select the toy row
+
+1. Open **Settings -> Virtual Toys**.
+2. Click the toy row you want to edit.
+
+Helpful behavior:
+
+- Clicking the row brings that toy window to the front.
+- While Settings is open, toy windows show name overlays.
+- The selected toy window gets a bright inner border.
+
+### Step 6B - Change what you need
+
+Common edits:
+
+- Toggle enabled/disabled
+- Change width/height/mapping
+- Change source range
+- Change window position/size
+- Change background visibility/color
+- Toggle lock aspect ratio
+
+### Step 6C - Save your changes
+
+1. Click **Save Global**.
+2. If prompted for cabinet updates, review the summary and confirm.
+3. Verify the toy window refreshes as expected.
+
+---
+
+## 7) Quick reference for Virtual Toys behavior
+
+In **Settings -> Virtual Toys**:
+
+- Each toy row has an on/off switch on the left.
+- Turning a toy off disables it and hides its viewer window.
+- At least one toy must stay enabled; if only one remains enabled, its switch is temporarily locked.
+- If you change toy width/height and save, windows rebuild immediately (no app restart required).
+- Settings is modeless, so you can keep it open while dragging/resizing toy windows.
+- **Exit** from any viewer window closes the full app.
+
+---
+
+## 8) DOF-side changes needed for extra toys
+
+Adding toys in app Settings is the correct first step, but DOF must still output data for those toy ranges.
 
 You generally need to keep these aligned:
 
@@ -321,16 +310,9 @@ You generally need to keep these aligned:
 2. DOF Config Tool assignments and effect mapping
 3. Re-generated DOF config files copied back to your cabinet
 
-### Open questions (to be filled by maintainer)
-
-- **Open question 1:** Exact `Cabinet.xml` snippets users should add/change for second/third/fourth virtual toys.
-- **Open question 2:** Exact DOF Config Tool steps (device, port assignment, toy mapping) for each extra toy type.
-- **Open question 3:** Exact file export/deploy flow after DOF Config Tool changes (which files, to which local paths).
-- **Open question 4:** Recommended naming convention so DOF names and `toys.ini` section names are easy to match.
-
 ---
 
-## 7) Popper setup (detailed)
+## 9) Popper setup (detailed)
 
 You can launch the app once at Popper startup, then control visibility during table lifecycle.
 
@@ -399,7 +381,7 @@ Supported actions:
 
 ---
 
-## 8) Troubleshooting
+## 10) Troubleshooting
 
 ### App opens but no animation
 
@@ -407,17 +389,31 @@ Supported actions:
 - Confirm both DOF DLLs (x64 and x86) were replaced from this package.
 - Confirm controller name/pipe value matches between `Cabinet.xml` and `settings.json`.
 
-### Main toy works, added toys stay dark
+### Main toy works, additional toys stay dark
 
-- Confirm each added toy has `enabled = true`.
-- Confirm `sourceCanonicalStart` and `sourceLength` are correct.
+- In **Settings -> Virtual Toys**, verify each toy is enabled.
+- Re-check each toy's source range in Settings.
 - Confirm DOF is actually outputting those extra toy ranges.
+- Click **Save Global** after every change.
+
+### I changed toy settings and they reverted later
+
+- This usually means changes were not saved.
+- Open Settings, re-apply changes, and click **Save Global**.
 
 ### Works in VPX but not Popper (or reverse)
 
 - Re-check both DLL locations:
   - `C:\DirectOutput\x64\DirectOutput.dll`
   - `C:\DirectOutput\x86\DirectOutput.dll`
+
+---
+
+## Final reminder
+
+You do **not** need to hand-edit `toys.ini` for normal setup.
+
+If you stick to **Settings -> Virtual Toys** + **Save Global**, you are using the recommended, safest workflow.
 </script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
