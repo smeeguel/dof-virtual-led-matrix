@@ -665,11 +665,14 @@ public partial class ToyWizardWindow : Window
         // Conversational note: strip defaults bias toward overlay workflows (transparent background + free resize axis).
         if (IsStripTypeSelected())
         {
+            // Conversational note: strips are typically rendered as a single axis, so default to viewport-filling spacing.
+            FillGapCheckBox.IsChecked = true;
             WindowLockAspectCheckBox.IsChecked = false;
             WindowBackgroundVisibleCheckBox.IsChecked = false;
         }
         else
         {
+            FillGapCheckBox.IsChecked = false;
             WindowLockAspectCheckBox.IsChecked = true;
             WindowBackgroundVisibleCheckBox.IsChecked = true;
         }

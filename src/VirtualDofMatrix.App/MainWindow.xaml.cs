@@ -356,8 +356,12 @@ public partial class MainWindow : Window
 
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
+        var isSingleAxisStrip = _config.Matrix.Width == 1 || _config.Matrix.Height == 1;
+        // Conversational note: 1D strips should span the available axis by default; otherwise they look bunched in the middle.
+        // We still honor fillGapEnabled for 2D matrices where users may prefer strict square-fit behavior.
+        var shouldBiasToDominantAxis = _config.Matrix.FillGapEnabled || isSingleAxisStrip;
         // fillGapEnabled intentionally biases toward the larger axis so narrow strips (for example 5x1) don't leave oversized visual gaps.
-        var stride = _config.Matrix.FillGapEnabled
+        var stride = shouldBiasToDominantAxis
             ? Math.Max(1, Math.Max(strideFromWidth, strideFromHeight))
             : Math.Max(1, Math.Min(strideFromWidth, strideFromHeight));
         var spacing = Math.Max(HardMinimumDotSpacing, _config.Matrix.MinDotSpacing);
