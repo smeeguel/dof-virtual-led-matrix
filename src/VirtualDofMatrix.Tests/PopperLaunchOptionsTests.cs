@@ -26,6 +26,16 @@ public class PopperLaunchOptionsTests
     }
 
     [Fact]
+    public void ContainsShowVirtualLedToken_ReturnsTrue_ForShowLedsPhrase()
+    {
+        var args = new[] { "show leds" };
+
+        var result = PopperLaunchOptions.ContainsShowVirtualLedToken(args);
+
+        Assert.True(result);
+    }
+
+    [Fact]
     public void ContainsShowVirtualLedToken_ReturnsFalse_WhenNotPresent()
     {
         var args = new[] { "customA", "customB" };
@@ -57,6 +67,14 @@ public class PopperLaunchOptionsTests
     public void ResolveTableLaunchVisibility_DefaultVisible_HidesWhenHideTokenIsPresent()
     {
         var visible = PopperLaunchOptions.ResolveTableLaunchVisibility(["HideVirtualLED"], defaultVisible: true);
+
+        Assert.False(visible);
+    }
+
+    [Fact]
+    public void ResolveTableLaunchVisibility_DefaultVisible_HidesWhenHideLedsPhraseIsPresent()
+    {
+        var visible = PopperLaunchOptions.ResolveTableLaunchVisibility(["hide leds"], defaultVisible: true);
 
         Assert.False(visible);
     }
