@@ -18,7 +18,7 @@ namespace VirtualDofMatrix.App;
 // Overview: App wires together config loading, transport startup, UI lifecycle, and local control commands.
 public partial class App : System.Windows.Application
 {
-    private const string ConfigFilePath = "settings.json";
+    private const string ConfigFileName = "settings.json";
 
     private readonly AppConfigurationStore _configurationStore = new();
     private readonly CabinetXmlService _cabinetXmlService = new();
@@ -37,6 +37,13 @@ public partial class App : System.Windows.Application
     private bool _isAppReady;
     private string? _activeTableOrRomName;
     private string? _runtimeTableOrRomName;
+    private readonly string _configFilePath;
+
+    public App()
+    {
+        // Conversational note: pin config lookup to the executable directory so Popper/PinUP working dir changes cannot redirect toys.ini.
+        _configFilePath = ResolveConfigFilePath();
+    }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -44,10 +51,10 @@ public partial class App : System.Windows.Application
 
         // Start each launch from a predictable baseline so logs/config-backed defaults are deterministic.
         AppLogger.ClearForNewLaunch();
-        _config = _configurationStore.Load(ConfigFilePath);
+        _config = _configurationStore.Load(_configFilePath);
         _startupConfigStatus = _configFolderBootstrapService.ResolveAndPersist(_config);
         _activeTableOrRomName = ResolveActiveTableOrRomName(e.Args);
-        _configurationStore.Save(ConfigFilePath, _config);
+        _configurationStore.Save(_configFilePath, _config);
         AppLogger.Configure(_config.Debug.LogProtocol);
 
         if (TryHandleControlClientMode(e.Args, _config))
@@ -399,7 +406,7 @@ public partial class App : System.Windows.Application
         }
 
         _window.SyncWindowSettingsToConfig();
-        _configurationStore.Save(ConfigFilePath, _config);
+        _configurationStore.Save(_configFilePath, _config);
     }
 
     private void ScheduleWindowSettingsPersist()
@@ -640,6 +647,21 @@ public partial class App : System.Windows.Application
         }
 
         return true;
+    }
+
+    private static string ResolveConfigFilePath()
+    {
+        // Conversational note: AppContext.BaseDirectory should point to the install folder; fallback keeps host/test runs predictable.
+        var baseDirectory = AppContext.BaseDirectory;
+        if (string.IsNullOrWhiteSpace(baseDirectory))
+        {
+            var assemblyLocation = typeof(App).Assembly.Location;
+            baseDirectory = string.IsNullOrWhiteSpace(assemblyLocation)
+                ? Environment.CurrentDirectory
+                : Path.GetDirectoryName(assemblyLocation) ?? Environment.CurrentDirectory;
+        }
+
+        return Path.GetFullPath(Path.Combine(baseDirectory, ConfigFileName));
     }
 
     private static bool HasArg(string[] args, string expected)

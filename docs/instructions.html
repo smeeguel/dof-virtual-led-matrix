@@ -224,6 +224,7 @@ In **Settings -> Virtual Toys**:
 
 - Path is set by `routing.toyConfigIniPath` in `settings.json`.
 - Default is `toys.ini` next to `settings.json`.
+- `settings.json` is resolved from the VirtualDofMatrix app install folder (executable directory), not the caller's current working directory.
 - If missing, run the app once and it can create a starter file.
 
 ### Step B - Duplicate an existing toy section
