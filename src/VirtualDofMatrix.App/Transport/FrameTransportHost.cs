@@ -113,54 +113,58 @@ public sealed class FrameTransportHost
 
             try
             {
+                // Conversational note: each connected client gets its own parser state so split reads and recovery stay local to that connection.
+                var parser = new FrameTransportStreamParser();
+                var readBuffer = new byte[4096];
+
                 while (!cancellationToken.IsCancellationRequested && pipe.IsConnected)
                 {
-                    var header = await ReadExactlyAsync(pipe, 13, cancellationToken);
-                    if (header.Length == 0)
+                    var read = await pipe.ReadAsync(readBuffer.AsMemory(0, readBuffer.Length), cancellationToken);
+                    if (read == 0)
                     {
                         break;
                     }
 
-                    if (header[0] != (byte)'V' || header[1] != (byte)'D' || header[2] != (byte)'M' || header[3] != (byte)'F')
+                    parser.Append(readBuffer.AsSpan(0, read));
+
+                    while (true)
                     {
-                        throw new InvalidDataException("Invalid named-pipe frame magic. Expected 'VDMF'.");
+                        var parseResult = parser.ParseNext();
+                        if (parseResult.Status == FrameTransportParseStatus.NeedMoreData)
+                        {
+                            break;
+                        }
+
+                        if (parseResult.Status == FrameTransportParseStatus.DroppedInvalidData)
+                        {
+                            if (_config.Debug.LogProtocol)
+                            {
+                                AppLogger.Warn($"Named pipe frame warning: {parseResult.Warning}");
+                            }
+
+                            continue;
+                        }
+
+                        var frame = parseResult.Frame;
+                        var sequence = (_connectionEpoch << 32) | frame.RawSequence;
+                        if (_config.Debug.LogProtocol && _config.Debug.LogFrames)
+                        {
+                            AppLogger.Info($"Pipe message seq={sequence}, type={frame.MessageType}, payload={frame.Payload.Length} bytes.");
+                        }
+
+                        if (frame.MessageType == 2)
+                        {
+                            HandleTableContextMetadata(frame.Payload, sequence);
+                            continue;
+                        }
+
+                        if (!_isActive)
+                        {
+                            continue;
+                        }
+
+                        RouteAndPublish(frame.Payload, sequence, frame.MessageType);
                     }
-
-                    var messageType = header[4];
-                    if (messageType != 1 && messageType != 2)
-                    {
-                        throw new InvalidDataException($"Unsupported named-pipe message type {messageType}.");
-                    }
-
-                    var rawSequence = unchecked((uint)BitConverter.ToInt32(header, 5));
-                    var payloadLength = BitConverter.ToInt32(header, 9);
-                    if (payloadLength < 0 || payloadLength > 8 * 1100 * 3)
-                    {
-                        throw new InvalidDataException($"Invalid payload length {payloadLength}.");
-                    }
-
-                    var payload = payloadLength == 0
-                        ? Array.Empty<byte>()
-                        : await ReadExactlyAsync(pipe, payloadLength, cancellationToken);
-
-                    var sequence = (_connectionEpoch << 32) | rawSequence;
-                    if (_config.Debug.LogProtocol && _config.Debug.LogFrames)
-                    {
-                        AppLogger.Info($"Pipe message seq={sequence}, type={messageType}, payload={payloadLength} bytes.");
-                    }
-
-                    if (messageType == 2)
-                    {
-                        HandleTableContextMetadata(payload, sequence);
-                        continue;
-                    }
-
-                    if (!_isActive)
-                    {
-                        continue;
-                    }
-
-                    RouteAndPublish(payload, sequence, messageType);
                 }
             }
             catch (OperationCanceledException)
@@ -254,23 +258,5 @@ public sealed class FrameTransportHost
                 adapter.Write(frame, context);
             }
         }
-    }
-
-    private static async Task<byte[]> ReadExactlyAsync(Stream stream, int length, CancellationToken cancellationToken)
-    {
-        var buffer = new byte[length];
-        var offset = 0;
-        while (offset < length)
-        {
-            var read = await stream.ReadAsync(buffer.AsMemory(offset, length - offset), cancellationToken);
-            if (read == 0)
-            {
-                throw new EndOfStreamException("Named pipe disconnected while reading frame.");
-            }
-
-            offset += read;
-        }
-
-        return buffer;
     }
 }
