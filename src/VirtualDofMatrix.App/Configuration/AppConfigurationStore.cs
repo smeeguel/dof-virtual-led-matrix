@@ -42,11 +42,16 @@ public sealed class AppConfigurationStore
 
     public void Save(string filePath, AppConfig config)
     {
-        var json = JsonSerializer.Serialize(config, SerializerOptions);
+        // Note: callers may save a brand-new AppConfig before the first Load() normalization pass runs.
+        // Keep persisted settings.json and toys.ini first-run safe by applying the same legacy/default
+        // backfill used during Load(), including the canonical backglass Matrix1 toy migration.
+        var (normalized, _) = ApplyLegacyDefaults(config);
+
+        var json = JsonSerializer.Serialize(normalized, SerializerOptions);
         File.WriteAllText(filePath, json);
 
-        var iniPath = ResolveToyIniPath(filePath, config.Routing?.ToyConfigIniPath);
-        ToyIniConfiguration.SaveToIni(config, iniPath);
+        var iniPath = ResolveToyIniPath(filePath, normalized.Routing?.ToyConfigIniPath);
+        ToyIniConfiguration.SaveToIni(normalized, iniPath);
     }
 
     private static (AppConfig Config, bool ShouldPersist) ApplyLegacyDefaults(AppConfig config)
