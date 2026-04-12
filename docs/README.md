@@ -7,6 +7,7 @@
 - `docs/CONFIG.md` — current `settings.json` schema and field behavior.
 - `docs/ARCHITECTURE.md` — current runtime architecture and rendering/transport boundaries.
 - `docs/RELEASES.md` — packaging/release workflow and manifest behavior.
+- `docs/DIRECTOUTPUT_VIRTUAL_DEVICE_PR_GUIDE.md` — upstream DirectOutput porting notes and PR checklist for virtual device support.
 
 ## Cleanup performed
 
