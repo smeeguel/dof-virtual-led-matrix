@@ -23,7 +23,7 @@ public sealed class FramePresentationDispatcher : IDisposable
 
     public void Attach(FrameTransportHost host)
     {
-        // Conversational note: host now routes directly to output adapters, so this legacy attach point is intentionally a no-op.
+        // Note: host now routes directly to output adapters, so this legacy attach point is intentionally a no-op.
         _ = host;
     }
 

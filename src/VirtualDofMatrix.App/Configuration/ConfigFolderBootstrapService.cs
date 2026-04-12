@@ -6,7 +6,7 @@ using WpfMessageBox = System.Windows.MessageBox;
 
 namespace VirtualDofMatrix.App.Configuration;
 
-// Conversational note: this service keeps first-run startup behavior explicit and deterministic:
+// Note: this service keeps first-run startup behavior explicit and deterministic:
 // 1) try C:\DirectOutput\Config first, 2) prompt if missing/unreadable, 3) persist chosen folder, 4) validate Cabinet.xml.
 public sealed class ConfigFolderBootstrapService
 {

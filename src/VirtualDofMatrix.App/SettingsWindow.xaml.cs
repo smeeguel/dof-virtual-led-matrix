@@ -213,7 +213,7 @@ public partial class SettingsWindow : Window
         try
         {
             var inventory = _cabinetXmlService.GetToyInventory(cabinetPath);
-            // Conversational note: toggles are keyed by routing IDs; cabinet names are only used as user-facing labels.
+            // Note: toggles are keyed by routing IDs; cabinet names are only used as user-facing labels.
             var remainingVirtualCabinetEntries = new List<CabinetToyEntry>(inventory.VirtualToys);
             _virtualToys = _working.Routing.Toys
                 .Select(entry => new VirtualToyListItem
@@ -287,7 +287,7 @@ public partial class SettingsWindow : Window
                 ToolTip = "Toggle toy visibility/output. Disabled toys are hidden.",
                 Tag = item.RouteId,
             };
-            // Conversational note: keep tooltip visible even when checkbox is disabled so users see why the final toy can't be turned off.
+            // Note: keep tooltip visible even when checkbox is disabled so users see why the final toy can't be turned off.
             ToolTipService.SetShowOnDisabled(enabledToggle, true);
 
             enabledToggle.Checked += OnVirtualToyEnabledToggled;
@@ -377,7 +377,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // Conversational note: we mirror switch state immediately into the in-memory toy list so dirty/save UX stays predictable.
+        // Note: we mirror switch state immediately into the in-memory toy list so dirty/save UX stays predictable.
         toy.Enabled = toggle.IsChecked == true;
         EnsureAtLeastOneToyEnabled(toy);
         RefreshToyToggleInterlocks();
@@ -396,12 +396,12 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // Conversational note: new toys are appended to routing config first, then list rows are rebuilt from that source of truth.
+        // Note: new toys are appended to routing config first, then list rows are rebuilt from that source of truth.
         _working.Routing.Toys.Add(wizard.Result);
         LoadToyCollections();
         _selectedToyId = wizard.Result.Id;
         RefreshToyRowHighlight();
-        // Conversational note: creating a toy should feel immediate; apply to runtime now so its window appears without extra Save clicks.
+        // Note: creating a toy should feel immediate; apply to runtime now so its window appears without extra Save clicks.
         ApplyWorkingConfigImmediately();
         ToySelected?.Invoke(this, wizard.Result.Id);
         UpdateSummary();
@@ -475,7 +475,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // Conversational note: never allow the final enabled toy to be turned off; keep one viewer target active.
+        // Note: never allow the final enabled toy to be turned off; keep one viewer target active.
         changedToy.Enabled = true;
         if (_toyToggleByName.TryGetValue(changedToy.RouteId, out var toggle))
         {
@@ -603,7 +603,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // Conversational note: while Settings stays open, toy windows can still be dragged/resized live.
+        // Note: while Settings stays open, toy windows can still be dragged/resized live.
         // We merge those latest runtime geometry edits so pressing OK doesn't snap toys back to defaults.
         foreach (var toy in config.Routing.Toys)
         {
@@ -740,7 +740,7 @@ public partial class SettingsWindow : Window
             var toy = config.Routing.Toys.FirstOrDefault(x => x.Id.Equals(item.RouteId, StringComparison.OrdinalIgnoreCase));
             if (toy is null)
             {
-                // Conversational note: only mutate known routing toys; creating new toys from UI labels can spawn unintended windows.
+                // Note: only mutate known routing toys; creating new toys from UI labels can spawn unintended windows.
                 continue;
             }
 
@@ -954,7 +954,7 @@ public partial class SettingsWindow : Window
             return routeToy.Id;
         }
 
-        // Conversational note: route IDs are machine-focused labels; this resolves a cabinet-visible name for the UI row.
+        // Note: route IDs are machine-focused labels; this resolves a cabinet-visible name for the UI row.
         var exact = remainingVirtualCabinetEntries.FirstOrDefault(entry =>
             entry.Name.Equals(routeToy.Id, StringComparison.OrdinalIgnoreCase));
         if (exact is not null)
@@ -963,7 +963,7 @@ public partial class SettingsWindow : Window
             return exact.Name;
         }
 
-        // Conversational note: prefer obvious name affinity first so toggles line up with what users expect in mixed naming schemes.
+        // Note: prefer obvious name affinity first so toggles line up with what users expect in mixed naming schemes.
         var id = routeToy.Id;
         var nameHint = id.Contains("flasher", StringComparison.OrdinalIgnoreCase) ? "flasher"
             : (id.Contains("matrix", StringComparison.OrdinalIgnoreCase) || id.Contains("backglass", StringComparison.OrdinalIgnoreCase)) ? "matrix"

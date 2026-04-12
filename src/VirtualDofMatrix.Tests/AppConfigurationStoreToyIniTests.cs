@@ -55,7 +55,7 @@ public sealed class AppConfigurationStoreToyIniTests
             var store = new AppConfigurationStore();
             var loaded = store.Load(settingsPath);
 
-            // Conversational note: toys.ini is canonical, so stale toy IDs from settings.json should be removed.
+            // Note: toys.ini is canonical, so stale toy IDs from settings.json should be removed.
             Assert.Equal(2, loaded.Routing.Toys.Count);
             Assert.Contains(loaded.Routing.Toys, toy => toy.Id.Equals("backglass-main", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(loaded.Routing.Toys, toy => toy.Id.Equals("flasher-5bulb", StringComparison.OrdinalIgnoreCase));

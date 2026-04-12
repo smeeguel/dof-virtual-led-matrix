@@ -8,7 +8,7 @@ namespace VirtualDofMatrix.Core.Toys;
 /// Default v1 router that treats each incoming payload as the authoritative full frame.
 /// </summary>
 /// <remarks>
-/// Conversational note: this engine intentionally does no incremental merge/replay in v1.
+/// Note: this engine intentionally does no incremental merge/replay in v1.
 /// Every route call starts from a clean toy buffer and maps only what exists in the current payload.
 /// </remarks>
 public sealed class ToyRouter : IToyRouter
@@ -39,7 +39,7 @@ public sealed class ToyRouter : IToyRouter
             }
             catch (Exception ex)
             {
-                // Conversational note: per-toy failure isolation is intentional so one bad toy never freezes the others.
+                // Note: per-toy failure isolation is intentional so one bad toy never freezes the others.
                 diagnostics.Add(new ToyRoutingDiagnostic(
                     toy.Id,
                     MappedLedCount: 0,
@@ -139,7 +139,7 @@ public sealed class ToyRouter : IToyRouter
             mappedLedCount = matrixLedCapacity;
         }
 
-        // Conversational note: v1 starts each output as black; policy decides whether missing bytes stay black, drop, or hold-last.
+        // Note: v1 starts each output as black; policy decides whether missing bytes stay black, drop, or hold-last.
         var pixels = new Rgb24[matrixLedCapacity];
         var payloadStartByte = canonicalStart * 3;
 
@@ -176,7 +176,7 @@ public sealed class ToyRouter : IToyRouter
                 payload[sourceByteOffset + 1],
                 payload[sourceByteOffset + 2]);
 
-            // Conversational note: ToyRouter keeps output in canonical linear order so downstream renderers
+            // Note: ToyRouter keeps output in canonical linear order so downstream renderers
             // can apply exactly one mapping pass (avoids accidental double-rotation/double-serpentine).
             pixels[ledIndex] = rgb;
         }
@@ -280,7 +280,7 @@ public sealed class ToyRouter : IToyRouter
 
     private static ulong DeriveToyFrameId(ulong globalFrameId, string toyId)
     {
-        // Conversational note: combine global input sequence with a stable toy hash so IDs stay deterministic.
+        // Note: combine global input sequence with a stable toy hash so IDs stay deterministic.
         var toyHash = ComputeFnv1a32(toyId);
         return (globalFrameId << 32) | toyHash;
     }

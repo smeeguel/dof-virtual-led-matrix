@@ -126,7 +126,7 @@ internal sealed class MatrixFrameRasterComposer
 
         var fullFrameRaster = _forceFullFrameWrite;
         var bloomEnabled = _config.Bloom.Enabled;
-        // Conversational note: unchanged frames are common in idle tables, so we skip all raster work when nothing moved.
+        // Note: unchanged frames are common in idle tables, so we skip all raster work when nothing moved.
         if (!fullFrameRaster && !hasChangedCells)
         {
             CopyCurrentWorkingToPrevious(matrixCapacity);
@@ -482,7 +482,7 @@ internal sealed class MatrixFrameRasterComposer
 
     private bool HasMatrixCellChanged(int matrixIndex)
     {
-        // Conversational note: compare post-quantization bytes so tiny smoothing steps still redraw when they cross
+        // Note: compare post-quantization bytes so tiny smoothing steps still redraw when they cross
         // visible output boundaries (especially the last 1->0 fade step that would otherwise "ghost").
         return ToByte(_workingRgb.R[matrixIndex] / 255.0) != ToByte(_previousWorkingRgb.R[matrixIndex] / 255.0) ||
                ToByte(_workingRgb.G[matrixIndex] / 255.0) != ToByte(_previousWorkingRgb.G[matrixIndex] / 255.0) ||
@@ -528,7 +528,7 @@ internal sealed class MatrixFrameRasterComposer
 
         var effectiveNearRadius = GetEffectiveBloomRadius(bloomProfile.NearRadius, bloomProfile.ScaleDivisor, _config.DotSize);
         var effectiveFarRadius = GetEffectiveBloomRadius(bloomProfile.FarRadius, bloomProfile.ScaleDivisor, _config.DotSize);
-        // Conversational note: lane activity is keyed off effective radius + non-trivial strength so no-op lanes skip all work.
+        // Note: lane activity is keyed off effective radius + non-trivial strength so no-op lanes skip all work.
         var nearActive = effectiveNearRadius > 0 && bloomProfile.NearStrength > BloomLaneStrengthEpsilon;
         var farActive = effectiveFarRadius > 0 && bloomProfile.FarStrength > BloomLaneStrengthEpsilon;
         if (!nearActive && !farActive)
@@ -736,7 +736,7 @@ internal sealed class MatrixFrameRasterComposer
             return;
         }
 
-        // Conversational note: precompute X interpolation state once so each row can reuse x0/x1/tx without redoing mapping math.
+        // Note: precompute X interpolation state once so each row can reuse x0/x1/tx without redoing mapping math.
         var x0ByPixel = new int[rowWidth];
         var x1ByPixel = new int[rowWidth];
         var txByPixel = new float[rowWidth];
@@ -774,7 +774,7 @@ internal sealed class MatrixFrameRasterComposer
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (nearRowB[xIndex] * nearStrength) + (farRowB[xIndex] * farStrength), 0f, 255f);
                 if (transparentBackground)
                 {
-                    // Conversational note: alpha expansion for transparent mode should track bloom-only energy, not dark base shading.
+                    // Note: alpha expansion for transparent mode should track bloom-only energy, not dark base shading.
                     var bloomR = (nearRowR[xIndex] * nearStrength) + (farRowR[xIndex] * farStrength);
                     var bloomG = (nearRowG[xIndex] * nearStrength) + (farRowG[xIndex] * farStrength);
                     var bloomB = (nearRowB[xIndex] * nearStrength) + (farRowB[xIndex] * farStrength);
@@ -835,7 +835,7 @@ internal sealed class MatrixFrameRasterComposer
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (laneRowB[xIndex] * strength), 0f, 255f);
                 if (transparentBackground)
                 {
-                    // Conversational note: preserve off-state dot alpha and only add alpha where bloom lane contributes.
+                    // Note: preserve off-state dot alpha and only add alpha where bloom lane contributes.
                     var alpha = (byte)Math.Clamp(Math.Max(laneRowR[xIndex], Math.Max(laneRowG[xIndex], laneRowB[xIndex])) * strength, 0f, 255f);
                     if (alpha < 6)
                     {

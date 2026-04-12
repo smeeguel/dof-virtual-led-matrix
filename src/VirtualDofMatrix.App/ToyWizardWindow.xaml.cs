@@ -82,7 +82,7 @@ public partial class ToyWizardWindow : Window
         }
         else
         {
-            // Conversational note: this path intentionally pre-fills every toy-specific field so edits feel reversible and predictable.
+            // Note: this path intentionally pre-fills every toy-specific field so edits feel reversible and predictable.
             PopulateFromExistingToy(_editingToy);
         }
 
@@ -157,7 +157,7 @@ public partial class ToyWizardWindow : Window
         if (isStrip)
         {
             TypeCombo.SelectedIndex = 0;
-            // Conversational note: strip toys can be one row or one column; infer orientation from mapping and dimensions.
+            // Note: strip toys can be one row or one column; infer orientation from mapping and dimensions.
             StripOrientationCombo.SelectedIndex = toy.Mapping.Mode.Equals("ColumnMajor", StringComparison.OrdinalIgnoreCase)
                 || (toy.Mapping.Width == 1 && toy.Mapping.Height > 1)
                 ? 1
@@ -248,7 +248,7 @@ public partial class ToyWizardWindow : Window
         var preset = (MatrixPresetCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Custom";
         CustomMatrixPanel.Visibility = preset == "Custom" ? Visibility.Visible : Visibility.Collapsed;
 
-        // Conversational note: presets write directly to the size fields so users always see exact numbers we validate against.
+        // Note: presets write directly to the size fields so users always see exact numbers we validate against.
         switch (preset)
         {
             case "32 x 8":
@@ -301,11 +301,11 @@ public partial class ToyWizardWindow : Window
         var total = validation.Total;
         var previewCount = Math.Min(total, PreviewLedCap);
 
-        // Conversational note: we keep preview bounded so the settings UI stays responsive on very large toy sizes.
+        // Note: we keep preview bounded so the settings UI stays responsive on very large toy sizes.
         PreviewGrid.Children.Clear();
         if (IsStripTypeSelected())
         {
-            // Conversational note: strip previews stay one-dimensional by design (single row or single column).
+            // Note: strip previews stay one-dimensional by design (single row or single column).
             if (IsVerticalStripSelected())
             {
                 PreviewGrid.Columns = 1;
@@ -662,10 +662,10 @@ public partial class ToyWizardWindow : Window
 
     private void ApplyTypeDefaultsForNewToy()
     {
-        // Conversational note: strip defaults bias toward overlay workflows (transparent background + free resize axis).
+        // Note: strip defaults bias toward overlay workflows (transparent background + free resize axis).
         if (IsStripTypeSelected())
         {
-            // Conversational note: strips are typically rendered as a single axis, so default to viewport-filling spacing.
+            // Note: strips are typically rendered as a single axis, so default to viewport-filling spacing.
             FillGapCheckBox.IsChecked = true;
             WindowLockAspectCheckBox.IsChecked = false;
             WindowBackgroundVisibleCheckBox.IsChecked = false;

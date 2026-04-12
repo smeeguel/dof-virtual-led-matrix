@@ -33,7 +33,7 @@ public sealed class AppConfigurationStore
 
         if (shouldPersist)
         {
-            // Conversational note: write migrated/normalized config back so future launches skip one-time compatibility work.
+            // Note: write migrated/normalized config back so future launches skip one-time compatibility work.
             Save(filePath, normalized);
         }
 
@@ -143,7 +143,7 @@ public sealed class AppConfigurationStore
 
     private static bool ApplyPrimaryToyCompatFields(AppConfig config)
     {
-        // Conversational note: until the full app stack is toy-native, we mirror primary toy values into
+        // Note: until the full app stack is toy-native, we mirror primary toy values into
         // legacy matrix/window fields so runtime rendering paths effectively read from toys.ini.
         var primaryToy = config.Routing.Toys.FirstOrDefault(t => t.Enabled);
         if (primaryToy is null)
@@ -423,7 +423,7 @@ public sealed class AppConfigurationStore
             modified = true;
         }
 
-        // Conversational note: if users duplicate names manually, normalize collisions deterministically into MatrixN names.
+        // Note: if users duplicate names manually, normalize collisions deterministically into MatrixN names.
         usedNames.Clear();
         foreach (var toy in toys)
         {
@@ -636,7 +636,7 @@ public sealed class AppConfigurationStore
             Directory.CreateDirectory(directory);
         }
 
-        // Conversational note: we drop a starter file next to the executable so first-run setup is obvious.
+        // Note: we drop a starter file next to the executable so first-run setup is obvious.
         File.WriteAllText(iniPath, BuildDefaultToyIniTemplate());
         return true;
     }

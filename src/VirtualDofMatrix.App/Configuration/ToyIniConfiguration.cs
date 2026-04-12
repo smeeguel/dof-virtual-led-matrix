@@ -42,7 +42,7 @@ internal static class ToyIniConfiguration
 
         if (toyIdsInIni.Count > 0)
         {
-            // Conversational note: when toys.ini is present, it is the authoritative toy list; drop stale extras from settings.json.
+            // Note: when toys.ini is present, it is the authoritative toy list; drop stale extras from settings.json.
             var compacted = config.Routing.Toys
                 .Where(toy => toyIdsInIni.Contains(toy.Id))
                 .GroupBy(toy => toy.Id, StringComparer.OrdinalIgnoreCase)
@@ -171,12 +171,12 @@ internal static class ToyIniConfiguration
                 .Select(target => target.Adapter)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            // Conversational note: we keep outputTargets compact, but document known adapters so generated INI stays self-explanatory.
+            // Note: we keep outputTargets compact, but document known adapters so generated INI stays self-explanatory.
             lines.Add("; outputTargets options: comma list of adapter names (known: viewer | pipe-broadcast, example: viewer,pipe-broadcast)");
             lines.Add($"outputTargets = {string.Join(',', outputs)}");
         }
 
-        // Conversational note: this write keeps toy/window edits living in toys.ini instead of drifting back into settings.json.
+        // Note: this write keeps toy/window edits living in toys.ini instead of drifting back into settings.json.
         File.WriteAllLines(iniPath, lines);
     }
 
@@ -224,7 +224,7 @@ internal static class ToyIniConfiguration
     {
         var raw = File.ReadAllText(iniPath);
 
-        // Conversational note: some field reports include escaped "\\n" sequences written as literal text.
+        // Note: some field reports include escaped "\\n" sequences written as literal text.
         // If no real newline exists, normalize escapes so section parsing still works.
         if (!raw.Contains('\n') && raw.Contains("\\n", StringComparison.Ordinal))
         {

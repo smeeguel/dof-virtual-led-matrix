@@ -248,7 +248,7 @@ public sealed class NamedPipeBroadcastAdapter : IOutputAdapter, IDisposable
                     return;
                 }
 
-                // Conversational note: latest-wins backpressure means we evict oldest entries when full.
+                // Note: latest-wins backpressure means we evict oldest entries when full.
                 while (_queue.Count >= _maxQueue)
                 {
                     _queue.Dequeue();

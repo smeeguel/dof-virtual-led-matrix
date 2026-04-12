@@ -32,7 +32,7 @@ internal sealed class FrameTransportStreamParser
 
     public FrameTransportParseResult ParseNext()
     {
-        // Conversational note: we keep scanning the same rolling buffer so split headers/payloads can complete on later reads.
+        // Note: we keep scanning the same rolling buffer so split headers/payloads can complete on later reads.
         var magicIndex = IndexOfMagic(_receiveBuffer, startIndex: 0);
         if (magicIndex < 0)
         {
@@ -54,7 +54,7 @@ internal sealed class FrameTransportStreamParser
         var payloadLength = ReadInt32LittleEndian(_receiveBuffer, 9);
         if ((messageType != 1 && messageType != 2) || payloadLength < 0 || payloadLength > MaxPayloadLength)
         {
-            // Conversational note: malformed headers should not drop the whole client; shift forward and hunt for the next magic.
+            // Note: malformed headers should not drop the whole client; shift forward and hunt for the next magic.
             var warning = $"Discarded invalid frame header: messageType={messageType}, payloadLength={payloadLength}.";
             ResynchronizeAfterInvalidHeader();
             return new FrameTransportParseResult(FrameTransportParseStatus.DroppedInvalidData, default, warning);

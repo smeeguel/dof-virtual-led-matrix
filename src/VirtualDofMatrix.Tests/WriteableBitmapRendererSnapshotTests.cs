@@ -176,7 +176,7 @@ public sealed class WriteableBitmapRendererSnapshotTests
         var baselineOff = baselineComposer.Compose(CreateSolidFrame(1, 0, 0, 0, 500UL));
 
         Assert.True(sawDirtyBeforeFullyOff);
-        // Conversational note: loop above always assigns `frame`, but we still defend against nullable flow uncertainty.
+        // Note: loop above always assigns `frame`, but we still defend against nullable flow uncertainty.
         Assert.NotNull(frame.Pixels);
         Assert.Equal(ComputeHash(baselineOff.Pixels), ComputeHash(frame.Pixels!));
     }
@@ -184,7 +184,7 @@ public sealed class WriteableBitmapRendererSnapshotTests
     [Fact]
     public void Compose_BloomCompositeProfiles_ShouldRemainPixelStable_AcrossHotLoop()
     {
-        // Conversational note: this is a benchmark-style guard that hammers bloom compositing patterns repeatedly and
+        // Note: this is a benchmark-style guard that hammers bloom compositing patterns repeatedly and
         // verifies we never drift pixels between iterations or across fresh composer instances.
         var profiles = new[]
         {

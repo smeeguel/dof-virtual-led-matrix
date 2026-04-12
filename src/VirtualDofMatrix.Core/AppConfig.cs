@@ -88,7 +88,7 @@ public sealed class MatrixVisualConfig
     // When true, renderers should keep non-dot/background pixels transparent instead of opaque black.
     public bool TransparentBackground { get; set; } = false;
 
-    // Conversational note: this explicit mode keeps runtime behavior easy to reason about.
+    // Note: this explicit mode keeps runtime behavior easy to reason about.
     // - DirectPresentOnly (default): stay on the swapchain present path whenever interop is available.
     // - LegacyReadback: opt-in compatibility/debug mode that always uses GPU->CPU readback presentation.
     public string GpuPresentMode { get; set; } = "DirectPresentOnly";
@@ -102,7 +102,7 @@ public sealed class MatrixVisualConfig
     // When true, keep explicit context flush in diagnostic capture paths.
     public bool EnableDiagnosticReadbackCapture { get; set; } = false;
 
-    // Conversational note: keep this alias for older settings.json files so legacy configs still map cleanly.
+    // Note: keep this alias for older settings.json files so legacy configs still map cleanly.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ForceLegacyReadbackPresent
     {
@@ -116,7 +116,7 @@ public sealed class MatrixVisualConfig
         }
     }
 
-    // Conversational note: old "prefer swapchain" flag now just flips the explicit mode back to direct present.
+    // Note: old "prefer swapchain" flag now just flips the explicit mode back to direct present.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PreferD3D11SwapChainPresent
     {
@@ -182,7 +182,7 @@ public sealed class WindowConfig
 
     public bool LockAspectRatio { get; set; } = true;
 
-    // Conversational note: viewer backgrounds default to opaque black unless a toy/window opts into transparency.
+    // Note: viewer backgrounds default to opaque black unless a toy/window opts into transparency.
     public bool BackgroundVisible { get; set; } = true;
 
     // Hex color used when BackgroundVisible is true (for example #000000).
@@ -225,7 +225,7 @@ public sealed class SettingsConfig
 
 public sealed class RoutingConfig
 {
-    // Conversational note: this version string lets routing changes evolve without breaking legacy settings files.
+    // Note: this version string lets routing changes evolve without breaking legacy settings files.
     public string RoutingSchemaVersion { get; set; } = "1";
 
     public RoutingPolicyConfig Policy { get; set; } = new();

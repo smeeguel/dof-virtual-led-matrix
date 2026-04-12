@@ -102,7 +102,7 @@ public sealed class FrameTransportHost
             }
 
             await pipe.WaitForConnectionAsync(cancellationToken);
-            // Conversational note: DOF table relaunches create a new pipe client and restart frame sequence values.
+            // Note: DOF table relaunches create a new pipe client and restart frame sequence values.
             // We bump a per-connection epoch so routed InputSequence stays monotonic across reconnects.
             _connectionEpoch++;
 
@@ -113,7 +113,7 @@ public sealed class FrameTransportHost
 
             try
             {
-                // Conversational note: each connected client gets its own parser state so split reads and recovery stay local to that connection.
+                // Note: each connected client gets its own parser state so split reads and recovery stay local to that connection.
                 var parser = new FrameTransportStreamParser();
                 var readBuffer = new byte[4096];
 
@@ -235,7 +235,7 @@ public sealed class FrameTransportHost
                 && diagnostic.MissingBytes == 0
                 && _loggedFirstSuccessfulRoutes.Add(diagnostic.ToyId))
             {
-                // Conversational note: this keeps route logs actionable by emitting only each toy's first clean success line.
+                // Note: this keeps route logs actionable by emitting only each toy's first clean success line.
                 AppLogger.Info($"[route] toy={diagnostic.ToyId} mapped={diagnostic.MappedLedCount} missingBytes={diagnostic.MissingBytes} action={diagnostic.PolicyAction} msg={diagnostic.Message}");
             }
         }
@@ -247,7 +247,7 @@ public sealed class FrameTransportHost
                 continue;
             }
 
-            // Conversational note: adapters are opt-in per toy so one toy can feed viewer while another streams elsewhere.
+            // Note: adapters are opt-in per toy so one toy can feed viewer while another streams elsewhere.
             foreach (var adapter in _outputAdapters)
             {
                 if (!toyDefinition.OutputTargets.Contains(adapter.Name, StringComparer.OrdinalIgnoreCase))

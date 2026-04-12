@@ -347,7 +347,7 @@ public sealed class CabinetXmlServiceTests
         };
 
         var plan = service.BuildVirtualToyMergePlanFromRouting(temp.Path, routing, removeMissingManagedToys: false);
-        // Conversational note: routing additions should append new managed toys; they should not "rename over"
+        // Note: routing additions should append new managed toys; they should not "rename over"
         // an existing Matrix1 entry just because both point at FirstLedNumber=1.
         Assert.DoesNotContain(plan.PlannedChanges, change =>
             change.ChangeType == CabinetXmlMergeChangeType.Updated
@@ -647,7 +647,7 @@ public sealed class CabinetXmlServiceTests
     {
         public TempCabinetXml(string xml)
         {
-            // Conversational note: tests use a dedicated temp folder so backup-file assertions can be deterministic.
+            // Note: tests use a dedicated temp folder so backup-file assertions can be deterministic.
             var folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "vdm-tests", Guid.NewGuid().ToString("n"));
             Directory.CreateDirectory(folder);
             Path = System.IO.Path.Combine(folder, "Cabinet.xml");

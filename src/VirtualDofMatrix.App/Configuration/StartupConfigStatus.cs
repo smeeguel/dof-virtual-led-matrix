@@ -1,6 +1,6 @@
 namespace VirtualDofMatrix.App.Configuration;
 
-// Conversational note: this snapshot is built once during startup and surfaced in the UI so users can immediately
+// Note: this snapshot is built once during startup and surfaced in the UI so users can immediately
 // see where config was loaded from and what to fix when Cabinet.xml is missing.
 public sealed class StartupConfigStatus
 {

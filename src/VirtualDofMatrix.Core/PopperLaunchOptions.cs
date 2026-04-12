@@ -47,7 +47,7 @@ public static class PopperLaunchOptions
 
     private static bool ContainsToken(IEnumerable<string> args, string expectedToken)
     {
-        // Conversational note: Popper launch placeholders come in with mixed separators and naming styles,
+        // Note: Popper launch placeholders come in with mixed separators and naming styles,
         // so we normalize aggressively and then compare against the known compatibility aliases.
         var aliases = expectedToken.Equals(ShowVirtualLedToken, StringComparison.OrdinalIgnoreCase)
             ? ShowTokenAliases

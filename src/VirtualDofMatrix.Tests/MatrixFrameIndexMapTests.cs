@@ -17,7 +17,7 @@ public sealed class MatrixFrameIndexMapTests
 
         for (var logicalIndex = 0; logicalIndex < map.Length; logicalIndex++)
         {
-            // Conversational note: this is the old Compose path, so this assertion locks equivalence for every LED.
+            // Note: this is the old Compose path, so this assertion locks equivalence for every LED.
             var (x, y) = MatrixMapper.MapLinearIndex(logicalIndex, width, height, mapping);
             var expectedMappedIndex = (y * width) + x;
             Assert.Equal(expectedMappedIndex, map[logicalIndex]);

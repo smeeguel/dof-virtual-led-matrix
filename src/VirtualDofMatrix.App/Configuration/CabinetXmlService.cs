@@ -56,7 +56,7 @@ public sealed class CabinetXmlService
             .Key;
     }
 
-    // Conversational note: this adapter lets routing toy edits drive Cabinet.xml managed virtual-toy sync in one pass.
+    // Note: this adapter lets routing toy edits drive Cabinet.xml managed virtual-toy sync in one pass.
     public CabinetXmlMergePlan BuildVirtualToyMergePlanFromRouting(
         string cabinetXmlPath,
         IEnumerable<ToyRouteConfig> routingToys,
@@ -93,7 +93,7 @@ public sealed class CabinetXmlService
             })
             .ToArray();
 
-        // Conversational note: routing sync should never rename an existing Cabinet.xml toy solely because
+        // Note: routing sync should never rename an existing Cabinet.xml toy solely because
         // FirstLedNumber happens to match; new routing toys should be added as new managed entries.
         return BuildVirtualToyMergePlan(
             cabinetXmlPath,
@@ -102,7 +102,7 @@ public sealed class CabinetXmlService
             allowFirstLedNameRebind: false);
     }
 
-    // Conversational note: this inventory parser gives the UI a single, read-only view of toys grouped by
+    // Note: this inventory parser gives the UI a single, read-only view of toys grouped by
     // virtual-vs-hardware controller backing without forcing callers to understand Cabinet.xml internals.
     public CabinetToyInventory GetToyInventory(string cabinetXmlPath)
     {
@@ -173,7 +173,7 @@ public sealed class CabinetXmlService
         ApplyVirtualToyMerge(cabinetXmlPath, mergePlan, dryRun: false);
     }
 
-    // Conversational note: this planner computes an explicit patch set first so callers can dry-run and review
+    // Note: this planner computes an explicit patch set first so callers can dry-run and review
     // every virtual-toy edit before we touch Cabinet.xml on disk.
     public CabinetXmlMergePlan BuildVirtualToyMergePlan(
         string cabinetXmlPath,
@@ -362,7 +362,7 @@ public sealed class CabinetXmlService
 
         var ns = toysRoot.GetDefaultNamespace();
 
-        // Conversational note: managed = virtual LedStrip toys only; everything else in <Toys> stays untouched.
+        // Note: managed = virtual LedStrip toys only; everything else in <Toys> stays untouched.
         var managedExisting = toysRoot
             .Elements()
             .Where(x => x.Name.LocalName == "LedStrip")
@@ -402,7 +402,7 @@ public sealed class CabinetXmlService
                 var firstLedNumber = desiredToy.FirstLedNumber ?? nextAvailableFirstLed;
                 if (!IsLedRangeAvailable(managedExisting.Values, desiredToy.OutputControllerName, firstLedNumber, ledCount))
                 {
-                    // Conversational note: if a routing toy comes in with a default/overlapping first LED (for
+                    // Note: if a routing toy comes in with a default/overlapping first LED (for
                     // example 1), move it to the next free slot rather than stacking ranges at the same address.
                     firstLedNumber = nextAvailableFirstLed;
                 }
@@ -418,7 +418,7 @@ public sealed class CabinetXmlService
                     new XElement(ns + "Brightness", "100"),
                     new XElement(ns + "OutputControllerName", desiredToy.OutputControllerName));
 
-                // Conversational note: keep an explicit LED count hint so downstream total calculations can use
+                // Note: keep an explicit LED count hint so downstream total calculations can use
                 // source length if it differs from Width*Height for non-matrix strip toys.
                 SetOrCreateChildValue(ledStrip, "LedCount", ledCount.ToString());
 
@@ -450,7 +450,7 @@ public sealed class CabinetXmlService
             .Where(x => !string.IsNullOrWhiteSpace(x.Name))
             .ToDictionary(x => x.Name!, x => x.Element, StringComparer.OrdinalIgnoreCase);
 
-        // Conversational note: deterministic ordering is only enforced for managed virtual toys; non-managed toys
+        // Note: deterministic ordering is only enforced for managed virtual toys; non-managed toys
         // keep their original order so unrelated Cabinet.xml sections do not churn.
         var allChildren = toysRoot.Elements().ToList();
         var nonManagedChildren = allChildren
@@ -515,7 +515,7 @@ public sealed class CabinetXmlService
                 NewLineHandling = NewLineHandling.Replace,
                 OmitXmlDeclaration = false,
             };
-            // Conversational note: dispose the XmlWriter before replacing Cabinet.xml so Windows does not keep
+            // Note: dispose the XmlWriter before replacing Cabinet.xml so Windows does not keep
             // the temp file handle open and trigger "file is being used by another process" on File.Move.
             using (var writer = XmlWriter.Create(tempPath, writerSettings))
             {
@@ -755,7 +755,7 @@ public sealed class CabinetXmlService
                 newlyAddedNames.Add(desired.Name);
             }
 
-            // Conversational note: keep existing LedWiz output numbers stable for existing toys, and only append
+            // Note: keep existing LedWiz output numbers stable for existing toys, and only append
             // new toys at RGB-aligned starts (1,4,7,...) so DOF Config Tool mappings stay channel-aligned.
             var occupiedSlots = outputsByName
                 .Where(pair => !newlyAddedNames.Contains(pair.Key, StringComparer.OrdinalIgnoreCase))
@@ -798,7 +798,7 @@ public sealed class CabinetXmlService
             return false;
         }
 
-        // Conversational note: RGB outputs occupy a contiguous triplet (R,G,B), so all three positions must be
+        // Note: RGB outputs occupy a contiguous triplet (R,G,B), so all three positions must be
         // free and the start index must follow LedWiz-style channel boundaries (1,4,7,...).
         if ((candidateStart - 1) % rgbChannelWidth != 0)
         {
@@ -837,7 +837,7 @@ public sealed class CabinetXmlService
     {
         var xml = NormalizeEscapedNewlines(File.ReadAllText(xmlPath));
 
-        // Conversational note: keep one blank line between adjacent LedStrip blocks so newly inserted toys are
+        // Note: keep one blank line between adjacent LedStrip blocks so newly inserted toys are
         // visually separated and easy to review in Cabinet.xml.
         var normalized = Regex.Replace(
             xml,
@@ -886,7 +886,7 @@ public sealed record CabinetXmlMergePlan(
     IReadOnlyList<CabinetXmlMergeChange> PlannedChanges,
     IReadOnlyList<string> ManagedToyOrder)
 {
-    // Conversational note: keep desired toy definitions on the plan so Apply does not reparse string payloads.
+    // Note: keep desired toy definitions on the plan so Apply does not reparse string payloads.
     public IReadOnlyDictionary<string, VirtualLedToyDefinition> DesiredVirtualToysByName { get; init; }
         = new Dictionary<string, VirtualLedToyDefinition>(StringComparer.OrdinalIgnoreCase);
 }

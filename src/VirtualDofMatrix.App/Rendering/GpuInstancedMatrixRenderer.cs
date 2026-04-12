@@ -112,9 +112,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private float[] _dotSpecularMask = Array.Empty<float>();
     private static readonly Color4 BlackClearColor = new(0f, 0f, 0f, 0f);
     private byte[] _bgra = Array.Empty<byte>();
-    // Conversational note: this is raw RGB byte upload scratch only (no CPU-expanded RGBA/BGRA assembly).
+    // Note: this is raw RGB byte upload scratch only (no CPU-expanded RGBA/BGRA assembly).
     private byte[] _rawRgbUpload = Array.Empty<byte>();
-    // Conversational note: this buffer is readback-only for CPU fallback rendering paths.
+    // Note: this buffer is readback-only for CPU fallback rendering paths.
     private byte[] _cpuLedReadback = Array.Empty<byte>();
     private float[] _screenBloomSourceRgb = Array.Empty<float>();
     private float[] _screenBloomNearRgb = Array.Empty<float>();
@@ -148,7 +148,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _height = height;
         _style = dotStyleConfig;
         _transparentBackground = dotStyleConfig.Visual.TransparentBackground;
-        // Conversational note: cache these booleans once per initialize pass so the render hot-path stays branch-light.
+        // Note: cache these booleans once per initialize pass so the render hot-path stays branch-light.
         _directPresentParitySamplingEnabled = dotStyleConfig.Visual.EnableDirectPresentParitySampling;
         _diagnosticReadbackCaptureEnabled = dotStyleConfig.Visual.EnableDiagnosticReadbackCapture;
         _logicalToRaster = MatrixFrameIndexMap.BuildLogicalToRasterMap(width, height, dotStyleConfig.Mapping);
@@ -233,7 +233,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var useGpuDotPass = ShouldUseGpuDotPass(_style);
         if (useGpuDotPass)
         {
-            // Conversational note: preprocessing now writes directly into the GPU LED texture, so we go straight to dot shading.
+            // Note: preprocessing now writes directly into the GPU LED texture, so we go straight to dot shading.
             if (!RenderGpuDotsToBaseTexture())
             {
                 useGpuDotPass = false;
@@ -245,7 +245,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         if (_renderLane == RenderLane.CpuDotFallback)
         {
-            // Conversational note: compatibility path keeps the original CPU dot raster behavior exactly intact.
+            // Note: compatibility path keeps the original CPU dot raster behavior exactly intact.
             Array.Clear(_bgra, 0, _bgra.Length);
             EnsureBackgroundAlpha(_bgra, _transparentBackground);
             if (!TryReadProcessedLedsToCpu("cpu-dot-fallback"))
@@ -312,7 +312,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return;
         }
 
-        // Conversational note: per-frame upload stays raw-only (RgbMemory bytes) and never assembles full-color LED texels on CPU.
+        // Note: per-frame upload stays raw-only (RgbMemory bytes) and never assembles full-color LED texels on CPU.
         var byteCount = ledCount * Channels;
         rgb[..byteCount].CopyTo(_rawRgbUpload);
         if (byteCount < _rawRgbUpload.Length)
@@ -367,11 +367,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             constantsHandle.Free();
         }
 
-        // Conversational note: every dispatch starts from a black raster so short packets cannot leave stale LED colors behind.
+        // Note: every dispatch starts from a black raster so short packets cannot leave stale LED colors behind.
         _context.ClearRenderTargetView(_gpuLedColorRtv, BlackClearColor);
         _context.CSSetShader(_gpuPreprocessShader);
         _context.CSSetConstantBuffer(1, _gpuPreprocessConstantsBuffer);
-        // Conversational note: preprocess shader intentionally uses t3/t4 so it can coexist with bloom bindings in shared HLSL.
+        // Note: preprocess shader intentionally uses t3/t4 so it can coexist with bloom bindings in shared HLSL.
         _context.CSSetShaderResource(3, _gpuRawLedSrv);
         _context.CSSetShaderResource(4, _gpuLogicalToRasterSrv);
         _context.CSSetUnorderedAccessView(0, _gpuPrevLedUav);
@@ -402,7 +402,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var mapped = _context.Map(_gpuLedReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         try
         {
-            // Conversational note: `_cpuLedReadback` stores LED bytes in RGBA order (R+0,G+1,B+2), matching the preprocess texture contract.
+            // Note: `_cpuLedReadback` stores LED bytes in RGBA order (R+0,G+1,B+2), matching the preprocess texture contract.
             ReadBgraRows(mapped.DataPointer, mapped.RowPitch, _cpuLedReadback, _width, _height);
             return true;
         }
@@ -422,7 +422,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
         else if (style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) && !style.Visual.FlatShading)
         {
-            // Conversational note: aggressive clamping works for dense matrices, but 1-row/1-column strips need
+            // Note: aggressive clamping works for dense matrices, but 1-row/1-column strips need
             // real pixel height/width headroom so bloom can expand vertically/horizontally without being pre-clipped.
             _dotSize = (width == 1 || height == 1)
                 ? Math.Max(1, style.DotSize)
@@ -635,7 +635,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             if (baseFrameIsGpuRendered)
             {
-                // Conversational note: when bloom is disabled, we still need to present the GPU dot base frame so off-state bulbs stay visible.
+                // Note: when bloom is disabled, we still need to present the GPU dot base frame so off-state bulbs stay visible.
                 TryPresentGpuBaseWithoutBloom("bloom-disabled");
             }
             return;
@@ -645,14 +645,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             if (baseFrameIsGpuRendered)
             {
-                // Conversational note: no emissive pixels still means we should show off-state bulbs from the GPU dot pass.
+                // Note: no emissive pixels still means we should show off-state bulbs from the GPU dot pass.
                 TryPresentGpuBaseWithoutBloom("no-emissive-leds");
             }
             return;
         }
 
         // We only run shader bloom when this frame actually has a GPU-rendered base surface.
-        // Conversational note: CPU dot fallback surfaces are authored in `_bgra`; running GPU bloom there can
+        // Note: CPU dot fallback surfaces are authored in `_bgra`; running GPU bloom there can
         // composite against stale/black GPU buffers and produce full-strip dark bars in transparent modes.
         if (baseFrameIsGpuRendered && !_useCpuBloomFallback && _gpuBloomSupported)
         {
@@ -665,7 +665,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
             catch (Exception ex)
             {
-                // Conversational note: if GPU bloom faults mid-frame, we rebuild bloom resources once before dropping to CPU fallback.
+                // Note: if GPU bloom faults mid-frame, we rebuild bloom resources once before dropping to CPU fallback.
                 TryRecoverGpuBloomPipeline(ex);
                 AppLogger.Warn($"[renderer] gpu bloom execution failed at stage='{_gpuBloomStage}'; switching to CPU fallback. reason={ex.Message} {TryGetDeviceRemovedReasonText()} trace={_gpuBloomTrace}");
             }
@@ -685,7 +685,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         if (baseFrameIsGpuRendered && _context is not null && _gpuBaseTexture is not null && _gpuReadbackTexture is not null)
         {
-            // Conversational note: CPU bloom expects a CPU-side BGRA surface, so we read back only when GPU dots were used.
+            // Note: CPU bloom expects a CPU-side BGRA surface, so we read back only when GPU dots were used.
             _context.CopyResource(_gpuReadbackTexture, _gpuBaseTexture);
             var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
             ReadBgraRows(readback.DataPointer, readback.RowPitch, _bgra, _surfaceWidth, _surfaceHeight);
@@ -701,7 +701,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // Split into near/far blur lanes so we can shape a tight glow plus a soft halo.
         var effectiveNearRadius = GetEffectiveBloomRadius(bloomProfile.NearRadius, bloomProfile.ScaleDivisor, _dotSize);
         var effectiveFarRadius = GetEffectiveBloomRadius(bloomProfile.FarRadius, bloomProfile.ScaleDivisor, _dotSize);
-        // Conversational note: we only keep a lane alive if both radius and strength make it materially visible.
+        // Note: we only keep a lane alive if both radius and strength make it materially visible.
         var nearActive = effectiveNearRadius > 0 && bloomProfile.NearStrength > BloomLaneStrengthEpsilon;
         var farActive = effectiveFarRadius > 0 && bloomProfile.FarStrength > BloomLaneStrengthEpsilon;
         if (!nearActive && !farActive)
@@ -836,7 +836,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         if (!baseFrameIsGpuRendered)
         {
-            // Conversational note: CPU dots still render into _bgra, so we upload that only for the fallback dot path.
+            // Note: CPU dots still render into _bgra, so we upload that only for the fallback dot path.
             _gpuBloomStage = "upload-base";
             trace.Append(" ->upload-base");
             _gpuBloomTrace = trace.ToString();
@@ -863,7 +863,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _gpuBloomTrace = trace.ToString();
         RunCompositePass(profile);
 
-        // Conversational note: explicitly switch away from the composite RTV before CopyResource.
+        // Note: explicitly switch away from the composite RTV before CopyResource.
         _gpuBloomStage = "unbind-composite";
         trace.Append(" ->unbind-composite");
         _gpuBloomTrace = trace.ToString();
@@ -893,7 +893,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             if (_directPresentStatus != "forced:legacy-readback")
             {
-                // Conversational note: this switch is a user escape hatch for systems where WPF interop is flaky.
+                // Note: this switch is a user escape hatch for systems where WPF interop is flaky.
                 _directPresentStatus = "forced:legacy-readback";
                 AppLogger.Info("[renderer] gpu direct present bypassed by config; using legacy readback.");
             }
@@ -903,7 +903,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return TryReadbackCompositeToCpu(trace);
         }
 
-        // Conversational note: when direct present is online, we intentionally avoid GPU->CPU readback.
+        // Note: when direct present is online, we intentionally avoid GPU->CPU readback.
         if (_directPresentEnabled && _context is not null && _directPresentSwapChain is not null && _directPresentBackBuffer is not null)
         {
             try
@@ -912,7 +912,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 _directPresentSwapChain.Present(0, PresentFlags.None);
                 trace.Append(" direct-present");
 
-                // Conversational note: parity readback is opt-in so normal direct present does not touch CPU readback.
+                // Note: parity readback is opt-in so normal direct present does not touch CPU readback.
                 if (_directPresentParitySamplingEnabled && !_directPresentParityValidated)
                 {
                     _directPresentParityValidated = TryCaptureFallbackReadbackSample(trace);
@@ -1003,7 +1003,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private static void LogFallbackCounter(string label, ulong count, string detail)
     {
-        // Conversational note: this throttles noise while still giving clear progression (1,2,4,8...).
+        // Note: this throttles noise while still giving clear progression (1,2,4,8...).
         if (count <= 3 || (count & (count - 1)) == 0)
         {
             AppLogger.Info($"[renderer] fallback trigger '{label}' count={count} {detail}");
@@ -1078,11 +1078,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
-        // Conversational note: this is a one-time sample to validate the legacy fallback path still sees the same composed frame.
+        // Note: this is a one-time sample to validate the legacy fallback path still sees the same composed frame.
         _context.CopyResource(_gpuReadbackTexture, _gpuCompositeTexture);
         if (_diagnosticReadbackCaptureEnabled)
         {
-            // Conversational note: explicit diagnostic capture mode is the only place we keep a forced flush.
+            // Note: explicit diagnostic capture mode is the only place we keep a forced flush.
             _context.Flush();
         }
         var readback = _context.Map(_gpuReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
@@ -1215,7 +1215,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             NearStrength = (float)(profile?.NearStrength ?? 0.0),
             FarStrength = (float)(profile?.FarStrength ?? 0.0),
             ScaleDivisor = (float)(profile?.ScaleDivisor ?? Math.Max(1, _gpuBloomScaleDivisor)),
-            // Conversational note: clamp radius defensively so bad constant data cannot create a runaway shader loop.
+            // Note: clamp radius defensively so bad constant data cannot create a runaway shader loop.
             Radius = Math.Clamp(radius, 0f, 8f),
             DirectionX = directionX,
             DirectionY = directionY,
@@ -1453,7 +1453,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (nearB * nearStrength) + (farB * farStrength), 0f, 255f);
                 if (transparentBackground)
                 {
-                    // Conversational note: alpha should reflect bloom contribution only, not pre-existing dark off-state shading.
+                    // Note: alpha should reflect bloom contribution only, not pre-existing dark off-state shading.
                     var bloomR = (nearR * nearStrength) + (farR * farStrength);
                     var bloomG = (nearG * nearStrength) + (farG * farStrength);
                     var bloomB = (nearB * nearStrength) + (farB * farStrength);
@@ -1481,7 +1481,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             for (var x = startX; x <= endX; x++)
             {
-                // Conversational note: this path intentionally samples one lane only, so we skip the missing texture fetch entirely.
+                // Note: this path intentionally samples one lane only, so we skip the missing texture fetch entirely.
                 var bloomU = ((x + 0.5f) / profile.ScaleDivisor) - 0.5f;
                 var bloomV = ((y + 0.5f) / profile.ScaleDivisor) - 0.5f;
                 var laneR = SampleBilinear(laneBlur, bloomWidth, bloomHeight, bloomU, bloomV, 0);
@@ -1494,7 +1494,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 target[targetOffset] = (byte)Math.Clamp(target[targetOffset] + (laneB * laneStrength), 0f, 255f);
                 if (transparentBackground)
                 {
-                    // Conversational note: preserve off-state dots while only expanding alpha where bloom actually adds light.
+                    // Note: preserve off-state dots while only expanding alpha where bloom actually adds light.
                     var alpha = (byte)Math.Clamp(Math.Max(laneR, Math.Max(laneG, laneB)) * laneStrength, 0f, 255f);
                     if (alpha < 6)
                     {
@@ -1522,7 +1522,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private bool HasAnyLitLed()
     {
-        // Conversational note: bloom gating now uses preprocess input knowledge only, so healthy GPU frames never trigger CPU-side LED scans.
+        // Note: bloom gating now uses preprocess input knowledge only, so healthy GPU frames never trigger CPU-side LED scans.
         return _hasAnyRawLitLed;
     }
 
@@ -1550,7 +1550,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private static void PresentFallbackBitmap(WriteableBitmap bitmap, byte[] bgra, int width, int height)
     {
-        // Conversational note: fallback presentation is intentionally direct (WritePixels only) and bypasses any staging texture.
+        // Note: fallback presentation is intentionally direct (WritePixels only) and bypasses any staging texture.
         bitmap.WritePixels(new Int32Rect(0, 0, width, height), bgra, width * 4, 0);
     }
 
@@ -1794,7 +1794,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private static Blob CompileShaderOrThrow(string entryPoint, string shaderProfile)
     {
-        // Conversational note: CompileFromFile is the most deterministic overload in Vortice across SDK bindings.
+        // Note: CompileFromFile is the most deterministic overload in Vortice across SDK bindings.
         var shaderPath = Path.Combine(Path.GetTempPath(), "VirtualDofMatrix.BloomShaders.hlsl");
         File.WriteAllText(shaderPath, BloomShaders.Source);
         var compileResult = Compiler.CompileFromFile(
@@ -1854,7 +1854,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 Format = LedColorTextureFormat,
                 SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default,
-                // Conversational note: preprocess texture is cleared via RTV and consumed via UAV/SRV, so all three bind flags are required.
+                // Note: preprocess texture is cleared via RTV and consumed via UAV/SRV, so all three bind flags are required.
                 BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess | BindFlags.RenderTarget,
                 CPUAccessFlags = CpuAccessFlags.None,
             };
@@ -1905,7 +1905,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _gpuPrevLedTexture = _device.CreateTexture2D(prevDesc);
             createStage = "prev-led-uav";
             _gpuPrevLedUav = _device.CreateUnorderedAccessView(_gpuPrevLedTexture);
-            // Conversational note: zeroing this buffer ensures smoothing starts from dark pixels on first frame.
+            // Note: zeroing this buffer ensures smoothing starts from dark pixels on first frame.
             var prevInit = new byte[Math.Max(16, _width * _height * 16)];
             var prevHandle = GCHandle.Alloc(prevInit, GCHandleType.Pinned);
             try
@@ -1969,7 +1969,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             fullDesc.Usage = ResourceUsage.Default;
             fullDesc.BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget;
             fullDesc.CPUAccessFlags = CpuAccessFlags.None;
-            // Conversational note: some drivers reject shared textures for this format/usage, so we gracefully fall back to a non-shared composite target.
+            // Note: some drivers reject shared textures for this format/usage, so we gracefully fall back to a non-shared composite target.
             try
             {
                 createStage = "composite-shared-texture";
@@ -2163,7 +2163,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float LensFalloff;
         public float SpecularHotspot;
         public float RimHighlight;
-        // Conversational note: D3D11 constant buffers require 16-byte alignment, so we keep explicit padding fields.
+        // Note: D3D11 constant buffers require 16-byte alignment, so we keep explicit padding fields.
         public float Padding0;
     }
 
@@ -2183,7 +2183,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float ToneKneeStart;
         public float ToneStrength;
         public float OffSnapThreshold;
-        // Conversational note: pad to a 16-byte multiple so D3D11 constant buffer uploads stay deterministic.
+        // Note: pad to a 16-byte multiple so D3D11 constant buffer uploads stay deterministic.
         public float Padding0;
         public float Padding1;
         public float Padding2;
@@ -2253,7 +2253,7 @@ struct VsOut
 VsOut VSMain(uint vertexId : SV_VertexID)
 {
     VsOut output;
-    // Conversational note: explicit full-screen triangle vertices are friendlier across drivers than bit-manipulated UV generation.
+    // Note: explicit full-screen triangle vertices are friendlier across drivers than bit-manipulated UV generation.
     float2 positions[3] =
     {
         float2(-1.0f, -1.0f),
@@ -2273,7 +2273,7 @@ VsOut VSMain(uint vertexId : SV_VertexID)
 float4 PSDotPass(VsOut input) : SV_Target
 {
     float spacing = max(Direction.y, 0.0f);
-    // Conversational note: in fill-gap mode we derive per-axis cell sizes from the actual viewport surface so
+    // Note: in fill-gap mode we derive per-axis cell sizes from the actual viewport surface so
     // dots stretch to fill available space while still reserving explicit pixel gaps between neighbors.
     float stride = max(Direction.x, 1.0f);
     float2 pixel = input.Uv * SurfaceSize;
@@ -2336,7 +2336,7 @@ float4 PSDotPass(VsOut input) : SV_Target
     float coreOpacity = intensity > 0.0f ? saturate(0.35f + (rootIntensity * 0.65f)) : 0.0f;
     float specOpacity = intensity > 0.0f ? saturate((rootIntensity * 0.45f) + 0.08f) : 0.0f;
     float bodyRaw = OffStateAlpha * ((0.25f + (0.55f * pow(edge, 0.5f + LensFalloff))) + (RimHighlight * 0.08f * (1.0f - edge)));
-    // Conversational note: CPU masks are normalized to max=1, so we mirror that here to keep off-state visibility/specularity in parity.
+    // Note: CPU masks are normalized to max=1, so we mirror that here to keep off-state visibility/specularity in parity.
     float bodyNorm = saturate(bodyRaw / max(0.0001f, OffStateAlpha * 0.8f));
     float core = pow(edge, 1.1f + (LensFalloff * 1.6f)) * coreOpacity;
 
@@ -2360,7 +2360,7 @@ float SoftKneeWeight(float3 color)
 }
 float4 PSBrightPass(VsOut input) : SV_Target
 {
-    // Conversational note: match CPU bloom extraction by averaging over the downsample footprint
+    // Note: match CPU bloom extraction by averaging over the downsample footprint
     // and only counting emissive contributors.
     int scale = max(1, (int)round(ScaleDivisor));
     float2 texel = 1.0f / max(SurfaceSize, float2(1.0f, 1.0f));
@@ -2391,7 +2391,7 @@ float4 PSSeparableBlur(VsOut input) : SV_Target
     if (r <= 0.001f) return BaseTexture.Sample(LinearSampler, input.Uv);
     float3 sum = 0;
     float weightSum = 0;
-    // Conversational note: fixed bounds + unroll avoids driver issues with dynamic loop trip counts.
+    // Note: fixed bounds + unroll avoids driver issues with dynamic loop trip counts.
     [unroll]
     for (int i = -8; i <= 8; i++)
     {
@@ -2459,7 +2459,7 @@ void CSPreprocessLeds(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (SmoothingEnabled > 0)
     {
         float3 current = PrevFrameRgb[logicalCoord].rgb;
-        // Conversational note: keep per-channel smoothing explicit to avoid cs_5_0 l-value indexing issues on some drivers.
+        // Note: keep per-channel smoothing explicit to avoid cs_5_0 l-value indexing issues on some drivers.
         smoothed = float3(
             SmoothChannel(current.r, target.r),
             SmoothChannel(current.g, target.g),

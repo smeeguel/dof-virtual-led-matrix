@@ -25,7 +25,7 @@ public sealed class TopperStripWindow : Window
         Topmost = true;
         SnapsToDevicePixels = true;
 
-        // Conversational note: this mirrors MainWindow chrome behavior so strip windows are draggable/resizable too.
+        // Note: this mirrors MainWindow chrome behavior so strip windows are draggable/resizable too.
         WindowChrome.SetWindowChrome(this, new WindowChrome
         {
             CaptionHeight = 0,
@@ -60,7 +60,7 @@ public sealed class TopperStripWindow : Window
         var width = Math.Max(1, frame.Width);
         var height = Math.Max(1, frame.Height);
 
-        // Conversational note: convert packed RGB into BGRA32 so WPF can upload in a single WritePixels call.
+        // Note: convert packed RGB into BGRA32 so WPF can upload in a single WritePixels call.
         var bgra = new byte[width * height * 4];
         var pixelCount = Math.Min(width * height, sourceBytes.Length / 3);
         for (var i = 0; i < pixelCount; i++)

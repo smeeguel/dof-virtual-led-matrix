@@ -127,7 +127,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void RebuildViewerBindingsOnUiThread()
     {
-        // Conversational note: when toy geometry changes at runtime, secondary windows keep their old renderer
+        // Note: when toy geometry changes at runtime, secondary windows keep their old renderer
         // dimensions unless we recreate bindings. We intentionally keep MainWindow alive and rebuild others.
         foreach (var pair in _bindings.ToArray())
         {
@@ -153,7 +153,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     {
         if (!_mainWindow.IsLoaded)
         {
-            // Conversational note: owner windows can only be assigned after MainWindow is shown/loaded.
+            // Note: owner windows can only be assigned after MainWindow is shown/loaded.
             _mainWindow.Loaded += OnMainWindowLoaded;
             return;
         }
@@ -169,7 +169,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void CreateInitialViewerBindings()
     {
-        // Conversational note: pre-create viewer toy windows so users immediately see one viewport per enabled toy.
+        // Note: pre-create viewer toy windows so users immediately see one viewport per enabled toy.
         foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
         {
             var hasViewerTarget = toy.OutputTargets.Any(target => target.Enabled &&
@@ -215,7 +215,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             return new ToyWindowBinding(_mainWindow, frame => _mainWindow.ApplyPresentation(ToPresentation(frame)));
         }
 
-        // Conversational note: secondary toys now reuse MainWindow rendering stack for consistent dot/bloom behavior.
+        // Note: secondary toys now reuse MainWindow rendering stack for consistent dot/bloom behavior.
         var toyWindowConfig = BuildToyWindowAppConfig(toyConfig, toyId);
         var toyWindow = new MainWindow(
             toyWindowConfig,
@@ -229,7 +229,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             DataContext = toyWindowConfig,
         };
 
-        // Conversational note: keep toy windows unowned so each window's layout popup can render reliably above its own swapchain surface.
+        // Note: keep toy windows unowned so each window's layout popup can render reliably above its own swapchain surface.
         // Owned-window z-order behavior can suppress per-window overlay popups for secondary toys while Settings is open.
 
         toyWindow.Show();
@@ -283,7 +283,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                     OffStateTintR = _config.Matrix.Visual.OffStateTintR,
                     OffStateTintG = _config.Matrix.Visual.OffStateTintG,
                     OffStateTintB = _config.Matrix.Visual.OffStateTintB,
-                    // Conversational note: keep off-state dots in transparent toys, but tone down opacity to avoid dark strip fill.
+                    // Note: keep off-state dots in transparent toys, but tone down opacity to avoid dark strip fill.
                     OffStateAlpha = toy.Window.BackgroundVisible
                         ? _config.Matrix.Visual.OffStateAlpha
                         : Math.Min(_config.Matrix.Visual.OffStateAlpha, 0.08),
@@ -322,7 +322,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private bool IsPrimaryVisualToy(string toyId)
     {
-        // Conversational note: keep one stable primary toy identity so windows don't swap roles when enabled flags change.
+        // Note: keep one stable primary toy identity so windows don't swap roles when enabled flags change.
         var primary = _config.Routing.Toys.FirstOrDefault();
         return primary is not null && string.Equals(primary.Id, toyId, StringComparison.OrdinalIgnoreCase);
     }
@@ -452,7 +452,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             SetBindingVisible(toy.Id, enabledForViewer);
         }
 
-        // Conversational note: bindings can outlive config edits; hide any stale viewer windows no longer enabled in routing.
+        // Note: bindings can outlive config edits; hide any stale viewer windows no longer enabled in routing.
         foreach (var bindingToyId in _bindings.Keys)
         {
             if (!enabledToyIds.Contains(bindingToyId))
@@ -471,7 +471,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 return;
             }
 
-            // Conversational note: toys enabled after startup may have no binding yet; create one so the window can appear immediately.
+            // Note: toys enabled after startup may have no binding yet; create one so the window can appear immediately.
             binding = _bindings.GetOrAdd(toyId, CreateBindingForToy);
 
             if (!binding.Window.IsVisible)
@@ -518,7 +518,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             binding.Window.Show();
         }
 
-        // Conversational note: topmost pulse nudges focus/highlight without permanently changing user window preferences.
+        // Note: topmost pulse nudges focus/highlight without permanently changing user window preferences.
         var wasTopmost = binding.Window.Topmost;
         binding.Window.Topmost = true;
         binding.Window.Activate();
@@ -544,7 +544,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _layoutEditModeEnabled = enabled;
         if (enabled)
         {
-            // Conversational note: start each settings/layout session with no pre-selected toy so outlines only appear after an explicit user action.
+            // Note: start each settings/layout session with no pre-selected toy so outlines only appear after an explicit user action.
             _selectedToyId = null;
         }
 
@@ -562,7 +562,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void RefreshLayoutOverlays()
     {
-        // Conversational note: the main window should be labeled as the first visual/viewer toy, not simply the first routing entry.
+        // Note: the main window should be labeled as the first visual/viewer toy, not simply the first routing entry.
         var primaryToyId = _config.Routing.Toys
             .FirstOrDefault(t => t.Enabled && t.OutputTargets.Any(target =>
                 target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase)))

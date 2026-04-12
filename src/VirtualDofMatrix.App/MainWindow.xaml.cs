@@ -160,7 +160,7 @@ public partial class MainWindow : Window
     {
         Topmost = _config.Window.AlwaysOnTop;
         WindowStyle = _config.Window.Borderless ? WindowStyle.None : WindowStyle.SingleBorderWindow;
-        // Conversational note: WPF forbids changing AllowsTransparency after a window handle exists.
+        // Note: WPF forbids changing AllowsTransparency after a window handle exists.
         // Apply it only during pre-show initialization; runtime toggles are deferred until window recreation.
         if (!IsLoaded && !IsVisible)
         {
@@ -187,7 +187,7 @@ public partial class MainWindow : Window
 
     private void ApplyWindowBackground()
     {
-        // Conversational note: toy windows can now request transparent backgrounds so strips can float over arbitrary artwork.
+        // Note: toy windows can now request transparent backgrounds so strips can float over arbitrary artwork.
         var brush = BuildWindowBackgroundBrush(_config.Window);
         Background = brush;
         MatrixViewportBorder.Background = brush;
@@ -206,7 +206,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Conversational note: transparent windows can be hard to grab; show a temporary dark backing while hovered.
+        // Note: transparent windows can be hard to grab; show a temporary dark backing while hovered.
         TransparentHoverCapture.Background = new SolidColorBrush(WpfColor.FromArgb(160, 0, 0, 0));
     }
 
@@ -238,7 +238,7 @@ public partial class MainWindow : Window
             }
             catch (FormatException)
             {
-                // Conversational note: invalid color input safely falls back to black instead of blocking startup.
+                // Note: invalid color input safely falls back to black instead of blocking startup.
             }
         }
 
@@ -247,7 +247,7 @@ public partial class MainWindow : Window
 
     private void ApplyStartupStatus()
     {
-        // Conversational note: startup diagnostics are logged instead of rendered in-window to keep viewer windows uncluttered.
+        // Note: startup diagnostics are logged instead of rendered in-window to keep viewer windows uncluttered.
         AppLogger.Info($"[startup] activeConfigPath={_startupConfigStatus.ActiveConfigPath}");
         AppLogger.Info($"[startup] cabinetStatus={_startupConfigStatus.CabinetFileStatus}");
         AppLogger.Info($"[startup] lastLoadedUtc={_startupConfigStatus.LastLoadedUtc:O}");
@@ -266,7 +266,7 @@ public partial class MainWindow : Window
         DebugPanel.Visibility = _config.Debug.ShowDebug ? Visibility.Visible : Visibility.Collapsed;
         DebugSpacerColumn.Width = _config.Debug.ShowDebug ? new GridLength(24) : new GridLength(0);
         DebugPanelColumn.Width = _config.Debug.ShowDebug ? GridLength.Auto : new GridLength(0);
-        // Conversational note: bloom can extend beyond lit pixels; keep extra container padding so far-radius glow isn't clipped.
+        // Note: bloom can extend beyond lit pixels; keep extra container padding so far-radius glow isn't clipped.
         var bloomPadding = Math.Max(0, _config.Matrix.Bloom.FarRadiusPx);
         MatrixViewportBorder.Padding = _config.Debug.ShowDebug
             ? new Thickness(8 + bloomPadding)
@@ -293,7 +293,7 @@ public partial class MainWindow : Window
 
         if (_isInResizeMove)
         {
-            // Conversational note: keep dots filling the viewport during live drag-resize; final reinit still runs on WM_EXITSIZEMOVE.
+            // Note: keep dots filling the viewport during live drag-resize; final reinit still runs on WM_EXITSIZEMOVE.
             _matrixRenderer.Resize(MatrixViewportBorder.ActualWidth, MatrixViewportBorder.ActualHeight);
             _pendingViewportReinitialize = true;
             return;
@@ -366,10 +366,10 @@ public partial class MainWindow : Window
             var majorAxisPixels = _config.Matrix.Width > 1 ? viewportWidth : viewportHeight;
             var minorAxisPixels = _config.Matrix.Width > 1 ? viewportHeight : viewportWidth;
             var farBloomRadius = Math.Max(0, _config.Matrix.Bloom.FarRadiusPx);
-            // Conversational note: strip bulbs should primarily size from the short axis (thickness), while bloom
+            // Note: strip bulbs should primarily size from the short axis (thickness), while bloom
             // still needs breathing room on both sides so the glow doesn't get clipped.
             var candidateDotSizeFromMinorAxis = (int)Math.Floor(minorAxisPixels - (farBloomRadius * 2.0));
-            // Conversational note: major-axis fit remains a safety rail so long strips still fit end-to-end.
+            // Note: major-axis fit remains a safety rail so long strips still fit end-to-end.
             var candidateDotSizeFromMajorAxis = (int)Math.Floor((majorAxisPixels - (spacing * Math.Max(0, ledCount - 1))) / Math.Max(1, ledCount));
             dotSize = Math.Max(1, Math.Min(candidateDotSizeFromMinorAxis, candidateDotSizeFromMajorAxis));
 
@@ -425,7 +425,7 @@ public partial class MainWindow : Window
                 OffStateTintR = _config.Matrix.Visual.OffStateTintR,
                 OffStateTintG = _config.Matrix.Visual.OffStateTintG,
                 OffStateTintB = _config.Matrix.Visual.OffStateTintB,
-                // Conversational note: transparent strips still show off-state dots, but with reduced alpha so they
+                // Note: transparent strips still show off-state dots, but with reduced alpha so they
                 // don't read as a solid dark bar once active LEDs begin updating.
                 OffStateAlpha = _config.Window.BackgroundVisible
                     ? _config.Matrix.Visual.OffStateAlpha
@@ -459,13 +459,13 @@ public partial class MainWindow : Window
 
     public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected)
     {
-        // Conversational note: compact mode keeps labels readable even on very short toy windows (for example narrow flashers).
+        // Note: compact mode keeps labels readable even on very short toy windows (for example narrow flashers).
         var compactOverlay = MatrixViewportBorder.ActualHeight > 0 && MatrixViewportBorder.ActualHeight < 80;
-        // Conversational note: avoid duplicate artifacts by keeping the in-window overlay layer hidden and relying on detached overlay rendering.
+        // Note: avoid duplicate artifacts by keeping the in-window overlay layer hidden and relying on detached overlay rendering.
         LayoutToyNameOverlay.Visibility = Visibility.Collapsed;
         LayoutSelectionBorder.BorderThickness = new Thickness(0);
 
-        // Conversational note: this companion overlay window guarantees labels/outlines stay above all render paths, including direct-present.
+        // Note: this companion overlay window guarantees labels/outlines stay above all render paths, including direct-present.
         UpdateDetachedLayoutOverlay(toyLabel, isEditModeEnabled, isSelected, compactOverlay);
     }
 
@@ -653,7 +653,7 @@ public partial class MainWindow : Window
         ApplyDebugVisibility();
         ReinitializeRendererForViewport();
 
-        // Conversational note: one extra replay pass makes renderer backend switches (GPU<->CPU) deterministic mid-flight.
+        // Note: one extra replay pass makes renderer backend switches (GPU<->CPU) deterministic mid-flight.
         if (_latestPresentation is not null)
         {
             _matrixRenderer.UpdateFrame(_latestPresentation);
@@ -676,7 +676,7 @@ public partial class MainWindow : Window
         _config.Window.LockAspectRatio = LockAspectRatioMenuItem.IsChecked;
         if (_config.Window.LockAspectRatio)
         {
-            // Conversational note: when re-locking, capture the user's current free-resize shape as the new lock ratio.
+            // Note: when re-locking, capture the user's current free-resize shape as the new lock ratio.
             RefreshLockedAspectRatioFromWindow();
         }
     }

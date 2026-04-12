@@ -54,7 +54,7 @@ public sealed class GpuRendererBoundaryTests
         }
 
         var map = MatrixFrameIndexMap.BuildLogicalToRasterMap(width, height, "TopDownAlternateRightLeft");
-        // Conversational note: add a deliberate invalid index to prove out-of-range map values are skipped safely.
+        // Note: add a deliberate invalid index to prove out-of-range map values are skipped safely.
         if (map.Length > 0)
         {
             map[0] = ledCount + 10;
@@ -80,7 +80,7 @@ public sealed class GpuRendererBoundaryTests
             var width = 2;
             var height = 1;
             var bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
-            // Conversational note: pixel order is BGRA to mirror the renderer's fallback path contract.
+            // Note: pixel order is BGRA to mirror the renderer's fallback path contract.
             var bgra = new byte[] { 1, 2, 3, 255, 4, 5, 6, 255 };
 
             presenter!.Invoke(null, new object[] { bitmap, bgra, width, height });

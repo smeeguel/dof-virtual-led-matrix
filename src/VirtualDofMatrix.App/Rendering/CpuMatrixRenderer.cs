@@ -184,7 +184,7 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
 
                 await bitmapHost.Dispatcher.InvokeAsync(
                     () => ApplyComposedFrame(bitmapHost, composed),
-                    // Conversational note: Normal avoids starvation after GPU direct-present teardown where Render-priority callbacks may stall.
+                    // Note: Normal avoids starvation after GPU direct-present teardown where Render-priority callbacks may stall.
                     DispatcherPriority.Normal,
                     _composeCts.Token);
             }
@@ -194,7 +194,7 @@ public sealed class CpuMatrixRenderer : IMatrixRenderer
             }
             catch (Exception ex)
             {
-                // Conversational note: keep the compose loop alive across transient backend-switch races instead of freezing the CPU renderer.
+                // Note: keep the compose loop alive across transient backend-switch races instead of freezing the CPU renderer.
                 AppLogger.Warn($"[renderer] cpu compose pass failed; continuing. reason={ex.GetType().Name}: {ex.Message}");
             }
         }

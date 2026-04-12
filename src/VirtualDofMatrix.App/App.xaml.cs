@@ -41,7 +41,7 @@ public partial class App : System.Windows.Application
 
     public App()
     {
-        // Conversational note: pin config lookup to the executable directory so Popper/PinUP working dir changes cannot redirect toys.ini.
+        // Note: pin config lookup to the executable directory so Popper/PinUP working dir changes cannot redirect toys.ini.
         _configFilePath = ResolveConfigFilePath();
     }
 
@@ -346,7 +346,7 @@ public partial class App : System.Windows.Application
                 return false;
             }
 
-            // Conversational note: we always show a dry-run summary first so Cabinet.xml writes are explicit
+            // Note: we always show a dry-run summary first so Cabinet.xml writes are explicit
             // and users can cancel if the planned managed virtual-toy edits look wrong.
             var dryRunResult = _cabinetXmlService.ApplyVirtualToyMerge(resolvedPath, mergePlan, dryRun: true);
             var confirmationMessage = $"{dryRunResult.Summary}\n\nApply these Cabinet.xml changes now?";
@@ -380,7 +380,7 @@ public partial class App : System.Windows.Application
 
     private static string BuildRoutingFingerprint(IEnumerable<ToyRouteConfig> toys)
     {
-        // Conversational note: this keeps Cabinet.xml prompts focused on real toy layout changes instead of
+        // Note: this keeps Cabinet.xml prompts focused on real toy layout changes instead of
         // unrelated settings edits elsewhere in the app.
         var items = toys
             .OrderBy(toy => toy.Id, StringComparer.OrdinalIgnoreCase)
@@ -651,14 +651,12 @@ public partial class App : System.Windows.Application
 
     private static string ResolveConfigFilePath()
     {
-        // Conversational note: AppContext.BaseDirectory should point to the install folder; fallback keeps host/test runs predictable.
+        // Note: single-file publishes can leave Assembly.Location blank, so we anchor to BaseDirectory first.
         var baseDirectory = AppContext.BaseDirectory;
         if (string.IsNullOrWhiteSpace(baseDirectory))
         {
-            var assemblyLocation = typeof(App).Assembly.Location;
-            baseDirectory = string.IsNullOrWhiteSpace(assemblyLocation)
-                ? Environment.CurrentDirectory
-                : Path.GetDirectoryName(assemblyLocation) ?? Environment.CurrentDirectory;
+            // Note: this guard mostly helps unusual host/test environments where BaseDirectory is unexpectedly empty.
+            baseDirectory = Environment.CurrentDirectory;
         }
 
         return Path.GetFullPath(Path.Combine(baseDirectory, ConfigFileName));
