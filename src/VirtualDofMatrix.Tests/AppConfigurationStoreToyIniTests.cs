@@ -6,6 +6,34 @@ namespace VirtualDofMatrix.Tests;
 public sealed class AppConfigurationStoreToyIniTests
 {
     [Fact]
+    public void Save_WhenConfigHasNoRoutingToys_WritesDefaultBackglassMatrixSection()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+            var config = new VirtualDofMatrix.Core.AppConfig();
+
+            var store = new AppConfigurationStore();
+            store.Save(settingsPath, config);
+
+            var iniContents = File.ReadAllText(iniPath);
+            Assert.Contains("[toy:backglass-main]", iniContents);
+            Assert.Contains("name = Matrix1", iniContents);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void Load_WhenToyIniExists_PrunesStaleRoutingToysNotInIni()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
