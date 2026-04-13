@@ -20,7 +20,6 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly Action<string> _notifyToyWindowSelected;
     private readonly Action<string> _requestToyEdit;
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _enabledAtStartup = new(StringComparer.OrdinalIgnoreCase);
     private bool _layoutEditModeEnabled;
     private string? _selectedToyId;
 
@@ -42,10 +41,6 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _requestAppExit = requestAppExit;
         _notifyToyWindowSelected = notifyToyWindowSelected;
         _requestToyEdit = requestToyEdit;
-        foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
-        {
-            _enabledAtStartup.Add(toy.Id);
-        }
 
         EnsureInitialViewerToyWindows();
     }
@@ -138,11 +133,6 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
 
         _bindings.Clear();
-        _enabledAtStartup.Clear();
-        foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
-        {
-            _enabledAtStartup.Add(toy.Id);
-        }
 
         CreateInitialViewerBindings();
         SyncVisibilityFromConfigOnUiThread();
@@ -206,7 +196,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         var toyConfig = FindToyConfig(toyId);
         var isPrimaryToy = IsPrimaryVisualToy(toyId);
 
-        if (isPrimaryToy && _enabledAtStartup.Contains(toyId))
+        if (isPrimaryToy)
         {
             WireGeometryPersistence(_mainWindow, toyId);
             WireWindowSelectionCallbacks(_mainWindow, toyId);
@@ -325,9 +315,9 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private bool IsPrimaryVisualToy(string toyId)
     {
-        // Note: keep one stable primary toy identity so windows don't swap roles when enabled flags change.
-        var primary = _config.Routing.Toys.FirstOrDefault();
-        return primary is not null && string.Equals(primary.Id, toyId, StringComparison.OrdinalIgnoreCase);
+        var primaryViewerToyId = GetPrimaryViewerToyId();
+        return !string.IsNullOrWhiteSpace(primaryViewerToyId)
+            && string.Equals(primaryViewerToyId, toyId, StringComparison.OrdinalIgnoreCase);
     }
 
     private ToyRouteConfig? FindToyConfig(string toyId)
@@ -463,6 +453,23 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 SetBindingVisible(bindingToyId, isVisible: false);
             }
         }
+
+        // Note: rebuilds can leave MainWindow unbound when the old primary toy is disabled.
+        // Keep the host window hidden unless it is actively bound to a currently enabled viewer toy.
+        var mainWindowBoundToEnabledToy = _bindings.Any(pair =>
+            ReferenceEquals(pair.Value.Window, _mainWindow)
+            && enabledToyIds.Contains(pair.Key));
+        if (mainWindowBoundToEnabledToy)
+        {
+            if (!_mainWindow.IsVisible)
+            {
+                _mainWindow.Show();
+            }
+        }
+        else if (_mainWindow.IsVisible)
+        {
+            _mainWindow.Hide();
+        }
     }
 
     private void SetBindingVisible(string toyId, bool isVisible)
@@ -565,11 +572,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void RefreshLayoutOverlays()
     {
-        // Note: the main window should be labeled as the first visual/viewer toy, not simply the first routing entry.
-        var primaryToyId = _config.Routing.Toys
-            .FirstOrDefault(t => t.Enabled && t.OutputTargets.Any(target =>
-                target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase)))
-            ?.Id;
+        // Note: the main window should follow the current first enabled viewer toy.
+        var primaryToyId = GetPrimaryViewerToyId();
         if (!string.IsNullOrWhiteSpace(primaryToyId))
         {
             ApplyLayoutOverlay(primaryToyId, _mainWindow);
@@ -597,6 +601,14 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         var selected = !string.IsNullOrWhiteSpace(_selectedToyId)
             && string.Equals(_selectedToyId, toyId, StringComparison.OrdinalIgnoreCase);
         toyWindow.SetLayoutEditOverlay(toyLabel, _layoutEditModeEnabled, selected);
+    }
+
+    private string? GetPrimaryViewerToyId()
+    {
+        return _config.Routing.Toys
+            .FirstOrDefault(t => t.Enabled && t.OutputTargets.Any(target =>
+                target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase)))
+            ?.Id;
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);
