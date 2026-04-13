@@ -357,7 +357,6 @@ public partial class MainWindow : Window
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
         var isSingleAxisStrip = _config.Matrix.Width == 1 || _config.Matrix.Height == 1;
-        var forceLegacyStripPresent = isSingleAxisStrip;
         var spacing = Math.Max(HardMinimumDotSpacing, _config.Matrix.MinDotSpacing);
         int dotSize;
 
@@ -417,9 +416,10 @@ public partial class MainWindow : Window
             Visual = new MatrixVisualConfig
             {
                 TransparentBackground = !_config.Window.BackgroundVisible,
-                // Note: single-axis strips render more consistently in readback mode across transparent/solid backgrounds.
-                GpuPresentMode = (_config.Window.BackgroundVisible && !forceLegacyStripPresent) ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
-                ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || !_config.Window.BackgroundVisible || forceLegacyStripPresent,
+                // Note: avoid hard-forcing strip windows into readback/fallback paths; these paths can
+                // suppress visible output on some driver stacks even when routed payload bytes are valid.
+                GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
+                ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                 EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
                 EnableDiagnosticReadbackCapture = _config.Matrix.Visual.EnableDiagnosticReadbackCapture,
                 FlatShading = _config.Matrix.Visual.FlatShading,

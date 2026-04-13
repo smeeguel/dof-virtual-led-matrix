@@ -236,8 +236,6 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private AppConfig BuildToyWindowAppConfig(ToyRouteConfig? toyConfig, string toyId)
     {
         var toy = toyConfig ?? new ToyRouteConfig { Id = toyId };
-        var isSingleAxisStrip = toy.Mapping.Width == 1 || toy.Mapping.Height == 1;
-        var forceLegacyStripPresent = isSingleAxisStrip;
 
         var clone = new AppConfig
         {
@@ -266,9 +264,10 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 Visual = new MatrixVisualConfig
                 {
                     TransparentBackground = !toy.Window.BackgroundVisible,
-                    // Note: keep strip rendering mode stable for both transparent and solid strip windows.
-                    GpuPresentMode = (toy.Window.BackgroundVisible && !forceLegacyStripPresent) ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
-                    ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || !toy.Window.BackgroundVisible || forceLegacyStripPresent,
+                    // Note: do not force strip toys into legacy readback/cpu fallback lanes by default;
+                    // allow the global renderer choice unless the user explicitly requested fallback.
+                    GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
+                    ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                     EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
                     EnableDiagnosticReadbackCapture = _config.Matrix.Visual.EnableDiagnosticReadbackCapture,
                     FlatShading = _config.Matrix.Visual.FlatShading,
