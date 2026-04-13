@@ -50,7 +50,15 @@ public sealed class AppConfigurationStore
         // backfill used during Load(), including the canonical backglass Matrix1 toy migration.
         var (normalized, _) = ApplyLegacyDefaults(config);
 
-        var json = JsonSerializer.Serialize(normalized, SerializerOptions);
+        // Note: toys.ini is authoritative for per-toy settings; keep settings.json focused on app/global settings
+        // by omitting inline toy definitions from persisted JSON.
+        var settingsSnapshot = JsonSerializer.Deserialize<AppConfig>(
+            JsonSerializer.Serialize(normalized, SerializerOptions),
+            SerializerOptions) ?? new AppConfig();
+        settingsSnapshot.Routing ??= new RoutingConfig();
+        settingsSnapshot.Routing.Toys = [];
+
+        var json = JsonSerializer.Serialize(settingsSnapshot, SerializerOptions);
         File.WriteAllText(filePath, json);
 
         var iniPath = ResolveToyIniPath(filePath, normalized.Routing?.ToyConfigIniPath);

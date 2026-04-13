@@ -34,6 +34,67 @@ public sealed class AppConfigurationStoreToyIniTests
     }
 
     [Fact]
+    public void Save_WhenRoutingContainsToys_PersistsToyDefinitionsOnlyToIniNotSettingsJson()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+            var config = new VirtualDofMatrix.Core.AppConfig
+            {
+                Routing = new VirtualDofMatrix.Core.RoutingConfig
+                {
+                    ToyConfigIniPath = "toys.ini",
+                    Toys =
+                    [
+                        new VirtualDofMatrix.Core.ToyRouteConfig
+                        {
+                            Id = "backglass-main",
+                            Name = "Matrix1",
+                            Kind = "matrix",
+                            Enabled = true,
+                            Source = new VirtualDofMatrix.Core.ToySourceConfig { CanonicalStart = 0, Length = 4096 },
+                            Mapping = new VirtualDofMatrix.Core.ToyMappingConfig { Width = 128, Height = 32, Mode = "TopDownAlternateRightLeft" },
+                            OutputTargets = [new VirtualDofMatrix.Core.ToyAdapterTargetConfig { Adapter = "viewer", Enabled = true }],
+                        },
+                        new VirtualDofMatrix.Core.ToyRouteConfig
+                        {
+                            Id = "strip1",
+                            Name = "Strip1",
+                            Kind = "strip",
+                            Enabled = true,
+                            Source = new VirtualDofMatrix.Core.ToySourceConfig { CanonicalStart = 4096, Length = 32 },
+                            Mapping = new VirtualDofMatrix.Core.ToyMappingConfig { Width = 32, Height = 1, Mode = "RowMajor" },
+                            OutputTargets = [new VirtualDofMatrix.Core.ToyAdapterTargetConfig { Adapter = "viewer", Enabled = true }],
+                        },
+                    ],
+                },
+            };
+
+            var store = new AppConfigurationStore();
+            store.Save(settingsPath, config);
+
+            var settingsJson = File.ReadAllText(settingsPath);
+            var iniContents = File.ReadAllText(iniPath);
+
+            Assert.Contains("\"toys\": []", settingsJson);
+            Assert.DoesNotContain("\"id\": \"strip1\"", settingsJson, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("[toy:backglass-main]", iniContents);
+            Assert.Contains("[toy:strip1]", iniContents);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void Load_WhenToyIniExists_PrunesStaleRoutingToysNotInIni()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
