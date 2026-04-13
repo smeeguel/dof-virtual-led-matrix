@@ -583,7 +583,7 @@ public partial class ToyWizardWindow : Window
         return System.Windows.Media.Color.FromRgb(intensity, intensity, intensity);
     }
 
-    private Brush ResolvePreviewBackgroundBrush()
+    private System.Windows.Media.Brush ResolvePreviewBackgroundBrush()
     {
         if (WindowBackgroundVisibleCheckBox.IsChecked != true)
         {
