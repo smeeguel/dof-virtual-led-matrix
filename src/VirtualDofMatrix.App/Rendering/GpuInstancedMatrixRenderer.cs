@@ -93,6 +93,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ulong _lastOutputSequence;
     private RenderLane _renderLane = RenderLane.GpuPrimary;
     private RenderLane? _lastLoggedLane;
+    private bool _loggedReadbackForCurrentLane;
     private bool _hasAnyRawLitLed;
     private readonly object _gate = new();
     private Image? _host;
@@ -397,7 +398,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
-        AppLogger.Info($"[renderer] gpu led readback entered reason={reason} seq={_lastOutputSequence} lane={_renderLane}");
+        if (!_loggedReadbackForCurrentLane)
+        {
+            AppLogger.Info($"[renderer] gpu led readback entered reason={reason} seq={_lastOutputSequence} lane={_renderLane}");
+            _loggedReadbackForCurrentLane = true;
+        }
         _context.CopyResource(_gpuLedReadbackTexture, _gpuLedColorTexture);
         var mapped = _context.Map(_gpuLedReadbackTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         try
@@ -993,6 +998,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         AppLogger.Info($"[renderer] lane={_renderLane} seq={_lastOutputSequence}");
         _lastLoggedLane = _renderLane;
+        _loggedReadbackForCurrentLane = false;
     }
 
     private bool IsLegacyReadbackMode()
