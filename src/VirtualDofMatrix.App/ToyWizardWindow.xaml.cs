@@ -102,7 +102,6 @@ public partial class ToyWizardWindow : Window
 
         MinDotSpacingTextBox.Text = "2";
         BrightnessTextBox.Text = "1.0";
-        GammaTextBox.Text = "0.8";
         FillGapCheckBox.IsChecked = false;
 
         UseGlobalWindowCheckBox.IsChecked = true;
@@ -113,8 +112,6 @@ public partial class ToyWizardWindow : Window
         SelectBackgroundPreset("#000000");
 
         BloomEnabledCheckBox.IsChecked = true;
-        BloomThresholdTextBox.Text = "0.72";
-        BloomSoftKneeTextBox.Text = "0.18";
         BloomNearRadiusTextBox.Text = "2";
         BloomFarRadiusTextBox.Text = "10";
         BloomNearStrengthTextBox.Text = "1.0";
@@ -136,7 +133,6 @@ public partial class ToyWizardWindow : Window
 
         MinDotSpacingTextBox.Text = toy.Render.MinDotSpacing.ToString();
         BrightnessTextBox.Text = toy.Render.Brightness.ToString("0.###");
-        GammaTextBox.Text = toy.Render.Gamma.ToString("0.###");
         FillGapCheckBox.IsChecked = toy.Render.FillGapEnabled;
 
         UseGlobalWindowCheckBox.IsChecked = toy.Window.UseGlobalWindow;
@@ -147,8 +143,6 @@ public partial class ToyWizardWindow : Window
         SelectBackgroundPreset(string.IsNullOrWhiteSpace(toy.Window.BackgroundColor) ? "#000000" : toy.Window.BackgroundColor);
 
         BloomEnabledCheckBox.IsChecked = toy.Bloom.Enabled;
-        BloomThresholdTextBox.Text = toy.Bloom.Threshold.ToString("0.###");
-        BloomSoftKneeTextBox.Text = toy.Bloom.SoftKnee.ToString("0.###");
         BloomNearRadiusTextBox.Text = toy.Bloom.NearRadiusPx.ToString();
         BloomFarRadiusTextBox.Text = toy.Bloom.FarRadiusPx.ToString();
         BloomNearStrengthTextBox.Text = toy.Bloom.NearStrength.ToString("0.###");
@@ -277,6 +271,7 @@ public partial class ToyWizardWindow : Window
         var isStrip = IsStripTypeSelected();
         StripDimensionsPanel.Visibility = isStrip ? Visibility.Visible : Visibility.Collapsed;
         MatrixDimensionsPanel.Visibility = isStrip ? Visibility.Collapsed : Visibility.Visible;
+        BackgroundColorPresetPanel.Visibility = WindowBackgroundVisibleCheckBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PreviewStatusText.Text = isStrip
             ? "Preview shows strip LED order left to right."
             : "Preview shows matrix numbering using your chosen width/height.";
@@ -378,21 +373,6 @@ public partial class ToyWizardWindow : Window
         if (!TryParseDouble(BrightnessTextBox.Text, out var brightness) || brightness < 0 || brightness > 1)
         {
             return (false, "Brightness must be between 0.0 and 1.0.", 0, 0, 0);
-        }
-
-        if (!TryParseDouble(GammaTextBox.Text, out var gamma) || gamma <= 0)
-        {
-            return (false, "Gamma must be a positive number.", 0, 0, 0);
-        }
-
-        if (!TryParseDouble(BloomThresholdTextBox.Text, out var bloomThreshold) || bloomThreshold < 0 || bloomThreshold > 1)
-        {
-            return (false, "Glow threshold must be between 0.0 and 1.0.", 0, 0, 0);
-        }
-
-        if (!TryParseDouble(BloomSoftKneeTextBox.Text, out var bloomSoftKnee) || bloomSoftKnee < 0)
-        {
-            return (false, "Glow soft knee must be 0 or higher.", 0, 0, 0);
         }
 
         if (!TryParseInt(BloomNearRadiusTextBox.Text, out var nearRadius) || nearRadius < 0)
@@ -522,13 +502,15 @@ public partial class ToyWizardWindow : Window
                 MinDotSpacing = int.Parse(MinDotSpacingTextBox.Text),
                 FillGapEnabled = FillGapCheckBox.IsChecked == true,
                 Brightness = double.Parse(BrightnessTextBox.Text),
-                Gamma = double.Parse(GammaTextBox.Text),
+                // Note: gamma remains toys.ini editable, but is intentionally hidden in the wizard for a simpler UI.
+                Gamma = _editingToy?.Render.Gamma ?? 0.8,
             },
             Bloom = new ToyBloomOptionsConfig
             {
                 Enabled = BloomEnabledCheckBox.IsChecked == true,
-                Threshold = double.Parse(BloomThresholdTextBox.Text),
-                SoftKnee = double.Parse(BloomSoftKneeTextBox.Text),
+                // Note: threshold/soft-knee remain toys.ini editable, but are intentionally hidden in the wizard.
+                Threshold = _editingToy?.Bloom.Threshold ?? 0.72,
+                SoftKnee = _editingToy?.Bloom.SoftKnee ?? 0.18,
                 NearRadiusPx = int.Parse(BloomNearRadiusTextBox.Text),
                 FarRadiusPx = int.Parse(BloomFarRadiusTextBox.Text),
                 NearStrength = double.Parse(BloomNearStrengthTextBox.Text),
@@ -666,7 +648,7 @@ public partial class ToyWizardWindow : Window
         if (IsStripTypeSelected())
         {
             // Note: strips are typically rendered as a single axis, so default to viewport-filling spacing.
-            FillGapCheckBox.IsChecked = true;
+            FillGapCheckBox.IsChecked = false;
             WindowLockAspectCheckBox.IsChecked = false;
             WindowBackgroundVisibleCheckBox.IsChecked = false;
         }

@@ -109,12 +109,6 @@
                         <TextBox x:Name="BrightnessTextBox" Width="130" TextChanged="OnInputsChanged"
                                  ToolTip="Higher values make LEDs brighter." />
                     </StackPanel>
-
-                    <StackPanel Margin="0,0,16,6">
-                        <TextBlock Text="Gamma" ToolTip="Perceptual brightness curve adjustment." />
-                        <TextBox x:Name="GammaTextBox" Width="130" TextChanged="OnInputsChanged"
-                                 ToolTip="Lower values brighten dark colors, higher values darken them." />
-                    </StackPanel>
                 </WrapPanel>
 
                 <WrapPanel Margin="0,6,0,0">
@@ -133,7 +127,7 @@
                 <WrapPanel Margin="0,8,0,0">
                     <CheckBox x:Name="WindowBackgroundVisibleCheckBox" Content="Show background color" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
                               ToolTip="Turn off for transparent/invisible toy background." />
-                    <StackPanel Margin="0,0,12,6">
+                    <StackPanel x:Name="BackgroundColorPresetPanel" Margin="0,0,12,6">
                         <TextBlock Text="Background color preset" ToolTip="Pick from common colors with live swatches." />
                         <ComboBox x:Name="WindowBackgroundColorCombo" Width="220" SelectionChanged="OnInputsChanged"
                                   ToolTip="Used only when Show background color is enabled.">
@@ -153,24 +147,16 @@
                     <CheckBox x:Name="BloomEnabledCheckBox" Content="Glow" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
                               ToolTip="Turns bloom/glow effect on or off." />
                     <StackPanel Margin="0,0,12,6">
-                        <TextBlock Text="Glow threshold" ToolTip="Brightness required before glow starts." />
-                        <TextBox x:Name="BloomThresholdTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Recommended range: 0.0 to 1.0." />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,12,6">
-                        <TextBlock Text="Glow soft knee" ToolTip="How gradually glow transitions in above threshold." />
-                        <TextBox x:Name="BloomSoftKneeTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Higher values create smoother glow ramps." />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,12,6">
                         <TextBlock Text="Near radius" ToolTip="Small close-range glow radius in pixels." />
                         <TextBox x:Name="BloomNearRadiusTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls tight halo size." />
                     </StackPanel>
                     <StackPanel Margin="0,0,12,6">
-                        <TextBlock Text="Far radius" ToolTip="Wide halo radius in pixels." />
-                        <TextBox x:Name="BloomFarRadiusTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls large outer glow size." />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,12,6">
                         <TextBlock Text="Near strength" ToolTip="Intensity of the tight glow layer." />
                         <TextBox x:Name="BloomNearStrengthTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls near glow intensity." />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,6">
+                        <TextBlock Text="Far radius" ToolTip="Wide halo radius in pixels." />
+                        <TextBox x:Name="BloomFarRadiusTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls large outer glow size." />
                     </StackPanel>
                     <StackPanel Margin="0,0,12,6">
                         <TextBlock Text="Far strength" ToolTip="Intensity of the wide glow layer." />

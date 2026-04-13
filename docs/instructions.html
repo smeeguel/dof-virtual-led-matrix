@@ -233,11 +233,17 @@ The wizard automatically uses row/column mapping behind the scenes for strip dir
 
 You can leave defaults, or tune options such as:
 
-- Dot shape, spacing, brightness, gamma
-- Fill gap
+- Dot shape, spacing, brightness
+- Fill gap (defaults to `false` for newly added toys)
 - Window behavior (global window settings, always-on-top, borderless, lock aspect ratio)
-- Background visibility/color
-- Glow options (threshold, soft knee, radius, strength)
+- Background visibility/color (color preset picker is shown only when background visibility is enabled)
+- Glow options (near/far radius and near/far strength)
+
+Advanced fields that are still supported in `toys.ini` but intentionally hidden in the wizard:
+
+- `renderGamma`
+- `bloomThreshold`
+- `bloomSoftKnee`
 
 ### Step 5E - Save and verify
 
