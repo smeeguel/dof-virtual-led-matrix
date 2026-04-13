@@ -315,9 +315,9 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private bool IsPrimaryVisualToy(string toyId)
     {
-        var primaryViewerToyId = GetPrimaryViewerToyId();
-        return !string.IsNullOrWhiteSpace(primaryViewerToyId)
-            && string.Equals(primaryViewerToyId, toyId, StringComparison.OrdinalIgnoreCase);
+        var mainHostToyId = GetMainHostToyId();
+        return !string.IsNullOrWhiteSpace(mainHostToyId)
+            && string.Equals(mainHostToyId, toyId, StringComparison.OrdinalIgnoreCase);
     }
 
     private ToyRouteConfig? FindToyConfig(string toyId)
@@ -572,8 +572,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void RefreshLayoutOverlays()
     {
-        // Note: the main window should follow the current first enabled viewer toy.
-        var primaryToyId = GetPrimaryViewerToyId();
+        // Note: the main window remains attached to one stable host toy identity.
+        var primaryToyId = GetMainHostToyId();
         if (!string.IsNullOrWhiteSpace(primaryToyId))
         {
             ApplyLayoutOverlay(primaryToyId, _mainWindow);
@@ -603,12 +603,9 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         toyWindow.SetLayoutEditOverlay(toyLabel, _layoutEditModeEnabled, selected);
     }
 
-    private string? GetPrimaryViewerToyId()
+    private string? GetMainHostToyId()
     {
-        return _config.Routing.Toys
-            .FirstOrDefault(t => t.Enabled && t.OutputTargets.Any(target =>
-                target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase)))
-            ?.Id;
+        return _config.Routing.Toys.FirstOrDefault()?.Id;
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);
