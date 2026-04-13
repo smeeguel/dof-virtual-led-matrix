@@ -100,101 +100,118 @@
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="4) Advanced visual options" />
                 <TextBlock Margin="0,2,0,6" Foreground="#666" Text="These options change look and feel only. They do not change source LED data." />
 
-                <WrapPanel>
-                    <StackPanel Margin="0,0,16,6">
-                        <TextBlock Text="Dot shape" ToolTip="Circle has rounded LEDs; square gives block pixels." />
-                        <ComboBox x:Name="DotShapeCombo" Width="150" SelectionChanged="OnInputsChanged"
-                                  ToolTip="Circle or square LED style.">
-                            <ComboBoxItem Content="circle" />
-                            <ComboBoxItem Content="square" />
-                        </ComboBox>
+                <!-- Section 4 is split into clear groups so options are easier to scan without changing existing control wiring. -->
+                <GroupBox Header="Visual" Margin="0,4,0,8" Padding="8">
+                    <StackPanel>
+                        <WrapPanel>
+                            <StackPanel Margin="0,0,16,6">
+                                <TextBlock Text="Dot shape" ToolTip="Circle has rounded LEDs; square gives block pixels." />
+                                <ComboBox x:Name="DotShapeCombo" Width="150" SelectionChanged="OnInputsChanged"
+                                          ToolTip="Circle or square LED style.">
+                                    <ComboBoxItem Content="circle" />
+                                    <ComboBoxItem Content="square" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel Margin="0,0,16,6">
+                                <TextBlock Text="Dot spacing" ToolTip="Gap between adjacent LED dots in render pixels." />
+                                <TextBox x:Name="MinDotSpacingTextBox" Width="130" TextChanged="OnInputsChanged"
+                                         ToolTip="Minimum pixel spacing between dots." />
+                            </StackPanel>
+
+                            <StackPanel Margin="0,0,16,6">
+                                <TextBlock Text="Brightness" ToolTip="0.0 to 1.0 output multiplier." />
+                                <TextBox x:Name="BrightnessTextBox" Width="130" TextChanged="OnInputsChanged"
+                                         ToolTip="Higher values make LEDs brighter." />
+                            </StackPanel>
+                        </WrapPanel>
+
+                        <CheckBox x:Name="FillGapCheckBox" Content="Fill gap" Margin="0,2,0,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                                  ToolTip="Smoothly fills between dots to reduce visible spacing." />
                     </StackPanel>
+                </GroupBox>
 
-                    <StackPanel Margin="0,0,16,6">
-                        <TextBlock Text="Dot spacing" ToolTip="Gap between adjacent LED dots in render pixels." />
-                        <TextBox x:Name="MinDotSpacingTextBox" Width="130" TextChanged="OnInputsChanged"
-                                 ToolTip="Minimum pixel spacing between dots." />
-                    </StackPanel>
+                <GroupBox Header="Window behavior" Margin="0,0,0,8" Padding="8">
+                    <StackPanel>
+                        <WrapPanel Margin="0,0,0,6">
+                            <CheckBox x:Name="UseGlobalWindowCheckBox" Content="Use global window settings" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                                      ToolTip="When on, this toy follows the app-level window position and style." />
+                            <CheckBox x:Name="WindowAlwaysOnTopCheckBox" Content="Always on top" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                                      ToolTip="Keep this toy window above other windows when using toy-specific window settings." />
+                            <CheckBox x:Name="WindowBorderlessCheckBox" Content="Borderless" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                                      ToolTip="Hide title bar and borders for this toy window." />
+                            <CheckBox x:Name="WindowLockAspectCheckBox" Content="Lock aspect ratio" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                                      ToolTip="Preserve width/height ratio while resizing this toy window." />
+                        </WrapPanel>
 
-                    <StackPanel Margin="0,0,16,6">
-                        <TextBlock Text="Brightness" ToolTip="0.0 to 1.0 output multiplier." />
-                        <TextBox x:Name="BrightnessTextBox" Width="130" TextChanged="OnInputsChanged"
-                                 ToolTip="Higher values make LEDs brighter." />
-                    </StackPanel>
-                </WrapPanel>
-
-                <WrapPanel Margin="0,6,0,0">
-                    <CheckBox x:Name="FillGapCheckBox" Content="Fill gap" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
-                              ToolTip="Smoothly fills between dots to reduce visible spacing." />
-                    <CheckBox x:Name="UseGlobalWindowCheckBox" Content="Use global window settings" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
-                              ToolTip="When on, this toy follows the app-level window position and style." />
-                    <CheckBox x:Name="WindowAlwaysOnTopCheckBox" Content="Always on top" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
-                              ToolTip="Keep this toy window above other windows when using toy-specific window settings." />
-                    <CheckBox x:Name="WindowBorderlessCheckBox" Content="Borderless" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
-                              ToolTip="Hide title bar and borders for this toy window." />
-                    <CheckBox x:Name="WindowLockAspectCheckBox" Content="Lock aspect ratio" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
-                              ToolTip="Preserve width/height ratio while resizing this toy window." />
-                </WrapPanel>
-
-                <WrapPanel Margin="0,8,0,0">
-                    <CheckBox x:Name="WindowBackgroundVisibleCheckBox" Content="Show background color" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
-                              ToolTip="Turn off for transparent/invisible toy background." />
-                    <StackPanel x:Name="BackgroundColorPresetPanel" Margin="0,0,12,6">
-                        <TextBlock Text="Background color preset" ToolTip="Pick from common colors with live swatches." />
-                        <ComboBox x:Name="WindowBackgroundColorCombo" Width="220" SelectionChanged="OnInputsChanged"
-                                  ToolTip="Used only when Show background color is enabled.">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Border Width="14" Height="14" Margin="0,0,6,0" BorderBrush="#555" BorderThickness="1" Background="{Binding SwatchBrush}" />
-                                        <TextBlock Text="{Binding Label}" />
+                        <Border BorderBrush="#E5E5E5" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC">
+                            <StackPanel>
+                                <TextBlock Foreground="#666" Margin="0,0,0,6" Text="Background" />
+                                <WrapPanel>
+                                    <CheckBox x:Name="WindowBackgroundVisibleCheckBox" Content="Show background color" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                                              ToolTip="Turn off for transparent/invisible toy background." />
+                                    <StackPanel x:Name="BackgroundColorPresetPanel" Margin="0,0,12,0">
+                                        <TextBlock Text="Background color preset" ToolTip="Pick from common colors with live swatches." />
+                                        <ComboBox x:Name="WindowBackgroundColorCombo" Width="220" SelectionChanged="OnInputsChanged"
+                                                  ToolTip="Used only when Show background color is enabled.">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border Width="14" Height="14" Margin="0,0,6,0" BorderBrush="#555" BorderThickness="1" Background="{Binding SwatchBrush}" />
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
                                     </StackPanel>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                </WrapPanel>
+                </GroupBox>
 
-                <WrapPanel Margin="0,8,0,0">
-                    <CheckBox x:Name="BloomEnabledCheckBox" Content="Glow" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
-                              ToolTip="Turns bloom/glow effect on or off." />
-                </WrapPanel>
-                <StackPanel x:Name="GlowOptionsPanel" Margin="24,6,0,0" Visibility="Visible">
-                    <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC" Margin="0,0,0,6">
-                        <StackPanel>
-                            <TextBlock FontWeight="SemiBold" Text="Near glow" Margin="0,0,0,6" />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="58" />
-                                    <ColumnDefinition Width="88" />
-                                    <ColumnDefinition Width="58" />
-                                    <ColumnDefinition Width="88" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Radius" ToolTip="Small close-range glow radius in pixels." />
-                                <TextBox Grid.Column="1" x:Name="BloomNearRadiusTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls tight halo size." />
-                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Strength" Margin="8,0,0,0" ToolTip="Intensity of the tight glow layer." />
-                                <TextBox Grid.Column="3" x:Name="BloomNearStrengthTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls near glow intensity." />
-                            </Grid>
+                <GroupBox Header="Effects" Margin="0,0,0,4" Padding="8">
+                    <StackPanel>
+                        <CheckBox x:Name="BloomEnabledCheckBox" Content="Glow" Margin="0,0,0,6" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
+                                  ToolTip="Turns bloom/glow effect on or off." />
+                        <StackPanel x:Name="GlowOptionsPanel" Margin="0,0,0,0" Visibility="Visible">
+                            <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC" Margin="0,0,0,6">
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" Text="Near glow" Margin="0,0,0,6" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="58" />
+                                            <ColumnDefinition Width="88" />
+                                            <ColumnDefinition Width="58" />
+                                            <ColumnDefinition Width="88" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Radius" ToolTip="Small close-range glow radius in pixels." />
+                                        <TextBox Grid.Column="1" x:Name="BloomNearRadiusTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls tight halo size." />
+                                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Strength" Margin="8,0,0,0" ToolTip="Intensity of the tight glow layer." />
+                                        <TextBox Grid.Column="3" x:Name="BloomNearStrengthTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls near glow intensity." />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC">
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" Text="Far glow" Margin="0,0,0,6" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="58" />
+                                            <ColumnDefinition Width="88" />
+                                            <ColumnDefinition Width="58" />
+                                            <ColumnDefinition Width="88" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Radius" ToolTip="Wide halo radius in pixels." />
+                                        <TextBox Grid.Column="1" x:Name="BloomFarRadiusTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls large outer glow size." />
+                                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Strength" Margin="8,0,0,0" ToolTip="Intensity of the wide glow layer." />
+                                        <TextBox Grid.Column="3" x:Name="BloomFarStrengthTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls outer glow intensity." />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                    </Border>
-                    <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC">
-                        <StackPanel>
-                            <TextBlock FontWeight="SemiBold" Text="Far glow" Margin="0,0,0,6" />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="58" />
-                                    <ColumnDefinition Width="88" />
-                                    <ColumnDefinition Width="58" />
-                                    <ColumnDefinition Width="88" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Radius" ToolTip="Wide halo radius in pixels." />
-                                <TextBox Grid.Column="1" x:Name="BloomFarRadiusTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls large outer glow size." />
-                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Strength" Margin="8,0,0,0" ToolTip="Intensity of the wide glow layer." />
-                                <TextBox Grid.Column="3" x:Name="BloomFarStrengthTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls outer glow intensity." />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                    </StackPanel>
+                </GroupBox>
             </StackPanel>
         </ScrollViewer>
 
