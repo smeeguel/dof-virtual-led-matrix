@@ -403,9 +403,8 @@ public partial class SettingsWindow : Window
         }
 
         // Note: new toys are appended to routing config first, then list rows are rebuilt from that source of truth.
-        AssignMissingCanonicalStartsInOrder(_working.Routing.Toys);
         _working.Routing.Toys.Add(wizard.Result);
-        AssignMissingCanonicalStartsInOrder(_working.Routing.Toys);
+        AssignCanonicalStartsInOrder(_working.Routing.Toys);
         LoadToyCollections();
         _selectedToyId = wizard.Result.Id;
         RefreshToyRowHighlight();
@@ -464,6 +463,7 @@ public partial class SettingsWindow : Window
 
         wizard.Result.Enabled = existing.Enabled;
         _working.Routing.Toys[index] = wizard.Result;
+        AssignCanonicalStartsInOrder(_working.Routing.Toys);
         LoadToyCollections();
         _selectedToyId = wizard.Result.Id;
         RefreshToyRowHighlight();
@@ -759,6 +759,10 @@ public partial class SettingsWindow : Window
     private void ApplyWorkingConfigImmediately()
     {
         var cloned = Clone(_working);
+        // Note: preserve in-session drag/resize edits before applying runtime changes so adding/reordering toys
+        // does not snap existing toy windows back to stale wizard defaults.
+        MergeLiveToyWindowState(cloned);
+        _working = Clone(cloned);
         if (_applyScopedSave is not null)
         {
             _applyScopedSave(cloned);
@@ -870,7 +874,7 @@ public partial class SettingsWindow : Window
 
         destinationIndex = Math.Clamp(destinationIndex, 0, _working.Routing.Toys.Count);
         _working.Routing.Toys.Insert(destinationIndex, movingToy);
-        AssignMissingCanonicalStartsInOrder(_working.Routing.Toys);
+        AssignCanonicalStartsInOrder(_working.Routing.Toys);
 
         _selectedToyId = movingToy.Id;
         LoadToyCollections();
@@ -1184,18 +1188,15 @@ public partial class SettingsWindow : Window
         };
     }
 
-    private static void AssignMissingCanonicalStartsInOrder(IList<ToyRouteConfig> toys)
+    private static void AssignCanonicalStartsInOrder(IList<ToyRouteConfig> toys)
     {
         var nextCanonicalStart = 0;
         foreach (var toy in toys)
         {
             var length = Math.Max(1, toy.Source.Length);
-            if (!toy.Source.CanonicalStart.HasValue || toy.Source.CanonicalStart.Value < nextCanonicalStart)
-            {
-                // Note: keep canonical ranges contiguous in list order so Cabinet.xml FirstLedNumber remains deterministic for new/reordered toys.
-                toy.Source.CanonicalStart = nextCanonicalStart;
-            }
-
+            // Note: always resequence in visible list order so Cabinet.xml FirstLedNumber starts at 1 and
+            // each subsequent toy begins exactly after the previous toy's source length.
+            toy.Source.CanonicalStart = nextCanonicalStart;
             nextCanonicalStart = toy.Source.CanonicalStart.Value + length;
         }
     }
