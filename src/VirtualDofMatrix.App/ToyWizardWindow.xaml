@@ -158,15 +158,22 @@
                 <WrapPanel Margin="0,8,0,0">
                     <CheckBox x:Name="BloomEnabledCheckBox" Content="Glow" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
                               ToolTip="Turns bloom/glow effect on or off." />
-                    <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,12,6" Background="#FCFCFC">
+                </WrapPanel>
+                <Grid x:Name="GlowOptionsPanel" Margin="24,6,0,0" Visibility="Visible">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Text="Near glow" Margin="0,0,0,6" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="58" />
                                     <ColumnDefinition Width="88" />
-                                    <ColumnDefinition Width="96" />
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="58" />
+                                    <ColumnDefinition Width="88" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Radius" ToolTip="Small close-range glow radius in pixels." />
                                 <TextBox Grid.Column="1" x:Name="BloomNearRadiusTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls tight halo size." />
@@ -175,15 +182,15 @@
                             </Grid>
                         </StackPanel>
                     </Border>
-                    <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,12,6" Background="#FCFCFC">
+                    <Border Grid.Column="2" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Text="Far glow" Margin="0,0,0,6" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="58" />
                                     <ColumnDefinition Width="88" />
-                                    <ColumnDefinition Width="96" />
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="58" />
+                                    <ColumnDefinition Width="88" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Radius" ToolTip="Wide halo radius in pixels." />
                                 <TextBox Grid.Column="1" x:Name="BloomFarRadiusTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls large outer glow size." />
@@ -192,7 +199,7 @@
                             </Grid>
                         </StackPanel>
                     </Border>
-                </WrapPanel>
+                </Grid>
             </StackPanel>
         </ScrollViewer>
 

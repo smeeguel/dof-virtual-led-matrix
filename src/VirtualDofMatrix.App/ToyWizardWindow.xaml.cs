@@ -273,6 +273,7 @@ public partial class ToyWizardWindow : Window
         StripDimensionsPanel.Visibility = isStrip ? Visibility.Visible : Visibility.Collapsed;
         MatrixDimensionsPanel.Visibility = isStrip ? Visibility.Collapsed : Visibility.Visible;
         BackgroundColorPresetPanel.Visibility = WindowBackgroundVisibleCheckBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        GlowOptionsPanel.Visibility = BloomEnabledCheckBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PreviewStatusText.Text = isStrip
             ? "Preview shows strip LED order left to right."
             : "Preview shows matrix numbering using your chosen width/height.";
@@ -337,15 +338,17 @@ public partial class ToyWizardWindow : Window
         var cornerRadius = ((DotShapeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "circle").Equals("square", StringComparison.OrdinalIgnoreCase)
             ? new CornerRadius(2)
             : new CornerRadius(dotSize / 2);
+        // Note: lock preview dots to high-contrast styling for readability independent of current brightness.
         var dotColor = BuildPreviewDotColor(brightness);
-        var dotBackground = new SolidColorBrush(dotColor);
-        var dotTextBrush = brightness < 0.45
-            ? System.Windows.Media.Brushes.White
-            : new SolidColorBrush(System.Windows.Media.Color.FromRgb(20, 20, 20));
+        var dotBackground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(40, 40, 40));
+        var dotTextBrush = System.Windows.Media.Brushes.White;
         var borderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(
             (byte)Math.Clamp(dotColor.R + 18, 0, 255),
             (byte)Math.Clamp(dotColor.G + 18, 0, 255),
             (byte)Math.Clamp(dotColor.B + 18, 0, 255)));
+
+        // Note: when toy background is enabled, preview should show that color as a strip behind the dots.
+        PreviewGrid.Background = ResolvePreviewBackgroundBrush();
 
         DropShadowEffect? glowEffect = null;
         if (glowEnabled)
@@ -578,6 +581,23 @@ public partial class ToyWizardWindow : Window
     {
         var intensity = (byte)Math.Clamp(60 + (brightness * 195), 0, 255);
         return System.Windows.Media.Color.FromRgb(intensity, intensity, intensity);
+    }
+
+    private Brush ResolvePreviewBackgroundBrush()
+    {
+        if (WindowBackgroundVisibleCheckBox.IsChecked != true)
+        {
+            return System.Windows.Media.Brushes.Transparent;
+        }
+
+        var hex = GetSelectedBackgroundColorHex();
+        var parsed = System.Windows.Media.ColorConverter.ConvertFromString(hex);
+        if (parsed is System.Windows.Media.Color color)
+        {
+            return new SolidColorBrush(color);
+        }
+
+        return System.Windows.Media.Brushes.Black;
     }
 
     private void SelectBackgroundPreset(string hex)
