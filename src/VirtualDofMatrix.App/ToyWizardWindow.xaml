@@ -74,15 +74,27 @@
                 </StackPanel>
 
                 <StackPanel x:Name="StripDimensionsPanel" Visibility="Collapsed">
-                    <TextBlock Text="Bulb count" ToolTip="Number of LEDs in this strip." />
-                    <TextBox x:Name="StripLengthTextBox" Margin="0,4,0,0" Width="150" TextChanged="OnInputsChanged"
-                             ToolTip="Enter total strip LEDs (safe max per strip is 1100)." />
-                    <TextBlock Margin="0,8,0,0" Text="Direction" ToolTip="Choose whether the strip should run left-to-right or top-to-bottom." />
-                    <ComboBox x:Name="StripOrientationCombo" Margin="0,4,0,0" Width="170" SelectionChanged="OnInputsChanged"
-                              ToolTip="Horizontal creates a single row strip. Vertical creates a single column strip.">
-                        <ComboBoxItem Content="Horizontal" />
-                        <ComboBoxItem Content="Vertical" />
-                    </ComboBox>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="180" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Bulb count" ToolTip="Number of LEDs in this strip." />
+                        <TextBox Grid.Column="1" x:Name="StripLengthTextBox" Margin="0,0,0,0" Width="150" TextChanged="OnInputsChanged"
+                                 ToolTip="Enter total strip LEDs (safe max per strip is 1100)." />
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="180" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Direction" ToolTip="Choose whether the strip should run left-to-right or top-to-bottom." />
+                        <ComboBox Grid.Column="1" x:Name="StripOrientationCombo" Margin="0,0,0,0" Width="170" SelectionChanged="OnInputsChanged"
+                                  ToolTip="Horizontal creates a single row strip. Vertical creates a single column strip.">
+                            <ComboBoxItem Content="Horizontal" />
+                            <ComboBoxItem Content="Vertical" />
+                        </ComboBox>
+                    </Grid>
                 </StackPanel>
 
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="4) Advanced visual options" />
@@ -146,22 +158,40 @@
                 <WrapPanel Margin="0,8,0,0">
                     <CheckBox x:Name="BloomEnabledCheckBox" Content="Glow" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
                               ToolTip="Turns bloom/glow effect on or off." />
-                    <StackPanel Margin="0,0,12,6">
-                        <TextBlock Text="Near radius" ToolTip="Small close-range glow radius in pixels." />
-                        <TextBox x:Name="BloomNearRadiusTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls tight halo size." />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,12,6">
-                        <TextBlock Text="Near strength" ToolTip="Intensity of the tight glow layer." />
-                        <TextBox x:Name="BloomNearStrengthTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls near glow intensity." />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,12,6">
-                        <TextBlock Text="Far radius" ToolTip="Wide halo radius in pixels." />
-                        <TextBox x:Name="BloomFarRadiusTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls large outer glow size." />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,12,6">
-                        <TextBlock Text="Far strength" ToolTip="Intensity of the wide glow layer." />
-                        <TextBox x:Name="BloomFarStrengthTextBox" Width="120" TextChanged="OnInputsChanged" ToolTip="Controls outer glow intensity." />
-                    </StackPanel>
+                    <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,12,6" Background="#FCFCFC">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Text="Near glow" Margin="0,0,0,6" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="88" />
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="96" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Radius" ToolTip="Small close-range glow radius in pixels." />
+                                <TextBox Grid.Column="1" x:Name="BloomNearRadiusTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls tight halo size." />
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Strength" Margin="8,0,0,0" ToolTip="Intensity of the tight glow layer." />
+                                <TextBox Grid.Column="3" x:Name="BloomNearStrengthTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls near glow intensity." />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,12,6" Background="#FCFCFC">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Text="Far glow" Margin="0,0,0,6" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="88" />
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="96" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Radius" ToolTip="Wide halo radius in pixels." />
+                                <TextBox Grid.Column="1" x:Name="BloomFarRadiusTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls large outer glow size." />
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Strength" Margin="8,0,0,0" ToolTip="Intensity of the wide glow layer." />
+                                <TextBox Grid.Column="3" x:Name="BloomFarStrengthTextBox" Width="88" TextChanged="OnInputsChanged" ToolTip="Controls outer glow intensity." />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </WrapPanel>
             </StackPanel>
         </ScrollViewer>

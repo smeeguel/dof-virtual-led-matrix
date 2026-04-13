@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.Core;
 using WpfMessageBox = System.Windows.MessageBox;
@@ -15,6 +16,7 @@ public partial class ToyWizardWindow : Window
     private const int SafeMaxBulbs = CabinetXmlService.SafeMaxLedTotal;
     private const int SafeMaxStripBulbs = 1100;
     private const int PreviewLedCap = 512;
+    private const int StripPreviewTargetColumns = 16;
     private static readonly Regex NumberedNameRegex = new("^(Strip|Matrix)(\\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly IReadOnlyList<ColorPresetOption> BackgroundColorPresets =
     [
@@ -98,7 +100,7 @@ public partial class ToyWizardWindow : Window
 
         MatrixWidthTextBox.Text = "32";
         MatrixHeightTextBox.Text = "8";
-        StripLengthTextBox.Text = "256";
+        StripLengthTextBox.Text = "32";
 
         MinDotSpacingTextBox.Text = "2";
         BrightnessTextBox.Text = "1.0";
@@ -300,38 +302,70 @@ public partial class ToyWizardWindow : Window
         PreviewGrid.Children.Clear();
         if (IsStripTypeSelected())
         {
-            // Note: strip previews stay one-dimensional by design (single row or single column).
-            if (IsVerticalStripSelected())
-            {
-                PreviewGrid.Columns = 1;
-                PreviewGrid.Rows = previewCount;
-            }
-            else
-            {
-                PreviewGrid.Columns = previewCount;
-                PreviewGrid.Rows = 1;
-            }
+            // Note: strip preview intentionally wraps to keep common lengths (like 32) visible without horizontal scrolling.
+            var columns = Math.Min(previewCount, StripPreviewTargetColumns);
+            columns = Math.Max(1, columns);
+            PreviewGrid.Columns = columns;
+            PreviewGrid.Rows = (int)Math.Ceiling(previewCount / (double)columns);
         }
         else
         {
             PreviewGrid.Columns = width;
             PreviewGrid.Rows = height;
         }
+
+        var spacing = TryParseInt(MinDotSpacingTextBox.Text, out var spacingValue) ? Math.Max(0, spacingValue) : 2;
+        var brightness = TryParseDouble(BrightnessTextBox.Text, out var brightnessValue) ? Math.Clamp(brightnessValue, 0d, 1d) : 1d;
+        var fillGap = FillGapCheckBox.IsChecked == true;
+        var glowEnabled = BloomEnabledCheckBox.IsChecked == true;
+        var nearRadius = TryParseInt(BloomNearRadiusTextBox.Text, out var nearRadiusValue) ? Math.Max(0, nearRadiusValue) : 2;
+        var farRadius = TryParseInt(BloomFarRadiusTextBox.Text, out var farRadiusValue) ? Math.Max(0, farRadiusValue) : 10;
+        var nearStrength = TryParseDouble(BloomNearStrengthTextBox.Text, out var nearStrengthValue) ? Math.Max(0d, nearStrengthValue) : 1d;
+        var farStrength = TryParseDouble(BloomFarStrengthTextBox.Text, out var farStrengthValue) ? Math.Max(0d, farStrengthValue) : 0.2d;
+
+        var dotSize = fillGap ? 42d : 34d;
+        var dotMargin = fillGap ? 0d : Math.Min(8d, spacing);
+        var cornerRadius = ((DotShapeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "circle").Equals("square", StringComparison.OrdinalIgnoreCase)
+            ? new CornerRadius(2)
+            : new CornerRadius(dotSize / 2);
+        var dotColor = BuildPreviewDotColor(brightness);
+        var dotBackground = new SolidColorBrush(dotColor);
+        var dotTextBrush = brightness < 0.45 ? Brushes.White : new SolidColorBrush(System.Windows.Media.Color.FromRgb(20, 20, 20));
+        var borderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(
+            (byte)Math.Clamp(dotColor.R + 18, 0, 255),
+            (byte)Math.Clamp(dotColor.G + 18, 0, 255),
+            (byte)Math.Clamp(dotColor.B + 18, 0, 255)));
+
+        DropShadowEffect? glowEffect = null;
+        if (glowEnabled)
+        {
+            var glowStrength = Math.Clamp((nearStrength + farStrength) / 2d, 0d, 2d);
+            var blurRadius = Math.Clamp((nearRadius + farRadius) * 0.9, 0d, 38d);
+            glowEffect = new DropShadowEffect
+            {
+                Color = dotColor,
+                BlurRadius = blurRadius,
+                ShadowDepth = 0,
+                Opacity = Math.Clamp(0.15 + (0.35 * glowStrength), 0, 0.85),
+            };
+        }
+
         for (var ledIndex = 1; ledIndex <= previewCount; ledIndex++)
         {
             var cell = new Border
             {
-                Margin = new Thickness(2),
-                BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(85, 85, 85)),
+                Margin = new Thickness(dotMargin),
+                BorderBrush = borderBrush,
                 BorderThickness = new Thickness(1),
-                Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 17, 17)),
-                Width = 40,
-                Height = 40,
-                CornerRadius = new CornerRadius(3),
+                Background = dotBackground,
+                Width = dotSize,
+                Height = dotSize,
+                CornerRadius = cornerRadius,
+                Effect = glowEffect?.Clone(),
                 Child = new TextBlock
                 {
                     Text = ledIndex.ToString(),
-                    Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(237, 237, 237)),
+                    Foreground = dotTextBrush,
                     HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                     VerticalAlignment = System.Windows.VerticalAlignment.Center,
                     FontSize = 11,
@@ -341,7 +375,9 @@ public partial class ToyWizardWindow : Window
         }
 
         var suffix = total > PreviewLedCap ? $" (showing first {PreviewLedCap})" : string.Empty;
-        PreviewStatusText.Text = $"{total} LEDs total{suffix}.";
+        PreviewStatusText.Text = IsStripTypeSelected()
+            ? $"{total} LEDs total{suffix}. Strip preview wraps for readability."
+            : $"{total} LEDs total{suffix}.";
     }
 
     private (bool IsValid, string ErrorMessage, int Width, int Height, int Total) ValidateInputs()
@@ -526,6 +562,12 @@ public partial class ToyWizardWindow : Window
     private static bool TryParseInt(string raw, out int value) => int.TryParse(raw?.Trim(), out value);
 
     private static bool TryParseDouble(string raw, out double value) => double.TryParse(raw?.Trim(), out value);
+
+    private static System.Windows.Media.Color BuildPreviewDotColor(double brightness)
+    {
+        var intensity = (byte)Math.Clamp(60 + (brightness * 195), 0, 255);
+        return System.Windows.Media.Color.FromRgb(intensity, intensity, intensity);
+    }
 
     private void SelectBackgroundPreset(string hex)
     {
