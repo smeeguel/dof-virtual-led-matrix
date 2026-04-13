@@ -28,6 +28,9 @@ public sealed class AppConfigurationStore
         var createdIni = EnsureToyIniExists(iniPath);
         var iniApplied = ToyIniConfiguration.ApplyFromIni(loaded, iniPath);
         var (normalized, shouldPersist) = ApplyLegacyDefaults(loaded);
+        AppLogger.Info($"[config] settingsPath={filePath}");
+        AppLogger.Info($"[config] toysIniPath={iniPath}");
+        AppLogger.Info($"[config] toysIniCreated={createdIni} toysIniApplied={iniApplied} routingToyCount={normalized.Routing.Toys.Count}");
         shouldPersist |= createdIni;
         shouldPersist |= iniApplied;
 
@@ -52,6 +55,8 @@ public sealed class AppConfigurationStore
 
         var iniPath = ResolveToyIniPath(filePath, normalized.Routing?.ToyConfigIniPath);
         ToyIniConfiguration.SaveToIni(normalized, iniPath);
+        AppLogger.Info($"[config] saved settingsPath={filePath}");
+        AppLogger.Info($"[config] saved toysIniPath={iniPath} routingToyCount={normalized.Routing.Toys.Count}");
     }
 
     private static (AppConfig Config, bool ShouldPersist) ApplyLegacyDefaults(AppConfig config)
@@ -141,68 +146,8 @@ public sealed class AppConfigurationStore
         }
 
         shouldPersist |= NormalizeRoutingConfig(config);
-        shouldPersist |= ApplyPrimaryToyCompatFields(config);
 
         return (config, shouldPersist);
-    }
-
-    private static bool ApplyPrimaryToyCompatFields(AppConfig config)
-    {
-        // Note: until the full app stack is toy-native, we mirror primary toy values into
-        // legacy matrix/window fields so runtime rendering paths effectively read from toys.ini.
-        var primaryToy = config.Routing.Toys.FirstOrDefault(t => t.Enabled);
-        if (primaryToy is null)
-        {
-            return false;
-        }
-
-        var modified = false;
-
-        modified |= SetIntIfDifferent(primaryToy.Mapping.Width, value => config.Matrix.Width = value, config.Matrix.Width);
-        modified |= SetIntIfDifferent(primaryToy.Mapping.Height, value => config.Matrix.Height = value, config.Matrix.Height);
-        modified |= SetStringIfDifferent(primaryToy.Mapping.Mode, value => config.Matrix.Mapping = value, config.Matrix.Mapping);
-
-        modified |= SetStringIfDifferent(primaryToy.Render.DotShape, value => config.Matrix.DotShape = value, config.Matrix.DotShape);
-        modified |= SetIntIfDifferent(primaryToy.Render.MinDotSpacing, value => config.Matrix.MinDotSpacing = value, config.Matrix.MinDotSpacing);
-        modified |= SetBoolIfDifferent(primaryToy.Render.FillGapEnabled, value => config.Matrix.FillGapEnabled = value, config.Matrix.FillGapEnabled);
-        modified |= SetDoubleIfDifferent(primaryToy.Render.Brightness, value => config.Matrix.Brightness = value, config.Matrix.Brightness);
-        modified |= SetDoubleIfDifferent(primaryToy.Render.Gamma, value => config.Matrix.Gamma = value, config.Matrix.Gamma);
-
-        modified |= SetBoolIfDifferent(primaryToy.Bloom.Enabled, value => config.Matrix.Bloom.Enabled = value, config.Matrix.Bloom.Enabled);
-        modified |= SetDoubleIfDifferent(primaryToy.Bloom.Threshold, value => config.Matrix.Bloom.Threshold = value, config.Matrix.Bloom.Threshold);
-        modified |= SetDoubleIfDifferent(primaryToy.Bloom.SoftKnee, value => config.Matrix.Bloom.SoftKnee = value, config.Matrix.Bloom.SoftKnee);
-        modified |= SetIntIfDifferent(primaryToy.Bloom.NearRadiusPx, value => config.Matrix.Bloom.NearRadiusPx = value, config.Matrix.Bloom.NearRadiusPx);
-        modified |= SetIntIfDifferent(primaryToy.Bloom.FarRadiusPx, value => config.Matrix.Bloom.FarRadiusPx = value, config.Matrix.Bloom.FarRadiusPx);
-        modified |= SetDoubleIfDifferent(primaryToy.Bloom.NearStrength, value => config.Matrix.Bloom.NearStrength = value, config.Matrix.Bloom.NearStrength);
-        modified |= SetDoubleIfDifferent(primaryToy.Bloom.FarStrength, value => config.Matrix.Bloom.FarStrength = value, config.Matrix.Bloom.FarStrength);
-
-        if (primaryToy.Window.Left.HasValue)
-        {
-            modified |= SetDoubleIfDifferent(primaryToy.Window.Left.Value, value => config.Window.Left = value, config.Window.Left);
-        }
-
-        if (primaryToy.Window.Top.HasValue)
-        {
-            modified |= SetDoubleIfDifferent(primaryToy.Window.Top.Value, value => config.Window.Top = value, config.Window.Top);
-        }
-
-        if (primaryToy.Window.Width.HasValue)
-        {
-            modified |= SetDoubleIfDifferent(primaryToy.Window.Width.Value, value => config.Window.Width = value, config.Window.Width);
-        }
-
-        if (primaryToy.Window.Height.HasValue)
-        {
-            modified |= SetDoubleIfDifferent(primaryToy.Window.Height.Value, value => config.Window.Height = value, config.Window.Height);
-        }
-
-        modified |= SetBoolIfDifferent(primaryToy.Window.AlwaysOnTop, value => config.Window.AlwaysOnTop = value, config.Window.AlwaysOnTop);
-        modified |= SetBoolIfDifferent(primaryToy.Window.Borderless, value => config.Window.Borderless = value, config.Window.Borderless);
-        modified |= SetBoolIfDifferent(primaryToy.Window.LockAspectRatio, value => config.Window.LockAspectRatio = value, config.Window.LockAspectRatio);
-        modified |= SetBoolIfDifferent(primaryToy.Window.BackgroundVisible, value => config.Window.BackgroundVisible = value, config.Window.BackgroundVisible);
-        modified |= SetStringIfDifferent(primaryToy.Window.BackgroundColor, value => config.Window.BackgroundColor = value, config.Window.BackgroundColor);
-
-        return modified;
     }
 
     private static bool NormalizeRoutingConfig(AppConfig config)
@@ -582,50 +527,6 @@ public sealed class AppConfigurationStore
         modified = true;
 
         return modified;
-    }
-
-    private static bool SetStringIfDifferent(string next, Action<string> set, string current)
-    {
-        if (string.Equals(next, current, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        set(next);
-        return true;
-    }
-
-    private static bool SetIntIfDifferent(int next, Action<int> set, int current)
-    {
-        if (next == current)
-        {
-            return false;
-        }
-
-        set(next);
-        return true;
-    }
-
-    private static bool SetBoolIfDifferent(bool next, Action<bool> set, bool current)
-    {
-        if (next == current)
-        {
-            return false;
-        }
-
-        set(next);
-        return true;
-    }
-
-    private static bool SetDoubleIfDifferent(double next, Action<double> set, double current)
-    {
-        if (Math.Abs(next - current) <= double.Epsilon)
-        {
-            return false;
-        }
-
-        set(next);
-        return true;
     }
 
     private static bool EnsureToyIniExists(string iniPath)
