@@ -71,14 +71,14 @@ public sealed class ToyRouter : IToyRouter
             return;
         }
 
-        if (ShouldDropForFrameRatePolicy(context.InputSequence, toy.Id))
+        if (ShouldDropForFrameRatePolicy(context.InputSequence, toy.Id, out var frameRateDropMessage, out var frameRateDropAction))
         {
             diagnostics.Add(new ToyRoutingDiagnostic(
                 toy.Id,
                 MappedLedCount: 0,
                 MissingBytes: 0,
-                PolicyAction: ToyRoutingPolicyAction.FrameDroppedLatestWins,
-                Message: "Frame dropped because onFrameRateSpike=latest-wins and a newer/equal sequence already exists for this toy."));
+                PolicyAction: frameRateDropAction,
+                Message: frameRateDropMessage));
             return;
         }
 
@@ -93,19 +93,36 @@ public sealed class ToyRouter : IToyRouter
         }
     }
 
-    private bool ShouldDropForFrameRatePolicy(ulong inputSequence, string toyId)
+    private bool ShouldDropForFrameRatePolicy(ulong inputSequence, string toyId, out string message, out ToyRoutingPolicyAction action)
     {
-        if (!PolicyEquals(_policy.OnFrameRateSpike, "latest-wins"))
-        {
-            return false;
-        }
-
+        // Note: routing currently has no explicit queue stage, so both supported policies
+        // guard against stale/equal toy sequences and differ mainly in diagnostics intent.
         if (!_lastSequenceByToyId.TryGetValue(toyId, out var lastSequence))
         {
+            message = string.Empty;
+            action = ToyRoutingPolicyAction.None;
             return false;
         }
 
-        return inputSequence <= lastSequence;
+        if (PolicyEquals(_policy.OnFrameRateSpike, "latest-wins"))
+        {
+            var shouldDrop = inputSequence <= lastSequence;
+            message = "Frame dropped because onFrameRateSpike=latest-wins and a newer/equal sequence already exists for this toy.";
+            action = ToyRoutingPolicyAction.FrameDroppedLatestWins;
+            return shouldDrop;
+        }
+
+        if (PolicyEquals(_policy.OnFrameRateSpike, "drop-oldest"))
+        {
+            var shouldDrop = inputSequence <= lastSequence;
+            message = "Frame dropped because onFrameRateSpike=drop-oldest and this frame is older/equal than the last emitted sequence for this toy.";
+            action = ToyRoutingPolicyAction.FrameDroppedDropOldest;
+            return shouldDrop;
+        }
+
+        message = string.Empty;
+        action = ToyRoutingPolicyAction.None;
+        return false;
     }
 
     private ToyFrame? BuildToyFrame(
@@ -349,5 +366,6 @@ public enum ToyRoutingPolicyAction
     RejectedOversizeRange,
     ClampedOversizeRange,
     FrameDroppedLatestWins,
+    FrameDroppedDropOldest,
     PerToyFailureIsolated,
 }

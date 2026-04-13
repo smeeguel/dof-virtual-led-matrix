@@ -252,6 +252,12 @@ Advanced fields that are still supported in `toys.ini` but intentionally hidden 
 - `bloomThreshold`
 - `bloomSoftKnee`
 
+Compatibility note for `toys.ini` source fields:
+
+- `sourceStripIndex` is normalized to the safe Teensy-compatible range `0..7`.
+- Values below `0` are clamped to `0`.
+- Values above `7` are clamped to `7`.
+
 ### Step 5E - Save and verify
 
 1. Make sure the toy is **enabled**.
@@ -305,6 +311,7 @@ In **Settings -> Virtual Toys**:
 - If you change toy width/height and save, windows rebuild immediately (no app restart required).
 - Settings is modeless, so you can keep it open while dragging/resizing toy windows.
 - **Exit** from any viewer window closes the full app.
+- Routing frame-rate policy supports both `latest-wins` and `drop-oldest`; both reject stale/duplicate frame sequences so toys stay monotonic.
 
 ---
 

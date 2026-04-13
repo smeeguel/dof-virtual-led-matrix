@@ -107,7 +107,7 @@ internal static class ToyIniConfiguration
             lines.Add($"sourceCanonicalStart = {toy.Source.CanonicalStart ?? 0}");
             lines.Add("; sourceLength options: integer > 0 (example: 4096 for 128x32)");
             lines.Add($"sourceLength = {toy.Source.Length}");
-            lines.Add("; sourceStripIndex options: integer >= 0 (optional, example: 0)");
+            lines.Add("; sourceStripIndex options: integer in safe compatibility range 0..7 (optional, values outside are clamped; example: 0)");
             lines.Add(toy.Source.StripIndex.HasValue ? $"sourceStripIndex = {toy.Source.StripIndex.Value}" : "; sourceStripIndex = 0");
 
             lines.Add("; sourceStripOffset options: integer >= 0 (optional, example: 0)");

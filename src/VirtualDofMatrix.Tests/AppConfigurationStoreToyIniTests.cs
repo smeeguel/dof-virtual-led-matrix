@@ -274,4 +274,104 @@ public sealed class AppConfigurationStoreToyIniTests
             }
         }
     }
+
+    [Fact]
+    public void Load_WhenSourceStripIndexExceedsCompatibilityTarget_ClampsToStripSeven()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+
+            File.WriteAllText(settingsPath, """
+            {
+              "routing": {
+                "toyConfigIniPath": "toys.ini",
+                "policy": {
+                  "defaultStripLength": 1100
+                }
+              }
+            }
+            """);
+
+            File.WriteAllText(iniPath, """
+            [toy:strip-overflow]
+            enabled = true
+            kind = strip
+            width = 8
+            height = 1
+            sourceLength = 8
+            sourceStripIndex = 12
+            sourceStripOffset = 4
+            outputTargets = viewer
+            """);
+
+            var store = new AppConfigurationStore();
+            var loaded = store.Load(settingsPath);
+            var toy = Assert.Single(loaded.Routing.Toys);
+
+            Assert.Equal(7, toy.Source.StripIndex);
+            Assert.Equal((7 * 1100) + 4, toy.Source.CanonicalStart);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Load_WhenSourceStripIndexIsNegative_ClampsToZero()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+
+            File.WriteAllText(settingsPath, """
+            {
+              "routing": {
+                "toyConfigIniPath": "toys.ini",
+                "policy": {
+                  "defaultStripLength": 1100
+                }
+              }
+            }
+            """);
+
+            File.WriteAllText(iniPath, """
+            [toy:strip-negative]
+            enabled = true
+            kind = strip
+            width = 8
+            height = 1
+            sourceLength = 8
+            sourceStripIndex = -3
+            sourceStripOffset = 5
+            outputTargets = viewer
+            """);
+
+            var store = new AppConfigurationStore();
+            var loaded = store.Load(settingsPath);
+            var toy = Assert.Single(loaded.Routing.Toys);
+
+            Assert.Equal(0, toy.Source.StripIndex);
+            Assert.Equal(5, toy.Source.CanonicalStart);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
 }

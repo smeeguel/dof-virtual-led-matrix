@@ -8,6 +8,9 @@ namespace VirtualDofMatrix.App.Configuration;
 // Overview: this store keeps settings.json compatible across schema tweaks by applying defaults after deserialize.
 public sealed class AppConfigurationStore
 {
+    // Note: keep routing normalization aligned with the documented Teensy compatibility target.
+    private const int MaxCompatibleStripCount = 8;
+
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -520,7 +523,24 @@ public sealed class AppConfigurationStore
 
         if (source.StripIndex is not null && source.StripOffset is not null)
         {
-            var stripIndex = Math.Max(0, source.StripIndex.Value);
+            // Note: clamping strip indices here keeps source math deterministic and avoids silent out-of-range toy mappings.
+            var stripIndex = source.StripIndex.Value;
+            if (stripIndex < 0)
+            {
+                Warn($"{entryPrefix}.source.stripIndex={stripIndex} is invalid; clamped to 0.");
+                stripIndex = 0;
+                source.StripIndex = stripIndex;
+                modified = true;
+            }
+            else if (stripIndex >= MaxCompatibleStripCount)
+            {
+                var clampedStripIndex = MaxCompatibleStripCount - 1;
+                Warn($"{entryPrefix}.source.stripIndex={stripIndex} exceeds safe compatibility range [0..{clampedStripIndex}]; clamped to {clampedStripIndex}.");
+                stripIndex = clampedStripIndex;
+                source.StripIndex = stripIndex;
+                modified = true;
+            }
+
             var stripOffset = Math.Max(0, source.StripOffset.Value);
             source.CanonicalStart = (stripIndex * defaultStripLength) + stripOffset;
             Warn($"{entryPrefix}.source normalized strip+offset ({stripIndex},{stripOffset}) to canonicalStart={source.CanonicalStart.Value} using defaultStripLength={defaultStripLength}.");
@@ -588,7 +608,8 @@ mapping = TopDownAlternateRightLeft
 sourceCanonicalStart = 0
 ; sourceLength options: integer > 0 (legacy default 128*32 = 4096)
 sourceLength = 4096
-; sourceStripIndex/sourceStripOffset options: integer >= 0 (optional)
+; sourceStripIndex options: integer in safe compatibility range 0..7 (optional; values outside are clamped)
+; sourceStripOffset options: integer >= 0 (optional)
 sourceStripIndex = 0
 sourceStripOffset = 0
 
