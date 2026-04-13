@@ -179,6 +179,44 @@ public sealed class CabinetXmlServiceTests
     }
 
     [Fact]
+    public void ApplyVirtualToyMerge_ShouldRespectIncomingToyOrderWhenFirstLedNumbersAreDuplicated()
+    {
+        var xml = """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController><Name>Virtual Controller</Name></VirtualLEDStripController>
+              </OutputControllers>
+              <Toys>
+              </Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+
+        // Note: this reproduces a "new toys all default to canonicalStart=0" session where
+        // every desired toy maps to FirstLedNumber=1 and deterministic fallback ordering is required.
+        var plan = service.BuildVirtualToyMergePlan(
+            temp.Path,
+            [
+                new VirtualLedToyDefinition("StripTop", 8, 1, "Virtual Controller", FirstLedNumber: 1, LedCount: 8),
+                new VirtualLedToyDefinition("StripLeft", 8, 1, "Virtual Controller", FirstLedNumber: 1, LedCount: 8),
+                new VirtualLedToyDefinition("StripRight", 8, 1, "Virtual Controller", FirstLedNumber: 1, LedCount: 8),
+            ],
+            removeMissingManagedToys: false);
+
+        service.ApplyVirtualToyMerge(temp.Path, plan, dryRun: false);
+        var mergedXml = File.ReadAllText(temp.Path);
+
+        var indexTop = mergedXml.IndexOf("<Name>StripTop</Name>", StringComparison.Ordinal);
+        var indexLeft = mergedXml.IndexOf("<Name>StripLeft</Name>", StringComparison.Ordinal);
+        var indexRight = mergedXml.IndexOf("<Name>StripRight</Name>", StringComparison.Ordinal);
+
+        Assert.True(indexTop >= 0 && indexLeft >= 0 && indexRight >= 0);
+        Assert.True(indexTop < indexLeft && indexLeft < indexRight);
+    }
+
+    [Fact]
     public void ApplyVirtualToyMerge_ShouldRejectAdditionsAgainstNonVirtualControllers()
     {
         var xml = """

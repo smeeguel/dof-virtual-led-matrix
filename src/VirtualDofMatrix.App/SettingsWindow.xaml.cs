@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.Core;
 using WpfMessageBox = System.Windows.MessageBox;
@@ -28,6 +29,8 @@ public partial class SettingsWindow : Window
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyToggleByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DockPanel> _toyRowById = new(StringComparer.OrdinalIgnoreCase);
     private string? _selectedToyId;
+    private Point? _toyDragStartPoint;
+    private string? _toyDragSourceId;
 
     public SettingsWindow(
         AppConfig source,
@@ -223,7 +226,6 @@ public partial class SettingsWindow : Window
                     Enabled = entry.Enabled,
                     RouteConfig = entry,
                 })
-                .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             if (_virtualToys.Count == 0)
@@ -275,8 +277,13 @@ public partial class SettingsWindow : Window
                 LastChildFill = true,
                 Margin = new Thickness(0, 4, 0, 4),
                 Tag = item.RouteId,
+                AllowDrop = true,
             };
             row.MouseLeftButtonUp += OnVirtualToyRowSelected;
+            row.PreviewMouseLeftButtonDown += OnVirtualToyRowMouseDown;
+            row.PreviewMouseMove += OnVirtualToyRowMouseMove;
+            row.Drop += OnVirtualToyRowDrop;
+            row.DragOver += OnVirtualToyRowDragOver;
 
             var enabledToggle = new System.Windows.Controls.CheckBox
             {
@@ -397,7 +404,9 @@ public partial class SettingsWindow : Window
         }
 
         // Note: new toys are appended to routing config first, then list rows are rebuilt from that source of truth.
+        AssignMissingCanonicalStartsInOrder(_working.Routing.Toys);
         _working.Routing.Toys.Add(wizard.Result);
+        AssignMissingCanonicalStartsInOrder(_working.Routing.Toys);
         LoadToyCollections();
         _selectedToyId = wizard.Result.Id;
         RefreshToyRowHighlight();
@@ -771,6 +780,105 @@ public partial class SettingsWindow : Window
 
     private static string BuildFingerprint(AppConfig config) => JsonSerializer.Serialize(config, FingerprintSerializerOptions);
 
+    private void OnVirtualToyRowMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not DockPanel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        // Note: capture pointer origin so drag starts only after meaningful movement, avoiding accidental reorder when selecting rows.
+        _toyDragSourceId = toyId;
+        _toyDragStartPoint = e.GetPosition(null);
+    }
+
+    private void OnVirtualToyRowMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _toyDragStartPoint is null || string.IsNullOrWhiteSpace(_toyDragSourceId))
+        {
+            return;
+        }
+
+        var currentPosition = e.GetPosition(null);
+        var dragDistance = _toyDragStartPoint.Value - currentPosition;
+        if (Math.Abs(dragDistance.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(dragDistance.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        DragDrop.DoDragDrop((DependencyObject)sender, _toyDragSourceId, DragDropEffects.Move);
+        _toyDragStartPoint = null;
+    }
+
+    private void OnVirtualToyRowDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(typeof(string)) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnVirtualToyRowDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(string))
+            || e.Data.GetData(typeof(string)) is not string sourceId
+            || sender is not DockPanel targetRow
+            || targetRow.Tag is not string targetId
+            || string.IsNullOrWhiteSpace(sourceId)
+            || string.IsNullOrWhiteSpace(targetId))
+        {
+            return;
+        }
+
+        var insertAfterTarget = e.GetPosition(targetRow).Y > (targetRow.ActualHeight / 2d);
+        MoveToy(sourceId, targetId, insertAfterTarget);
+    }
+
+    private void OnVirtualToysListDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(string))
+            || e.Data.GetData(typeof(string)) is not string sourceId
+            || string.IsNullOrWhiteSpace(sourceId))
+        {
+            return;
+        }
+
+        // Note: dropping into blank list space pushes the dragged toy to the end for quick "send to bottom" behavior.
+        MoveToy(sourceId, targetId: null, insertAfterTarget: true);
+    }
+
+    private void MoveToy(string sourceId, string? targetId, bool insertAfterTarget)
+    {
+        var sourceIndex = _working.Routing.Toys.FindIndex(toy => toy.Id.Equals(sourceId, StringComparison.OrdinalIgnoreCase));
+        if (sourceIndex < 0)
+        {
+            return;
+        }
+
+        var movingToy = _working.Routing.Toys[sourceIndex];
+        _working.Routing.Toys.RemoveAt(sourceIndex);
+
+        var destinationIndex = _working.Routing.Toys.Count;
+        if (!string.IsNullOrWhiteSpace(targetId))
+        {
+            var targetIndex = _working.Routing.Toys.FindIndex(toy => toy.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase));
+            if (targetIndex >= 0)
+            {
+                destinationIndex = insertAfterTarget ? targetIndex + 1 : targetIndex;
+            }
+        }
+
+        destinationIndex = Math.Clamp(destinationIndex, 0, _working.Routing.Toys.Count);
+        _working.Routing.Toys.Insert(destinationIndex, movingToy);
+        AssignMissingCanonicalStartsInOrder(_working.Routing.Toys);
+
+        _selectedToyId = movingToy.Id;
+        LoadToyCollections();
+        RefreshToyRowHighlight();
+        ApplyWorkingConfigImmediately();
+        UpdateSummary();
+        UpdateDirtyState();
+    }
+
     private static string DetectResolutionPreset(int width, int height)
     {
         if (width == 32 && height == 8)
@@ -1073,5 +1181,21 @@ public partial class SettingsWindow : Window
                 Options = new Dictionary<string, string>(target.Options, StringComparer.OrdinalIgnoreCase),
             }).ToList(),
         };
+    }
+
+    private static void AssignMissingCanonicalStartsInOrder(IList<ToyRouteConfig> toys)
+    {
+        var nextCanonicalStart = 0;
+        foreach (var toy in toys)
+        {
+            var length = Math.Max(1, toy.Source.Length);
+            if (!toy.Source.CanonicalStart.HasValue || toy.Source.CanonicalStart.Value < nextCanonicalStart)
+            {
+                // Note: keep canonical ranges contiguous in list order so Cabinet.xml FirstLedNumber remains deterministic for new/reordered toys.
+                toy.Source.CanonicalStart = nextCanonicalStart;
+            }
+
+            nextCanonicalStart = toy.Source.CanonicalStart.Value + length;
+        }
     }
 }

@@ -43,7 +43,12 @@
                                 ToolTip="Open the add toy wizard with friendly guided steps." />
                     </DockPanel>
 
-                    <ListBox x:Name="VirtualToysList" Grid.Row="1" IsHitTestVisible="True" Margin="0,0,0,8" />
+                    <ListBox x:Name="VirtualToysList"
+                             Grid.Row="1"
+                             IsHitTestVisible="True"
+                             Margin="0,0,0,8"
+                             AllowDrop="True"
+                             Drop="OnVirtualToysListDrop" />
 
                     <Border Grid.Row="2" Margin="0,12,0,0" Padding="10,8" BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA">
                         <StackPanel>

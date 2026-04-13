@@ -212,9 +212,11 @@ public sealed class CabinetXmlService
             StringComparer.OrdinalIgnoreCase);
         var unmatchedExistingNames = new HashSet<string>(existingByName.Keys, StringComparer.OrdinalIgnoreCase);
 
-        var desiredByName = desiredVirtualToys
-            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Name, x => x, StringComparer.OrdinalIgnoreCase);
+        var desiredOrdered = desiredVirtualToys.ToList();
+        var desiredOrderByName = desiredOrdered
+            .Select((toy, index) => new { toy.Name, Index = index })
+            .ToDictionary(x => x.Name, x => x.Index, StringComparer.OrdinalIgnoreCase);
+        var desiredByName = desiredOrdered.ToDictionary(x => x.Name, x => x, StringComparer.OrdinalIgnoreCase);
         var duplicatedFirstLedNumbers = desiredByName.Values
             .Where(x => x.FirstLedNumber.HasValue)
             .GroupBy(x => x.FirstLedNumber!.Value)
@@ -224,7 +226,7 @@ public sealed class CabinetXmlService
 
         var changes = new List<CabinetXmlMergeChange>();
 
-        foreach (var desired in desiredByName.Values)
+        foreach (var desired in desiredOrdered)
         {
             var lookupName = desired.Name;
             if (!existingByName.TryGetValue(lookupName, out var current)
@@ -328,6 +330,7 @@ public sealed class CabinetXmlService
 
         var managedToyOrdering = desiredByName.Values
             .OrderBy(x => x.FirstLedNumber ?? int.MaxValue)
+            .ThenBy(x => desiredOrderByName[x.Name])
             .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => x.Name)
             .Concat(existingByName.Keys.Where(name => !desiredByName.ContainsKey(name)))
