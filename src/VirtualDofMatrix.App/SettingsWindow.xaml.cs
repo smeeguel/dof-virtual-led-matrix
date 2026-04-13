@@ -806,13 +806,15 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        DragDrop.DoDragDrop((DependencyObject)sender, _toyDragSourceId, DragDropEffects.Move);
+        System.Windows.DragDrop.DoDragDrop((DependencyObject)sender, _toyDragSourceId, System.Windows.DragDropEffects.Move);
         _toyDragStartPoint = null;
     }
 
     private void OnVirtualToyRowDragOver(object sender, System.Windows.DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(typeof(string)) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Effects = e.Data.GetDataPresent(typeof(string))
+            ? System.Windows.DragDropEffects.Move
+            : System.Windows.DragDropEffects.None;
         e.Handled = true;
     }
 
