@@ -70,7 +70,10 @@ public partial class ToyWizardWindow : Window
         _suppressEvents = true;
 
         Title = _isEdit ? "Edit Virtual Toy" : "Add Virtual Toy";
-        TypeCombo.SelectedIndex = (_editingToy?.Kind.Equals("strip", StringComparison.OrdinalIgnoreCase) == true) ? 0 : 1;
+        // Note: new toys should default to Single strip; edit mode preserves the toy's existing kind.
+        TypeCombo.SelectedIndex = _isEdit
+            ? (_editingToy?.Kind.Equals("strip", StringComparison.OrdinalIgnoreCase) == true ? 0 : 1)
+            : 0;
         MatrixPresetCombo.SelectedIndex = 0;
         MappingCombo.SelectedIndex = 0;
         DotShapeCombo.SelectedIndex = 0;
@@ -651,9 +654,11 @@ public partial class ToyWizardWindow : Window
             return _editingToy?.Window.Width;
         }
 
-        var spacing = Math.Max(0, int.Parse(MinDotSpacingTextBox.Text));
+        var spacing = TryParseInt(MinDotSpacingTextBox.Text, out var spacingValue) ? Math.Max(0, spacingValue) : 0;
+        var farRadius = TryParseInt(BloomFarRadiusTextBox.Text, out var farRadiusValue) ? Math.Max(0, farRadiusValue) : 0;
+        var minorAxisPadding = farRadius * 2;
         return IsVerticalStripSelected()
-            ? _defaultStripBulbSize
+            ? _defaultStripBulbSize + minorAxisPadding
             : (_defaultStripBulbSize + spacing) * stripLength;
     }
 
@@ -669,10 +674,12 @@ public partial class ToyWizardWindow : Window
             return _editingToy?.Window.Height;
         }
 
-        var spacing = Math.Max(0, int.Parse(MinDotSpacingTextBox.Text));
+        var spacing = TryParseInt(MinDotSpacingTextBox.Text, out var spacingValue) ? Math.Max(0, spacingValue) : 0;
+        var farRadius = TryParseInt(BloomFarRadiusTextBox.Text, out var farRadiusValue) ? Math.Max(0, farRadiusValue) : 0;
+        var minorAxisPadding = farRadius * 2;
         return IsVerticalStripSelected()
             ? (_defaultStripBulbSize + spacing) * stripLength
-            : _defaultStripBulbSize;
+            : _defaultStripBulbSize + minorAxisPadding;
     }
 
     private string BuildSuggestedName(bool isStrip)
