@@ -97,7 +97,8 @@ public partial class ToyWizardWindow : Window
 
     private void SetDefaultsForNewToy()
     {
-        _lastSuggestedName = BuildSuggestedName(isStrip: false);
+        // Note: suggested name should follow the currently selected type (strip by default in create mode).
+        _lastSuggestedName = BuildSuggestedName(isStrip: IsStripTypeSelected());
         NameTextBox.Text = _lastSuggestedName;
 
         MatrixWidthTextBox.Text = "32";
@@ -120,6 +121,10 @@ public partial class ToyWizardWindow : Window
         BloomFarRadiusTextBox.Text = "10";
         BloomNearStrengthTextBox.Text = "1.0";
         BloomFarStrengthTextBox.Text = "0.2";
+
+        // Note: apply type-specific defaults immediately so first render of a new strip starts with strip-friendly settings
+        // (for example transparent background and unlocked aspect ratio) without requiring the user to toggle type.
+        ApplyTypeDefaultsForNewToy();
     }
 
     private void PopulateFromExistingToy(ToyRouteConfig toy)
