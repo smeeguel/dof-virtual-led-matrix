@@ -159,13 +159,8 @@
                     <CheckBox x:Name="BloomEnabledCheckBox" Content="Glow" Margin="0,0,16,0" Checked="OnInputsChanged" Unchecked="OnInputsChanged"
                               ToolTip="Turns bloom/glow effect on or off." />
                 </WrapPanel>
-                <Grid x:Name="GlowOptionsPanel" Margin="24,6,0,0" Visibility="Visible">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC">
+                <StackPanel x:Name="GlowOptionsPanel" Margin="24,6,0,0" Visibility="Visible">
+                    <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC" Margin="0,0,0,6">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Text="Near glow" Margin="0,0,0,6" />
                             <Grid>
@@ -182,7 +177,7 @@
                             </Grid>
                         </StackPanel>
                     </Border>
-                    <Border Grid.Column="2" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC">
+                    <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="8" Background="#FCFCFC">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Text="Far glow" Margin="0,0,0,6" />
                             <Grid>
@@ -199,7 +194,7 @@
                             </Grid>
                         </StackPanel>
                     </Border>
-                </Grid>
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
 

@@ -296,7 +296,8 @@ public partial class ToyWizardWindow : Window
         var width = validation.Width;
         var height = validation.Height;
         var total = validation.Total;
-        var previewCount = Math.Min(total, PreviewLedCap);
+        // Note: keep strip previews capped for UI responsiveness, but render full matrix dimensions in preview.
+        var previewCount = IsStripTypeSelected() ? Math.Min(total, PreviewLedCap) : total;
 
         // Note: we keep preview bounded so the settings UI stays responsive on very large toy sizes.
         PreviewGrid.Children.Clear();
@@ -388,7 +389,7 @@ public partial class ToyWizardWindow : Window
             PreviewGrid.Children.Add(cell);
         }
 
-        var suffix = total > PreviewLedCap ? $" (showing first {PreviewLedCap})" : string.Empty;
+        var suffix = IsStripTypeSelected() && total > PreviewLedCap ? $" (showing first {PreviewLedCap})" : string.Empty;
         PreviewStatusText.Text = IsStripTypeSelected()
             ? $"{total} LEDs total{suffix}. Strip preview is zoomed to keep long strips readable."
             : $"{total} LEDs total{suffix}.";
