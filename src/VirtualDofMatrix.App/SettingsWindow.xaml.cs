@@ -2,7 +2,6 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.Core;
 using WpfMessageBox = System.Windows.MessageBox;
@@ -29,7 +28,7 @@ public partial class SettingsWindow : Window
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyToggleByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DockPanel> _toyRowById = new(StringComparer.OrdinalIgnoreCase);
     private string? _selectedToyId;
-    private Point? _toyDragStartPoint;
+    private System.Windows.Point? _toyDragStartPoint;
     private string? _toyDragSourceId;
 
     public SettingsWindow(
@@ -780,7 +779,7 @@ public partial class SettingsWindow : Window
 
     private static string BuildFingerprint(AppConfig config) => JsonSerializer.Serialize(config, FingerprintSerializerOptions);
 
-    private void OnVirtualToyRowMouseDown(object sender, MouseButtonEventArgs e)
+    private void OnVirtualToyRowMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not DockPanel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
         {
@@ -792,9 +791,9 @@ public partial class SettingsWindow : Window
         _toyDragStartPoint = e.GetPosition(null);
     }
 
-    private void OnVirtualToyRowMouseMove(object sender, MouseEventArgs e)
+    private void OnVirtualToyRowMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (e.LeftButton != MouseButtonState.Pressed || _toyDragStartPoint is null || string.IsNullOrWhiteSpace(_toyDragSourceId))
+        if (e.LeftButton != System.Windows.Input.MouseButtonState.Pressed || _toyDragStartPoint is null || string.IsNullOrWhiteSpace(_toyDragSourceId))
         {
             return;
         }
@@ -811,13 +810,13 @@ public partial class SettingsWindow : Window
         _toyDragStartPoint = null;
     }
 
-    private void OnVirtualToyRowDragOver(object sender, DragEventArgs e)
+    private void OnVirtualToyRowDragOver(object sender, System.Windows.DragEventArgs e)
     {
         e.Effects = e.Data.GetDataPresent(typeof(string)) ? DragDropEffects.Move : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private void OnVirtualToyRowDrop(object sender, DragEventArgs e)
+    private void OnVirtualToyRowDrop(object sender, System.Windows.DragEventArgs e)
     {
         if (!e.Data.GetDataPresent(typeof(string))
             || e.Data.GetData(typeof(string)) is not string sourceId
@@ -833,7 +832,7 @@ public partial class SettingsWindow : Window
         MoveToy(sourceId, targetId, insertAfterTarget);
     }
 
-    private void OnVirtualToysListDrop(object sender, DragEventArgs e)
+    private void OnVirtualToysListDrop(object sender, System.Windows.DragEventArgs e)
     {
         if (!e.Data.GetDataPresent(typeof(string))
             || e.Data.GetData(typeof(string)) is not string sourceId
