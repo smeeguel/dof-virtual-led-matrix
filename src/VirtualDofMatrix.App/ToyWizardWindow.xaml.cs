@@ -366,6 +366,8 @@ public partial class ToyWizardWindow : Window
         var dotColor = BuildPreviewDotColor(brightness);
         var dotBackground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(40, 40, 40));
         var dotTextBrush = System.Windows.Media.Brushes.White;
+        // Note: LED number labels are optional so users can focus on color/shape when index overlays are noisy.
+        var showLedNumbers = ShowLedNumbersCheckBox.IsChecked == true;
         var borderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(
             (byte)Math.Clamp(dotColor.R + 18, 0, 255),
             (byte)Math.Clamp(dotColor.G + 18, 0, 255),
@@ -404,6 +406,7 @@ public partial class ToyWizardWindow : Window
                 {
                     Text = ledIndex.ToString(),
                     Foreground = dotTextBrush,
+                    Visibility = showLedNumbers ? Visibility.Visible : Visibility.Collapsed,
                     HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                     VerticalAlignment = System.Windows.VerticalAlignment.Center,
                     FontSize = 11,
