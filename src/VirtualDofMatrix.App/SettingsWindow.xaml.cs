@@ -622,15 +622,12 @@ public partial class SettingsWindow : Window
             }
 
             toy.Window ??= new ToyWindowOptionsConfig();
+            // Note: preserve only live geometry while Settings is open. Copying style/visual toggles
+            // from live state would overwrite edits made in the Toy Wizard (for example background visibility/color).
             toy.Window.Left = liveToy.Window.Left;
             toy.Window.Top = liveToy.Window.Top;
             toy.Window.Width = liveToy.Window.Width;
             toy.Window.Height = liveToy.Window.Height;
-            toy.Window.AlwaysOnTop = liveToy.Window.AlwaysOnTop;
-            toy.Window.Borderless = liveToy.Window.Borderless;
-            toy.Window.LockAspectRatio = liveToy.Window.LockAspectRatio;
-            toy.Window.BackgroundVisible = liveToy.Window.BackgroundVisible;
-            toy.Window.BackgroundColor = liveToy.Window.BackgroundColor;
         }
     }
 
