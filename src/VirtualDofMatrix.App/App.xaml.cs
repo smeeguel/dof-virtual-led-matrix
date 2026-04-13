@@ -114,6 +114,12 @@ public partial class App : System.Windows.Application
 
         var visibleOnStartup = ResolveInitialVisibility(e.Args);
         SetMatrixVisibility(visibleOnStartup, "startup");
+        if (visibleOnStartup)
+        {
+            // Note: startup visibility control shows MainWindow for global "show" state, but per-toy
+            // enabled flags still decide which toy windows should actually remain visible.
+            _windowOutputAdapter?.SyncVisibilityFromConfig();
+        }
     }
 
     protected override async void OnExit(ExitEventArgs e)

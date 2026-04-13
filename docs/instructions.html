@@ -309,6 +309,7 @@ In **Settings -> Virtual Toys**:
 - Turning a toy off disables it and hides its viewer window.
 - At least one toy must stay enabled; if only one remains enabled, its switch is temporarily locked.
 - The main host window stays attached to the primary host toy (typically `backglass-main`) and now hides correctly when that host toy is disabled, instead of leaving a stale matrix view on screen.
+- That host-toy visibility rule is also applied on startup, so a disabled `backglass-main` stays hidden after app restart.
 - If you change toy width/height and save, windows rebuild immediately (no app restart required).
 - Settings is modeless, so you can keep it open while dragging/resizing toy windows.
 - **Exit** from any viewer window closes the full app.
