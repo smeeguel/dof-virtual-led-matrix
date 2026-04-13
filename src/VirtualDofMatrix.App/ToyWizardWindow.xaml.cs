@@ -16,7 +16,6 @@ public partial class ToyWizardWindow : Window
     private const int SafeMaxBulbs = CabinetXmlService.SafeMaxLedTotal;
     private const int SafeMaxStripBulbs = 1100;
     private const int PreviewLedCap = 512;
-    private const int StripPreviewTargetColumns = 16;
     private static readonly Regex NumberedNameRegex = new("^(Strip|Matrix)(\\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly IReadOnlyList<ColorPresetOption> BackgroundColorPresets =
     [
@@ -302,11 +301,17 @@ public partial class ToyWizardWindow : Window
         PreviewGrid.Children.Clear();
         if (IsStripTypeSelected())
         {
-            // Note: strip preview intentionally wraps to keep common lengths (like 32) visible without horizontal scrolling.
-            var columns = Math.Min(previewCount, StripPreviewTargetColumns);
-            columns = Math.Max(1, columns);
-            PreviewGrid.Columns = columns;
-            PreviewGrid.Rows = (int)Math.Ceiling(previewCount / (double)columns);
+            // Note: strip preview intentionally stays one-dimensional so orientation is obvious.
+            if (IsVerticalStripSelected())
+            {
+                PreviewGrid.Columns = 1;
+                PreviewGrid.Rows = previewCount;
+            }
+            else
+            {
+                PreviewGrid.Columns = previewCount;
+                PreviewGrid.Rows = 1;
+            }
         }
         else
         {
@@ -323,14 +328,20 @@ public partial class ToyWizardWindow : Window
         var nearStrength = TryParseDouble(BloomNearStrengthTextBox.Text, out var nearStrengthValue) ? Math.Max(0d, nearStrengthValue) : 1d;
         var farStrength = TryParseDouble(BloomFarStrengthTextBox.Text, out var farStrengthValue) ? Math.Max(0d, farStrengthValue) : 0.2d;
 
-        var dotSize = fillGap ? 42d : 34d;
+        // Note: for strips, scale dots down as count increases so the preview reads more like a zoomed-out strip.
+        var stripIsVertical = IsStripTypeSelected() && IsVerticalStripSelected();
+        var stripAxisTargetPixels = stripIsVertical ? 320d : 560d;
+        var stripDotSize = Math.Clamp(stripAxisTargetPixels / Math.Max(1, previewCount), 8d, fillGap ? 30d : 24d);
+        var dotSize = IsStripTypeSelected() ? stripDotSize : (fillGap ? 42d : 34d);
         var dotMargin = fillGap ? 0d : Math.Min(8d, spacing);
         var cornerRadius = ((DotShapeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "circle").Equals("square", StringComparison.OrdinalIgnoreCase)
             ? new CornerRadius(2)
             : new CornerRadius(dotSize / 2);
         var dotColor = BuildPreviewDotColor(brightness);
         var dotBackground = new SolidColorBrush(dotColor);
-        var dotTextBrush = brightness < 0.45 ? Brushes.White : new SolidColorBrush(System.Windows.Media.Color.FromRgb(20, 20, 20));
+        var dotTextBrush = brightness < 0.45
+            ? System.Windows.Media.Brushes.White
+            : new SolidColorBrush(System.Windows.Media.Color.FromRgb(20, 20, 20));
         var borderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(
             (byte)Math.Clamp(dotColor.R + 18, 0, 255),
             (byte)Math.Clamp(dotColor.G + 18, 0, 255),
@@ -376,7 +387,7 @@ public partial class ToyWizardWindow : Window
 
         var suffix = total > PreviewLedCap ? $" (showing first {PreviewLedCap})" : string.Empty;
         PreviewStatusText.Text = IsStripTypeSelected()
-            ? $"{total} LEDs total{suffix}. Strip preview wraps for readability."
+            ? $"{total} LEDs total{suffix}. Strip preview is zoomed to keep long strips readable."
             : $"{total} LEDs total{suffix}.";
     }
 
