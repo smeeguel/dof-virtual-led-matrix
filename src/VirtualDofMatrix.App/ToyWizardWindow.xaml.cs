@@ -330,12 +330,35 @@ public partial class ToyWizardWindow : Window
         var nearStrength = TryParseDouble(BloomNearStrengthTextBox.Text, out var nearStrengthValue) ? Math.Max(0d, nearStrengthValue) : 1d;
         var farStrength = TryParseDouble(BloomFarStrengthTextBox.Text, out var farStrengthValue) ? Math.Max(0d, farStrengthValue) : 0.2d;
 
-        // Note: for strips, scale dots down as count increases so the preview reads more like a zoomed-out strip.
-        var stripIsVertical = IsStripTypeSelected() && IsVerticalStripSelected();
-        var stripAxisTargetPixels = stripIsVertical ? 320d : 560d;
-        var stripDotSize = Math.Clamp(stripAxisTargetPixels / Math.Max(1, previewCount), 8d, fillGap ? 30d : 24d);
-        var dotSize = IsStripTypeSelected() ? stripDotSize : (fillGap ? 42d : 34d);
         var dotMargin = fillGap ? 0d : Math.Min(8d, spacing);
+        var minReadableDotSize = 7d;
+        var maxDotSize = fillGap ? 42d : 34d;
+        // Note: use the ScrollViewer viewport as the fitting target so sizing responds to real available preview space.
+        var viewportWidth = PreviewScrollViewer.ViewportWidth > 0 ? PreviewScrollViewer.ViewportWidth : PreviewScrollViewer.ActualWidth;
+        var viewportHeight = PreviewScrollViewer.ViewportHeight > 0 ? PreviewScrollViewer.ViewportHeight : PreviewScrollViewer.ActualHeight;
+        // Note: keep fallback targets so first render (before layout pass) remains stable and readable.
+        var fallbackWidth = 560d;
+        var fallbackHeight = 320d;
+        var availableWidth = Math.Max(1d, viewportWidth > 0 ? viewportWidth : fallbackWidth);
+        var availableHeight = Math.Max(1d, viewportHeight > 0 ? viewportHeight : fallbackHeight);
+
+        // Note: preserve one-dimensional strip layout while fitting dot size against the visible axis whenever feasible.
+        var stripIsVertical = IsStripTypeSelected() && IsVerticalStripSelected();
+        var stripAxisTargetPixels = stripIsVertical ? availableHeight : availableWidth;
+        var stripCellSize = (stripAxisTargetPixels / Math.Max(1, previewCount)) - (2d * dotMargin);
+        var stripDotSize = stripCellSize >= minReadableDotSize
+            ? Math.Clamp(stripCellSize, minReadableDotSize, maxDotSize)
+            : minReadableDotSize;
+
+        // Note: matrix previews fit both axes so common matrix sizes stay fully visible without immediate scrolling.
+        var matrixCellSizeFromWidth = (availableWidth / Math.Max(1, width)) - (2d * dotMargin);
+        var matrixCellSizeFromHeight = (availableHeight / Math.Max(1, height)) - (2d * dotMargin);
+        var matrixFitCellSize = Math.Min(matrixCellSizeFromWidth, matrixCellSizeFromHeight);
+        var matrixDotSize = matrixFitCellSize >= minReadableDotSize
+            ? Math.Clamp(matrixFitCellSize, minReadableDotSize, maxDotSize)
+            : minReadableDotSize;
+
+        var dotSize = IsStripTypeSelected() ? stripDotSize : matrixDotSize;
         var cornerRadius = ((DotShapeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "circle").Equals("square", StringComparison.OrdinalIgnoreCase)
             ? new CornerRadius(2)
             : new CornerRadius(dotSize / 2);

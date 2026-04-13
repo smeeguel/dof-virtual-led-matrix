@@ -209,7 +209,7 @@
                 <TextBlock FontWeight="SemiBold" Text="Live preview" ToolTip="Shows LED numbering so you can verify size and orientation." />
                 <TextBlock Grid.Row="1" Margin="0,4,0,10" x:Name="PreviewStatusText" Foreground="#666"
                            Text="Preview updates while you type." />
-                <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer x:Name="PreviewScrollViewer" Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                     <UniformGrid x:Name="PreviewGrid" Rows="1" Columns="1"/>
                 </ScrollViewer>
             </Grid>
