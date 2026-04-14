@@ -576,6 +576,9 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             if (!_mainWindow.IsVisible)
             {
                 _mainWindow.Show();
+                // Note: transparent swapchain windows can come back opaque after hide/show transitions.
+                // Reapply runtime settings so renderer/window background state is rebuilt deterministically.
+                _mainWindow.ApplyRuntimeSettings();
             }
         }
         else if (_mainWindow.IsVisible)
@@ -599,6 +602,12 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             if (!binding.Window.IsVisible)
             {
                 binding.Window.Show();
+                if (binding.Window is MainWindow shownMainWindow)
+                {
+                    // Note: force a renderer/background rebind after show to keep transparent toy windows from
+                    // falling back to opaque black composition on some WPF/D3D resume paths.
+                    shownMainWindow.ApplyRuntimeSettings();
+                }
             }
 
             return;
@@ -609,6 +618,11 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             if (!binding.Window.IsVisible)
             {
                 binding.Window.Show();
+                if (binding.Window is MainWindow shownMainWindow)
+                {
+                    // Note: restore transparent composition after visibility toggles.
+                    shownMainWindow.ApplyRuntimeSettings();
+                }
             }
 
             ApplyLayoutOverlay(toyId, binding.Window);
