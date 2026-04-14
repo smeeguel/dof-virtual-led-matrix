@@ -79,6 +79,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private string _directPresentStatus = "uninitialized";
     private IDXGISwapChain1? _directPresentSwapChain;
     private ID3D11Texture2D? _directPresentBackBuffer;
+    private ID3D11RenderTargetView? _directPresentBackBufferRtv;
+    private int _directPresentBackBufferWidth;
+    private int _directPresentBackBufferHeight;
     private bool _gpuBloomSupported;
     private bool _gpuDotPassSupported;
     private bool _useCpuBloomFallback;
@@ -913,7 +916,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             try
             {
-                _context.CopyResource(_directPresentBackBuffer, _gpuCompositeTexture);
+                BlitCompositeToDirectPresentBackBuffer();
                 _directPresentSwapChain.Present(0, PresentFlags.None);
                 trace.Append(" direct-present");
 
@@ -928,6 +931,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             catch (Exception ex)
             {
                 _directPresentEnabled = false;
+                _directPresentBackBufferRtv?.Dispose();
+                _directPresentBackBufferRtv = null;
                 _directPresentStatus = $"disabled:interop-present-failed:{ex.GetType().Name}";
                 if (_host is not null && _fallbackBitmap is not null)
                 {
@@ -950,6 +955,27 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         return TryReadbackCompositeToCpu(trace);
+    }
+
+    private void BlitCompositeToDirectPresentBackBuffer()
+    {
+        if (_context is null || _gpuCompositeTexture is null || _directPresentBackBuffer is null || _directPresentBackBufferRtv is null)
+        {
+            return;
+        }
+
+        // Note: copy composed output centered into the present buffer without scaling to preserve CPU-parity dot geometry.
+        _context.ClearRenderTargetView(_directPresentBackBufferRtv, BlackClearColor);
+        var dstWidth = Math.Max(1, _directPresentBackBufferWidth);
+        var dstHeight = Math.Max(1, _directPresentBackBufferHeight);
+        var copyWidth = Math.Min(dstWidth, _surfaceWidth);
+        var copyHeight = Math.Min(dstHeight, _surfaceHeight);
+        var dstX = (dstWidth - copyWidth) / 2;
+        var dstY = (dstHeight - copyHeight) / 2;
+        var srcX = (_surfaceWidth - copyWidth) / 2;
+        var srcY = (_surfaceHeight - copyHeight) / 2;
+        var srcBox = new ResourceRegion(srcX, srcY, 0, srcX + copyWidth, srcY + copyHeight, 1);
+        _context.CopySubresourceRegion(_directPresentBackBuffer, 0, dstX, dstY, 0, _gpuCompositeTexture, 0, srcBox);
     }
 
     private bool ShouldUseGpuDotPass(DotStyleConfig style)
@@ -1695,10 +1721,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private void TryInitializeDirectPresentSurface()
     {
         _directPresentEnabled = false;
+        _directPresentBackBufferRtv?.Dispose();
+        _directPresentBackBufferRtv = null;
         _directPresentBackBuffer?.Dispose();
         _directPresentBackBuffer = null;
         _directPresentSwapChain?.Dispose();
         _directPresentSwapChain = null;
+        _directPresentBackBufferWidth = 0;
+        _directPresentBackBufferHeight = 0;
 
         if (_gpuCompositeTexture is null || _host is null)
         {
@@ -1745,10 +1775,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             interopStage = "create-swapchain";
+            GetClientSize(hostHandle, out var clientWidth, out var clientHeight);
             var desc = new SwapChainDescription1
             {
-                Width = (uint)Math.Max(1, _surfaceWidth),
-                Height = (uint)Math.Max(1, _surfaceHeight),
+                // Note: create the swapchain at host-client size; we letterbox the composed surface ourselves.
+                Width = (uint)Math.Max(1, clientWidth),
+                Height = (uint)Math.Max(1, clientHeight),
                 Format = LedColorTextureFormat,
                 Stereo = false,
                 SampleDescription = new SampleDescription(1, 0),
@@ -1769,14 +1801,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             {
                 // Note: some drivers reject AspectRatioStretch for this swapchain path; retry with Stretch
                 // so we stay on GPU direct-present instead of dropping to readback fallback.
-                // For 1D strip surfaces, Stretch visibly distorts dot geometry (especially minor-axis height),
-                // so prefer readback parity over stretched direct-present when aspect-preserving mode is unavailable.
-                if (_width == 1 || _height == 1)
-                {
-                    _directPresentStatus = "disabled:aspectratio-unsupported-strip";
-                    AppLogger.Info("[renderer] direct present disabled for strip surface because AspectRatioStretch is unsupported; using readback parity path.");
-                    return;
-                }
                 desc.Scaling = Scaling.Stretch;
                 _directPresentSwapChain = factory.CreateSwapChainForHwnd(_device, hostHandle, desc);
                 AppLogger.Warn("[renderer] AspectRatioStretch swapchain scaling unsupported on this adapter; retried with Stretch.");
@@ -1794,6 +1818,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 _directPresentStatus = "disabled:swapchain-backbuffer-unavailable";
                 return;
             }
+            _directPresentBackBufferRtv = _device.CreateRenderTargetView(_directPresentBackBuffer);
+            _directPresentBackBufferWidth = Math.Max(1, clientWidth);
+            _directPresentBackBufferHeight = Math.Max(1, clientHeight);
 
             _host.Source = null;
             _directPresentEnabled = true;
@@ -1803,10 +1830,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         catch (Exception ex)
         {
             _directPresentEnabled = false;
+            _directPresentBackBufferRtv?.Dispose();
+            _directPresentBackBufferRtv = null;
             _directPresentBackBuffer?.Dispose();
             _directPresentBackBuffer = null;
             _directPresentSwapChain?.Dispose();
             _directPresentSwapChain = null;
+            _directPresentBackBufferWidth = 0;
+            _directPresentBackBufferHeight = 0;
             var hr = ex.HResult;
             var hrText = $"0x{hr:X8}";
             var expectedUnsupported = hr == unchecked((int)0x887A0004) || hr == unchecked((int)0x80070057);
@@ -1846,6 +1877,32 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         return shaderBlob!;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetClientRect(IntPtr hWnd, out NativeRect lpRect);
+
+    private static void GetClientSize(IntPtr hwnd, out int width, out int height)
+    {
+        if (hwnd != IntPtr.Zero && GetClientRect(hwnd, out var rect))
+        {
+            width = Math.Max(1, rect.Right - rect.Left);
+            height = Math.Max(1, rect.Bottom - rect.Top);
+            return;
+        }
+
+        width = 1;
+        height = 1;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct NativeRect
+    {
+        public readonly int Left;
+        public readonly int Top;
+        public readonly int Right;
+        public readonly int Bottom;
     }
 
     private void EnsureGpuBloomTargets(int scaleDivisor)
@@ -2074,10 +2131,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private void DisposeGpuBloomResources()
     {
         _directPresentEnabled = false;
+        _directPresentBackBufferRtv?.Dispose();
+        _directPresentBackBufferRtv = null;
         _directPresentBackBuffer?.Dispose();
         _directPresentBackBuffer = null;
         _directPresentSwapChain?.Dispose();
         _directPresentSwapChain = null;
+        _directPresentBackBufferWidth = 0;
+        _directPresentBackBufferHeight = 0;
         DisposeBloomIntermediateTargets();
         _gpuReadbackTexture?.Dispose();
         _gpuReadbackTexture = null;
