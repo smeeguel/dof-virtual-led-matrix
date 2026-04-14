@@ -1,5 +1,6 @@
 using VirtualDofMatrix.App.Presentation;
 using VirtualDofMatrix.Core;
+using Xunit;
 
 namespace VirtualDofMatrix.Tests;
 
