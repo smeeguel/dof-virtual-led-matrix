@@ -245,6 +245,38 @@ public partial class MainWindow : Window
         return WpfBrushes.Black;
     }
 
+    private static void ResolveWindowBackgroundRgb(WindowConfig window, out float r, out float g, out float b)
+    {
+        // Note: transparent window mode still resolves to black so renderer fallbacks stay deterministic.
+        if (!window.BackgroundVisible)
+        {
+            r = 0f;
+            g = 0f;
+            b = 0f;
+            return;
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(window.BackgroundColor) &&
+                System.Windows.Media.ColorConverter.ConvertFromString(window.BackgroundColor) is WpfColor parsed)
+            {
+                r = parsed.R / 255f;
+                g = parsed.G / 255f;
+                b = parsed.B / 255f;
+                return;
+            }
+        }
+        catch (FormatException)
+        {
+            // Note: fallback mirrors brush generation behavior (invalid color => black).
+        }
+
+        r = 0f;
+        g = 0f;
+        b = 0f;
+    }
+
     private void ApplyStartupStatus()
     {
         // Note: startup diagnostics are logged instead of rendered in-window to keep viewer windows uncluttered.
@@ -353,6 +385,8 @@ public partial class MainWindow : Window
         const double borderPadding = 16.0;
         var viewportWidth = Math.Max(1.0, MatrixViewportBorder.ActualWidth - borderPadding);
         var viewportHeight = Math.Max(1.0, MatrixViewportBorder.ActualHeight - borderPadding);
+        // Note: this keeps renderer-side background fills exactly in sync with the selected window background color.
+        ResolveWindowBackgroundRgb(_config.Window, out var backgroundR, out var backgroundG, out var backgroundB);
 
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
@@ -437,6 +471,10 @@ public partial class MainWindow : Window
                 LensFalloff = _config.Matrix.Visual.LensFalloff,
                 SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
                 RimHighlight = _config.Matrix.Visual.RimHighlight,
+                BackgroundColorR = backgroundR,
+                BackgroundColorG = backgroundG,
+                BackgroundColorB = backgroundB,
+                BackgroundVisible = _config.Window.BackgroundVisible,
             },
             Bloom = new BloomConfig
             {

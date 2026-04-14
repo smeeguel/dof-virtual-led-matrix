@@ -1240,6 +1240,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             LensFalloff = (float)Math.Clamp(visual?.LensFalloff ?? 0.45, 0.0, 1.0),
             SpecularHotspot = (float)Math.Clamp(visual?.SpecularHotspot ?? 0.28, 0.0, 1.0),
             RimHighlight = (float)Math.Clamp(visual?.RimHighlight ?? 0.22, 0.0, 1.0),
+            BackgroundVisible = visual?.BackgroundVisible is false ? 0f : 1f,
+            BackgroundColorR = Math.Clamp(visual?.BackgroundColorR ?? 0f, 0f, 1f),
+            BackgroundColorG = Math.Clamp(visual?.BackgroundColorG ?? 0f, 0f, 1f),
+            BackgroundColorB = Math.Clamp(visual?.BackgroundColorB ?? 0f, 0f, 1f),
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -2169,8 +2173,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float LensFalloff;
         public float SpecularHotspot;
         public float RimHighlight;
-        // Note: D3D11 constant buffers require 16-byte alignment, so we keep explicit padding fields.
-        public float Padding0;
+        public float BackgroundVisible;
+        public float BackgroundColorR;
+        public float BackgroundColorG;
+        public float BackgroundColorB;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -2225,6 +2231,8 @@ cbuffer BloomConstants : register(b0)
     float LensFalloff;
     float SpecularHotspot;
     float RimHighlight;
+    float BackgroundVisible;
+    float3 BackgroundColor;
 }
 cbuffer LedPreprocessConstants : register(b1)
 {
@@ -2278,6 +2286,8 @@ VsOut VSMain(uint vertexId : SV_VertexID)
 }
 float4 PSDotPass(VsOut input) : SV_Target
 {
+    // Note: solid window backgrounds should be baked into the GPU base pass so bloom/composite stay fully GPU-side.
+    float3 bgColor = BackgroundVisible > 0.5f ? BackgroundColor : float3(0.0f, 0.0f, 0.0f);
     float spacing = max(Direction.y, 0.0f);
     // Note: in fill-gap mode we derive per-axis cell sizes from the actual viewport surface so
     // dots stretch to fill available space while still reserving explicit pixel gaps between neighbors.
@@ -2295,17 +2305,17 @@ float4 PSDotPass(VsOut input) : SV_Target
         float stepX = dotWidth + spacing;
         float stepY = dotHeight + spacing;
         ledCoord = floor(float2(pixel.x / max(stepX, 1.0f), pixel.y / max(stepY, 1.0f)));
-        if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= cols || ledCoord.y >= rows) return float4(0, 0, 0, 1);
+        if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= cols || ledCoord.y >= rows) return float4(bgColor, 1.0f);
         within = float2(pixel.x - (ledCoord.x * stepX), pixel.y - (ledCoord.y * stepY));
-        if (within.x >= dotWidth || within.y >= dotHeight) return float4(0, 0, 0, 1);
+        if (within.x >= dotWidth || within.y >= dotHeight) return float4(bgColor, 1.0f);
         dotExtent = float2(dotWidth, dotHeight);
     }
     else
     {
         ledCoord = floor(pixel / stride);
-        if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(0, 0, 0, 1);
+        if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(bgColor, 1.0f);
         within = frac(pixel / stride) * stride;
-        if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
+        if (within.x >= Radius || within.y >= Radius) return float4(bgColor, 1.0f);
         dotExtent = float2(Radius, Radius);
     }
 
@@ -2318,7 +2328,7 @@ float4 PSDotPass(VsOut input) : SV_Target
         float dx = (within.x - center.x) / denom.x;
         float dy = (within.y - center.y) / denom.y;
         radial = sqrt(dx * dx + dy * dy);
-        if (radial > 1.0f) return float4(0, 0, 0, 1);
+        if (radial > 1.0f) return float4(bgColor, 1.0f);
         float fullRadius = saturate(FullBrightnessRadius);
         float adjusted = max(radial, fullRadius);
         float normalized = (adjusted - fullRadius) / max(0.0001f, 1.0f - fullRadius);
@@ -2330,7 +2340,7 @@ float4 PSDotPass(VsOut input) : SV_Target
     float intensity = saturate(max(ledColor.r, max(ledColor.g, ledColor.b)));
     float offBlend = 1.0f - (intensity * intensity);
     float hasOffState = OffStateAlpha > 0.0001f && max(OffTint.r, max(OffTint.g, OffTint.b)) > 0.0f ? 1.0f : 0.0f;
-    if (hasOffState < 0.5f && intensity <= 0.0f) return float4(0, 0, 0, 1);
+    if (hasOffState < 0.5f && intensity <= 0.0f) return float4(bgColor, 1.0f);
 
     if (FlatShading > 0.5f)
     {
