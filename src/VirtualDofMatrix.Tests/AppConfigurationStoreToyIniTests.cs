@@ -34,6 +34,35 @@ public sealed class AppConfigurationStoreToyIniTests
     }
 
     [Fact]
+    public void Load_WhenSettingsFileMissing_StillCreatesToyIni()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+
+            var store = new AppConfigurationStore();
+            var loaded = store.Load(settingsPath);
+
+            Assert.NotNull(loaded);
+            Assert.True(File.Exists(iniPath));
+
+            var iniContents = File.ReadAllText(iniPath);
+            Assert.Contains("[toy:backglass-main]", iniContents);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void Load_WhenToyIniMissing_BootstrapsEnabledToysFromCabinetXmlVirtualLedStrips()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");

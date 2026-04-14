@@ -20,13 +20,12 @@ public sealed class AppConfigurationStore
 
     public AppConfig Load(string filePath)
     {
-        if (!File.Exists(filePath))
+        var loaded = new AppConfig();
+        if (File.Exists(filePath))
         {
-            return new AppConfig();
+            var json = File.ReadAllText(filePath);
+            loaded = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions) ?? new AppConfig();
         }
-
-        var json = File.ReadAllText(filePath);
-        var loaded = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions) ?? new AppConfig();
 
         var iniPath = ResolveToyIniPath(filePath, loaded.Routing?.ToyConfigIniPath);
         var createdIni = EnsureToyIniExists(iniPath, loaded);
