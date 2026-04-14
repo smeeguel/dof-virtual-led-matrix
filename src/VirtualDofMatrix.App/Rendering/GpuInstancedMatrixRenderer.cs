@@ -27,6 +27,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private const int Channels = 3;
     private const float TemporalSmoothingOffSnapThreshold = 4.0f;
     private const DxgiFormat LedColorTextureFormat = DxgiFormat.R8G8B8A8_UNorm;
+    private const DxgiFormat SurfaceTextureFormat = DxgiFormat.B8G8R8A8_UNorm;
     private const string LedColorChannelContract = "RGBA";
     private ID3D11Device? _device;
     private ID3D11DeviceContext? _context;
@@ -1057,8 +1058,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         DisposeD3DImageInterop();
 
+        var interopStage = "start";
         try
         {
+            interopStage = "query-shared-handle";
             using var dxgiResource = _gpuCompositeTexture.QueryInterfaceOrNull<IDXGIResource>();
             var sharedHandle = dxgiResource?.SharedHandle ?? IntPtr.Zero;
             if (sharedHandle == IntPtr.Zero)
@@ -1067,19 +1070,24 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 return false;
             }
 
+            interopStage = "create-d3d9-context";
             _d3d9Context = D3D9.Direct3DCreate9Ex();
+            interopStage = "create-d3d9-device";
+            var desktopWindow = GetDesktopWindow();
             var presentParams = new Vortice.Direct3D9.PresentParameters
             {
                 Windowed = true,
                 SwapEffect = Vortice.Direct3D9.SwapEffect.Discard,
-                DeviceWindowHandle = GetDesktopWindow(),
+                DeviceWindowHandle = desktopWindow,
                 PresentationInterval = PresentInterval.Default,
             };
             var createFlags = CreateFlags.HardwareVertexProcessing | CreateFlags.Multithreaded | CreateFlags.FpuPreserve;
-            _d3d9Device = _d3d9Context.CreateDeviceEx(0, DeviceType.Hardware, IntPtr.Zero, createFlags, presentParams);
+            _d3d9Device = _d3d9Context.CreateDeviceEx(0, DeviceType.Hardware, desktopWindow, createFlags, presentParams);
 
+            interopStage = "open-shared-texture";
             var d3d9Handle = sharedHandle;
             _d3d9InteropTexture = _d3d9Device.CreateTexture((uint)width, (uint)height, 1, Vortice.Direct3D9.Usage.RenderTarget, Vortice.Direct3D9.Format.A8R8G8B8, Pool.Default, ref d3d9Handle);
+            interopStage = "bind-d3dimage-backbuffer";
             using var surface = _d3d9InteropTexture.GetSurfaceLevel(0);
             _d3dImageHost = new D3DImage();
             _d3dImageHost.Lock();
@@ -1095,7 +1103,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         catch (Exception ex)
         {
             _directPresentStatus = $"disabled:legacy-d3dimage-init-failed:{ex.GetType().Name}";
-            AppLogger.Warn($"[renderer] legacy D3DImage interop unavailable; falling back to CPU readback present. reason={ex.Message}");
+            AppLogger.Warn($"[renderer] legacy D3DImage interop unavailable; falling back to CPU readback present. stage={interopStage} reason={ex.Message}");
             DisposeD3DImageInterop();
             return false;
         }
@@ -1949,7 +1957,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 // Note: create the swapchain at host-client size; we letterbox the composed surface ourselves.
                 Width = (uint)Math.Max(1, clientWidth),
                 Height = (uint)Math.Max(1, clientHeight),
-                Format = LedColorTextureFormat,
+                Format = SurfaceTextureFormat,
                 Stereo = false,
                 SampleDescription = new SampleDescription(1, 0),
                 BufferUsage = Vortice.DXGI.Usage.RenderTargetOutput,
@@ -2213,7 +2221,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 Height = (uint)Math.Max(1, _surfaceHeight),
                 ArraySize = 1,
                 MipLevels = 1,
-                Format = DxgiFormat.R8G8B8A8_UNorm,
+                Format = SurfaceTextureFormat,
                 SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default,
                 BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
