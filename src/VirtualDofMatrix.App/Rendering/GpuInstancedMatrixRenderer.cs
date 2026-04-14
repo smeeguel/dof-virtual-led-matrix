@@ -108,7 +108,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private int _height;
     private int _surfaceWidth;
     private int _surfaceHeight;
-    private int _surfaceInset;
     private int _dotStride;
     private int _dotSize;
     private int _dotPadding;
@@ -264,8 +263,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 var r = _cpuLedReadback[ledOffset];
                 var g = _cpuLedReadback[ledOffset + 1];
                 var b = _cpuLedReadback[ledOffset + 2];
-                var baseX = _surfaceInset + ((raster % _width) * _dotStride);
-                var baseY = _surfaceInset + ((raster / _width) * _dotStride);
+                var baseX = (raster % _width) * _dotStride;
+                var baseY = (raster / _width) * _dotStride;
                 RasterFastDot(baseX, baseY, r, g, b);
             }
         }
@@ -442,9 +441,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // Keep spacing behavior shape-agnostic and inter-dot only: spacing belongs between cells, not around viewport edges.
         _dotPadding = Math.Max(0, style.DotSpacing);
         _dotStride = _dotSize + _dotPadding;
-        _surfaceInset = style.Bloom.Enabled ? Math.Max(0, style.Bloom.FarRadiusPx) : 0;
-        _surfaceWidth = (width * _dotSize) + (Math.Max(0, width - 1) * _dotPadding) + (_surfaceInset * 2);
-        _surfaceHeight = (height * _dotSize) + (Math.Max(0, height - 1) * _dotPadding) + (_surfaceInset * 2);
+        _surfaceWidth = (width * _dotSize) + (Math.Max(0, width - 1) * _dotPadding);
+        _surfaceHeight = (height * _dotSize) + (Math.Max(0, height - 1) * _dotPadding);
         BuildDotMasks(style, _dotSize);
     }
 
@@ -1259,8 +1257,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Radius = profile is null ? Math.Max(0f, radius) : Math.Clamp(radius, 0f, 8f),
             DirectionX = directionX,
             DirectionY = directionY,
-            SurfaceOffsetX = _surfaceInset,
-            SurfaceOffsetY = _surfaceInset,
             SurfaceWidth = _surfaceWidth,
             SurfaceHeight = _surfaceHeight,
             BloomWidth = profile is null ? _width : _downsampleWidth,
@@ -1281,8 +1277,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             BackgroundColorG = Math.Clamp(visual?.BackgroundColorG ?? 0f, 0f, 1f),
             BackgroundColorB = Math.Clamp(visual?.BackgroundColorB ?? 0f, 0f, 1f),
             Padding0 = 0f,
-            Padding1 = 0f,
-            Padding2 = 0f,
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -1786,9 +1780,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             interopStage = "create-swapchain";
-            // Note: prefer host visual size so direct-present tracks the matrix viewport instead of the full window client.
-            var clientWidth = Math.Max(1, (int)Math.Round(_host.ActualWidth));
-            var clientHeight = Math.Max(1, (int)Math.Round(_host.ActualHeight));
+            var isSingleAxisStrip = _width == 1 || _height == 1;
+            // Note: matrices benefit from present-time scaling to occupy full viewport; strips keep client-size backbuffers
+            // so centered blit can preserve precise dot geometry without stretch artifacts.
+            var clientWidth = isSingleAxisStrip ? Math.Max(1, (int)Math.Round(_host.ActualWidth)) : _surfaceWidth;
+            var clientHeight = isSingleAxisStrip ? Math.Max(1, (int)Math.Round(_host.ActualHeight)) : _surfaceHeight;
             if (clientWidth <= 1 || clientHeight <= 1)
             {
                 GetClientSize(hostHandle, out clientWidth, out clientHeight);
@@ -2258,8 +2254,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float Radius;
         public float DirectionX;
         public float DirectionY;
-        public float SurfaceOffsetX;
-        public float SurfaceOffsetY;
         public float SurfaceWidth;
         public float SurfaceHeight;
         public float BloomWidth;
@@ -2281,8 +2275,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float BackgroundColorB;
         // Note: keep this struct at a 16-byte multiple to match HLSL cbuffer packing exactly.
         public float Padding0;
-        public float Padding1;
-        public float Padding2;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -2326,7 +2318,6 @@ cbuffer BloomConstants : register(b0)
     float ScaleDivisor;
     float Radius;
     float2 Direction;
-    float2 SurfaceOffset;
     float2 SurfaceSize;
     float2 BloomSize;
     float DotShapeCircle;
@@ -2399,7 +2390,7 @@ float4 PSDotPass(VsOut input) : SV_Target
     // Note: in fill-gap mode we derive per-axis cell sizes from the actual viewport surface so
     // dots stretch to fill available space while still reserving explicit pixel gaps between neighbors.
     float stride = max(Direction.x, 1.0f);
-    float2 pixel = (input.Uv * SurfaceSize) - SurfaceOffset;
+    float2 pixel = input.Uv * SurfaceSize;
     float2 ledCoord;
     float2 within;
     float2 dotExtent;
