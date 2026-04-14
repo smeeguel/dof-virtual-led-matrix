@@ -265,7 +265,9 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 TemporalSmoothing = _config.Matrix.TemporalSmoothing,
                 Visual = new MatrixVisualConfig
                 {
-                    TransparentBackground = !toy.Window.BackgroundVisible,
+                    // Note: keep renderer output transparent so toy background colors show through
+                    // directly behind each LED instead of behind an opaque black strip texture.
+                    TransparentBackground = true,
                     // Note: keep strip rendering mode stable for both transparent and solid strip windows.
                     GpuPresentMode = (toy.Window.BackgroundVisible && !forceLegacyStripPresent) ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
                     ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || !toy.Window.BackgroundVisible || forceLegacyStripPresent,

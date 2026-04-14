@@ -416,7 +416,9 @@ public partial class MainWindow : Window
             },
             Visual = new MatrixVisualConfig
             {
-                TransparentBackground = !_config.Window.BackgroundVisible,
+                // Note: render the dot field with transparent pixels so the configured window color
+                // is the actual backdrop behind bulbs (instead of an opaque black raster strip).
+                TransparentBackground = true,
                 // Note: single-axis strips render more consistently in readback mode across transparent/solid backgrounds.
                 GpuPresentMode = (_config.Window.BackgroundVisible && !forceLegacyStripPresent) ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
                 ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || !_config.Window.BackgroundVisible || forceLegacyStripPresent,
