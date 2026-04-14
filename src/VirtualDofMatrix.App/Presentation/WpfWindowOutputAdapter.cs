@@ -54,7 +54,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         {
             // Note: apply primary toy visual/window overrides before the first show so AllowsTransparency
             // can be set from toy background policy during pre-handle initialization.
-            ApplyPrimaryToyVisualOverrides(initialHostToyConfig);
+            ApplyPrimaryToyVisualOverrides(initialHostToyConfig, applyRuntimeSettings: false);
         }
 
         EnsureInitialViewerToyWindows();
@@ -255,7 +255,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         return new ToyWindowBinding(toyWindow, frame => toyWindow.ApplyPresentation(ToPresentation(frame)));
     }
 
-    private void ApplyPrimaryToyVisualOverrides(ToyRouteConfig? toyConfig)
+    private void ApplyPrimaryToyVisualOverrides(ToyRouteConfig? toyConfig, bool applyRuntimeSettings = true)
     {
         if (toyConfig is null)
         {
@@ -279,7 +279,10 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _config.Window.BackgroundVisible = toyConfig.Window.BackgroundVisible;
         _config.Window.BackgroundColor = toyConfig.Window.BackgroundColor;
 
-        _mainWindow.ApplyRuntimeSettings();
+        if (applyRuntimeSettings)
+        {
+            _mainWindow.ApplyRuntimeSettings();
+        }
     }
 
     private AppConfig BuildToyWindowAppConfig(ToyRouteConfig? toyConfig, string toyId)
