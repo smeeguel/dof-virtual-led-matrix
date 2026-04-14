@@ -391,9 +391,6 @@ public partial class MainWindow : Window
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
         var isSingleAxisStrip = _config.Matrix.Width == 1 || _config.Matrix.Height == 1;
-        // Note: single-axis strips previously forced legacy/readback lanes; keep that only for transparent
-        // windows where interop stability is still more important than raw GPU throughput.
-        var forceLegacyStripPresent = isSingleAxisStrip && !_config.Window.BackgroundVisible;
         var spacing = Math.Max(HardMinimumDotSpacing, _config.Matrix.MinDotSpacing);
         int dotSize;
 
@@ -455,8 +452,8 @@ public partial class MainWindow : Window
                 // Note: render the dot field with transparent pixels so the configured window color
                 // is the actual backdrop behind bulbs (instead of an opaque black raster strip).
                 TransparentBackground = true,
-                // Note: only force legacy/readback when background is transparent; solid backgrounds should stay on GPU.
-                GpuPresentMode = (_config.Window.BackgroundVisible && !forceLegacyStripPresent) ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
+                // Note: honor configured present mode directly so transparent toys can also remain on full-GPU direct present.
+                GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
                 // Note: keep dot raster on GPU for both solid and transparent windows unless explicitly forced by config.
                 ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                 EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,

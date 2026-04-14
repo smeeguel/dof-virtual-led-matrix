@@ -236,9 +236,6 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private AppConfig BuildToyWindowAppConfig(ToyRouteConfig? toyConfig, string toyId)
     {
         var toy = toyConfig ?? new ToyRouteConfig { Id = toyId };
-        var isSingleAxisStrip = toy.Mapping.Width == 1 || toy.Mapping.Height == 1;
-        // Note: only force strip compatibility fallback for transparent windows; solid backgrounds should stay GPU-first.
-        var forceLegacyStripPresent = isSingleAxisStrip && !toy.Window.BackgroundVisible;
         ResolveToyBackgroundRgb(toy.Window, out var backgroundR, out var backgroundG, out var backgroundB);
 
         var clone = new AppConfig
@@ -270,8 +267,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                     // Note: keep renderer output transparent so toy background colors show through
                     // directly behind each LED instead of behind an opaque black strip texture.
                     TransparentBackground = true,
-                    // Note: only force legacy/readback for transparent strip windows; solid strip windows stay on GPU.
-                    GpuPresentMode = (toy.Window.BackgroundVisible && !forceLegacyStripPresent) ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
+                    // Note: honor configured present mode directly so transparent toys can also remain on full-GPU direct present.
+                    GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
                     // Note: keep GPU dot path active for transparent toys/strips; only explicit global force flag should use CPU dots.
                     ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                     EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
