@@ -542,13 +542,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         var visual = _style.Visual;
+        var intensity = Math.Clamp(Math.Max(r, Math.Max(g, b)) / 255f, 0f, 1f);
         if (visual.FlatShading)
         {
-            RasterFlatDot(baseX, baseY, r, g, b);
+            RasterFlatDot(baseX, baseY, r, g, b, intensity, visual.OffStateAlpha);
             return;
         }
 
-        var intensity = Math.Clamp(Math.Max(r, Math.Max(g, b)) / 255f, 0f, 1f);
         var rootIntensity = Math.Sqrt(intensity);
         var coreOpacity = intensity > 0f ? Math.Clamp(0.35 + (rootIntensity * 0.65), 0.0, 1.0) : 0.0;
         var specOpacity = intensity > 0f ? Math.Clamp((rootIntensity * 0.45) + 0.08, 0.0, 0.65) : 0.0;
@@ -594,12 +594,20 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 _bgra[o] = (byte)Math.Clamp(outB, 0.0, 255.0);
                 _bgra[o + 1] = (byte)Math.Clamp(outG, 0.0, 255.0);
                 _bgra[o + 2] = (byte)Math.Clamp(outR, 0.0, 255.0);
-                _bgra[o + 3] = 255;
+                if (_transparentBackground)
+                {
+                    var alpha = intensity <= 0f ? Math.Clamp(visual.OffStateAlpha, 0.0, 1.0) : 1.0;
+                    _bgra[o + 3] = (byte)Math.Clamp(alpha * 255.0, 0.0, 255.0);
+                }
+                else
+                {
+                    _bgra[o + 3] = 255;
+                }
             }
         }
     }
 
-    private void RasterFlatDot(int baseX, int baseY, float r, float g, float b)
+    private void RasterFlatDot(int baseX, int baseY, float r, float g, float b, float intensity, double offStateAlpha)
     {
         for (var y = 0; y < _dotSize; y++)
         {
@@ -627,7 +635,15 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 _bgra[o] = (byte)Math.Clamp(b, 0f, 255f);
                 _bgra[o + 1] = (byte)Math.Clamp(g, 0f, 255f);
                 _bgra[o + 2] = (byte)Math.Clamp(r, 0f, 255f);
-                _bgra[o + 3] = 255;
+                if (_transparentBackground)
+                {
+                    var alpha = intensity <= 0f ? Math.Clamp(offStateAlpha, 0.0, 1.0) : 1.0;
+                    _bgra[o + 3] = (byte)Math.Clamp(alpha * 255.0, 0.0, 255.0);
+                }
+                else
+                {
+                    _bgra[o + 3] = 255;
+                }
             }
         }
     }
@@ -2438,21 +2454,23 @@ float4 PSDotPass(VsOut input) : SV_Target
     float3 ledColor = BaseTexture.SampleLevel(LinearSampler, ledUv, 0).rgb;
     float intensity = saturate(max(ledColor.r, max(ledColor.g, ledColor.b)));
     float offBlend = 1.0f - (intensity * intensity);
-    float hasOffState = OffStateAlpha > 0.0001f && max(OffTint.r, max(OffTint.g, OffTint.b)) > 0.0f ? 1.0f : 0.0f;
+    float offAlpha = saturate(OffStateAlpha);
+    float hasOffState = offAlpha > 0.0001f && max(OffTint.r, max(OffTint.g, OffTint.b)) > 0.0f ? 1.0f : 0.0f;
     if (hasOffState < 0.5f && intensity <= 0.0f) return float4(bgColor, bgAlpha);
 
     if (FlatShading > 0.5f)
     {
-        float3 flatColor = (OffTint * OffStateAlpha * offBlend) + ledColor;
-        return float4(saturate(flatColor), BackgroundVisible > 0.5f ? 1.0f : saturate(max(flatColor.r, max(flatColor.g, flatColor.b))));
+        float3 flatColor = (OffTint * offAlpha * offBlend) + ledColor;
+        float flatAlpha = BackgroundVisible > 0.5f ? 1.0f : (intensity <= 0.0f ? offAlpha : saturate(max(flatColor.r, max(flatColor.g, flatColor.b))));
+        return float4(saturate(flatColor), flatAlpha);
     }
 
     float rootIntensity = sqrt(intensity);
     float coreOpacity = intensity > 0.0f ? saturate(0.35f + (rootIntensity * 0.65f)) : 0.0f;
     float specOpacity = intensity > 0.0f ? saturate((rootIntensity * 0.45f) + 0.08f) : 0.0f;
-    float bodyRaw = OffStateAlpha * ((0.25f + (0.55f * pow(edge, 0.5f + LensFalloff))) + (RimHighlight * 0.08f * (1.0f - edge)));
+    float bodyRaw = offAlpha * ((0.25f + (0.55f * pow(edge, 0.5f + LensFalloff))) + (RimHighlight * 0.08f * (1.0f - edge)));
     // Note: CPU masks are normalized to max=1, so we mirror that here to keep off-state visibility/specularity in parity.
-    float bodyNorm = saturate(bodyRaw / max(0.0001f, OffStateAlpha * 0.8f));
+    float bodyNorm = saturate(bodyRaw / max(0.0001f, offAlpha * 0.8f));
     float core = pow(edge, 1.1f + (LensFalloff * 1.6f)) * coreOpacity;
 
     float hx = (within.x / max(1.0f, Radius - 1.0f)) - 0.50f;
@@ -2464,7 +2482,8 @@ float4 PSDotPass(VsOut input) : SV_Target
     float spec = specNorm * specOpacity;
 
     float3 outColor = (OffTint * bodyNorm * offBlend) + (ledColor * core) + spec.xxx;
-    return float4(saturate(outColor), BackgroundVisible > 0.5f ? 1.0f : saturate(max(outColor.r, max(outColor.g, outColor.b))));
+    float outAlpha = BackgroundVisible > 0.5f ? 1.0f : (intensity <= 0.0f ? offAlpha : saturate(max(outColor.r, max(outColor.g, outColor.b))));
+    return float4(saturate(outColor), outAlpha);
 }
 float SoftKneeWeight(float3 color)
 {
