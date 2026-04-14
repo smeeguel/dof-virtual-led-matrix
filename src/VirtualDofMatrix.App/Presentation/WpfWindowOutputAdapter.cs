@@ -505,7 +505,16 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
         window.LocationChanged += (_, _) => Sync();
         window.SizeChanged += (_, _) => Sync();
-        window.Closed += (_, _) => _bindings.TryRemove(toyId, out _);
+        window.Closed += (_, _) =>
+        {
+            // Note: rebuilds close old secondary windows and immediately create replacements with the same toyId.
+            // Only remove the binding if this exact window instance is still the active binding.
+            if (_bindings.TryGetValue(toyId, out var existingBinding)
+                && ReferenceEquals(existingBinding.Window, window))
+            {
+                _bindings.TryRemove(toyId, out _);
+            }
+        };
     }
 
     private void SyncVisibilityFromConfigOnUiThread()
