@@ -133,7 +133,9 @@ public sealed class AppConfigurationStoreToyIniTests
                 && toy.Source.CanonicalStart == 4128
                 && toy.Source.Length == 16
                 && toy.Window.LockAspectRatio == false
-                && toy.Window.BackgroundVisible == false);
+                && toy.Window.BackgroundVisible == false
+                && toy.Window.Width == 52
+                && toy.Window.Height == 544);
         }
         finally
         {

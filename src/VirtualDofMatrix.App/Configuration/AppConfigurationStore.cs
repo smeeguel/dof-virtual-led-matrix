@@ -630,6 +630,7 @@ public sealed class AppConfigurationStore
 
         var slugUseCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var toys = new List<ToyRouteConfig>(virtualToys.Count);
+        var defaultStripBulbSize = config.Settings.DefaultStripBulbSize > 0 ? config.Settings.DefaultStripBulbSize : 32;
 
         foreach (var toy in virtualToys)
         {
@@ -669,16 +670,8 @@ public sealed class AppConfigurationStore
                     Height = toy.Height,
                     Mode = mapping,
                 },
-                // Note: mirror Toy Wizard type defaults so imported one-dimensional strips behave
-                // like newly created strip toys (free aspect ratio + transparent background).
-                Window = new ToyWindowOptionsConfig
-                {
-                    AlwaysOnTop = true,
-                    Borderless = true,
-                    LockAspectRatio = !string.Equals(kind, "strip", StringComparison.OrdinalIgnoreCase),
-                    BackgroundVisible = !string.Equals(kind, "strip", StringComparison.OrdinalIgnoreCase),
-                    BackgroundColor = "#000000",
-                },
+                // Note: mirror Toy Wizard type defaults so imported toys match first-class create flow.
+                Window = BuildBootstrapWindowOptions(kind, mapping, sourceLength, defaultStripBulbSize),
                 OutputTargets =
                 [
                     new ToyAdapterTargetConfig
@@ -755,6 +748,45 @@ public sealed class AppConfigurationStore
         }
 
         return string.IsNullOrWhiteSpace(normalized) ? "toy" : normalized;
+    }
+
+    private static ToyWindowOptionsConfig BuildBootstrapWindowOptions(
+        string kind,
+        string mapping,
+        int sourceLength,
+        int defaultStripBulbSize)
+    {
+        var isStrip = string.Equals(kind, "strip", StringComparison.OrdinalIgnoreCase);
+        var options = new ToyWindowOptionsConfig
+        {
+            UseGlobalWindow = true,
+            AlwaysOnTop = true,
+            Borderless = true,
+            LockAspectRatio = !isStrip,
+            BackgroundVisible = !isStrip,
+            BackgroundColor = "#000000",
+        };
+
+        if (!isStrip)
+        {
+            return options;
+        }
+
+        // Note: keep initial strip window dimensions aligned with Toy Wizard sizing logic so
+        // imported strip windows open at a practical one-dimensional footprint.
+        const int defaultSpacing = 2;
+        const int defaultBloomFarRadiusPx = 10;
+        var length = Math.Max(1, sourceLength);
+        var minorAxisPadding = defaultBloomFarRadiusPx * 2;
+        var isVertical = mapping.Equals("ColumnMajor", StringComparison.OrdinalIgnoreCase);
+        options.Width = isVertical
+            ? defaultStripBulbSize + minorAxisPadding
+            : (defaultStripBulbSize + defaultSpacing) * length;
+        options.Height = isVertical
+            ? (defaultStripBulbSize + defaultSpacing) * length
+            : defaultStripBulbSize + minorAxisPadding;
+
+        return options;
     }
 
     private static ToyRouteConfig BuildDefaultBackglassToy()
