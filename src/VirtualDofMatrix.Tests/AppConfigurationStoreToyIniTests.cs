@@ -131,7 +131,9 @@ public sealed class AppConfigurationStoreToyIniTests
                 && toy.Kind.Equals("strip", StringComparison.OrdinalIgnoreCase)
                 && toy.Mapping.Mode.Equals("ColumnMajor", StringComparison.OrdinalIgnoreCase)
                 && toy.Source.CanonicalStart == 4128
-                && toy.Source.Length == 16);
+                && toy.Source.Length == 16
+                && toy.Window.LockAspectRatio == false
+                && toy.Window.BackgroundVisible == false);
         }
         finally
         {

@@ -669,6 +669,16 @@ public sealed class AppConfigurationStore
                     Height = toy.Height,
                     Mode = mapping,
                 },
+                // Note: mirror Toy Wizard type defaults so imported one-dimensional strips behave
+                // like newly created strip toys (free aspect ratio + transparent background).
+                Window = new ToyWindowOptionsConfig
+                {
+                    AlwaysOnTop = true,
+                    Borderless = true,
+                    LockAspectRatio = !string.Equals(kind, "strip", StringComparison.OrdinalIgnoreCase),
+                    BackgroundVisible = !string.Equals(kind, "strip", StringComparison.OrdinalIgnoreCase),
+                    BackgroundColor = "#000000",
+                },
                 OutputTargets =
                 [
                     new ToyAdapterTargetConfig
