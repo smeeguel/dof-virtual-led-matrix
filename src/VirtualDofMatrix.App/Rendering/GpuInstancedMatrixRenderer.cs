@@ -1244,6 +1244,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             BackgroundColorR = Math.Clamp(visual?.BackgroundColorR ?? 0f, 0f, 1f),
             BackgroundColorG = Math.Clamp(visual?.BackgroundColorG ?? 0f, 0f, 1f),
             BackgroundColorB = Math.Clamp(visual?.BackgroundColorB ?? 0f, 0f, 1f),
+            Padding0 = 0f,
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -2177,6 +2178,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float BackgroundColorR;
         public float BackgroundColorG;
         public float BackgroundColorB;
+        // Note: keep this struct at a 16-byte multiple to match HLSL cbuffer packing exactly.
+        public float Padding0;
     }
 
     [StructLayout(LayoutKind.Sequential)]
