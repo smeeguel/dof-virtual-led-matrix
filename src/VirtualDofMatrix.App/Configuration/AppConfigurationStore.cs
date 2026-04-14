@@ -651,7 +651,15 @@ public sealed class AppConfigurationStore
                 Length = sourceLength,
             };
 
-            if (sourceLength > 0)
+            if (string.Equals(kind, "strip", StringComparison.OrdinalIgnoreCase))
+            {
+                // Note: current strip runtime behavior consumes strip-local payloads; keeping strip
+                // canonicalStart at 0 avoids dark strips when non-zero canonical offsets are imported.
+                source.CanonicalStart = 0;
+                source.StripIndex = null;
+                source.StripOffset = null;
+            }
+            else if (sourceLength > 0)
             {
                 source.StripIndex = Math.Clamp(canonicalStart / config.Routing.Policy.DefaultStripLength, 0, MaxCompatibleStripCount - 1);
                 source.StripOffset = canonicalStart % config.Routing.Policy.DefaultStripLength;

@@ -130,8 +130,10 @@ public sealed class AppConfigurationStoreToyIniTests
                 && toy.Enabled
                 && toy.Kind.Equals("strip", StringComparison.OrdinalIgnoreCase)
                 && toy.Mapping.Mode.Equals("ColumnMajor", StringComparison.OrdinalIgnoreCase)
-                && toy.Source.CanonicalStart == 4128
+                && toy.Source.CanonicalStart == 0
                 && toy.Source.Length == 16
+                && toy.Source.StripIndex is null
+                && toy.Source.StripOffset is null
                 && toy.Window.LockAspectRatio == false
                 && toy.Window.BackgroundVisible == false
                 && toy.Window.Width == 52
