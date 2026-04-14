@@ -47,6 +47,15 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _defaultGpuPresentMode = _config.Matrix.Visual.GpuPresentMode;
         _defaultOffStateAlpha = _config.Matrix.Visual.OffStateAlpha;
         _mainHostToyId = ResolveMainHostToyId(currentHostToyId: null, _config.Routing.Toys, Name);
+        var initialHostToyConfig = !string.IsNullOrWhiteSpace(_mainHostToyId)
+            ? FindToyConfig(_mainHostToyId)
+            : null;
+        if (initialHostToyConfig is not null)
+        {
+            // Note: apply primary toy visual/window overrides before the first show so AllowsTransparency
+            // can be set from toy background policy during pre-handle initialization.
+            ApplyPrimaryToyVisualOverrides(initialHostToyConfig);
+        }
 
         EnsureInitialViewerToyWindows();
     }
