@@ -965,7 +965,15 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         // Note: copy composed output centered into the present buffer without scaling to preserve CPU-parity dot geometry.
-        _context.ClearRenderTargetView(_directPresentBackBufferRtv, BlackClearColor);
+        var visual = _style?.Visual;
+        var clearColor = visual?.BackgroundVisible is false
+            ? BlackClearColor
+            : new Color4(
+                Math.Clamp(visual?.BackgroundColorR ?? 0f, 0f, 1f),
+                Math.Clamp(visual?.BackgroundColorG ?? 0f, 0f, 1f),
+                Math.Clamp(visual?.BackgroundColorB ?? 0f, 0f, 1f),
+                1f);
+        _context.ClearRenderTargetView(_directPresentBackBufferRtv, clearColor);
         var dstWidth = Math.Max(1, _directPresentBackBufferWidth);
         var dstHeight = Math.Max(1, _directPresentBackBufferHeight);
         var copyWidth = Math.Min(dstWidth, _surfaceWidth);
@@ -1775,7 +1783,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             interopStage = "create-swapchain";
-            GetClientSize(hostHandle, out var clientWidth, out var clientHeight);
+            // Note: prefer host visual size so direct-present tracks the matrix viewport instead of the full window client.
+            var clientWidth = Math.Max(1, (int)Math.Round(_host.ActualWidth));
+            var clientHeight = Math.Max(1, (int)Math.Round(_host.ActualHeight));
+            if (clientWidth <= 1 || clientHeight <= 1)
+            {
+                GetClientSize(hostHandle, out clientWidth, out clientHeight);
+            }
             var desc = new SwapChainDescription1
             {
                 // Note: create the swapchain at host-client size; we letterbox the composed surface ourselves.
