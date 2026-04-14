@@ -388,9 +388,6 @@ public partial class MainWindow : Window
         var viewportHeight = Math.Max(1.0, MatrixViewportBorder.ActualHeight - borderPadding);
         // Note: this keeps renderer-side background fills exactly in sync with the selected window background color.
         ResolveWindowBackgroundRgb(_config.Window, out var backgroundR, out var backgroundG, out var backgroundB);
-        var gpuPresentMode = _config.Window.BackgroundVisible
-            ? _config.Matrix.Visual.GpuPresentMode
-            : "LegacyReadback";
 
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
@@ -456,9 +453,8 @@ public partial class MainWindow : Window
                 // Note: render the dot field with transparent pixels so the configured window color
                 // is the actual backdrop behind bulbs (instead of an opaque black raster strip).
                 TransparentBackground = true,
-                // Note: transparent windows force legacy readback because direct-present swapchain paths
-                // can lose alpha on some adapters, which appears as a solid black background.
-                GpuPresentMode = gpuPresentMode,
+                // Note: renderer chooses the best GPU present path for transparency at runtime.
+                GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
                 // Note: keep dot raster on GPU for both solid and transparent windows unless explicitly forced by config.
                 ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                 EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,

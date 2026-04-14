@@ -919,6 +919,16 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
+        if (_transparentBackground)
+        {
+            // Note: transparent WPF composition is most reliable through the D3DImage shared-surface interop path.
+            // Keep this on the full-GPU path (no CPU readback) while preserving alpha for transparent toy windows.
+            if (TryPresentLegacyViaD3DImage(trace))
+            {
+                return true;
+            }
+        }
+
         if (IsLegacyReadbackMode())
         {
             if (TryPresentLegacyViaD3DImage(trace))
