@@ -237,7 +237,9 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     {
         var toy = toyConfig ?? new ToyRouteConfig { Id = toyId };
         var isSingleAxisStrip = toy.Mapping.Width == 1 || toy.Mapping.Height == 1;
-        var forceLegacyStripPresent = isSingleAxisStrip;
+        // Note: only force strip compatibility fallback for transparent windows; solid backgrounds should stay GPU-first.
+        var forceLegacyStripPresent = isSingleAxisStrip && !toy.Window.BackgroundVisible;
+        ResolveToyBackgroundRgb(toy.Window, out var backgroundR, out var backgroundG, out var backgroundB);
 
         var clone = new AppConfig
         {
@@ -268,7 +270,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                     // Note: keep renderer output transparent so toy background colors show through
                     // directly behind each LED instead of behind an opaque black strip texture.
                     TransparentBackground = true,
-                    // Note: keep strip rendering mode stable for both transparent and solid strip windows.
+                    // Note: only force legacy/readback for transparent strip windows; solid strip windows stay on GPU.
                     GpuPresentMode = (toy.Window.BackgroundVisible && !forceLegacyStripPresent) ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
                     ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || !toy.Window.BackgroundVisible || forceLegacyStripPresent,
                     EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
@@ -285,6 +287,10 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                     LensFalloff = _config.Matrix.Visual.LensFalloff,
                     SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
                     RimHighlight = _config.Matrix.Visual.RimHighlight,
+                    BackgroundColorR = backgroundR,
+                    BackgroundColorG = backgroundG,
+                    BackgroundColorB = backgroundB,
+                    BackgroundVisible = toy.Window.BackgroundVisible,
                 },
                 Bloom = new BloomConfig
                 {
@@ -313,6 +319,38 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         };
 
         return clone;
+    }
+
+    private static void ResolveToyBackgroundRgb(ToyWindowOptionsConfig window, out float r, out float g, out float b)
+    {
+        // Note: transparent toy windows use black as the renderer fallback color.
+        if (!window.BackgroundVisible)
+        {
+            r = 0f;
+            g = 0f;
+            b = 0f;
+            return;
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(window.BackgroundColor) &&
+                System.Windows.Media.ColorConverter.ConvertFromString(window.BackgroundColor) is System.Windows.Media.Color parsed)
+            {
+                r = parsed.R / 255f;
+                g = parsed.G / 255f;
+                b = parsed.B / 255f;
+                return;
+            }
+        }
+        catch (FormatException)
+        {
+            // Note: invalid color strings intentionally fall back to black for deterministic behavior.
+        }
+
+        r = 0f;
+        g = 0f;
+        b = 0f;
     }
 
     private bool IsPrimaryVisualToy(string toyId)
