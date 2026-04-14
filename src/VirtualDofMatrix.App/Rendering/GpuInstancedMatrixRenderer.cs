@@ -1769,6 +1769,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             {
                 // Note: some drivers reject AspectRatioStretch for this swapchain path; retry with Stretch
                 // so we stay on GPU direct-present instead of dropping to readback fallback.
+                // For 1D strip surfaces, Stretch visibly distorts dot geometry (especially minor-axis height),
+                // so prefer readback parity over stretched direct-present when aspect-preserving mode is unavailable.
+                if (_width == 1 || _height == 1)
+                {
+                    _directPresentStatus = "disabled:aspectratio-unsupported-strip";
+                    AppLogger.Info("[renderer] direct present disabled for strip surface because AspectRatioStretch is unsupported; using readback parity path.");
+                    return;
+                }
                 desc.Scaling = Scaling.Stretch;
                 _directPresentSwapChain = factory.CreateSwapChainForHwnd(_device, hostHandle, desc);
                 AppLogger.Warn("[renderer] AspectRatioStretch swapchain scaling unsupported on this adapter; retried with Stretch.");
