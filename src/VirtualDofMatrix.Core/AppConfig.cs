@@ -136,13 +136,13 @@ public sealed class MatrixVisualConfig
     // Inner-radius percentage (0..1) kept at full intensity before radial falloff starts.
     public double FullBrightnessRadiusMinPct { get; set; } = 0.8;
 
-    public byte OffStateTintR { get; set; } = 20;
+    public byte OffStateTintR { get; set; } = 15;
 
-    public byte OffStateTintG { get; set; } = 20;
+    public byte OffStateTintG { get; set; } = 15;
 
-    public byte OffStateTintB { get; set; } = 20;
+    public byte OffStateTintB { get; set; } = 15;
 
-    public double OffStateAlpha { get; set; } = 0.2;
+    public double OffStateAlpha { get; set; } = 0.5;
 
     public double LensFalloff { get; set; } = 0.45;
 
