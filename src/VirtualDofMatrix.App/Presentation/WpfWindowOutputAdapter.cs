@@ -267,8 +267,9 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                     // Note: keep renderer output transparent so toy background colors show through
                     // directly behind each LED instead of behind an opaque black strip texture.
                     TransparentBackground = true,
-                    // Note: honor configured present mode directly so transparent toys can also remain on full-GPU direct present.
-                    GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
+                    // Note: transparent toy windows must use legacy readback present so per-pixel alpha stays intact.
+                    // GPU dot/bloom rendering remains active; only final present path changes.
+                    GpuPresentMode = toy.Window.BackgroundVisible ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
                     // Note: keep GPU dot path active for transparent toys/strips; only explicit global force flag should use CPU dots.
                     ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                     EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,

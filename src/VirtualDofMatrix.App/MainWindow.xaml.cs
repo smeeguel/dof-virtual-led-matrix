@@ -452,8 +452,9 @@ public partial class MainWindow : Window
                 // Note: render the dot field with transparent pixels so the configured window color
                 // is the actual backdrop behind bulbs (instead of an opaque black raster strip).
                 TransparentBackground = true,
-                // Note: honor configured present mode directly so transparent toys can also remain on full-GPU direct present.
-                GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
+                // Note: HWND swapchain present path does not preserve per-pixel alpha reliably in transparent windows.
+                // Keep transparent windows on legacy readback present while still retaining GPU dot/bloom rendering.
+                GpuPresentMode = _config.Window.BackgroundVisible ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
                 // Note: keep dot raster on GPU for both solid and transparent windows unless explicitly forced by config.
                 ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                 EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
