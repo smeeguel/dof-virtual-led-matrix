@@ -10,6 +10,7 @@ public sealed class AppConfigurationStore
 {
     // Note: keep routing normalization aligned with the documented Teensy compatibility target.
     private const int MaxCompatibleStripCount = 8;
+    private readonly CabinetXmlService _cabinetXmlService = new();
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -28,7 +29,7 @@ public sealed class AppConfigurationStore
         var loaded = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions) ?? new AppConfig();
 
         var iniPath = ResolveToyIniPath(filePath, loaded.Routing?.ToyConfigIniPath);
-        var createdIni = EnsureToyIniExists(iniPath);
+        var createdIni = EnsureToyIniExists(iniPath, loaded);
         var iniApplied = ToyIniConfiguration.ApplyFromIni(loaded, iniPath);
         var (normalized, shouldPersist) = ApplyLegacyDefaults(loaded);
         AppLogger.Info($"[config] settingsPath={filePath}");
@@ -572,7 +573,7 @@ public sealed class AppConfigurationStore
         return modified;
     }
 
-    private static bool EnsureToyIniExists(string iniPath)
+    private bool EnsureToyIniExists(string iniPath, AppConfig config)
     {
         if (File.Exists(iniPath))
         {
@@ -585,91 +586,203 @@ public sealed class AppConfigurationStore
             Directory.CreateDirectory(directory);
         }
 
-        // Note: we drop a starter file next to the executable so first-run setup is obvious.
-        File.WriteAllText(iniPath, BuildDefaultToyIniTemplate());
+        // Note: first-run bootstraps from Cabinet.xml virtual toys when available so existing DOF users
+        // start with matching toy windows/ranges instead of an empty one-toy template.
+        var bootstrapConfig = BuildToyIniBootstrapConfig(config);
+        ToyIniConfiguration.SaveToIni(bootstrapConfig, iniPath);
         return true;
     }
 
-    private static string BuildDefaultToyIniTemplate()
+    private AppConfig BuildToyIniBootstrapConfig(AppConfig sourceConfig)
     {
-        return """
-; Auto-generated starter toys.ini
-; Edit toy settings here. Keep this file next to settings.json / app executable.
+        // Note: SaveToIni strips routing toys from persisted settings.json, so clone current config
+        // and populate only the first-run toys.ini payload here.
+        var bootstrap = JsonSerializer.Deserialize<AppConfig>(
+            JsonSerializer.Serialize(sourceConfig, SerializerOptions),
+            SerializerOptions) ?? new AppConfig();
+        bootstrap.Routing ??= new RoutingConfig();
+        bootstrap.Routing.Toys = BuildRoutingToysFromCabinet(bootstrap);
+        return bootstrap;
+    }
 
-[policy]
-; onMissingData options: drop | partial-black-fill | hold-last
-onMissingData = partial-black-fill
-; onOversizeRange options: reject-config | clamp
-onOversizeRange = clamp
-; onFrameRateSpike options: latest-wins | drop-oldest
-onFrameRateSpike = latest-wins
-; defaultStripLength options: positive integer (example: 1100)
-defaultStripLength = 1100
+    private List<ToyRouteConfig> BuildRoutingToysFromCabinet(AppConfig config)
+    {
+        var cabinetPath = _cabinetXmlService.ResolveCabinetXmlPath(config.Settings.CabinetXmlPath);
+        if (string.IsNullOrWhiteSpace(cabinetPath))
+        {
+            return [BuildDefaultBackglassToy()];
+        }
 
-[toy:backglass-main]
-; name options: unique user-facing toy name (example: Matrix1, Matrix2, ...)
-name = Matrix1
-; enabled options: true | false
-enabled = true
-; kind options: matrix | topper | <custom-name>
-kind = matrix
-; width options: positive integer (legacy default: 128)
-width = 128
-; height options: positive integer (legacy default: 32)
-height = 32
-; mapping options: TopDownAlternateRightLeft | RowMajor | ColumnMajor
-mapping = TopDownAlternateRightLeft
-; sourceCanonicalStart options: integer >= 0
-sourceCanonicalStart = 0
-; sourceLength options: integer > 0 (legacy default 128*32 = 4096)
-sourceLength = 4096
-; sourceStripIndex options: integer in safe compatibility range 0..7 (optional; values outside are clamped)
-; sourceStripOffset options: integer >= 0 (optional)
-sourceStripIndex = 0
-sourceStripOffset = 0
+        IReadOnlyList<CabinetVirtualLedStripToy> virtualToys;
+        try
+        {
+            virtualToys = _cabinetXmlService.GetVirtualLedStripToys(cabinetPath);
+        }
+        catch (Exception ex)
+        {
+            Warn($"Unable to parse Cabinet.xml for first-run toys.ini bootstrap ({ex.Message}); falling back to default toy.");
+            return [BuildDefaultBackglassToy()];
+        }
 
-; windowLeft/windowTop options: number (pixels)
-windowLeft = 10
-windowTop = 6
-; windowWidth/windowHeight options: number > 0 (pixels)
-windowWidth = 1412
-windowHeight = 353
-; windowAlwaysOnTop/windowBorderless options: true | false
-windowAlwaysOnTop = true
-windowBorderless = true
-; windowLockAspectRatio options: true | false
-windowLockAspectRatio = true
-; windowBackgroundVisible options: true | false
-windowBackgroundVisible = true
-; windowBackgroundColor options: WPF color string
-windowBackgroundColor = #000000
+        if (virtualToys.Count == 0)
+        {
+            return [BuildDefaultBackglassToy()];
+        }
 
-; renderDotShape options: circle | square
-renderDotShape = circle
-; renderMinDotSpacing options: integer >= 0
-renderMinDotSpacing = 2
-; fillGapEnabled options: true | false (true biases pitch to dominant axis and stretches dot canvas to fill viewport space minus spacing)
-fillGapEnabled = false
-; renderBrightness options: number 0.0..1.0
-renderBrightness = 1.0
-; renderGamma options: number > 0
-renderGamma = 0.8
+        var slugUseCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var toys = new List<ToyRouteConfig>(virtualToys.Count);
 
-; bloomEnabled options: true | false
-bloomEnabled = true
-; bloomThreshold/bloomSoftKnee options: number 0.0..1.0
-bloomThreshold = 0.72
-bloomSoftKnee = 0.18
-; bloomNearRadiusPx/bloomFarRadiusPx options: integer >= 0
-bloomNearRadiusPx = 2
-bloomFarRadiusPx = 10
-; bloomNearStrength/bloomFarStrength options: number >= 0
-bloomNearStrength = 1.0
-bloomFarStrength = 0.2
+        foreach (var toy in virtualToys)
+        {
+            var isMatrix = toy.Width > 1 && toy.Height > 1;
+            var kind = isMatrix ? "matrix" : "strip";
+            var mapping = ResolveToyMapping(toy);
+            var firstLedNumber = toy.FirstLedNumber.GetValueOrDefault(1);
+            if (firstLedNumber < 1)
+            {
+                firstLedNumber = 1;
+            }
 
-; outputTargets options: comma list of adapter names (example: viewer,pipe-broadcast)
-outputTargets = viewer,pipe-broadcast
-""";
+            var canonicalStart = firstLedNumber - 1;
+            var sourceLength = toy.LedCount > 0 ? toy.LedCount : Math.Max(1, toy.Width * toy.Height);
+            var source = new ToySourceConfig
+            {
+                CanonicalStart = canonicalStart,
+                Length = sourceLength,
+            };
+
+            if (sourceLength > 0)
+            {
+                source.StripIndex = Math.Clamp(canonicalStart / config.Routing.Policy.DefaultStripLength, 0, MaxCompatibleStripCount - 1);
+                source.StripOffset = canonicalStart % config.Routing.Policy.DefaultStripLength;
+            }
+
+            toys.Add(new ToyRouteConfig
+            {
+                Id = BuildUniqueToyId(toy.Name, slugUseCount, toys.Count == 0 && isMatrix),
+                Name = toy.Name,
+                Enabled = true,
+                Kind = kind,
+                Source = source,
+                Mapping = new ToyMappingConfig
+                {
+                    Width = toy.Width,
+                    Height = toy.Height,
+                    Mode = mapping,
+                },
+                OutputTargets =
+                [
+                    new ToyAdapterTargetConfig
+                    {
+                        Adapter = "viewer",
+                        Enabled = true,
+                    },
+                ],
+            });
+        }
+
+        if (toys.Count == 0)
+        {
+            toys.Add(BuildDefaultBackglassToy());
+        }
+
+        return toys;
+    }
+
+    private static string ResolveToyMapping(CabinetVirtualLedStripToy toy)
+    {
+        if (toy.Width == 1 && toy.Height > 1)
+        {
+            return "ColumnMajor";
+        }
+
+        if (toy.Height == 1 && toy.Width > 1)
+        {
+            return "RowMajor";
+        }
+
+        return string.IsNullOrWhiteSpace(toy.LedStripArrangement)
+            ? "TopDownAlternateRightLeft"
+            : toy.LedStripArrangement!;
+    }
+
+    private static string BuildUniqueToyId(string toyName, Dictionary<string, int> slugUseCount, bool preferBackglassAlias)
+    {
+        if (preferBackglassAlias)
+        {
+            slugUseCount["backglass-main"] = 1;
+            return "backglass-main";
+        }
+
+        var slug = SlugifyToyId(toyName);
+        if (!slugUseCount.TryGetValue(slug, out var count))
+        {
+            slugUseCount[slug] = 1;
+            return slug;
+        }
+
+        count++;
+        slugUseCount[slug] = count;
+        return $"{slug}-{count}";
+    }
+
+    private static string SlugifyToyId(string rawName)
+    {
+        if (string.IsNullOrWhiteSpace(rawName))
+        {
+            return $"toy-{Guid.NewGuid():N}".Substring(0, 12);
+        }
+
+        var normalized = new string(rawName
+            .Trim()
+            .ToLowerInvariant()
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-')
+            .ToArray());
+
+        normalized = normalized.Trim('-');
+        while (normalized.Contains("--", StringComparison.Ordinal))
+        {
+            normalized = normalized.Replace("--", "-", StringComparison.Ordinal);
+        }
+
+        return string.IsNullOrWhiteSpace(normalized) ? "toy" : normalized;
+    }
+
+    private static ToyRouteConfig BuildDefaultBackglassToy()
+    {
+        return new ToyRouteConfig
+        {
+            Id = "backglass-main",
+            Name = "Matrix1",
+            Enabled = true,
+            Kind = "matrix",
+            Source = new ToySourceConfig
+            {
+                CanonicalStart = 0,
+                Length = 4096,
+                StripIndex = 0,
+                StripOffset = 0,
+            },
+            Mapping = new ToyMappingConfig
+            {
+                Width = 128,
+                Height = 32,
+                Mode = "TopDownAlternateRightLeft",
+            },
+            OutputTargets =
+            [
+                new ToyAdapterTargetConfig
+                {
+                    Adapter = "viewer",
+                    Enabled = true,
+                },
+                new ToyAdapterTargetConfig
+                {
+                    Adapter = "pipe-broadcast",
+                    Enabled = true,
+                },
+            ],
+        };
     }
 
     private static string ResolveToyIniPath(string settingsJsonPath, string? configuredPath)

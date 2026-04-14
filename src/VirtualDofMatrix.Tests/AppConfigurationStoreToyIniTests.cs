@@ -34,6 +34,86 @@ public sealed class AppConfigurationStoreToyIniTests
     }
 
     [Fact]
+    public void Load_WhenToyIniMissing_BootstrapsEnabledToysFromCabinetXmlVirtualLedStrips()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var cabinetPath = Path.Combine(tempRoot, "Cabinet.xml");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+
+            File.WriteAllText(cabinetPath, """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController>
+                  <Name>LED Strips 0</Name>
+                </VirtualLEDStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>Matrix1</Name>
+                  <Width>128</Width>
+                  <Height>32</Height>
+                  <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
+                  <FirstLedNumber>1</FirstLedNumber>
+                  <LedCount>4096</LedCount>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+                <LedStrip>
+                  <Name>Strip2</Name>
+                  <Width>1</Width>
+                  <Height>16</Height>
+                  <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
+                  <FirstLedNumber>4129</FirstLedNumber>
+                  <LedCount>16</LedCount>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+              </Toys>
+            </Cabinet>
+            """);
+
+            File.WriteAllText(settingsPath, $$"""
+            {
+              "settings": {
+                "dofConfigFolderPath": "{{tempRoot.Replace("\\", "\\\\")}}",
+                "cabinetXmlPath": "{{cabinetPath.Replace("\\", "\\\\")}}"
+              },
+              "routing": {
+                "toyConfigIniPath": "toys.ini"
+              }
+            }
+            """);
+
+            var store = new AppConfigurationStore();
+            var loaded = store.Load(settingsPath);
+
+            Assert.True(File.Exists(iniPath));
+            Assert.Equal(2, loaded.Routing.Toys.Count);
+            Assert.Contains(loaded.Routing.Toys, toy => toy.Id.Equals("backglass-main", StringComparison.OrdinalIgnoreCase)
+                && toy.Enabled
+                && toy.Kind.Equals("matrix", StringComparison.OrdinalIgnoreCase)
+                && toy.Source.CanonicalStart == 0
+                && toy.Source.Length == 4096);
+            Assert.Contains(loaded.Routing.Toys, toy => toy.Id.Equals("strip2", StringComparison.OrdinalIgnoreCase)
+                && toy.Enabled
+                && toy.Kind.Equals("strip", StringComparison.OrdinalIgnoreCase)
+                && toy.Mapping.Mode.Equals("ColumnMajor", StringComparison.OrdinalIgnoreCase)
+                && toy.Source.CanonicalStart == 4128
+                && toy.Source.Length == 16);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void Save_WhenRoutingContainsToys_PersistsToyDefinitionsOnlyToIniNotSettingsJson()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");

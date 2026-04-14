@@ -43,6 +43,49 @@ public sealed class CabinetXmlServiceTests
     }
 
     [Fact]
+    public void GetVirtualLedStripToys_ShouldReturnOnlyLedStripsBoundToVirtualControllers()
+    {
+        var xml = """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController><Name>Virtual Controller</Name></VirtualLEDStripController>
+                <TeensyStripController><Name>Hardware Controller</Name></TeensyStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>Matrix1</Name>
+                  <Width>128</Width>
+                  <Height>32</Height>
+                  <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
+                  <FirstLedNumber>1</FirstLedNumber>
+                  <LedCount>4096</LedCount>
+                  <OutputControllerName>Virtual Controller</OutputControllerName>
+                </LedStrip>
+                <LedStrip>
+                  <Name>HardwareStrip</Name>
+                  <Width>16</Width>
+                  <Height>1</Height>
+                  <OutputControllerName>Hardware Controller</OutputControllerName>
+                </LedStrip>
+              </Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+
+        var toys = service.GetVirtualLedStripToys(temp.Path);
+        var toy = Assert.Single(toys);
+
+        Assert.Equal("Matrix1", toy.Name);
+        Assert.Equal(128, toy.Width);
+        Assert.Equal(32, toy.Height);
+        Assert.Equal(1, toy.FirstLedNumber);
+        Assert.Equal(4096, toy.LedCount);
+        Assert.Equal("TopDownAlternateRightLeft", toy.LedStripArrangement);
+    }
+
+    [Fact]
     public void BuildVirtualToyMergePlan_ShouldOnlyIncludeVirtualManagedChanges()
     {
         var xml = """

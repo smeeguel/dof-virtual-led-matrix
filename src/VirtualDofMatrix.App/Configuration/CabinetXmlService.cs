@@ -144,6 +144,54 @@ public sealed class CabinetXmlService
         return new CabinetToyInventory(virtualToys, hardwareToys);
     }
 
+    // Note: first-run toy bootstrap consumes this projection so toys.ini can mirror existing
+    // VirtualLEDStripController toys without forcing users to rebuild toy mappings manually.
+    public IReadOnlyList<CabinetVirtualLedStripToy> GetVirtualLedStripToys(string cabinetXmlPath)
+    {
+        var document = LoadCabinetDocument(cabinetXmlPath);
+        var controllerKindsByName = GetControllerKindsByName(document);
+
+        return document
+            .Descendants()
+            .Where(x => x.Name.LocalName == "LedStrip")
+            .Select(x =>
+            {
+                var name = GetChildValue(x, "Name");
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    return null;
+                }
+
+                var outputControllerName = GetChildValue(x, "OutputControllerName") ?? string.Empty;
+                var isVirtual = controllerKindsByName.TryGetValue(outputControllerName, out var controllerKind)
+                    && controllerKind.Contains("Virtual", StringComparison.OrdinalIgnoreCase);
+                if (!isVirtual)
+                {
+                    return null;
+                }
+
+                var width = Math.Max(1, ParseIntOrNull(GetChildValue(x, "Width")) ?? 1);
+                var height = Math.Max(1, ParseIntOrNull(GetChildValue(x, "Height")) ?? 1);
+                var arrangement = GetChildValue(x, "LedStripArrangement");
+                var firstLedNumber = ParseIntOrNull(GetChildValue(x, "FirstLedNumber"));
+                var ledCount = ParseIntOrNull(GetChildValue(x, "LedCount")) ?? Math.Max(1, width * height);
+
+                return new CabinetVirtualLedStripToy(
+                    Name: name!,
+                    Width: width,
+                    Height: height,
+                    LedStripArrangement: arrangement,
+                    FirstLedNumber: firstLedNumber,
+                    LedCount: ledCount,
+                    OutputControllerName: outputControllerName);
+            })
+            .Where(x => x is not null)
+            .Select(x => x!)
+            .OrderBy(x => x.FirstLedNumber ?? int.MaxValue)
+            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     public void UpdateLedStripResolution(string cabinetXmlPath, string toyName, int width, int height)
     {
         // We validate aggressively before touching XML so accidental bad UI values cannot corrupt cabinet config.
@@ -922,3 +970,12 @@ public sealed record CabinetToyEntry(
     string ControllerName,
     string ControllerKind,
     bool IsVirtual);
+
+public sealed record CabinetVirtualLedStripToy(
+    string Name,
+    int Width,
+    int Height,
+    string? LedStripArrangement,
+    int? FirstLedNumber,
+    int LedCount,
+    string OutputControllerName);
