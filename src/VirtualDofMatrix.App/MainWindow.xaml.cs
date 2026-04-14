@@ -245,6 +245,38 @@ public partial class MainWindow : Window
         return WpfBrushes.Black;
     }
 
+    private static void ResolveWindowBackgroundRgb(WindowConfig window, out float r, out float g, out float b)
+    {
+        // Note: transparent window mode still resolves to black so renderer fallbacks stay deterministic.
+        if (!window.BackgroundVisible)
+        {
+            r = 0f;
+            g = 0f;
+            b = 0f;
+            return;
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(window.BackgroundColor) &&
+                System.Windows.Media.ColorConverter.ConvertFromString(window.BackgroundColor) is WpfColor parsed)
+            {
+                r = parsed.R / 255f;
+                g = parsed.G / 255f;
+                b = parsed.B / 255f;
+                return;
+            }
+        }
+        catch (FormatException)
+        {
+            // Note: fallback mirrors brush generation behavior (invalid color => black).
+        }
+
+        r = 0f;
+        g = 0f;
+        b = 0f;
+    }
+
     private void ApplyStartupStatus()
     {
         // Note: startup diagnostics are logged instead of rendered in-window to keep viewer windows uncluttered.
@@ -353,11 +385,15 @@ public partial class MainWindow : Window
         const double borderPadding = 16.0;
         var viewportWidth = Math.Max(1.0, MatrixViewportBorder.ActualWidth - borderPadding);
         var viewportHeight = Math.Max(1.0, MatrixViewportBorder.ActualHeight - borderPadding);
+        // Note: this keeps renderer-side background fills exactly in sync with the selected window background color.
+        ResolveWindowBackgroundRgb(_config.Window, out var backgroundR, out var backgroundG, out var backgroundB);
 
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
         var isSingleAxisStrip = _config.Matrix.Width == 1 || _config.Matrix.Height == 1;
-        var forceLegacyStripPresent = isSingleAxisStrip;
+        // Note: single-axis strips previously forced legacy/readback lanes; keep that only for transparent
+        // windows where interop stability is still more important than raw GPU throughput.
+        var forceLegacyStripPresent = isSingleAxisStrip && !_config.Window.BackgroundVisible;
         var spacing = Math.Max(HardMinimumDotSpacing, _config.Matrix.MinDotSpacing);
         int dotSize;
 
@@ -419,9 +455,10 @@ public partial class MainWindow : Window
                 // Note: render the dot field with transparent pixels so the configured window color
                 // is the actual backdrop behind bulbs (instead of an opaque black raster strip).
                 TransparentBackground = true,
-                // Note: single-axis strips render more consistently in readback mode across transparent/solid backgrounds.
+                // Note: only force legacy/readback when background is transparent; solid backgrounds should stay on GPU.
                 GpuPresentMode = (_config.Window.BackgroundVisible && !forceLegacyStripPresent) ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
-                ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || !_config.Window.BackgroundVisible || forceLegacyStripPresent,
+                // Note: transparent windows may still use LegacyReadback present mode, but dot raster should remain GPU unless explicitly forced.
+                ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || forceLegacyStripPresent,
                 EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
                 EnableDiagnosticReadbackCapture = _config.Matrix.Visual.EnableDiagnosticReadbackCapture,
                 FlatShading = _config.Matrix.Visual.FlatShading,
@@ -437,6 +474,10 @@ public partial class MainWindow : Window
                 LensFalloff = _config.Matrix.Visual.LensFalloff,
                 SpecularHotspot = _config.Matrix.Visual.SpecularHotspot,
                 RimHighlight = _config.Matrix.Visual.RimHighlight,
+                BackgroundColorR = backgroundR,
+                BackgroundColorG = backgroundG,
+                BackgroundColorB = backgroundB,
+                BackgroundVisible = _config.Window.BackgroundVisible,
             },
             Bloom = new BloomConfig
             {

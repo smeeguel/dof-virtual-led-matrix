@@ -67,7 +67,9 @@ public sealed class AppConfigurationStore
         var iniPath = ResolveToyIniPath(filePath, normalized.Routing?.ToyConfigIniPath);
         ToyIniConfiguration.SaveToIni(normalized, iniPath);
         AppLogger.Info($"[config] saved settingsPath={filePath}");
-        AppLogger.Info($"[config] saved toysIniPath={iniPath} routingToyCount={normalized.Routing.Toys.Count}");
+        // Note: guard nullability in logging so analyzers stay green even if routing defaults change later.
+        var routingToyCount = normalized.Routing?.Toys.Count ?? 0;
+        AppLogger.Info($"[config] saved toysIniPath={iniPath} routingToyCount={routingToyCount}");
     }
 
     private static (AppConfig Config, bool ShouldPersist) ApplyLegacyDefaults(AppConfig config)

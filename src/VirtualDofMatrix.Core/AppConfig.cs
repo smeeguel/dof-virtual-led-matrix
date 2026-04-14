@@ -149,6 +149,21 @@ public sealed class MatrixVisualConfig
     public double SpecularHotspot { get; set; } = 0.28;
 
     public double RimHighlight { get; set; } = 0.22;
+
+    // Runtime-only normalized RGB background color sampled from the active window background.
+    // Renderers consume this to keep GPU compositing aligned with the configured solid backdrop.
+    [JsonIgnore]
+    public float BackgroundColorR { get; set; } = 0f;
+
+    [JsonIgnore]
+    public float BackgroundColorG { get; set; } = 0f;
+
+    [JsonIgnore]
+    public float BackgroundColorB { get; set; } = 0f;
+
+    // Runtime-only mirror of window background visibility so renderers can choose transparent vs. solid fills.
+    [JsonIgnore]
+    public bool BackgroundVisible { get; set; } = true;
 }
 
 public sealed class BloomConfig

@@ -79,6 +79,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private string _directPresentStatus = "uninitialized";
     private IDXGISwapChain1? _directPresentSwapChain;
     private ID3D11Texture2D? _directPresentBackBuffer;
+    private ID3D11RenderTargetView? _directPresentBackBufferRtv;
+    private int _directPresentBackBufferWidth;
+    private int _directPresentBackBufferHeight;
     private bool _gpuBloomSupported;
     private bool _gpuDotPassSupported;
     private bool _useCpuBloomFallback;
@@ -427,11 +430,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
         else if (style.DotShape.Equals("circle", StringComparison.OrdinalIgnoreCase) && !style.Visual.FlatShading)
         {
-            // Note: aggressive clamping works for dense matrices, but 1-row/1-column strips need
-            // real pixel height/width headroom so bloom can expand vertically/horizontally without being pre-clipped.
-            _dotSize = (width == 1 || height == 1)
-                ? Math.Max(1, style.DotSize)
-                : Math.Clamp(style.DotSize, 2, 5);
+            // Note: keep dot sizing aligned with viewport-adaptive sizing from window config so GPU and CPU layouts match.
+            _dotSize = Math.Max(1, style.DotSize);
         }
         else
         {
@@ -913,7 +913,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         {
             try
             {
-                _context.CopyResource(_directPresentBackBuffer, _gpuCompositeTexture);
+                BlitCompositeToDirectPresentBackBuffer();
                 _directPresentSwapChain.Present(0, PresentFlags.None);
                 trace.Append(" direct-present");
 
@@ -928,6 +928,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             catch (Exception ex)
             {
                 _directPresentEnabled = false;
+                _directPresentBackBufferRtv?.Dispose();
+                _directPresentBackBufferRtv = null;
                 _directPresentStatus = $"disabled:interop-present-failed:{ex.GetType().Name}";
                 if (_host is not null && _fallbackBitmap is not null)
                 {
@@ -950,6 +952,35 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         return TryReadbackCompositeToCpu(trace);
+    }
+
+    private void BlitCompositeToDirectPresentBackBuffer()
+    {
+        if (_context is null || _gpuCompositeTexture is null || _directPresentBackBuffer is null || _directPresentBackBufferRtv is null)
+        {
+            return;
+        }
+
+        // Note: copy composed output centered into the present buffer without scaling to preserve CPU-parity dot geometry.
+        var visual = _style?.Visual;
+        var clearColor = visual?.BackgroundVisible is false
+            ? BlackClearColor
+            : new Color4(
+                Math.Clamp(visual?.BackgroundColorR ?? 0f, 0f, 1f),
+                Math.Clamp(visual?.BackgroundColorG ?? 0f, 0f, 1f),
+                Math.Clamp(visual?.BackgroundColorB ?? 0f, 0f, 1f),
+                1f);
+        _context.ClearRenderTargetView(_directPresentBackBufferRtv, clearColor);
+        var dstWidth = Math.Max(1, _directPresentBackBufferWidth);
+        var dstHeight = Math.Max(1, _directPresentBackBufferHeight);
+        var copyWidth = Math.Min(dstWidth, _surfaceWidth);
+        var copyHeight = Math.Min(dstHeight, _surfaceHeight);
+        var dstX = (dstWidth - copyWidth) / 2;
+        var dstY = (dstHeight - copyHeight) / 2;
+        var srcX = (_surfaceWidth - copyWidth) / 2;
+        var srcY = (_surfaceHeight - copyHeight) / 2;
+        var srcBox = new Box(srcX, srcY, 0, srcX + copyWidth, srcY + copyHeight, 1);
+        _context.CopySubresourceRegion(_directPresentBackBuffer, 0, (uint)dstX, (uint)dstY, 0, _gpuCompositeTexture, 0, srcBox);
     }
 
     private bool ShouldUseGpuDotPass(DotStyleConfig style)
@@ -1221,8 +1252,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             NearStrength = (float)(profile?.NearStrength ?? 0.0),
             FarStrength = (float)(profile?.FarStrength ?? 0.0),
             ScaleDivisor = (float)(profile?.ScaleDivisor ?? Math.Max(1, _gpuBloomScaleDivisor)),
-            // Note: clamp radius defensively so bad constant data cannot create a runaway shader loop.
-            Radius = Math.Clamp(radius, 0f, 8f),
+            // Note: blur pass radius must stay bounded (shader loops are fixed to +/-8),
+            // but dot pass uses this same slot for actual dot size and must not be clamped.
+            Radius = profile is null ? Math.Max(0f, radius) : Math.Clamp(radius, 0f, 8f),
             DirectionX = directionX,
             DirectionY = directionY,
             SurfaceWidth = _surfaceWidth,
@@ -1240,6 +1272,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             LensFalloff = (float)Math.Clamp(visual?.LensFalloff ?? 0.45, 0.0, 1.0),
             SpecularHotspot = (float)Math.Clamp(visual?.SpecularHotspot ?? 0.28, 0.0, 1.0),
             RimHighlight = (float)Math.Clamp(visual?.RimHighlight ?? 0.22, 0.0, 1.0),
+            BackgroundVisible = visual?.BackgroundVisible is false ? 0f : 1f,
+            BackgroundColorR = Math.Clamp(visual?.BackgroundColorR ?? 0f, 0f, 1f),
+            BackgroundColorG = Math.Clamp(visual?.BackgroundColorG ?? 0f, 0f, 1f),
+            BackgroundColorB = Math.Clamp(visual?.BackgroundColorB ?? 0f, 0f, 1f),
+            Padding0 = 0f,
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -1689,10 +1726,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private void TryInitializeDirectPresentSurface()
     {
         _directPresentEnabled = false;
+        _directPresentBackBufferRtv?.Dispose();
+        _directPresentBackBufferRtv = null;
         _directPresentBackBuffer?.Dispose();
         _directPresentBackBuffer = null;
         _directPresentSwapChain?.Dispose();
         _directPresentSwapChain = null;
+        _directPresentBackBufferWidth = 0;
+        _directPresentBackBufferHeight = 0;
 
         if (_gpuCompositeTexture is null || _host is null)
         {
@@ -1739,22 +1780,44 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             interopStage = "create-swapchain";
+            var isSingleAxisStrip = _width == 1 || _height == 1;
+            // Note: matrices benefit from present-time scaling to occupy full viewport; strips keep client-size backbuffers
+            // so centered blit can preserve precise dot geometry without stretch artifacts.
+            var clientWidth = isSingleAxisStrip ? Math.Max(1, (int)Math.Round(_host.ActualWidth)) : _surfaceWidth;
+            var clientHeight = isSingleAxisStrip ? Math.Max(1, (int)Math.Round(_host.ActualHeight)) : _surfaceHeight;
+            if (clientWidth <= 1 || clientHeight <= 1)
+            {
+                GetClientSize(hostHandle, out clientWidth, out clientHeight);
+            }
             var desc = new SwapChainDescription1
             {
-                Width = (uint)Math.Max(1, _surfaceWidth),
-                Height = (uint)Math.Max(1, _surfaceHeight),
+                // Note: create the swapchain at host-client size; we letterbox the composed surface ourselves.
+                Width = (uint)Math.Max(1, clientWidth),
+                Height = (uint)Math.Max(1, clientHeight),
                 Format = LedColorTextureFormat,
                 Stereo = false,
                 SampleDescription = new SampleDescription(1, 0),
                 BufferUsage = Usage.RenderTargetOutput,
                 BufferCount = 2,
-                Scaling = Scaling.Stretch,
+                // Note: keep source aspect so strip dots do not get anisotropically stretched by the host window size.
+                Scaling = Scaling.AspectRatioStretch,
                 SwapEffect = SwapEffect.FlipDiscard,
                 AlphaMode = AlphaMode.Ignore,
                 Flags = SwapChainFlags.None,
             };
 
-            _directPresentSwapChain = factory.CreateSwapChainForHwnd(_device, hostHandle, desc);
+            try
+            {
+                _directPresentSwapChain = factory.CreateSwapChainForHwnd(_device, hostHandle, desc);
+            }
+            catch (Exception ex) when (ex.HResult == unchecked((int)0x887A0001))
+            {
+                // Note: some drivers reject AspectRatioStretch for this swapchain path; retry with Stretch
+                // so we stay on GPU direct-present instead of dropping to readback fallback.
+                desc.Scaling = Scaling.Stretch;
+                _directPresentSwapChain = factory.CreateSwapChainForHwnd(_device, hostHandle, desc);
+                AppLogger.Warn("[renderer] AspectRatioStretch swapchain scaling unsupported on this adapter; retried with Stretch.");
+            }
             if (_directPresentSwapChain is null)
             {
                 _directPresentStatus = "disabled:swapchain-create-failed";
@@ -1768,6 +1831,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 _directPresentStatus = "disabled:swapchain-backbuffer-unavailable";
                 return;
             }
+            _directPresentBackBufferRtv = _device.CreateRenderTargetView(_directPresentBackBuffer);
+            _directPresentBackBufferWidth = Math.Max(1, clientWidth);
+            _directPresentBackBufferHeight = Math.Max(1, clientHeight);
 
             _host.Source = null;
             _directPresentEnabled = true;
@@ -1777,10 +1843,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         catch (Exception ex)
         {
             _directPresentEnabled = false;
+            _directPresentBackBufferRtv?.Dispose();
+            _directPresentBackBufferRtv = null;
             _directPresentBackBuffer?.Dispose();
             _directPresentBackBuffer = null;
             _directPresentSwapChain?.Dispose();
             _directPresentSwapChain = null;
+            _directPresentBackBufferWidth = 0;
+            _directPresentBackBufferHeight = 0;
             var hr = ex.HResult;
             var hrText = $"0x{hr:X8}";
             var expectedUnsupported = hr == unchecked((int)0x887A0004) || hr == unchecked((int)0x80070057);
@@ -1820,6 +1890,32 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         return shaderBlob!;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetClientRect(IntPtr hWnd, out NativeRect lpRect);
+
+    private static void GetClientSize(IntPtr hwnd, out int width, out int height)
+    {
+        if (hwnd != IntPtr.Zero && GetClientRect(hwnd, out var rect))
+        {
+            width = Math.Max(1, rect.Right - rect.Left);
+            height = Math.Max(1, rect.Bottom - rect.Top);
+            return;
+        }
+
+        width = 1;
+        height = 1;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct NativeRect
+    {
+        public readonly int Left;
+        public readonly int Top;
+        public readonly int Right;
+        public readonly int Bottom;
     }
 
     private void EnsureGpuBloomTargets(int scaleDivisor)
@@ -2048,10 +2144,14 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private void DisposeGpuBloomResources()
     {
         _directPresentEnabled = false;
+        _directPresentBackBufferRtv?.Dispose();
+        _directPresentBackBufferRtv = null;
         _directPresentBackBuffer?.Dispose();
         _directPresentBackBuffer = null;
         _directPresentSwapChain?.Dispose();
         _directPresentSwapChain = null;
+        _directPresentBackBufferWidth = 0;
+        _directPresentBackBufferHeight = 0;
         DisposeBloomIntermediateTargets();
         _gpuReadbackTexture?.Dispose();
         _gpuReadbackTexture = null;
@@ -2169,7 +2269,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float LensFalloff;
         public float SpecularHotspot;
         public float RimHighlight;
-        // Note: D3D11 constant buffers require 16-byte alignment, so we keep explicit padding fields.
+        public float BackgroundVisible;
+        public float BackgroundColorR;
+        public float BackgroundColorG;
+        public float BackgroundColorB;
+        // Note: keep this struct at a 16-byte multiple to match HLSL cbuffer packing exactly.
         public float Padding0;
     }
 
@@ -2225,6 +2329,8 @@ cbuffer BloomConstants : register(b0)
     float LensFalloff;
     float SpecularHotspot;
     float RimHighlight;
+    float BackgroundVisible;
+    float3 BackgroundColor;
 }
 cbuffer LedPreprocessConstants : register(b1)
 {
@@ -2278,6 +2384,9 @@ VsOut VSMain(uint vertexId : SV_VertexID)
 }
 float4 PSDotPass(VsOut input) : SV_Target
 {
+    // Note: solid window backgrounds should be baked into the GPU base pass so bloom/composite stay fully GPU-side.
+    float3 bgColor = BackgroundVisible > 0.5f ? BackgroundColor : float3(0.0f, 0.0f, 0.0f);
+    float bgAlpha = BackgroundVisible > 0.5f ? 1.0f : 0.0f;
     float spacing = max(Direction.y, 0.0f);
     // Note: in fill-gap mode we derive per-axis cell sizes from the actual viewport surface so
     // dots stretch to fill available space while still reserving explicit pixel gaps between neighbors.
@@ -2295,17 +2404,17 @@ float4 PSDotPass(VsOut input) : SV_Target
         float stepX = dotWidth + spacing;
         float stepY = dotHeight + spacing;
         ledCoord = floor(float2(pixel.x / max(stepX, 1.0f), pixel.y / max(stepY, 1.0f)));
-        if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= cols || ledCoord.y >= rows) return float4(0, 0, 0, 1);
+        if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= cols || ledCoord.y >= rows) return float4(bgColor, bgAlpha);
         within = float2(pixel.x - (ledCoord.x * stepX), pixel.y - (ledCoord.y * stepY));
-        if (within.x >= dotWidth || within.y >= dotHeight) return float4(0, 0, 0, 1);
+        if (within.x >= dotWidth || within.y >= dotHeight) return float4(bgColor, bgAlpha);
         dotExtent = float2(dotWidth, dotHeight);
     }
     else
     {
         ledCoord = floor(pixel / stride);
-        if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(0, 0, 0, 1);
+        if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= BloomSize.x || ledCoord.y >= BloomSize.y) return float4(bgColor, bgAlpha);
         within = frac(pixel / stride) * stride;
-        if (within.x >= Radius || within.y >= Radius) return float4(0, 0, 0, 1);
+        if (within.x >= Radius || within.y >= Radius) return float4(bgColor, bgAlpha);
         dotExtent = float2(Radius, Radius);
     }
 
@@ -2318,7 +2427,7 @@ float4 PSDotPass(VsOut input) : SV_Target
         float dx = (within.x - center.x) / denom.x;
         float dy = (within.y - center.y) / denom.y;
         radial = sqrt(dx * dx + dy * dy);
-        if (radial > 1.0f) return float4(0, 0, 0, 1);
+        if (radial > 1.0f) return float4(bgColor, bgAlpha);
         float fullRadius = saturate(FullBrightnessRadius);
         float adjusted = max(radial, fullRadius);
         float normalized = (adjusted - fullRadius) / max(0.0001f, 1.0f - fullRadius);
@@ -2330,12 +2439,12 @@ float4 PSDotPass(VsOut input) : SV_Target
     float intensity = saturate(max(ledColor.r, max(ledColor.g, ledColor.b)));
     float offBlend = 1.0f - (intensity * intensity);
     float hasOffState = OffStateAlpha > 0.0001f && max(OffTint.r, max(OffTint.g, OffTint.b)) > 0.0f ? 1.0f : 0.0f;
-    if (hasOffState < 0.5f && intensity <= 0.0f) return float4(0, 0, 0, 1);
+    if (hasOffState < 0.5f && intensity <= 0.0f) return float4(bgColor, bgAlpha);
 
     if (FlatShading > 0.5f)
     {
         float3 flatColor = (OffTint * OffStateAlpha * offBlend) + ledColor;
-        return float4(saturate(flatColor), 1.0f);
+        return float4(saturate(flatColor), BackgroundVisible > 0.5f ? 1.0f : saturate(max(flatColor.r, max(flatColor.g, flatColor.b))));
     }
 
     float rootIntensity = sqrt(intensity);
@@ -2355,7 +2464,7 @@ float4 PSDotPass(VsOut input) : SV_Target
     float spec = specNorm * specOpacity;
 
     float3 outColor = (OffTint * bodyNorm * offBlend) + (ledColor * core) + spec.xxx;
-    return float4(saturate(outColor), 1.0f);
+    return float4(saturate(outColor), BackgroundVisible > 0.5f ? 1.0f : saturate(max(outColor.r, max(outColor.g, outColor.b))));
 }
 float SoftKneeWeight(float3 color)
 {
@@ -2363,6 +2472,13 @@ float SoftKneeWeight(float3 color)
     if (SoftKnee <= 0.0001f) return peak >= Threshold ? 1.0f : 0.0f;
     float t = saturate((peak - Threshold) / max(SoftKnee, 0.0001f));
     return t * t * (3.0f - (2.0f * t));
+}
+bool IsBackgroundSample(float3 color)
+{
+    if (BackgroundVisible <= 0.5f) return false;
+    // Note: suppress configured backdrop from bloom extraction so solid strip backgrounds don't glow as a full rectangle.
+    float3 delta = abs(color - BackgroundColor);
+    return max(delta.r, max(delta.g, delta.b)) <= 0.02f;
 }
 float4 PSBrightPass(VsOut input) : SV_Target
 {
@@ -2382,6 +2498,7 @@ float4 PSBrightPass(VsOut input) : SV_Target
         {
             float2 uv = start + float2(x, y) * texel;
             float3 c = BaseTexture.Sample(LinearSampler, uv).rgb;
+            if (IsBackgroundSample(c)) continue;
             float e = SoftKneeWeight(c);
             if (e <= 0.0f) continue;
             sum += c * e;
@@ -2411,11 +2528,15 @@ float4 PSSeparableBlur(VsOut input) : SV_Target
 }
 float4 PSComposite(VsOut input) : SV_Target
 {
-    float3 baseColor = BaseTexture.Sample(LinearSampler, input.Uv).rgb;
+    float4 baseSample = BaseTexture.Sample(LinearSampler, input.Uv);
+    float3 baseColor = baseSample.rgb;
     float3 nearColor = NearTexture.Sample(LinearSampler, input.Uv).rgb;
     float3 farColor = FarTexture.Sample(LinearSampler, input.Uv).rgb;
     float3 outColor = saturate(baseColor + (nearColor * NearStrength) + (farColor * FarStrength));
-    return float4(outColor, 1.0f);
+    float bloomAlpha = saturate(max(nearColor.r * NearStrength, max(nearColor.g * NearStrength, nearColor.b * NearStrength)) +
+                               max(farColor.r * FarStrength, max(farColor.g * FarStrength, farColor.b * FarStrength)));
+    float outAlpha = BackgroundVisible > 0.5f ? 1.0f : saturate(max(baseSample.a, bloomAlpha));
+    return float4(outColor, outAlpha);
 }
 float ToneMapChannel(uint rawByte)
 {
