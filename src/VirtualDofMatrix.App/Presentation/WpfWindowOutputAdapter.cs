@@ -272,8 +272,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                     TransparentBackground = true,
                     // Note: only force legacy/readback for transparent strip windows; solid strip windows stay on GPU.
                     GpuPresentMode = (toy.Window.BackgroundVisible && !forceLegacyStripPresent) ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
-                    // Note: keep GPU dot path active for transparent toys; only explicit flag/strip-compat should force CPU dot raster.
-                    ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || forceLegacyStripPresent,
+                    // Note: keep GPU dot path active for transparent toys/strips; only explicit global force flag should use CPU dots.
+                    ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                     EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
                     EnableDiagnosticReadbackCapture = _config.Matrix.Visual.EnableDiagnosticReadbackCapture,
                     FlatShading = _config.Matrix.Visual.FlatShading,

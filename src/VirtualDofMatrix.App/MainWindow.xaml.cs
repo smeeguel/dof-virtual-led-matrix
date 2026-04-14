@@ -457,8 +457,8 @@ public partial class MainWindow : Window
                 TransparentBackground = true,
                 // Note: only force legacy/readback when background is transparent; solid backgrounds should stay on GPU.
                 GpuPresentMode = (_config.Window.BackgroundVisible && !forceLegacyStripPresent) ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
-                // Note: transparent windows may still use LegacyReadback present mode, but dot raster should remain GPU unless explicitly forced.
-                ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback || forceLegacyStripPresent,
+                // Note: keep dot raster on GPU for both solid and transparent windows unless explicitly forced by config.
+                ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                 EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
                 EnableDiagnosticReadbackCapture = _config.Matrix.Visual.EnableDiagnosticReadbackCapture,
                 FlatShading = _config.Matrix.Visual.FlatShading,
