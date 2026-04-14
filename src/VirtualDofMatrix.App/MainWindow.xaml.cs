@@ -161,10 +161,11 @@ public partial class MainWindow : Window
         Topmost = _config.Window.AlwaysOnTop;
         WindowStyle = _config.Window.Borderless ? WindowStyle.None : WindowStyle.SingleBorderWindow;
         // Note: WPF forbids changing AllowsTransparency after a window handle exists.
-        // Apply it only during pre-show initialization; runtime toggles are deferred until window recreation.
+        // Keep transparent mode enabled for borderless windows up front so runtime background-visible
+        // toggles can move between colored and transparent backgrounds without requiring window recreation.
         if (!IsLoaded && !IsVisible)
         {
-            AllowsTransparency = _config.Window.Borderless && !_config.Window.BackgroundVisible;
+            AllowsTransparency = _config.Window.Borderless;
         }
 
         Left = _config.Window.Left;
