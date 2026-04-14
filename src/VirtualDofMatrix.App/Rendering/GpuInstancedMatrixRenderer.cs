@@ -2472,6 +2472,13 @@ float SoftKneeWeight(float3 color)
     float t = saturate((peak - Threshold) / max(SoftKnee, 0.0001f));
     return t * t * (3.0f - (2.0f * t));
 }
+bool IsBackgroundSample(float3 color)
+{
+    if (BackgroundVisible <= 0.5f) return false;
+    // Note: suppress configured backdrop from bloom extraction so solid strip backgrounds don't glow as a full rectangle.
+    float3 delta = abs(color - BackgroundColor);
+    return max(delta.r, max(delta.g, delta.b)) <= 0.02f;
+}
 float4 PSBrightPass(VsOut input) : SV_Target
 {
     // Note: match CPU bloom extraction by averaging over the downsample footprint
@@ -2490,6 +2497,7 @@ float4 PSBrightPass(VsOut input) : SV_Target
         {
             float2 uv = start + float2(x, y) * texel;
             float3 c = BaseTexture.Sample(LinearSampler, uv).rgb;
+            if (IsBackgroundSample(c)) continue;
             float e = SoftKneeWeight(c);
             if (e <= 0.0f) continue;
             sum += c * e;
