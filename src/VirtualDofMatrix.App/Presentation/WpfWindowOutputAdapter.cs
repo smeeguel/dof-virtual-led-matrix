@@ -678,7 +678,31 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private string? GetMainHostToyId()
     {
-        return _config.Routing.Toys.FirstOrDefault()?.Id;
+        // Note: host MainWindow should always follow the first *enabled* viewer toy.
+        // Keeping this dynamic avoids "frozen" host behavior when the previous primary toy is disabled mid-session.
+        return ResolveMainHostToyId(_config.Routing.Toys, Name);
+    }
+
+    internal static string? ResolveMainHostToyId(IReadOnlyList<ToyRouteConfig> toys, string adapterName)
+    {
+        if (toys is null || toys.Count == 0 || string.IsNullOrWhiteSpace(adapterName))
+        {
+            return null;
+        }
+
+        foreach (var toy in toys)
+        {
+            var enabledForAdapter = toy.Enabled
+                && toy.OutputTargets.Any(target =>
+                    target.Enabled
+                    && string.Equals(target.Adapter, adapterName, StringComparison.OrdinalIgnoreCase));
+            if (enabledForAdapter)
+            {
+                return toy.Id;
+            }
+        }
+
+        return null;
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);
