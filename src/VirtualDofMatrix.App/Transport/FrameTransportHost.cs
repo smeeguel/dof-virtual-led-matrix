@@ -247,6 +247,11 @@ public sealed class FrameTransportHost
                 continue;
             }
 
+            if (_config.Debug.LogFrames)
+            {
+                LogToyFrameIntensity(frame, toyDefinition);
+            }
+
             // Note: adapters are opt-in per toy so one toy can feed viewer while another streams elsewhere.
             foreach (var adapter in _outputAdapters)
             {
@@ -258,5 +263,40 @@ public sealed class FrameTransportHost
                 adapter.Write(frame, context);
             }
         }
+    }
+
+    private static void LogToyFrameIntensity(ToyFrame frame, ToyDefinition definition)
+    {
+        var payload = frame.PayloadBytes ?? Array.Empty<byte>();
+        var ledCount = Math.Min(payload.Length / 3, Math.Max(0, definition.SourceDescriptor.Length));
+        if (ledCount == 0)
+        {
+            AppLogger.Info($"[frame] toy={frame.ToyId} canonicalStart={definition.SourceDescriptor.CanonicalStart} length={definition.SourceDescriptor.Length} nonZeroLedCount=0 maxChannel=0 avgLuma=0.00");
+            return;
+        }
+
+        var nonZeroLedCount = 0;
+        byte maxChannel = 0;
+        double lumaAccumulator = 0.0;
+
+        for (var ledIndex = 0; ledIndex < ledCount; ledIndex++)
+        {
+            var offset = ledIndex * 3;
+            var r = payload[offset];
+            var g = payload[offset + 1];
+            var b = payload[offset + 2];
+
+            if (r != 0 || g != 0 || b != 0)
+            {
+                nonZeroLedCount++;
+            }
+
+            maxChannel = Math.Max(maxChannel, Math.Max(r, Math.Max(g, b)));
+            lumaAccumulator += ((0.2126 * r) + (0.7152 * g) + (0.0722 * b)) / 255.0;
+        }
+
+        var avgLuma = lumaAccumulator / ledCount;
+        AppLogger.Info(
+            $"[frame] toy={frame.ToyId} canonicalStart={definition.SourceDescriptor.CanonicalStart} length={definition.SourceDescriptor.Length} nonZeroLedCount={nonZeroLedCount} maxChannel={maxChannel} avgLuma={avgLuma:F4}");
     }
 }
