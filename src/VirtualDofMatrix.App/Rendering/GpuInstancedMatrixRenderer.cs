@@ -1754,7 +1754,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 SampleDescription = new SampleDescription(1, 0),
                 BufferUsage = Usage.RenderTargetOutput,
                 BufferCount = 2,
-                Scaling = Scaling.Stretch,
+                // Note: keep source aspect so strip dots do not get anisotropically stretched by the host window size.
+                Scaling = Scaling.AspectRatioStretch,
                 SwapEffect = SwapEffect.FlipDiscard,
                 AlphaMode = AlphaMode.Ignore,
                 Flags = SwapChainFlags.None,
