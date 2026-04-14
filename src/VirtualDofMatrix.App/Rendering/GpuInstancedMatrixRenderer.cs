@@ -974,7 +974,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var dstY = (dstHeight - copyHeight) / 2;
         var srcX = (_surfaceWidth - copyWidth) / 2;
         var srcY = (_surfaceHeight - copyHeight) / 2;
-        var srcBox = new ResourceRegion(srcX, srcY, 0, srcX + copyWidth, srcY + copyHeight, 1);
+        var srcBox = new Box(srcX, srcY, 0, srcX + copyWidth, srcY + copyHeight, 1);
         _context.CopySubresourceRegion(_directPresentBackBuffer, 0, dstX, dstY, 0, _gpuCompositeTexture, 0, srcBox);
     }
 
