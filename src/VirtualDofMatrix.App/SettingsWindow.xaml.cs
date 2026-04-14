@@ -404,7 +404,7 @@ public partial class SettingsWindow : Window
 
         // Note: new toys are appended to routing config first, then list rows are rebuilt from that source of truth.
         _working.Routing.Toys.Add(wizard.Result);
-        AssignCanonicalStartsInOrder(_working.Routing.Toys);
+        EnsureCanonicalStartsForUnassignedToys(_working.Routing.Toys);
         LoadToyCollections();
         _selectedToyId = wizard.Result.Id;
         RefreshToyRowHighlight();
@@ -463,7 +463,7 @@ public partial class SettingsWindow : Window
 
         wizard.Result.Enabled = existing.Enabled;
         _working.Routing.Toys[index] = wizard.Result;
-        AssignCanonicalStartsInOrder(_working.Routing.Toys);
+        EnsureCanonicalStartsForUnassignedToys(_working.Routing.Toys);
         LoadToyCollections();
         _selectedToyId = wizard.Result.Id;
         RefreshToyRowHighlight();
@@ -871,7 +871,7 @@ public partial class SettingsWindow : Window
 
         destinationIndex = Math.Clamp(destinationIndex, 0, _working.Routing.Toys.Count);
         _working.Routing.Toys.Insert(destinationIndex, movingToy);
-        AssignCanonicalStartsInOrder(_working.Routing.Toys);
+        EnsureCanonicalStartsForUnassignedToys(_working.Routing.Toys);
 
         _selectedToyId = movingToy.Id;
         LoadToyCollections();
@@ -1185,16 +1185,20 @@ public partial class SettingsWindow : Window
         };
     }
 
-    private static void AssignCanonicalStartsInOrder(IList<ToyRouteConfig> toys)
+    private static void EnsureCanonicalStartsForUnassignedToys(IList<ToyRouteConfig> toys)
     {
         var nextCanonicalStart = 0;
         foreach (var toy in toys)
         {
             var length = Math.Max(1, toy.Source.Length);
-            // Note: always resequence in visible list order so Cabinet.xml FirstLedNumber starts at 1 and
-            // each subsequent toy begins exactly after the previous toy's source length.
-            toy.Source.CanonicalStart = nextCanonicalStart;
-            nextCanonicalStart = toy.Source.CanonicalStart.Value + length;
+            if (toy.Source.CanonicalStart is null || toy.Source.CanonicalStart.Value < 0)
+            {
+                // Note: only assign canonical starts for toys that never had an explicit source range.
+                // Reorder/edit flows must not rewrite existing mappings (for example strip toys pinned at start=0).
+                toy.Source.CanonicalStart = nextCanonicalStart;
+            }
+
+            nextCanonicalStart = Math.Max(nextCanonicalStart, toy.Source.CanonicalStart.Value + length);
         }
     }
 }

@@ -557,7 +557,9 @@ public partial class ToyWizardWindow : Window
             Kind = IsStripTypeSelected() ? "strip" : "matrix",
             Source = new ToySourceConfig
             {
-                CanonicalStart = _editingToy?.Source.CanonicalStart ?? 0,
+                // Note: new toys leave canonicalStart unset so Settings can assign only missing starts
+                // without rewriting explicit source mappings on existing toys.
+                CanonicalStart = _editingToy?.Source.CanonicalStart,
                 Length = validation.Total,
                 StripIndex = _editingToy?.Source.StripIndex,
                 StripOffset = _editingToy?.Source.StripOffset,
