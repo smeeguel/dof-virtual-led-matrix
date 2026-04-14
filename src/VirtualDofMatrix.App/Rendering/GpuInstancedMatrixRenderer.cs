@@ -1221,8 +1221,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             NearStrength = (float)(profile?.NearStrength ?? 0.0),
             FarStrength = (float)(profile?.FarStrength ?? 0.0),
             ScaleDivisor = (float)(profile?.ScaleDivisor ?? Math.Max(1, _gpuBloomScaleDivisor)),
-            // Note: clamp radius defensively so bad constant data cannot create a runaway shader loop.
-            Radius = Math.Clamp(radius, 0f, 8f),
+            // Note: blur pass radius must stay bounded (shader loops are fixed to +/-8),
+            // but dot pass uses this same slot for actual dot size and must not be clamped.
+            Radius = profile is null ? Math.Max(0f, radius) : Math.Clamp(radius, 0f, 8f),
             DirectionX = directionX,
             DirectionY = directionY,
             SurfaceWidth = _surfaceWidth,
