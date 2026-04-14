@@ -19,6 +19,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly Action _requestAppExit;
     private readonly Action<string> _notifyToyWindowSelected;
     private readonly Action<string> _requestToyEdit;
+    private readonly string _defaultGpuPresentMode;
+    private readonly double _defaultOffStateAlpha;
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
     private bool _layoutEditModeEnabled;
     private string? _selectedToyId;
@@ -41,6 +43,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _requestAppExit = requestAppExit;
         _notifyToyWindowSelected = notifyToyWindowSelected;
         _requestToyEdit = requestToyEdit;
+        _defaultGpuPresentMode = _config.Matrix.Visual.GpuPresentMode;
+        _defaultOffStateAlpha = _config.Matrix.Visual.OffStateAlpha;
 
         EnsureInitialViewerToyWindows();
     }
@@ -198,6 +202,9 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
         if (isPrimaryToy)
         {
+            // Note: keep the primary host window in parity with secondary toy windows, including
+            // transparent/colored backgrounds, so matrix toys get the same background behavior as strips.
+            ApplyPrimaryToyVisualOverrides(toyConfig);
             WireGeometryPersistence(_mainWindow, toyId);
             WireWindowSelectionCallbacks(_mainWindow, toyId);
             ApplyLayoutOverlay(toyId, _mainWindow);
@@ -231,6 +238,32 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         WireGeometryPersistence(toyWindow, toyId);
 
         return new ToyWindowBinding(toyWindow, frame => toyWindow.ApplyPresentation(ToPresentation(frame)));
+    }
+
+    private void ApplyPrimaryToyVisualOverrides(ToyRouteConfig? toyConfig)
+    {
+        if (toyConfig is null)
+        {
+            return;
+        }
+
+        ResolveToyBackgroundRgb(toyConfig.Window, out var backgroundR, out var backgroundG, out var backgroundB);
+
+        // Note: primary toy should use the same renderer/window background policy that secondary toy windows use.
+        _config.Matrix.Visual.TransparentBackground = true;
+        _config.Matrix.Visual.GpuPresentMode = toyConfig.Window.BackgroundVisible ? _defaultGpuPresentMode : "LegacyReadback";
+        _config.Matrix.Visual.OffStateAlpha = toyConfig.Window.BackgroundVisible
+            ? _defaultOffStateAlpha
+            : Math.Min(_defaultOffStateAlpha, 0.08);
+        _config.Matrix.Visual.BackgroundColorR = backgroundR;
+        _config.Matrix.Visual.BackgroundColorG = backgroundG;
+        _config.Matrix.Visual.BackgroundColorB = backgroundB;
+        _config.Matrix.Visual.BackgroundVisible = toyConfig.Window.BackgroundVisible;
+
+        _config.Window.BackgroundVisible = toyConfig.Window.BackgroundVisible;
+        _config.Window.BackgroundColor = toyConfig.Window.BackgroundColor;
+
+        _mainWindow.ApplyRuntimeSettings();
     }
 
     private AppConfig BuildToyWindowAppConfig(ToyRouteConfig? toyConfig, string toyId)
