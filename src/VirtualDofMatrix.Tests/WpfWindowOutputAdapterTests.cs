@@ -15,7 +15,7 @@ public sealed class WpfWindowOutputAdapterTests
             BuildToy("strip-topper", enabled: true, adapter: "viewer", targetEnabled: true),
         };
 
-        var hostToyId = WpfWindowOutputAdapter.ResolveMainHostToyId(toys, "viewer");
+        var hostToyId = WpfWindowOutputAdapter.ResolveMainHostToyId(currentHostToyId: null, toys, "viewer");
 
         Assert.Equal("matrix-main", hostToyId);
     }
@@ -29,7 +29,7 @@ public sealed class WpfWindowOutputAdapterTests
             BuildToy("strip-topper", enabled: true, adapter: "viewer", targetEnabled: true),
         };
 
-        var hostToyId = WpfWindowOutputAdapter.ResolveMainHostToyId(toys, "viewer");
+        var hostToyId = WpfWindowOutputAdapter.ResolveMainHostToyId(currentHostToyId: null, toys, "viewer");
 
         Assert.Equal("strip-topper", hostToyId);
     }
@@ -43,9 +43,37 @@ public sealed class WpfWindowOutputAdapterTests
             BuildToy("strip-topper", enabled: true, adapter: "broadcast", targetEnabled: true),
         };
 
-        var hostToyId = WpfWindowOutputAdapter.ResolveMainHostToyId(toys, "viewer");
+        var hostToyId = WpfWindowOutputAdapter.ResolveMainHostToyId(currentHostToyId: null, toys, "viewer");
 
         Assert.Null(hostToyId);
+    }
+
+    [Fact]
+    public void ResolveMainHostToyId_KeepsCurrentHostWhenStillEnabledForViewer()
+    {
+        var toys = new List<ToyRouteConfig>
+        {
+            BuildToy("strip-topper", enabled: true, adapter: "viewer", targetEnabled: true),
+            BuildToy("matrix-main", enabled: true, adapter: "viewer", targetEnabled: true),
+        };
+
+        var hostToyId = WpfWindowOutputAdapter.ResolveMainHostToyId("matrix-main", toys, "viewer");
+
+        Assert.Equal("matrix-main", hostToyId);
+    }
+
+    [Fact]
+    public void ResolveMainHostToyId_FailsOverWhenCurrentHostIsDisabled()
+    {
+        var toys = new List<ToyRouteConfig>
+        {
+            BuildToy("strip-topper", enabled: true, adapter: "viewer", targetEnabled: true),
+            BuildToy("matrix-main", enabled: false, adapter: "viewer", targetEnabled: true),
+        };
+
+        var hostToyId = WpfWindowOutputAdapter.ResolveMainHostToyId("matrix-main", toys, "viewer");
+
+        Assert.Equal("strip-topper", hostToyId);
     }
 
     private static ToyRouteConfig BuildToy(string id, bool enabled, string adapter, bool targetEnabled)

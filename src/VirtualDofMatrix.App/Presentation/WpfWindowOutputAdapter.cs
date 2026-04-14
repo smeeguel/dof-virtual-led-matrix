@@ -24,6 +24,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
     private bool _layoutEditModeEnabled;
     private string? _selectedToyId;
+    private string? _mainHostToyId;
 
     public WpfWindowOutputAdapter(
         Dispatcher dispatcher,
@@ -45,6 +46,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _requestToyEdit = requestToyEdit;
         _defaultGpuPresentMode = _config.Matrix.Visual.GpuPresentMode;
         _defaultOffStateAlpha = _config.Matrix.Visual.OffStateAlpha;
+        _mainHostToyId = ResolveMainHostToyId(currentHostToyId: null, _config.Routing.Toys, Name);
 
         EnsureInitialViewerToyWindows();
     }
@@ -126,6 +128,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void RebuildViewerBindingsOnUiThread()
     {
+        EnsureMainHostToySelection();
+
         // Note: when toy geometry changes at runtime, secondary windows keep their old renderer
         // dimensions unless we recreate bindings. We intentionally keep MainWindow alive and rebuild others.
         foreach (var pair in _bindings.ToArray())
@@ -163,6 +167,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void CreateInitialViewerBindings()
     {
+        EnsureMainHostToySelection();
+
         // Note: pre-create viewer toy windows so users immediately see one viewport per enabled toy.
         foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
         {
@@ -504,6 +510,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void SyncVisibilityFromConfigOnUiThread()
     {
+        EnsureMainHostToySelection();
+
         var enabledToyIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var toy in _config.Routing.Toys)
@@ -678,31 +686,50 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private string? GetMainHostToyId()
     {
-        // Note: host MainWindow should always follow the first *enabled* viewer toy.
-        // Keeping this dynamic avoids "frozen" host behavior when the previous primary toy is disabled mid-session.
-        return ResolveMainHostToyId(_config.Routing.Toys, Name);
+        EnsureMainHostToySelection();
+        return _mainHostToyId;
     }
 
-    internal static string? ResolveMainHostToyId(IReadOnlyList<ToyRouteConfig> toys, string adapterName)
+    private void EnsureMainHostToySelection()
+    {
+        // Note: keep the current host stable while it remains enabled; only fail over
+        // when the host toy is disabled/unroutable so enabling another toy does not steal MainWindow.
+        _mainHostToyId = ResolveMainHostToyId(_mainHostToyId, _config.Routing.Toys, Name);
+    }
+
+    internal static string? ResolveMainHostToyId(string? currentHostToyId, IReadOnlyList<ToyRouteConfig> toys, string adapterName)
     {
         if (toys is null || toys.Count == 0 || string.IsNullOrWhiteSpace(adapterName))
         {
             return null;
         }
 
+        if (!string.IsNullOrWhiteSpace(currentHostToyId))
+        {
+            var currentHost = toys.FirstOrDefault(toy => string.Equals(toy.Id, currentHostToyId, StringComparison.OrdinalIgnoreCase));
+            if (currentHost is not null && IsEnabledForAdapter(currentHost, adapterName))
+            {
+                return currentHost.Id;
+            }
+        }
+
         foreach (var toy in toys)
         {
-            var enabledForAdapter = toy.Enabled
-                && toy.OutputTargets.Any(target =>
-                    target.Enabled
-                    && string.Equals(target.Adapter, adapterName, StringComparison.OrdinalIgnoreCase));
-            if (enabledForAdapter)
+            if (IsEnabledForAdapter(toy, adapterName))
             {
                 return toy.Id;
             }
         }
 
         return null;
+    }
+
+    private static bool IsEnabledForAdapter(ToyRouteConfig toy, string adapterName)
+    {
+        return toy.Enabled
+            && toy.OutputTargets.Any(target =>
+                target.Enabled
+                && string.Equals(target.Adapter, adapterName, StringComparison.OrdinalIgnoreCase));
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);
