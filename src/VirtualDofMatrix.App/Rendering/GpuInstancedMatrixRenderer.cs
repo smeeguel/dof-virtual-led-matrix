@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Vortice.Direct3D9;
 using Vortice.D3DCompiler;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
@@ -82,6 +83,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private ID3D11RenderTargetView? _directPresentBackBufferRtv;
     private int _directPresentBackBufferWidth;
     private int _directPresentBackBufferHeight;
+    private IDirect3D9Ex? _d3d9Context;
+    private IDirect3DDevice9Ex? _d3d9Device;
+    private IDirect3DTexture9? _d3d9InteropTexture;
+    private D3DImage? _d3dImageHost;
+    private bool _d3dImageInteropEnabled;
+    private int _d3dImageInteropWidth;
+    private int _d3dImageInteropHeight;
     private bool _gpuBloomSupported;
     private bool _gpuDotPassSupported;
     private bool _useCpuBloomFallback;
@@ -912,15 +920,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
         if (IsLegacyReadbackMode())
         {
-            if (_directPresentStatus != "forced:legacy-readback")
+            if (TryPresentLegacyViaD3DImage(trace))
             {
-                // Note: this switch is a user escape hatch for systems where WPF interop is flaky.
-                _directPresentStatus = "forced:legacy-readback";
-                AppLogger.Info("[renderer] gpu direct present bypassed by config; using legacy readback.");
+                return true;
             }
 
             _legacyReadbackForcedCount++;
-            LogFallbackCounter("legacy readback forced", _legacyReadbackForcedCount, $"seq={_lastOutputSequence}");
+            LogFallbackCounter("legacy readback forced", _legacyReadbackForcedCount, $"seq={_lastOutputSequence} status={_directPresentStatus}");
             return TryReadbackCompositeToCpu(trace);
         }
 
@@ -997,6 +1003,133 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         var srcY = (_surfaceHeight - copyHeight) / 2;
         var srcBox = new Box(srcX, srcY, 0, srcX + copyWidth, srcY + copyHeight, 1);
         _context.CopySubresourceRegion(_directPresentBackBuffer, 0, (uint)dstX, (uint)dstY, 0, _gpuCompositeTexture, 0, srcBox);
+    }
+
+    private bool TryPresentLegacyViaD3DImage(StringBuilder trace)
+    {
+        if (_context is null || _gpuCompositeTexture is null || _host is null)
+        {
+            return false;
+        }
+
+        if (!EnsureD3DImageInterop())
+        {
+            return false;
+        }
+
+        if (_d3dImageHost is null)
+        {
+            return false;
+        }
+
+        _context.Flush();
+        _d3dImageHost.Lock();
+        _d3dImageHost.AddDirtyRect(new Int32Rect(0, 0, Math.Max(1, _d3dImageHost.PixelWidth), Math.Max(1, _d3dImageHost.PixelHeight)));
+        _d3dImageHost.Unlock();
+        if (!ReferenceEquals(_host.Source, _d3dImageHost))
+        {
+            _host.Source = _d3dImageHost;
+        }
+
+        if (_directPresentStatus != "legacy:d3dimage")
+        {
+            _directPresentStatus = "legacy:d3dimage";
+            AppLogger.Info("[renderer] legacy present path switched to D3DImage shared-surface interop (GPU, no readback).");
+        }
+
+        trace.Append(" legacy-d3dimage");
+        return true;
+    }
+
+    private bool EnsureD3DImageInterop()
+    {
+        if (_gpuCompositeTexture is null || _host is null)
+        {
+            return false;
+        }
+
+        var width = Math.Max(1, _surfaceWidth);
+        var height = Math.Max(1, _surfaceHeight);
+        if (_d3dImageInteropEnabled && _d3dImageHost is not null && _d3dImageInteropWidth == width && _d3dImageInteropHeight == height)
+        {
+            return true;
+        }
+
+        DisposeD3DImageInterop();
+
+        try
+        {
+            using var dxgiResource = _gpuCompositeTexture.QueryInterfaceOrNull<IDXGIResource>();
+            var sharedHandle = dxgiResource?.SharedHandle ?? IntPtr.Zero;
+            if (sharedHandle == IntPtr.Zero)
+            {
+                _directPresentStatus = "disabled:legacy-d3dimage-missing-shared-handle";
+                return false;
+            }
+
+            _d3d9Context = D3D9.Direct3DCreate9Ex();
+            var presentParams = new PresentParameters
+            {
+                Windowed = true,
+                SwapEffect = Vortice.Direct3D9.SwapEffect.Discard,
+                DeviceWindowHandle = GetDesktopWindow(),
+                PresentationInterval = PresentInterval.Default,
+            };
+            var createFlags = CreateFlags.HardwareVertexProcessing | CreateFlags.Multithreaded | CreateFlags.FpuPreserve;
+            _d3d9Device = _d3d9Context.CreateDeviceEx(0, DeviceType.Hardware, IntPtr.Zero, createFlags, presentParams);
+
+            var d3d9Handle = sharedHandle;
+            _d3d9InteropTexture = _d3d9Device.CreateTexture(width, height, 1, Vortice.Direct3D9.Usage.RenderTarget, Vortice.Direct3D9.Format.A8R8G8B8, Pool.Default, ref d3d9Handle);
+            using var surface = _d3d9InteropTexture.GetSurfaceLevel(0);
+            _d3dImageHost = new D3DImage();
+            _d3dImageHost.Lock();
+            _d3dImageHost.SetBackBuffer(D3DResourceType.IDirect3DSurface9, surface.NativePointer, true);
+            _d3dImageHost.Unlock();
+            _host.Source = _d3dImageHost;
+            _d3dImageInteropWidth = width;
+            _d3dImageInteropHeight = height;
+            _d3dImageInteropEnabled = true;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _directPresentStatus = $"disabled:legacy-d3dimage-init-failed:{ex.GetType().Name}";
+            AppLogger.Warn($"[renderer] legacy D3DImage interop unavailable; falling back to CPU readback present. reason={ex.Message}");
+            DisposeD3DImageInterop();
+            return false;
+        }
+    }
+
+    private void DisposeD3DImageInterop()
+    {
+        // Note: always detach the D3DImage back-buffer before disposing native D3D9 resources to avoid dangling pointers.
+        if (_d3dImageHost is not null)
+        {
+            _d3dImageHost.Lock();
+            try
+            {
+                _d3dImageHost.SetBackBuffer(D3DResourceType.IDirect3DSurface9, IntPtr.Zero);
+            }
+            finally
+            {
+                _d3dImageHost.Unlock();
+            }
+        }
+
+        _d3d9InteropTexture?.Dispose();
+        _d3d9InteropTexture = null;
+        _d3d9Device?.Dispose();
+        _d3d9Device = null;
+        _d3d9Context?.Dispose();
+        _d3d9Context = null;
+        if (_host is not null && _fallbackBitmap is not null && ReferenceEquals(_host.Source, _d3dImageHost))
+        {
+            _host.Source = _fallbackBitmap;
+        }
+        _d3dImageHost = null;
+        _d3dImageInteropEnabled = false;
+        _d3dImageInteropWidth = 0;
+        _d3dImageInteropHeight = 0;
     }
 
     private bool ShouldUseGpuDotPass(DotStyleConfig style)
@@ -1912,6 +2045,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetClientRect(IntPtr hWnd, out NativeRect lpRect);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDesktopWindow();
+
     private static void GetClientSize(IntPtr hwnd, out int width, out int height)
     {
         if (hwnd != IntPtr.Zero && GetClientRect(hwnd, out var rect))
@@ -2160,6 +2296,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private void DisposeGpuBloomResources()
     {
         _directPresentEnabled = false;
+        DisposeD3DImageInterop();
         _directPresentBackBufferRtv?.Dispose();
         _directPresentBackBufferRtv = null;
         _directPresentBackBuffer?.Dispose();
