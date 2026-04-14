@@ -10,7 +10,13 @@
     "toyConfigIniPath": "toys.ini"
   },
   "matrix": {
-    "fillGapEnabled": false
+    "fillGapEnabled": false,
+    "visual": {
+      "offStateTintR": 15,
+      "offStateTintG": 15,
+      "offStateTintB": 15,
+      "offStateAlpha": 0.5
+    }
   },
   "window": {
     "lockAspectRatio": true,
