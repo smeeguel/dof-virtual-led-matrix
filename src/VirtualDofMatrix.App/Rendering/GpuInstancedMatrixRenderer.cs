@@ -936,7 +936,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             try
             {
                 BlitCompositeToDirectPresentBackBuffer();
-                _directPresentSwapChain.Present(0, PresentFlags.None);
+                _directPresentSwapChain.Present(0, Vortice.DXGI.PresentFlags.None);
                 trace.Append(" direct-present");
 
                 // Note: parity readback is opt-in so normal direct present does not touch CPU readback.
@@ -1068,7 +1068,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             }
 
             _d3d9Context = D3D9.Direct3DCreate9Ex();
-            var presentParams = new PresentParameters
+            var presentParams = new Vortice.Direct3D9.PresentParameters
             {
                 Windowed = true,
                 SwapEffect = Vortice.Direct3D9.SwapEffect.Discard,
@@ -1079,7 +1079,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _d3d9Device = _d3d9Context.CreateDeviceEx(0, DeviceType.Hardware, IntPtr.Zero, createFlags, presentParams);
 
             var d3d9Handle = sharedHandle;
-            _d3d9InteropTexture = _d3d9Device.CreateTexture(width, height, 1, Vortice.Direct3D9.Usage.RenderTarget, Vortice.Direct3D9.Format.A8R8G8B8, Pool.Default, ref d3d9Handle);
+            _d3d9InteropTexture = _d3d9Device.CreateTexture((uint)width, (uint)height, 1, Vortice.Direct3D9.Usage.RenderTarget, Vortice.Direct3D9.Format.A8R8G8B8, Pool.Default, ref d3d9Handle);
             using var surface = _d3d9InteropTexture.GetSurfaceLevel(0);
             _d3dImageHost = new D3DImage();
             _d3dImageHost.Lock();
@@ -1089,6 +1089,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             _d3dImageInteropWidth = width;
             _d3dImageInteropHeight = height;
             _d3dImageInteropEnabled = true;
+            AppLogger.Info($"[renderer] legacy D3DImage interop initialized sharedSurface={width}x{height} status={_directPresentStatus}");
             return true;
         }
         catch (Exception ex)
@@ -1102,6 +1103,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
 
     private void DisposeD3DImageInterop()
     {
+        var wasEnabled = _d3dImageInteropEnabled;
         // Note: always detach the D3DImage back-buffer before disposing native D3D9 resources to avoid dangling pointers.
         if (_d3dImageHost is not null)
         {
@@ -1130,6 +1132,10 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _d3dImageInteropEnabled = false;
         _d3dImageInteropWidth = 0;
         _d3dImageInteropHeight = 0;
+        if (wasEnabled)
+        {
+            AppLogger.Info("[renderer] legacy D3DImage interop disposed.");
+        }
     }
 
     private bool ShouldUseGpuDotPass(DotStyleConfig style)
@@ -1946,11 +1952,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 Format = LedColorTextureFormat,
                 Stereo = false,
                 SampleDescription = new SampleDescription(1, 0),
-                BufferUsage = Usage.RenderTargetOutput,
+                BufferUsage = Vortice.DXGI.Usage.RenderTargetOutput,
                 BufferCount = 2,
                 // Note: keep source aspect so strip dots do not get anisotropically stretched by the host window size.
                 Scaling = Scaling.AspectRatioStretch,
-                SwapEffect = SwapEffect.FlipDiscard,
+                SwapEffect = Vortice.DXGI.SwapEffect.FlipDiscard,
                 AlphaMode = AlphaMode.Ignore,
                 Flags = SwapChainFlags.None,
             };
