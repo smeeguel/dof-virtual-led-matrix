@@ -313,6 +313,7 @@ In **Settings -> Virtual Toys**:
 - Strip toys currently default to compatibility-focused fallback rendering so transparent/background behavior stays predictable across systems.
 - When `logFrames` is enabled, routing now logs per-toy frame intensity (`nonZeroLedCount`, `maxChannel`, `avgLuma`) with source range to help diagnose “mapped but dark” strips.
 - Reordering toys no longer rewrites explicit `sourceCanonicalStart` values; existing source mappings are preserved, and only toys missing a canonical start are auto-assigned.
+- Strip toys now keep `sourceCanonicalStart=0` by default unless you explicitly map with `sourceStripIndex/sourceStripOffset`; this prevents reorder-related strip blackout regressions.
 - If you change toy width/height and save, windows rebuild immediately (no app restart required).
 - Settings is modeless, so you can keep it open while dragging/resizing toy windows.
 - **Exit** from any viewer window closes the full app.

@@ -1191,6 +1191,15 @@ public partial class SettingsWindow : Window
         foreach (var toy in toys)
         {
             var length = Math.Max(1, toy.Source.Length);
+            if (string.Equals(toy.Kind, "strip", StringComparison.OrdinalIgnoreCase))
+            {
+                // Note: strip toys consume strip-local frame slices in current runtime behavior.
+                // Pinning canonicalStart=0 avoids accidental dark-strip regressions when list reorder/edit occurs.
+                toy.Source.CanonicalStart = 0;
+                nextCanonicalStart = Math.Max(nextCanonicalStart, length);
+                continue;
+            }
+
             if (toy.Source.CanonicalStart is null || toy.Source.CanonicalStart.Value < 0)
             {
                 // Note: only assign canonical starts for toys that never had an explicit source range.

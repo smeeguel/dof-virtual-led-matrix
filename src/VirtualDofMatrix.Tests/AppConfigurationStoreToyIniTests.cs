@@ -374,4 +374,50 @@ public sealed class AppConfigurationStoreToyIniTests
             }
         }
     }
+
+    [Fact]
+    public void Load_WhenStripToyUsesNonZeroCanonicalStartWithoutStripIndex_ResetsCanonicalStartToZero()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+
+            File.WriteAllText(settingsPath, """
+            {
+              "routing": {
+                "toyConfigIniPath": "toys.ini"
+              }
+            }
+            """);
+
+            File.WriteAllText(iniPath, """
+            [toy:strip1]
+            enabled = true
+            kind = strip
+            width = 32
+            height = 1
+            sourceCanonicalStart = 4096
+            sourceLength = 32
+            outputTargets = viewer
+            """);
+
+            var store = new AppConfigurationStore();
+            var loaded = store.Load(settingsPath);
+            var toy = Assert.Single(loaded.Routing.Toys);
+
+            Assert.Equal("strip", toy.Kind);
+            Assert.Equal(0, toy.Source.CanonicalStart);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
 }

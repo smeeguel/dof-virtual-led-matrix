@@ -515,6 +515,19 @@ public sealed class AppConfigurationStore
         var source = toy.Source;
         var defaultStripLength = config.Routing.Policy.DefaultStripLength;
 
+        if (string.Equals(toy.Kind, "strip", StringComparison.OrdinalIgnoreCase)
+            && source.StripIndex is null
+            && source.StripOffset is null
+            && source.CanonicalStart is not null
+            && source.CanonicalStart.Value != 0)
+        {
+            // Note: strip toys without explicit strip index/offset currently route from strip-local start.
+            // Force canonicalStart=0 so older non-zero values from list resequencing do not black out strip lights.
+            Warn($"{entryPrefix}.source.canonicalStart={source.CanonicalStart.Value} reset to 0 for strip toy without sourceStripIndex/sourceStripOffset.");
+            source.CanonicalStart = 0;
+            modified = true;
+        }
+
         if (source.CanonicalStart is not null && source.CanonicalStart.Value >= 0)
         {
             nextFallbackCanonicalStart = Math.Max(nextFallbackCanonicalStart, source.CanonicalStart.Value + source.Length);
