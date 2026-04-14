@@ -1761,7 +1761,18 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 Flags = SwapChainFlags.None,
             };
 
-            _directPresentSwapChain = factory.CreateSwapChainForHwnd(_device, hostHandle, desc);
+            try
+            {
+                _directPresentSwapChain = factory.CreateSwapChainForHwnd(_device, hostHandle, desc);
+            }
+            catch (Exception ex) when (ex.HResult == unchecked((int)0x887A0001))
+            {
+                // Note: some drivers reject AspectRatioStretch for this swapchain path; retry with Stretch
+                // so we stay on GPU direct-present instead of dropping to readback fallback.
+                desc.Scaling = Scaling.Stretch;
+                _directPresentSwapChain = factory.CreateSwapChainForHwnd(_device, hostHandle, desc);
+                AppLogger.Warn("[renderer] AspectRatioStretch swapchain scaling unsupported on this adapter; retried with Stretch.");
+            }
             if (_directPresentSwapChain is null)
             {
                 _directPresentStatus = "disabled:swapchain-create-failed";
