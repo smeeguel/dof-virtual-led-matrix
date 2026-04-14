@@ -251,7 +251,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
         // Note: primary toy should use the same renderer/window background policy that secondary toy windows use.
         _config.Matrix.Visual.TransparentBackground = true;
-        _config.Matrix.Visual.GpuPresentMode = toyConfig.Window.BackgroundVisible ? _defaultGpuPresentMode : "LegacyReadback";
+        // Note: transparent mode should keep the GPU interop present path so alpha remains intact.
+        _config.Matrix.Visual.GpuPresentMode = _defaultGpuPresentMode;
         _config.Matrix.Visual.OffStateAlpha = toyConfig.Window.BackgroundVisible
             ? _defaultOffStateAlpha
             : Math.Min(_defaultOffStateAlpha, 0.08);
@@ -300,9 +301,9 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                     // Note: keep renderer output transparent so toy background colors show through
                     // directly behind each LED instead of behind an opaque black strip texture.
                     TransparentBackground = true,
-                    // Note: transparent toy windows must use legacy readback present so per-pixel alpha stays intact.
-                    // GPU dot/bloom rendering remains active; only final present path changes.
-                    GpuPresentMode = toy.Window.BackgroundVisible ? _config.Matrix.Visual.GpuPresentMode : "LegacyReadback",
+                    // Note: transparent toy windows now stay on GPU interop present so alpha composition
+                    // matches the strip pipeline fix (no forced fallback to opaque legacy readback).
+                    GpuPresentMode = _config.Matrix.Visual.GpuPresentMode,
                     // Note: keep GPU dot path active for transparent toys/strips; only explicit global force flag should use CPU dots.
                     ForceCpuDotRasterFallback = _config.Matrix.Visual.ForceCpuDotRasterFallback,
                     EnableDirectPresentParitySampling = _config.Matrix.Visual.EnableDirectPresentParitySampling,
