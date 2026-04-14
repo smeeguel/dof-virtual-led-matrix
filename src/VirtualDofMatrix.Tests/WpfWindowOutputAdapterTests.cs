@@ -73,6 +73,20 @@ public sealed class WpfWindowOutputAdapterTests
 
         var hostToyId = WpfWindowOutputAdapter.ResolveMainHostToyId("matrix-main", toys, "viewer");
 
+        Assert.Equal("matrix-main", hostToyId);
+    }
+
+    [Fact]
+    public void ResolveMainHostToyId_FailsOverWhenCurrentHostNoLongerSupportsViewerAdapter()
+    {
+        var toys = new List<ToyRouteConfig>
+        {
+            BuildToy("strip-topper", enabled: true, adapter: "viewer", targetEnabled: true),
+            BuildToy("matrix-main", enabled: false, adapter: "broadcast", targetEnabled: true),
+        };
+
+        var hostToyId = WpfWindowOutputAdapter.ResolveMainHostToyId("matrix-main", toys, "viewer");
+
         Assert.Equal("strip-topper", hostToyId);
     }
 

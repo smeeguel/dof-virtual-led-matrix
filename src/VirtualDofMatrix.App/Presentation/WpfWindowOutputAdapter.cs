@@ -749,8 +749,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void EnsureMainHostToySelection()
     {
-        // Note: keep the current host stable while it remains enabled; only fail over
-        // when the host toy is disabled/unroutable so enabling another toy does not steal MainWindow.
+        // Note: keep one stable host identity for MainWindow. If that toy is disabled, MainWindow hides;
+        // we intentionally do not promote another toy into MainWindow to avoid matrix/strip role swapping.
         _mainHostToyId = ResolveMainHostToyId(_mainHostToyId, _config.Routing.Toys, Name);
     }
 
@@ -764,7 +764,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         if (!string.IsNullOrWhiteSpace(currentHostToyId))
         {
             var currentHost = toys.FirstOrDefault(toy => string.Equals(toy.Id, currentHostToyId, StringComparison.OrdinalIgnoreCase));
-            if (currentHost is not null && IsEnabledForAdapter(currentHost, adapterName))
+            if (currentHost is not null && SupportsAdapter(currentHost, adapterName))
             {
                 return currentHost.Id;
             }
@@ -772,7 +772,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
         foreach (var toy in toys)
         {
-            if (IsEnabledForAdapter(toy, adapterName))
+            if (SupportsAdapter(toy, adapterName))
             {
                 return toy.Id;
             }
@@ -781,10 +781,9 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         return null;
     }
 
-    private static bool IsEnabledForAdapter(ToyRouteConfig toy, string adapterName)
+    private static bool SupportsAdapter(ToyRouteConfig toy, string adapterName)
     {
-        return toy.Enabled
-            && toy.OutputTargets.Any(target =>
+        return toy.OutputTargets.Any(target =>
                 target.Enabled
                 && string.Equals(target.Adapter, adapterName, StringComparison.OrdinalIgnoreCase));
     }
