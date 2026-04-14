@@ -230,15 +230,6 @@ public partial class App : System.Windows.Application
             }
         }
 
-        if (routingChanged)
-        {
-            // Note: runtime toy add/remove updates can leave GPU viewer state in a bad binding/render state.
-            // A fast self-restart gives us a clean window + routing graph and has proven more reliable than hot-rebinding alone.
-            PersistWindowSettings();
-            RestartForRoutingChange();
-            return;
-        }
-
         // DOF users usually expect renderer switches to "just work"; when dropping from GPU -> CPU we relaunch
         // immediately so the new renderer path is active without requiring manual intervention.
         if (previousRenderer.Equals("gpu", StringComparison.OrdinalIgnoreCase) &&
@@ -253,45 +244,6 @@ public partial class App : System.Windows.Application
         _windowOutputAdapter?.RebuildViewerBindings();
         _windowOutputAdapter?.SyncVisibilityFromConfig();
         PersistWindowSettings();
-    }
-
-    private void RestartForRoutingChange()
-    {
-        if (_window is null)
-        {
-            return;
-        }
-
-        try
-        {
-            var currentExePath = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(currentExePath))
-            {
-                throw new InvalidOperationException("Could not resolve current process path for restart.");
-            }
-
-            var args = Environment.GetCommandLineArgs().Skip(1).Select(QuoteArgument);
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = currentExePath,
-                Arguments = string.Join(" ", args),
-                UseShellExecute = true,
-                WorkingDirectory = AppContext.BaseDirectory,
-            };
-
-            Process.Start(startInfo);
-            AppLogger.Info("[app] restarting process to apply routing topology change.");
-            _window.Close();
-            Shutdown();
-        }
-        catch (Exception ex)
-        {
-            WpfMessageBox.Show(_window,
-                $"Toy routing changes were saved, but automatic restart failed: {ex.Message}\nPlease restart Virtual DOF Matrix manually.",
-                "Restart required for toy routing changes",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
     }
 
     private void RestartForRendererSwitch()

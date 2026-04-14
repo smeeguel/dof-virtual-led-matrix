@@ -480,7 +480,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void WireGeometryPersistence(Window window, string toyId)
     {
-        void Sync()
+        void SyncToConfigOnly()
         {
             var toy = FindToyConfig(toyId);
             if (toy is null)
@@ -499,14 +499,36 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             {
                 toy.Window.LockAspectRatio = mainWindow.IsAspectRatioLocked;
             }
-
-            _persistConfig();
         }
 
-        window.LocationChanged += (_, _) => Sync();
-        window.SizeChanged += (_, _) => Sync();
+        // Note: dragging/resizing can emit many LocationChanged/SizeChanged events.
+        // Debounce persistence so disk writes happen once after movement settles.
+        var persistTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(250),
+        };
+        persistTimer.Tick += (_, _) =>
+        {
+            persistTimer.Stop();
+            _persistConfig();
+        };
+
+        void SchedulePersist()
+        {
+            SyncToConfigOnly();
+            persistTimer.Stop();
+            persistTimer.Start();
+        }
+
+        window.LocationChanged += (_, _) => SchedulePersist();
+        window.SizeChanged += (_, _) => SchedulePersist();
         window.Closed += (_, _) =>
         {
+            persistTimer.Stop();
+            // Note: commit one final geometry snapshot before unbinding this window.
+            SyncToConfigOnly();
+            _persistConfig();
+
             // Note: rebuilds close old secondary windows and immediately create replacements with the same toyId.
             // Only remove the binding if this exact window instance is still the active binding.
             if (_bindings.TryGetValue(toyId, out var existingBinding)
