@@ -508,6 +508,10 @@ public sealed class CabinetXmlService
             .Select(x => new { Element = x, Name = GetChildValue(x, "Name") })
             .Where(x => !string.IsNullOrWhiteSpace(x.Name))
             .ToDictionary(x => x.Name!, x => x.Element, StringComparer.OrdinalIgnoreCase);
+        var removedManagedToyNames = plan.PlannedChanges
+            .Where(change => change.ChangeType == CabinetXmlMergeChangeType.Removed)
+            .Select(change => change.ToyName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Note: deterministic ordering is only enforced for managed virtual toys; non-managed toys
         // keep their original order so unrelated Cabinet.xml sections do not churn.
@@ -515,7 +519,8 @@ public sealed class CabinetXmlService
         var nonManagedChildren = allChildren
             .Where(node => node.Name.LocalName != "LedStrip"
                 || string.IsNullOrWhiteSpace(GetChildValue(node, "Name"))
-                || !managedByCurrentName.ContainsKey(GetChildValue(node, "Name")!))
+                || (!managedByCurrentName.ContainsKey(GetChildValue(node, "Name")!)
+                    && !removedManagedToyNames.Contains(GetChildValue(node, "Name")!)))
             .ToList();
 
         var managedChildrenOrdered = plan.ManagedToyOrder
@@ -565,11 +570,7 @@ public sealed class CabinetXmlService
             }
 
             SyncVirtualControllerLedCounts(document, managedByCurrentName.Values);
-            var removedToyNames = plan.PlannedChanges
-                .Where(change => change.ChangeType == CabinetXmlMergeChangeType.Removed)
-                .Select(change => change.ToyName)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            SyncLedWizEquivalentOutputs(toysRoot, renameMap, plan.DesiredVirtualToysByName.Values, removedToyNames);
+            SyncLedWizEquivalentOutputs(toysRoot, renameMap, plan.DesiredVirtualToysByName.Values, removedManagedToyNames);
             RemoveWhitespaceTextNodes(toysRoot);
 
             var backupPath = $"{cabinetXmlPath}.bak.{DateTime.UtcNow:yyyyMMddHHmmss}";

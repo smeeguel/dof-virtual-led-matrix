@@ -806,11 +806,20 @@ public sealed class CabinetXmlServiceTests
 
         service.ApplyVirtualToyMerge(temp.Path, plan, dryRun: false);
         var merged = File.ReadAllText(temp.Path);
+        var mergedDoc = System.Xml.Linq.XDocument.Parse(merged);
+        var ledStripNames = mergedDoc
+            .Descendants()
+            .Where(element => element.Name.LocalName == "LedStrip")
+            .Select(element => element.Elements().FirstOrDefault(child => child.Name.LocalName == "Name")?.Value)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToArray();
 
         Assert.DoesNotContain("<Name>Strip2</Name>", merged, StringComparison.Ordinal);
         Assert.DoesNotContain("<OutputName>Strip2</OutputName>", merged, StringComparison.Ordinal);
         Assert.Contains("<Name>Strip3</Name>", merged);
         Assert.Contains("<FirstLedNumber>4129</FirstLedNumber>", merged);
+        Assert.Equal(3, ledStripNames.Length);
+        Assert.DoesNotContain(ledStripNames, name => string.Equals(name, "Strip2", StringComparison.OrdinalIgnoreCase));
     }
 
     private sealed class TempCabinetXml : IDisposable
