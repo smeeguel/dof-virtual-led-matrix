@@ -1,0 +1,440 @@
+# Virtual DOF Matrix End-User Setup Guide
+
+This guide is written for everyday cabinet owners, including first-time DOF users.
+
+---
+
+## What this app does
+
+Virtual DOF Matrix displays DOF LED output in one or more virtual on-screen windows (for example: backglass matrix, topper, or flashers).
+
+---
+
+## Before you start
+
+You need:
+
+- Windows
+- This Virtual DOF Matrix package ZIP
+- Visual Pinball X (VPX) if you want to launch tables
+- A front-end (like PinUP Popper) only if you use a front-end workflow (optional)
+
+DOF is **not** a prerequisite for this section; Step 1 includes the DOF installation path.
+
+---
+
+## First-time app setup (no DOF installed yet)
+
+If you are setting up this app for the first time and do not already have DOF installed, watch this walkthrough before Step 1:
+
+- https://youtu.be/lIG6JJ05xbw
+
+---
+
+## 1) Install DOF first, then replace DLLs from this package
+
+This order matters.
+
+### Step 1A - Install DOF from mjrnet
+
+If DOF is not installed yet, install it first from:
+
+- http://mjrnet.org/pinscape/dll-updates.html#DOF
+
+Install both runtimes into `C:\DirectOutput`:
+
+- 64-bit runtime (used by VPX): `C:\DirectOutput\x64\DirectOutput.dll`
+- 32-bit runtime (used by Popper/front-end paths): `C:\DirectOutput\x86\DirectOutput.dll`
+
+### Step 1B - Replace both DOF DLLs with the ones in this ZIP
+
+After DOF is installed from mjrnet:
+
+1. Back up existing DLLs:
+   - `C:\DirectOutput\x64\DirectOutput.dll`
+   - `C:\DirectOutput\x86\DirectOutput.dll`
+2. Copy the package DLLs into those same folders:
+   - package x64 DLL -> `C:\DirectOutput\x64\DirectOutput.dll`
+   - package x86 DLL -> `C:\DirectOutput\x86\DirectOutput.dll`
+
+### Step 1C - Copy the package config files
+
+Why this step exists:
+
+- The downloadable ZIP includes a `DOF/Config` folder with prebuilt configuration files used by this app.
+- DOF reads configuration from your local `{DOFInstallDir}\Config` folder (most commonly `C:\DirectOutput\Config`).
+- The selector script copies the correct template files into that folder so DOF has the right cabinet/toy setup for this app.
+
+What to do (recommended):
+
+1. From the package root, run `DOFConfigSelector.bat`.
+2. Pick the template that matches your setup from the numbered menu.
+3. Confirm copy when prompted.
+
+What the script does:
+
+- It first tries `C:\DirectOutput\Config` automatically.
+- If needed, it can show other detected DOF config folders and let you pick one.
+- It shows a warning that destination config files can be overwritten.
+- If overwrite is detected, it shows a backup prompt (`[B/s/q]`) and defaults to **B** (backup) when you press Enter.
+- Backup folders use `Config_backup_YYYYMMDD_HHMMSS` style naming inside your selected config folder.
+- It copies template files into your DOF config folder and overwrites existing files from that template.
+- It prints copy details, shows key config file status, and ends with a success message when complete.
+- After copy, it reminds you to verify `GlobalConfig_B2SServer.xml` if you use a nonstandard DOF install path.
+
+Quick troubleshooting:
+
+- `C:\DirectOutput\Config` not found: continue in the script and select a detected folder or enter your path manually.
+- Access denied/copy failed: run `DOFConfigSelector.bat` as Administrator, then try again.
+- Script blocked by Windows: right-click `DOFConfigSelector.bat`, choose **Run anyway** (or use the manual fallback below).
+
+### Step 1C fallback - Manual copy (if batch is blocked)
+
+If your system blocks `.bat` files (policy, SmartScreen, or security software), you can copy manually:
+
+1. Open `DOF/Config/templates`.
+2. Open the same template folder you would have selected in the script (for example `01-single-matrix`).
+3. Copy that template folder's contents.
+4. Paste into your DOF config folder: `{DOFInstallDir}\Config` (example: `C:\DirectOutput\Config`).
+
+If Windows asks to replace files:
+
+- New users/no existing custom DOF config: replace as needed.
+- Existing custom DOF config: merge carefully instead of blind overwrite.
+
+First-launch tip:
+
+- If `toys.ini` is missing, the app now auto-generates it and pre-populates toy entries from virtual `LedStrip` toys found in `Cabinet.xml`.
+- If `Cabinet.xml` changes and `toys.ini` no longer matches, the app auto-repairs managed toy entries from `Cabinet.xml` and creates a `toys.ini.backup_YYYYMMDD_HHMMSS` file first.
+- This includes existing virtual matrix/strip geometry, mapping, and LED source ranges so fresh installs or reset configs start close to your current DOF setup.
+- One-dimensional `LedStrip` toys are imported with strip-style defaults (unlocked aspect ratio, transparent background, and strip-oriented starter window size).
+- Strip toys are imported with `sourceCanonicalStart = 0` for compatibility with current strip runtime routing behavior.
+
+---
+
+## 2) Optional: Cabinet.xml for combination setups (virtual + hardware)
+
+If you already ran `DOFConfigSelector.bat` in Step 1C and your virtual matrix is working, you can skip this section.
+
+Use Step 2 only when you have a combination setup (virtual + hardware toys), custom routing, or older custom DOF files you need to keep.
+Before editing, make a backup copy of `Cabinet.xml`.
+
+### Step 2A - Open Cabinet.xml
+
+1. Go to `C:\DirectOutput\Config`.
+2. Open `Cabinet.xml` in a text editor (Notepad++ recommended).
+
+### Step 2B - Find your virtual matrix controller entry
+
+Use search (`Ctrl+F`) for:
+
+- `VirtualLEDStripController`
+
+If Step 1C copied the template correctly, this entry should already be present.
+
+### Step 2C - Confirm the pipe/controller name matches app settings
+
+In `Cabinet.xml`, find the controller's pipe name value. In `settings.json`, find:
+
+```json
+"transport": {
+  "pipeName": "VirtualDofMatrix"
+}
+```
+
+These two names must match exactly (same spelling, same capitalization).
+
+Tip: the provided examples use `VirtualDofMatrix`. Only change this if your setup requires it.
+
+### Step 2D - Let the app safely update Cabinet.xml when needed
+
+When **Auto-update Cabinet on resolution change** is enabled, the app performs a safe 2-step flow:
+
+1. Shows a dry-run summary of the virtual toy changes it plans to make.
+2. Writes `Cabinet.xml` only after you click **Yes** in the confirmation prompt.
+
+What gets updated automatically:
+
+- Managed virtual toy geometry for targeted toys (for example width/height/controller link).
+- Matching `LedWizEquivalent` output names/numbers for managed virtual toys.
+- Virtual controller `NumberOfLedsStrip1` based on managed toy LED ranges.
+
+What stays untouched:
+
+- Non-managed/hardware toys and unrelated sections of `Cabinet.xml`.
+
+---
+
+## 3) First launch order
+
+Always start in this order:
+
+1. Launch `VirtualDofMatrix.App.exe`
+2. Launch Popper/VPX table
+
+If VPX/DOF starts first, the matrix app might miss the initial connection.
+
+If you use the Popper startup automation in **Step 9**, Popper can launch the app for you. In that setup, you do not need to launch the app manually before opening Popper.
+
+---
+
+## 4) Toy setup workflow (Settings menu)
+
+Use the app UI as your control panel:
+
+- Use **Settings -> Virtual Toys** to add, edit, enable, disable, and position toys.
+- In **Settings -> Virtual Toys**, drag and drop toys to reorder them; save to reindex Cabinet.xml toy order and First LED ranges.
+- Use **Save Global** to make changes persistent.
+- Keep toy setup inside Settings for the safest, most beginner-friendly workflow.
+
+If you are new, this workflow is designed for you.
+
+---
+
+## 5) Add a new toy using the Settings menu (tutorial)
+
+This is the recommended way to create a second, third, or fourth virtual output.
+
+### Step 5A - Open Settings
+
+1. Launch the app.
+2. Open the **Settings** window.
+3. Click the **Virtual Toys** tab.
+
+Tip: You can open Settings from any virtual viewer window.
+
+### Step 5B - Start the Toy Wizard / Add Toy flow
+
+1. Click **Add Toy** (or the equivalent add button in your build).
+2. Choose a toy type:
+   - **Single strip** (one row or one column of LEDs)
+   - **Full matrix** (rows and columns)
+3. Enter a toy name you will recognize later (example: `Strip2` or `Matrix2`).
+
+### Step 5C - Set geometry and mapping
+
+For **Full matrix**, set:
+
+- `width`
+- `height`
+- `mapping` (`TopDownAlternateRightLeft`, `RowMajor`, or `ColumnMajor`)
+
+For a standard 32x8 DMD-style matrix:
+
+- Width = `32`
+- Height = `8`
+- Mapping = `TopDownAlternateRightLeft`
+
+For **Single strip**, set:
+
+- `bulb count`
+- `direction` (`Horizontal` or `Vertical`)
+
+New strip toys default to a bulb count of `32`.
+
+The wizard automatically uses row/column mapping behind the scenes for strip direction.
+
+### Step 5D - Set visual and window options (optional)
+
+You can leave defaults, or tune options such as:
+
+- Dot shape, spacing, brightness
+- Fill gap (defaults to `false` for newly added toys)
+- Window behavior (global window settings, always-on-top, borderless, lock aspect ratio)
+- Background visibility/color (color preset picker is shown only when background visibility is enabled)
+- Glow options (near/far radius and near/far strength)
+
+The live preview now applies basic visual feedback from dot shape, spacing, brightness, fill-gap, and glow toggles/strengths so changes are easier to judge before saving.
+When **Show background color** is enabled, the preview uses that selected color behind the dots, including the GPU render path so glow/bloom composites over the chosen backdrop instead of a forced black fill.
+Near/Far glow option groups are shown only while **Glow** is enabled.
+
+Advanced fields that are still supported in `toys.ini` but intentionally hidden in the wizard:
+
+- `renderGamma`
+- `bloomThreshold`
+- `bloomSoftKnee`
+
+Compatibility note for `toys.ini` source fields:
+
+- `sourceStripIndex` is normalized to the safe Teensy-compatible range `0..7`.
+- Values below `0` are clamped to `0`.
+- Values above `7` are clamped to `7`.
+
+### Step 5E - Save and verify
+
+1. Make sure the toy is **enabled**.
+2. Click **Save** in the wizard.
+3. Confirm the new toy appears in the toy list.
+4. Click **Save Global** to persist changes across app restarts.
+5. Launch a table and verify the toy animates.
+
+---
+
+## 6) Edit an existing toy using the Settings menu (tutorial)
+
+Use this flow when you want to tweak a toy you already created.
+
+### Step 6A - Select the toy row
+
+1. Open **Settings -> Virtual Toys**.
+2. Click the toy row you want to edit.
+
+Helpful behavior:
+
+- Clicking the row brings that toy window to the front.
+- While Settings is open, toy windows show name overlays.
+- The selected toy window gets a bright inner border.
+
+### Step 6B - Change what you need
+
+Common edits:
+
+- Toggle enabled/disabled
+- Change strip or matrix dimensions/layout
+- Change window position/size
+- Change background visibility/color
+- Toggle lock aspect ratio
+
+### Step 6C - Save your changes
+
+1. Click **Save Global**.
+2. If prompted for cabinet updates, review the summary and confirm.
+3. Verify the toy window refreshes as expected.
+
+---
+
+## 7) Quick reference for Virtual Toys behavior
+
+In **Settings -> Virtual Toys**:
+
+- Each toy row has an on/off switch on the left.
+- Turning a toy off disables it and hides its viewer window.
+- At least one toy must stay enabled; if only one remains enabled, its switch is temporarily locked.
+- The main host window stays attached to the primary host toy (typically `backglass-main`) and now hides correctly when that host toy is disabled, instead of leaving a stale matrix view on screen.
+- That host-toy visibility rule is also applied on startup, so a disabled `backglass-main` stays hidden after app restart.
+- Strip toys currently default to compatibility-focused fallback rendering so transparent/background behavior stays predictable across systems.
+- When `logFrames` is enabled, routing now logs per-toy frame intensity (`nonZeroLedCount`, `maxChannel`, `avgLuma`) with source range to help diagnose “mapped but dark” strips.
+- Reordering toys no longer rewrites explicit `sourceCanonicalStart` values; existing source mappings are preserved, and only toys missing a canonical start are auto-assigned.
+- Strip toys now keep `sourceCanonicalStart=0` by default unless you explicitly map with `sourceStripIndex/sourceStripOffset`; this prevents reorder-related strip blackout regressions.
+- If you change toy width/height and save, windows rebuild immediately (no app restart required).
+- Settings is modeless, so you can keep it open while dragging/resizing toy windows.
+- **Exit** from any viewer window closes the full app.
+- Routing frame-rate policy supports both `latest-wins` and `drop-oldest`; both reject stale/duplicate frame sequences so toys stay monotonic.
+
+---
+
+## 8) DOF-side changes needed for extra toys
+
+Adding toys in app Settings is the correct first step, but DOF must still output data for those toy ranges.
+
+You generally need to keep these aligned:
+
+1. `Cabinet.xml` toy/controller definitions
+2. DOF Config Tool assignments and effect mapping
+3. Re-generated DOF config files copied back to your cabinet
+
+---
+
+## 9) Popper setup (detailed)
+
+You can launch the app once at Popper startup, then control visibility during table lifecycle.
+
+### Command format
+
+```bat
+"C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command <action> [optional args]
+```
+
+Replace `C:\vPin\VirtualLED` with your real install path.
+
+Supported actions:
+
+- `show`
+- `hide`
+- `frontend-return`
+- `table-launch [CUSTOM1] [CUSTOM2] [CUSTOM3] [CUSTOM4]`
+- `table-launch --default-show-virtual-led [CUSTOM1] [CUSTOM2] [CUSTOM3] [CUSTOM4]`
+
+### Recommended Popper flow
+
+1. **Popper Startup Script**
+
+   ```bat
+   START "" "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe"
+   ```
+
+2. **Table launch style (choose one)**
+
+   **Choice A: Hide by default, show only selected tables**
+
+   ```bat
+   "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command table-launch "[CUSTOM1]" "[CUSTOM2]" "[CUSTOM3]" "[CUSTOM4]"
+   ```
+
+   - If no custom var contains `ShowVirtualLED`, matrix stays hidden during table.
+   - Put `ShowVirtualLED` in any custom var to keep it visible.
+   - `HideVirtualLED` still forces hidden.
+
+   **Choice B: Show by default, hide selected tables**
+
+   ```bat
+   "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command table-launch --default-show-virtual-led "[CUSTOM1]" "[CUSTOM2]" "[CUSTOM3]" "[CUSTOM4]"
+   ```
+
+   - Matrix stays visible unless a custom var contains `HideVirtualLED`.
+
+3. **VPX Close Script** (when returning to Popper)
+
+   ```bat
+   "C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command frontend-return
+   ```
+
+4. **Popper Exit Script**
+
+   ```bat
+   taskkill /IM "VirtualDofMatrix.App.exe" /F
+   ```
+
+### Optional explicit override
+
+```bat
+"C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command hide
+"C:\vPin\VirtualLED\VirtualDofMatrix.App.exe" --command show
+```
+
+---
+
+## 10) Troubleshooting
+
+### App opens but no animation
+
+- Start app first, then VPX/front-end.
+- Confirm both DOF DLLs (x64 and x86) were replaced from this package.
+- Confirm controller name/pipe value matches between `Cabinet.xml` and `settings.json`.
+
+### Main toy works, additional toys stay dark
+
+- In **Settings -> Virtual Toys**, verify each toy is enabled.
+- Re-check toy size/layout values and make sure they match what you expect to drive from DOF.
+- Confirm DOF is actually outputting those extra toy ranges.
+- Click **Save Global** after every change.
+
+### I changed toy settings and they reverted later
+
+- This usually means changes were not saved.
+- Open Settings, re-apply changes, and click **Save Global**.
+
+### Works in VPX but not Popper (or reverse)
+
+- Re-check both DLL locations:
+  - `C:\DirectOutput\x64\DirectOutput.dll`
+  - `C:\DirectOutput\x86\DirectOutput.dll`
+- If you want hands-off startup, configure Popper to auto-launch the app as shown in **Step 9**.
+
+---
+
+## Final reminder
+
+For normal setup, manage toys through **Settings -> Virtual Toys** and save with **Save Global**.
+
+That is the recommended workflow for reliable day-to-day use.
