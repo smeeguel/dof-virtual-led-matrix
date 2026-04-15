@@ -50,7 +50,8 @@ echo Warning: Files in the destination DOF Config folder may be overwritten.
 
 :confirmCopy
 set "confirmCopyInput="
-set /p "confirmCopyInput=Copy this template into the destination now? [Y/N]: "
+set /p "confirmCopyInput=Copy this template into the destination now? [Y/n]: "
+if not defined confirmCopyInput set "confirmCopyInput=Y"
 if /i "!confirmCopyInput!"=="Y" goto :copyTemplate
 if /i "!confirmCopyInput!"=="N" (
     echo Copy cancelled. No files were changed.
