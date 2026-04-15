@@ -292,7 +292,6 @@ public partial class MainWindow : Window
 
     private void ApplyDebugVisibility()
     {
-        ShowDebugMenuItem.IsChecked = _config.Debug.ShowDebug;
         LockAspectRatioMenuItem.IsChecked = _config.Window.LockAspectRatio;
 
         RootGrid.Margin = _config.Debug.ShowDebug ? new Thickness(16) : new Thickness(0);
@@ -711,8 +710,6 @@ public partial class MainWindow : Window
     }
 
     private void OnSettingsMenuClick(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnShowDebugClick(object sender, RoutedEventArgs e) => SetShowDebug(ShowDebugMenuItem.IsChecked);
 
     private void OnLockAspectRatioClick(object sender, RoutedEventArgs e)
     {

@@ -223,7 +223,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             WireGeometryPersistence(_mainWindow, toyId);
             WireWindowSelectionCallbacks(_mainWindow, toyId);
             ApplyLayoutOverlay(toyId, _mainWindow);
-            EnsureEditToyContextMenuItem(_mainWindow, toyId);
+            EnsureToyContextMenuItems(_mainWindow, toyId);
             return new ToyWindowBinding(_mainWindow, frame => _mainWindow.ApplyPresentation(ToPresentation(frame)));
         }
 
@@ -249,7 +249,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         toyWindow.ExitRequested += (_, _) => _requestAppExit();
         WireWindowSelectionCallbacks(toyWindow, toyId);
         ApplyLayoutOverlay(toyId, toyWindow);
-        EnsureEditToyContextMenuItem(toyWindow, toyId);
+        EnsureToyContextMenuItems(toyWindow, toyId);
         WireGeometryPersistence(toyWindow, toyId);
 
         return new ToyWindowBinding(toyWindow, frame => toyWindow.ApplyPresentation(ToPresentation(frame)));
@@ -441,23 +441,59 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         return bytes;
     }
 
-    private void EnsureEditToyContextMenuItem(Window window, string toyId)
+    private void EnsureToyContextMenuItems(Window window, string toyId)
     {
         window.ContextMenu ??= new System.Windows.Controls.ContextMenu();
 
-        if (window.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>()
-            .Any(item => string.Equals(item.Tag as string, $"edit-toy:{toyId}", StringComparison.OrdinalIgnoreCase)))
+        var editTag = $"edit-toy:{toyId}";
+        if (!window.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>()
+            .Any(item => string.Equals(item.Tag as string, editTag, StringComparison.OrdinalIgnoreCase)))
+        {
+            var editToyItem = new System.Windows.Controls.MenuItem
+            {
+                Header = "Edit Toy...",
+                Tag = editTag,
+            };
+            editToyItem.Click += (_, _) => _requestToyEdit(toyId);
+            window.ContextMenu.Items.Insert(0, editToyItem);
+        }
+
+        var disableTag = $"disable-toy:{toyId}";
+        var disableToyItem = window.ContextMenu.Items
+            .OfType<System.Windows.Controls.MenuItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag as string, disableTag, StringComparison.OrdinalIgnoreCase));
+        if (disableToyItem is null)
+        {
+            disableToyItem = new System.Windows.Controls.MenuItem
+            {
+                Header = "Disable Toy",
+                Tag = disableTag,
+            };
+            disableToyItem.Click += (_, _) => DisableToy(toyId);
+            window.ContextMenu.Items.Insert(1, disableToyItem);
+        }
+
+        // Note: keep at least one toy active globally; hide disable action if this is the last enabled toy.
+        disableToyItem.Visibility = GetEnabledToyCount() > 1 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private int GetEnabledToyCount()
+    {
+        return _config.Routing.Toys.Count(toy => toy.Enabled);
+    }
+
+    private void DisableToy(string toyId)
+    {
+        var toy = FindToyConfig(toyId);
+        if (toy is null || !toy.Enabled || GetEnabledToyCount() <= 1)
         {
             return;
         }
 
-        var editToyItem = new System.Windows.Controls.MenuItem
-        {
-            Header = "Edit Toy...",
-            Tag = $"edit-toy:{toyId}",
-        };
-        editToyItem.Click += (_, _) => _requestToyEdit(toyId);
-        window.ContextMenu.Items.Insert(0, editToyItem);
+        toy.Enabled = false;
+        _persistConfig();
+        RebuildViewerBindingsOnUiThread();
+        _notifyToyWindowSelected(GetMainHostToyId() ?? string.Empty);
     }
 
     private void ApplyToyWindowConfig(Window window, ToyWindowOptionsConfig? options)
