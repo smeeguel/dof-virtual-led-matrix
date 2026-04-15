@@ -412,14 +412,30 @@ exit /b 0
 :buildTimestamp
 REM Build a filesystem-safe timestamp for backup folder naming.
 set "stamp="
-for /f "skip=1 tokens=1 delims=." %%I in ('wmic os get localdatetime 2^>nul') do if not defined stamp set "stamp=%%I"
+for /f "skip=1 tokens=1 delims=." %%I in ('wmic os get localdatetime 2^>nul') do (
+    if not defined stamp if not "%%I"=="" set "stamp=%%I"
+)
+
+REM Accept WMIC output only when it starts with 14 digits (YYYYMMDDHHMMSS).
+if defined stamp (
+    set "stamp=!stamp: =!"
+    for /f "delims=0123456789" %%X in ("!stamp:~0,14!") do set "stamp="
+)
+
 if defined stamp (
     set "stamp=!stamp:~0,8!_!stamp:~8,6!"
 ) else (
-    set "stamp=%date:/=%_%time::=%"
+    REM Fallback for systems where WMIC is unavailable.
+    set "stamp=%DATE%_%TIME%"
+    set "stamp=!stamp:/=-!"
+    set "stamp=!stamp::=-!"
     set "stamp=!stamp: =0!"
-    set "stamp=!stamp:.=%"
+    set "stamp=!stamp:.=-!"
+    set "stamp=!stamp:,=-!"
+    set "stamp=!stamp:~0,20!"
 )
+
+if not defined stamp set "stamp=%RANDOM%%RANDOM%"
 set "%~1=!stamp!"
 exit /b 0
 
