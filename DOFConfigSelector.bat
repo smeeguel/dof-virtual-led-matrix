@@ -14,8 +14,64 @@ if not exist "%templatesRoot%\" (
     exit /b 1
 )
 
-:buildMenu
+REM Parse optional advanced override: --dof-config "X:\DirectOutput\Config"
+set "hasOverride="
+set "overrideDestination="
+if /i "%~1"=="--dof-config" (
+    if "%~2"=="" (
+        echo Error: --dof-config requires a destination path.
+        echo Example: DOFConfigSelector.bat --dof-config "C:\DirectOutput\Config"
+        exit /b 1
+    )
+
+    set "hasOverride=1"
+    set "overrideDestination=%~2"
+) else if not "%~1"=="" (
+    echo Error: Unknown argument "%~1".
+    echo Usage: DOFConfigSelector.bat [--dof-config "X:\DirectOutput\Config"]
+    exit /b 1
+)
+
+echo.
+echo ===== DOF Config Template Selector =====
+echo.
+
+call :selectTemplate
+if errorlevel 1 exit /b 1
+
+call :resolveDestination
+if errorlevel 1 exit /b 1
+
+echo.
+echo Template selected: "%selectedTemplate%"
+echo Destination selected: "%selectedDestination%"
+echo.
+
+:confirmCopy
+set "confirmCopyInput="
+set /p "confirmCopyInput=Copy this template into the destination now? [Y/N]: "
+if /i "!confirmCopyInput!"=="Y" goto :copyTemplate
+if /i "!confirmCopyInput!"=="N" (
+    echo Copy cancelled. No files were changed.
+    exit /b 0
+)
+echo Please enter Y or N.
+goto :confirmCopy
+
+:copyTemplate
+REM Copy all template files into the destination config folder and overwrite existing files.
+xcopy "%templatesRoot%\%selectedTemplate%\*" "%selectedDestination%\" /E /I /Y >nul
+if errorlevel 1 (
+    echo Error: Copy failed. Please verify folder permissions and try again.
+    exit /b 1
+)
+
+echo Copy complete.
+exit /b 0
+
+:selectTemplate
 set /a menuCount=0
+echo Available templates:
 
 REM Enumerate only child directories and map each numeric index to the directory name.
 for /d %%D in ("%templatesRoot%\*") do (
@@ -24,6 +80,8 @@ for /d %%D in ("%templatesRoot%\*") do (
 
     REM Convert folder names to user-facing labels (strip leading NN- and replace separators).
     set "rawLabel=%%~nxD"
+    set "prefix="
+    set "remainder="
     for /f "tokens=1,* delims=-" %%A in ("!rawLabel!") do (
         set "prefix=%%A"
         set "remainder=%%B"
@@ -48,32 +106,209 @@ if !menuCount! EQU 0 (
     exit /b 1
 )
 
-:promptSelection
+:promptTemplateSelection
 set "selection="
+set "selectionNonNumeric="
 set /p "selection=Select a template number [1-!menuCount!]: "
 
 REM Validate input is numeric and within range before accepting it.
 for /f "delims=0123456789" %%X in ("!selection!") do set "selectionNonNumeric=1"
 if not defined selection (
     echo Invalid selection. Enter a number from 1 to !menuCount!.
-    set "selectionNonNumeric="
-    goto :promptSelection
+    goto :promptTemplateSelection
 )
 if defined selectionNonNumeric (
     echo Invalid selection. Enter a number from 1 to !menuCount!.
-    set "selectionNonNumeric="
-    goto :promptSelection
+    goto :promptTemplateSelection
 )
 if !selection! LSS 1 (
     echo Invalid selection. Enter a number from 1 to !menuCount!.
-    goto :promptSelection
+    goto :promptTemplateSelection
 )
 if !selection! GTR !menuCount! (
     echo Invalid selection. Enter a number from 1 to !menuCount!.
-    goto :promptSelection
+    goto :promptTemplateSelection
 )
 
-set "selectedFolder=!menuDir%selection%!"
-echo Selected template: !selectedFolder!
+set "selectedTemplate=!menuDir%selection%!"
+exit /b 0
 
+:resolveDestination
+set "selectedDestination="
+set /a matchCount=0
+set /a checkedCount=0
+set "checkedPaths="
+
+if defined hasOverride (
+    echo Using override destination from command line.
+    call :normalizePath "%overrideDestination%" normalizedOverride
+
+    if not exist "!normalizedOverride!\NUL" (
+        echo Error: The override path is not a valid directory.
+        echo Provided: "%overrideDestination%"
+        echo Hint: Pass the DOF Config folder, for example "C:\DirectOutput\Config".
+        exit /b 1
+    )
+
+    set "selectedDestination=!normalizedOverride!"
+    echo Selected destination: "!selectedDestination!"
+    exit /b 0
+)
+
+echo Checking for your DOF Config folder...
+call :trackChecked "C:\DirectOutput\Config"
+
+REM Primary deterministic default location check.
+if exist "C:\DirectOutput\Config\NUL" (
+    set "selectedDestination=C:\DirectOutput\Config"
+    echo Found default DOF location: "!selectedDestination!"
+    exit /b 0
+)
+
+echo Default path was not found. Running auto-detection fallback...
+
+REM Scan order is deterministic: C, then D, then E when the drive exists.
+for %%D in (C D E) do (
+    if exist "%%D:\" (
+        call :searchDrive "%%D:"
+    )
+)
+
+echo.
+echo Paths checked:
+if !checkedCount! EQU 0 (
+    echo - ^(none^)
+) else (
+    for /l %%I in (1,1,!checkedCount!) do echo - !checkedPath%%I!
+)
+
+echo.
+if !matchCount! EQU 1 (
+    set "selectedDestination=!matchPath1!"
+    echo Found exactly one matching DOF Config folder.
+    echo Selected destination: "!selectedDestination!"
+    exit /b 0
+)
+
+if !matchCount! GTR 1 goto :promptMatchDestination
+
+echo No DOF Config folders were detected automatically.
+call :promptManualDestination
+exit /b %errorlevel%
+
+:promptMatchDestination
+echo Found multiple matching DOF Config folders:
+for /l %%I in (1,1,!matchCount!) do echo %%I^) !matchPath%%I!
+
+:promptMatchChoice
+set "matchChoice="
+set "matchChoiceNonNumeric="
+set /p "matchChoice=Select destination number [1-!matchCount!] (or Q to cancel): "
+
+if /i "!matchChoice!"=="Q" (
+    echo Cancelled by user.
+    exit /b 1
+)
+
+for /f "delims=0123456789" %%X in ("!matchChoice!") do set "matchChoiceNonNumeric=1"
+if not defined matchChoice (
+    echo Invalid selection. Enter a number from 1 to !matchCount!, or Q to cancel.
+    goto :promptMatchChoice
+)
+if defined matchChoiceNonNumeric (
+    echo Invalid selection. Enter a number from 1 to !matchCount!, or Q to cancel.
+    goto :promptMatchChoice
+)
+if !matchChoice! LSS 1 (
+    echo Invalid selection. Enter a number from 1 to !matchCount!, or Q to cancel.
+    goto :promptMatchChoice
+)
+if !matchChoice! GTR !matchCount! (
+    echo Invalid selection. Enter a number from 1 to !matchCount!, or Q to cancel.
+    goto :promptMatchChoice
+)
+
+set "selectedDestination=!matchPath%matchChoice%!"
+echo Selected destination: "!selectedDestination!"
+exit /b 0
+
+:searchDrive
+set "scanDrive=%~1"
+
+REM First do quick checks for common install layouts before slower recursive scanning.
+for %%S in (
+    "\DirectOutput\Config"
+    "\Visual Pinball\DirectOutput\Config"
+    "\VPinball\DirectOutput\Config"
+    "\Pinball\DirectOutput\Config"
+) do (
+    call :trackChecked "%scanDrive%%%~S"
+    if exist "%scanDrive%%%~S\NUL" call :addMatch "%scanDrive%%%~S"
+)
+
+REM Then perform bounded recursive search for \DirectOutput\Config on this drive.
+call :trackChecked "%scanDrive%\**\DirectOutput\Config (recursive)"
+for /f "delims=" %%P in ('dir "%scanDrive%\DirectOutput\Config" /s /b /ad 2^>nul') do (
+    call :addMatch "%%~fP"
+)
+exit /b 0
+
+:addMatch
+call :normalizePath "%~1" normalizedCandidate
+if not defined normalizedCandidate exit /b 0
+
+REM De-duplicate matches while preserving discovery order.
+for /l %%I in (1,1,!matchCount!) do (
+    if /i "!matchPath%%I!"=="!normalizedCandidate!" exit /b 0
+)
+
+set /a matchCount+=1
+set "matchPath!matchCount!=!normalizedCandidate!"
+exit /b 0
+
+:trackChecked
+call :normalizePath "%~1" normalizedChecked
+if not defined normalizedChecked exit /b 0
+
+REM Keep a de-duplicated list of checked paths so the user sees a concise summary.
+for /l %%I in (1,1,!checkedCount!) do (
+    if /i "!checkedPath%%I!"=="!normalizedChecked!" exit /b 0
+)
+
+set /a checkedCount+=1
+set "checkedPath!checkedCount!=!normalizedChecked!"
+exit /b 0
+
+:promptManualDestination
+echo Please type your DOF Config path manually.
+echo Example: C:\DirectOutput\Config
+
+:manualPromptLoop
+set "manualDestination="
+set /p "manualDestination=Destination path (or Q to cancel): "
+
+if /i "!manualDestination!"=="Q" (
+    echo Cancelled by user.
+    exit /b 1
+)
+
+call :normalizePath "!manualDestination!" normalizedManual
+if not exist "!normalizedManual!\NUL" (
+    echo That path is not a valid folder. Please try again.
+    goto :manualPromptLoop
+)
+
+set "selectedDestination=!normalizedManual!"
+echo Selected destination: "!selectedDestination!"
+exit /b 0
+
+:normalizePath
+set "%~2=%~1"
+if not defined %~2 exit /b 0
+
+set "value=!%~2!"
+if "!value:~-1!"=="\" (
+    if not "!value:~1,1!"==":" set "value=!value:~0,-1!"
+)
+set "%~2=!value!"
 exit /b 0
