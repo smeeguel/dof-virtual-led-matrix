@@ -764,6 +764,55 @@ public sealed class CabinetXmlServiceTests
         Assert.DoesNotContain("HardwareA", summary, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ApplyVirtualToyMerge_WhenManagedToyRemoved_ShouldDeleteLedWizOutputAndReindexFirstLedNumbers()
+    {
+        var xml = """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController>
+                  <Name>LED Strips 0</Name>
+                  <NumberOfLedsStrip1>4152</NumberOfLedsStrip1>
+                </VirtualLEDStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip><Name>Matrix1</Name><Width>128</Width><Height>32</Height><FirstLedNumber>1</FirstLedNumber><OutputControllerName>LED Strips 0</OutputControllerName><LedCount>4096</LedCount></LedStrip>
+                <LedStrip><Name>Strip1</Name><Width>32</Width><Height>1</Height><FirstLedNumber>1</FirstLedNumber><OutputControllerName>LED Strips 0</OutputControllerName><LedCount>32</LedCount></LedStrip>
+                <LedStrip><Name>Strip3</Name><Width>1</Width><Height>16</Height><FirstLedNumber>4137</FirstLedNumber><OutputControllerName>LED Strips 0</OutputControllerName><LedCount>16</LedCount></LedStrip>
+                <LedStrip><Name>Strip2</Name><Width>1</Width><Height>16</Height><FirstLedNumber>4129</FirstLedNumber><OutputControllerName>LED Strips 0</OutputControllerName><LedCount>16</LedCount></LedStrip>
+                <LedWizEquivalent>
+                  <Name>LedWizEquivalent 30</Name>
+                  <LedWizNumber>30</LedWizNumber>
+                  <Outputs>
+                    <LedWizEquivalentOutput><OutputName>Matrix1</OutputName><LedWizEquivalentOutputNumber>1</LedWizEquivalentOutputNumber></LedWizEquivalentOutput>
+                    <LedWizEquivalentOutput><OutputName>Strip1</OutputName><LedWizEquivalentOutputNumber>4</LedWizEquivalentOutputNumber></LedWizEquivalentOutput>
+                    <LedWizEquivalentOutput><OutputName>Strip2</OutputName><LedWizEquivalentOutputNumber>7</LedWizEquivalentOutputNumber></LedWizEquivalentOutput>
+                    <LedWizEquivalentOutput><OutputName>Strip3</OutputName><LedWizEquivalentOutputNumber>10</LedWizEquivalentOutputNumber></LedWizEquivalentOutput>
+                  </Outputs>
+                </LedWizEquivalent>
+              </Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+        var desired = new[]
+        {
+            new VirtualLedToyDefinition("Matrix1", 128, 32, "LED Strips 0", FirstLedNumber: 1, LedCount: 4096),
+            new VirtualLedToyDefinition("Strip1", 32, 1, "LED Strips 0", FirstLedNumber: 1, LedCount: 32),
+            new VirtualLedToyDefinition("Strip3", 1, 16, "LED Strips 0", FirstLedNumber: 4137, LedCount: 16),
+        };
+        var plan = service.BuildVirtualToyMergePlan(temp.Path, desired, removeMissingManagedToys: true);
+
+        service.ApplyVirtualToyMerge(temp.Path, plan, dryRun: false);
+        var merged = File.ReadAllText(temp.Path);
+
+        Assert.DoesNotContain("<Name>Strip2</Name>", merged, StringComparison.Ordinal);
+        Assert.DoesNotContain("<OutputName>Strip2</OutputName>", merged, StringComparison.Ordinal);
+        Assert.Contains("<Name>Strip3</Name>", merged);
+        Assert.Contains("<FirstLedNumber>4129</FirstLedNumber>", merged);
+    }
+
     private sealed class TempCabinetXml : IDisposable
     {
         public TempCabinetXml(string xml)

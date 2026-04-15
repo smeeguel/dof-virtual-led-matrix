@@ -558,8 +558,18 @@ public sealed class CabinetXmlService
 
         if (!dryRun)
         {
+            // Note: explicit toy removals should leave managed ranges compact and non-overlapping.
+            if (plan.PlannedChanges.Any(change => change.ChangeType == CabinetXmlMergeChangeType.Removed))
+            {
+                ReindexManagedFirstLedNumbers(managedByCurrentName.Values);
+            }
+
             SyncVirtualControllerLedCounts(document, managedByCurrentName.Values);
-            SyncLedWizEquivalentOutputs(toysRoot, renameMap, plan.DesiredVirtualToysByName.Values);
+            var removedToyNames = plan.PlannedChanges
+                .Where(change => change.ChangeType == CabinetXmlMergeChangeType.Removed)
+                .Select(change => change.ToyName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            SyncLedWizEquivalentOutputs(toysRoot, renameMap, plan.DesiredVirtualToysByName.Values, removedToyNames);
             RemoveWhitespaceTextNodes(toysRoot);
 
             var backupPath = $"{cabinetXmlPath}.bak.{DateTime.UtcNow:yyyyMMddHHmmss}";
@@ -775,7 +785,8 @@ public sealed class CabinetXmlService
     private static void SyncLedWizEquivalentOutputs(
         XElement toysRoot,
         IReadOnlyDictionary<string, string> renameMap,
-        IEnumerable<VirtualLedToyDefinition> desiredToys)
+        IEnumerable<VirtualLedToyDefinition> desiredToys,
+        ISet<string>? removedToyNames = null)
     {
         var desiredByName = desiredToys
             .ToDictionary(x => x.Name, x => x, StringComparer.OrdinalIgnoreCase);
@@ -794,6 +805,20 @@ public sealed class CabinetXmlService
                 if (!string.IsNullOrWhiteSpace(outputName) && renameMap.TryGetValue(outputName, out var renamed))
                 {
                     SetOrCreateChildValue(output, "OutputName", renamed);
+                }
+            }
+
+            if (removedToyNames is not null && removedToyNames.Count > 0)
+            {
+                foreach (var output in outputsNode.Elements().Where(x => x.Name.LocalName == "LedWizEquivalentOutput").ToList())
+                {
+                    var outputName = GetChildValue(output, "OutputName");
+                    if (string.IsNullOrWhiteSpace(outputName) || !removedToyNames.Contains(outputName))
+                    {
+                        continue;
+                    }
+
+                    output.Remove();
                 }
             }
 
@@ -852,6 +877,34 @@ public sealed class CabinetXmlService
                 occupiedSlots.Add(nextSlot + 1);
                 occupiedSlots.Add(nextSlot + 2);
                 nextSlot += rgbChannelWidth;
+            }
+        }
+    }
+
+    private static void ReindexManagedFirstLedNumbers(IEnumerable<XElement> managedLedStrips)
+    {
+        var groupedByController = managedLedStrips
+            .Select(strip => new
+            {
+                Element = strip,
+                Controller = GetChildValue(strip, "OutputControllerName") ?? string.Empty,
+                Name = GetChildValue(strip, "Name") ?? string.Empty,
+                FirstLed = ParseIntOrNull(GetChildValue(strip, "FirstLedNumber")) ?? int.MaxValue,
+                LedCount = Math.Max(1, ParseIntOrNull(GetChildValue(strip, "LedCount")) ?? ResolveElementLedCount(strip)),
+            })
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Controller))
+            .GroupBy(entry => entry.Controller, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var controllerGroup in groupedByController)
+        {
+            var nextFirstLed = 1;
+            foreach (var entry in controllerGroup
+                         .OrderBy(x => x.FirstLed)
+                         .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                SetOrCreateChildValue(entry.Element, "FirstLedNumber", nextFirstLed.ToString());
+                SetOrCreateChildValue(entry.Element, "LedCount", entry.LedCount.ToString());
+                nextFirstLed += entry.LedCount;
             }
         }
     }
