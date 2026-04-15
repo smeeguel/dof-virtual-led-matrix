@@ -143,11 +143,12 @@ First-launch tip:
 
 ---
 
-## 2) Configure Cabinet.xml (beginner walkthrough)
+## 2) Optional: Cabinet.xml for combination setups (virtual + hardware)
 
-If all you want is the default single virtual LED matrix from the provided package config, you can skip Step 2.
+If you already ran `DOFConfigSelector.bat` in Step 1C and your virtual matrix is working, you can skip this section.
 
-Use Step 2 when you need to review or customize Cabinet.xml entries.
+Use Step 2 only when you have a combination setup (virtual + hardware toys), custom routing, or older custom DOF files you need to keep.
+Before editing, make a backup copy of `Cabinet.xml`.
 
 ### Step 2A - Open Cabinet.xml
 
@@ -160,7 +161,7 @@ Use search (`Ctrl+F`) for:
 
 - `VirtualLEDStripController`
 
-If you have the sample config from this repo/package applied, you should already have this controller type in your file.
+If Step 1C copied the template correctly, this entry should already be present.
 
 ### Step 2C - Confirm the pipe/controller name matches app settings
 
@@ -174,7 +175,7 @@ In `Cabinet.xml`, find the controller's pipe name value. In `settings.json`, fin
 
 These two names must match exactly (same spelling, same capitalization).
 
-Tip: the provided examples use `VirtualDofMatrix`.
+Tip: the provided examples use `VirtualDofMatrix`. Only change this if your setup requires it.
 
 ### Step 2D - Let the app safely update Cabinet.xml when needed
 
