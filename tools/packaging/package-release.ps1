@@ -51,6 +51,63 @@ function Resolve-MappingSourcePath {
     throw "Unable to resolve source path '$Path'. Checked: '$checked'"
 }
 
+function Get-InstructionsMarkdown {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstructionsPath
+    )
+
+    # Parse the markdown source embedded in instructions.html so both docs/README.md and staged README.md
+    # are guaranteed to mirror the same canonical content on every packaging run.
+    $instructionsHtml = Get-Content -LiteralPath $InstructionsPath -Raw
+    $pattern = '<script id="md-source" type="text/plain">(?s)(.*?)</script>'
+    $match = [System.Text.RegularExpressions.Regex]::Match($instructionsHtml, $pattern)
+
+    if (-not $match.Success) {
+        throw "Unable to locate markdown source block in instructions file: $InstructionsPath"
+    }
+
+    $instructionsMarkdown = $match.Groups[1].Value.Trim()
+    if ([string]::IsNullOrWhiteSpace($instructionsMarkdown)) {
+        throw "Markdown source block in instructions file is empty: $InstructionsPath"
+    }
+
+    return $instructionsMarkdown
+}
+
+function Write-MarkdownFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Markdown
+    )
+
+    $readmeDirectory = Split-Path -Parent $DestinationPath
+    New-Item -ItemType Directory -Path $readmeDirectory -Force | Out-Null
+    Set-Content -LiteralPath $DestinationPath -Value $Markdown -Encoding utf8
+}
+
+function Test-FileContentEquals {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedContent
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $false
+    }
+
+    $actual = Get-Content -LiteralPath $Path -Raw
+    $normalizedActual = $actual.Replace("`r`n", "`n").TrimEnd("`n")
+    $normalizedExpected = $ExpectedContent.Replace("`r`n", "`n").TrimEnd("`n")
+    return $normalizedActual -eq $normalizedExpected
+}
+
 $repoRoot = Resolve-RepoPath "."
 $publishDir = [System.IO.Path]::GetFullPath($PublishOutput)
 $manifestFile = [System.IO.Path]::GetFullPath($ManifestPath)
@@ -71,6 +128,24 @@ New-Item -ItemType Directory -Path $stagingDir | Out-Null
 
 Write-Host "Staging directory initialized at $stagingDir"
 Write-Host "Manifest is authoritative; only mapped files will be copied."
+
+$repoInstructionsPath = Join-Path $repoRoot "docs/instructions.html"
+if (-not (Test-Path -LiteralPath $repoInstructionsPath -PathType Leaf)) {
+    throw "Canonical instructions file not found: $repoInstructionsPath"
+}
+
+$instructionsMarkdown = Get-InstructionsMarkdown -InstructionsPath $repoInstructionsPath
+
+$repoDocsReadmePath = Join-Path $repoRoot "docs/README.md"
+if (-not (Test-FileContentEquals -Path $repoDocsReadmePath -ExpectedContent $instructionsMarkdown)) {
+    Write-MarkdownFile -DestinationPath $repoDocsReadmePath -Markdown $instructionsMarkdown
+    throw "docs/README.md was stale. It has been refreshed from docs/instructions.html. Commit docs/README.md and re-run packaging."
+}
+
+$repoRootReadmePath = Join-Path $repoRoot "README.md"
+if (-not (Test-FileContentEquals -Path $repoRootReadmePath -ExpectedContent $instructionsMarkdown)) {
+    Write-MarkdownFile -DestinationPath $repoRootReadmePath -Markdown $instructionsMarkdown
+}
 
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
 if ($null -eq $manifest.mappings -or $manifest.mappings.Count -eq 0) {
@@ -196,6 +271,15 @@ for ($i = 0; $i -lt $manifest.mappings.Count; $i++) {
         }
     }
 }
+
+$stagingInstructionsPath = Join-Path $stagingDir "docs/instructions.html"
+if (-not (Test-Path -LiteralPath $stagingInstructionsPath -PathType Leaf)) {
+    throw "Required docs/instructions.html mapping is missing from staged package."
+}
+
+$stagingReadmePath = Join-Path $stagingDir "README.md"
+Write-MarkdownFile -DestinationPath $stagingReadmePath -Markdown $instructionsMarkdown
+Write-Host "Generated staged README mirror from instructions: $stagingReadmePath"
 
 $artifactPath = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $stagingDir) $AssetName))
 if (Test-Path -LiteralPath $artifactPath) {
