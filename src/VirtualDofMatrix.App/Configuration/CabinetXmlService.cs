@@ -909,6 +909,13 @@ public sealed class CabinetXmlService
         }
     }
 
+    private static int ResolveElementLedCount(XElement ledStrip)
+    {
+        var width = ParseIntOrNull(GetChildValue(ledStrip, "Width")) ?? 1;
+        var height = ParseIntOrNull(GetChildValue(ledStrip, "Height")) ?? 1;
+        return Math.Max(1, width * height);
+    }
+
     private static bool IsRgbAlignedSlotAvailable(HashSet<int> occupiedSlots, int candidateStart, int rgbChannelWidth)
     {
         if (candidateStart < 1)
