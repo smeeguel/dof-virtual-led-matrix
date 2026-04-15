@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using VirtualDofMatrix.App.Configuration;
 using VirtualDofMatrix.Core;
@@ -301,15 +302,36 @@ public partial class SettingsWindow : Window
             _toyToggleByName[item.RouteId] = enabledToggle;
             _toyRowById[item.RouteId] = row;
 
+            // Note: keep actions compact and iconized so rows remain scannable while preserving keyboard/screen-reader affordances.
+            var actionCluster = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0),
+            };
+
             var editButton = new System.Windows.Controls.Button
             {
-                Content = "Edit",
-                Width = 64,
-                Margin = new Thickness(0, 0, 8, 0),
+                Content = "✏",
                 Tag = item.RouteId,
                 ToolTip = "Edit this toy's dimensions and visual settings.",
+                Style = (Style)FindResource("RowActionIconButtonStyle"),
+                TabIndex = 1,
             };
+            AutomationProperties.SetName(editButton, $"Edit toy {item.DisplayName}");
             editButton.Click += OnEditToyClicked;
+
+            var deleteButton = new System.Windows.Controls.Button
+            {
+                Content = "🗑",
+                Tag = item.RouteId,
+                ToolTip = "Delete this toy from the virtual toy list.",
+                Style = (Style)FindResource("RowActionIconButtonStyle"),
+                Margin = new Thickness(0, 0, 0, 0),
+                TabIndex = 2,
+            };
+            AutomationProperties.SetName(deleteButton, $"Delete toy {item.DisplayName}");
+            deleteButton.Click += OnDeleteToyClicked;
 
             var name = new TextBlock
             {
@@ -319,9 +341,14 @@ public partial class SettingsWindow : Window
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(51, 51, 51)),
             };
+            enabledToggle.TabIndex = 0;
+            AutomationProperties.SetName(enabledToggle, $"Enable toy {item.DisplayName}");
+
+            actionCluster.Children.Add(editButton);
+            actionCluster.Children.Add(deleteButton);
 
             row.Children.Add(enabledToggle);
-            row.Children.Add(editButton);
+            row.Children.Add(actionCluster);
             row.Children.Add(name);
             return row;
         })
@@ -423,6 +450,49 @@ public partial class SettingsWindow : Window
         }
 
         EditToyById(toyId);
+    }
+
+    private void OnDeleteToyClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        var existing = _working.Routing.Toys.FirstOrDefault(x => x.Id.Equals(toyId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            WpfMessageBox.Show(this, "This toy only exists in Cabinet.xml and cannot be deleted here yet.", "Delete unavailable", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirmation = WpfMessageBox.Show(
+            this,
+            $"Delete '{existing.Name}' from the virtual toy list?",
+            "Confirm Delete",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _working.Routing.Toys.Remove(existing);
+        if (_working.Routing.Toys.Count > 0 && !_working.Routing.Toys.Any(x => x.Enabled))
+        {
+            // Note: preserve the "at least one active toy" invariant after deletes by re-enabling the first remaining toy.
+            _working.Routing.Toys[0].Enabled = true;
+        }
+        EnsureCanonicalStartsForUnassignedToys(_working.Routing.Toys);
+        LoadToyCollections();
+        _selectedToyId = _working.Routing.Toys.FirstOrDefault(x => x.Enabled)?.Id
+            ?? _working.Routing.Toys.FirstOrDefault()?.Id;
+        RefreshToyRowHighlight();
+        ApplyWorkingConfigImmediately();
+        UpdateSummary();
+        UpdateDirtyState();
     }
 
     public void BeginEditToy(string toyId)
