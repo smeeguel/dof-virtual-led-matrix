@@ -59,14 +59,33 @@ echo Please enter Y or N.
 goto :confirmCopy
 
 :copyTemplate
-REM Copy all template files into the destination config folder and overwrite existing files.
-xcopy "%templatesRoot%\%selectedTemplate%\*" "%selectedDestination%\" /E /I /Y >nul
-if errorlevel 1 (
-    echo Error: Copy failed. Please verify folder permissions and try again.
+REM Copy template contents (not the parent folder) into destination using robocopy for reliable logging.
+set "templateSource=%templatesRoot%\%selectedTemplate%"
+if not exist "%templateSource%\NUL" (
+    echo Error: Selected template folder was not found.
+    echo Expected: "%templateSource%"
     exit /b 1
 )
 
-echo Copy complete.
+set "copyLog=%TEMP%\DOFConfigSelector_%RANDOM%_%RANDOM%.log"
+echo Copying files...
+robocopy "%templateSource%" "%selectedDestination%" *.* /E /R:1 /W:1 /NP /TEE /LOG:"%copyLog%"
+set "robocopyExit=%errorlevel%"
+
+REM Robocopy success codes are 0-7; 8 and above indicate at least one failure.
+if %robocopyExit% GEQ 8 (
+    echo.
+    echo Error: File copy failed. Robocopy exit code: %robocopyExit%.
+    call :printRoboFailureReason %robocopyExit%
+    echo Review the copy log for details: "%copyLog%"
+    exit /b 1
+)
+
+echo.
+call :printKeyFileSummary
+echo Success: Template files were copied to "%selectedDestination%".
+echo Next step: Launch VirtualDofMatrix.App.exe and continue the setup guide.
+if exist "%copyLog%" del /q "%copyLog%" >nul 2>&1
 exit /b 0
 
 :selectTemplate
@@ -311,4 +330,37 @@ if "!value:~-1!"=="\" (
     if not "!value:~1,1!"==":" set "value=!value:~0,-1!"
 )
 set "%~2=!value!"
+exit /b 0
+
+:printKeyFileSummary
+REM Report key configuration files so users can quickly verify expected outputs.
+echo Key configuration files in destination:
+for %%F in (
+    "Cabinet.xml"
+    "directoutputconfig30.ini"
+    "tablemappings.xml"
+    "DirectOutputShapes.xml"
+    "DirectOutputShapes.png"
+) do (
+    if exist "%selectedDestination%\%%~F" (
+        echo - %%~F [present]
+    ) else (
+        echo - %%~F [missing]
+    )
+)
+exit /b 0
+
+:printRoboFailureReason
+REM Give a beginner-friendly failure hint based on common robocopy failure bits.
+set "roboCode=%~1"
+if %roboCode% GEQ 16 (
+    echo Reason: Serious error. This is commonly caused by invalid paths or permissions.
+    exit /b 0
+)
+if %roboCode% GEQ 8 (
+    echo Reason: Some files or folders could not be copied.
+    echo Hint: Check file locks, permissions, and destination free space, then try again.
+    exit /b 0
+)
+echo Reason: Unknown copy status.
 exit /b 0
