@@ -46,6 +46,7 @@ echo.
 echo Template selected: "%selectedTemplate%"
 echo Destination selected: "%selectedDestination%"
 echo.
+echo Warning: Files in the destination DOF Config folder may be overwritten.
 
 :confirmCopy
 set "confirmCopyInput="
@@ -67,6 +68,9 @@ if not exist "%templateSource%\NUL" (
     exit /b 1
 )
 
+call :promptBackupChoice
+if errorlevel 1 exit /b 1
+
 set "copyLog=%TEMP%\DOFConfigSelector_%RANDOM%_%RANDOM%.log"
 echo Copying files...
 robocopy "%templateSource%" "%selectedDestination%" *.* /E /R:1 /W:1 /NP /TEE /LOG:"%copyLog%"
@@ -85,6 +89,7 @@ echo.
 call :printKeyFileSummary
 echo Success: Template files were copied to "%selectedDestination%".
 echo Next step: Launch VirtualDofMatrix.App.exe and continue the setup guide.
+echo Reminder: If your DOF install is in a custom location, confirm GlobalConfig_B2SServer.xml still points to your active ^<InstallDir^>\Config folder.
 if exist "%copyLog%" del /q "%copyLog%" >nul 2>&1
 exit /b 0
 
@@ -185,6 +190,7 @@ if exist "C:\DirectOutput\Config\NUL" (
 )
 
 echo Default path was not found. Running auto-detection fallback...
+echo Tip: If you installed DOF somewhere else, that is okay. The script will search common locations next.
 
 REM Scan order is deterministic: C, then D, then E when the drive exists.
 for %%D in (C D E) do (
@@ -212,6 +218,9 @@ if !matchCount! EQU 1 (
 if !matchCount! GTR 1 goto :promptMatchDestination
 
 echo No DOF Config folders were detected automatically.
+echo Troubleshooting:
+echo - Confirm DOF is installed and that a Config folder exists.
+echo - If Windows blocked this script, right-click it and choose Run anyway (or use the manual copy fallback in instructions).
 call :promptManualDestination
 exit /b %errorlevel%
 
@@ -332,6 +341,67 @@ if "!value:~-1!"=="\" (
 set "%~2=!value!"
 exit /b 0
 
+:promptBackupChoice
+echo.
+echo Optional safety backup:
+echo Press B to create a backup of the current destination files before overwrite.
+echo Press S to skip backup and continue.
+echo Press Q to cancel.
+
+:backupPromptLoop
+set "backupChoice="
+set /p "backupChoice=Your choice [B/S/Q]: "
+if /i "!backupChoice!"=="Q" (
+    echo Cancelled by user.
+    exit /b 1
+)
+if /i "!backupChoice!"=="S" (
+    echo Backup skipped.
+    exit /b 0
+)
+if /i "!backupChoice!"=="B" goto :runBackup
+echo Please enter B, S, or Q.
+goto :backupPromptLoop
+
+:runBackup
+call :buildTimestamp backupStamp
+set "backupFolder=%selectedDestination%\Config_backup_!backupStamp!"
+echo Creating backup folder: "!backupFolder!"
+mkdir "!backupFolder!" >nul 2>&1
+if errorlevel 1 (
+    echo Error: Could not create backup folder.
+    echo Hint: Try running this script as Administrator.
+    exit /b 1
+)
+
+set "backupLog=%TEMP%\DOFConfigSelector_backup_%RANDOM%_%RANDOM%.log"
+robocopy "%selectedDestination%" "!backupFolder!" *.* /E /R:1 /W:1 /NP /TEE /LOG:"!backupLog!"
+set "backupExit=!errorlevel!"
+if !backupExit! GEQ 8 (
+    echo Error: Backup failed. Robocopy exit code: !backupExit!.
+    echo Hint: Check folder permissions, file locks, or run as Administrator.
+    echo Backup log: "!backupLog!"
+    exit /b 1
+)
+
+echo Backup complete: "!backupFolder!"
+if exist "!backupLog!" del /q "!backupLog!" >nul 2>&1
+exit /b 0
+
+:buildTimestamp
+REM Build a filesystem-safe timestamp for backup folder naming.
+set "stamp="
+for /f "skip=1 tokens=1 delims=." %%I in ('wmic os get localdatetime 2^>nul') do if not defined stamp set "stamp=%%I"
+if defined stamp (
+    set "stamp=!stamp:~0,8!_!stamp:~8,6!"
+) else (
+    set "stamp=%date:/=%_%time::=%"
+    set "stamp=!stamp: =0!"
+    set "stamp=!stamp:.=%"
+)
+set "%~1=!stamp!"
+exit /b 0
+
 :printKeyFileSummary
 REM Report key configuration files so users can quickly verify expected outputs.
 echo Key configuration files in destination:
@@ -359,7 +429,8 @@ if %roboCode% GEQ 16 (
 )
 if %roboCode% GEQ 8 (
     echo Reason: Some files or folders could not be copied.
-    echo Hint: Check file locks, permissions, and destination free space, then try again.
+    echo Hint: Check file locks, free space, and permissions.
+    echo Hint: If needed, rerun this script as Administrator.
     exit /b 0
 )
 echo Reason: Unknown copy status.

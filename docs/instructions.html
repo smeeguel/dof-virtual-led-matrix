@@ -108,8 +108,17 @@ What the script does:
 
 - It first tries `C:\DirectOutput\Config` automatically.
 - If needed, it can show other detected DOF config folders and let you pick one.
+- It shows a warning that destination config files can be overwritten.
+- It offers an optional one-key backup before overwrite (`Config_backup_YYYYMMDD_HHMMSS` style folder inside your selected config folder).
 - It copies template files into your DOF config folder and overwrites existing files from that template.
 - It prints copy details, shows key config file status, and ends with a success message when complete.
+- After copy, it reminds you to verify `GlobalConfig_B2SServer.xml` if you use a nonstandard DOF install path.
+
+Quick troubleshooting:
+
+- `C:\DirectOutput\Config` not found: continue in the script and select a detected folder or enter your path manually.
+- Access denied/copy failed: run `DOFConfigSelector.bat` as Administrator, then try again.
+- Script blocked by Windows: right-click `DOFConfigSelector.bat`, choose **Run anyway** (or use the manual fallback below).
 
 ### Step 1C fallback - Manual copy (if batch is blocked)
 
