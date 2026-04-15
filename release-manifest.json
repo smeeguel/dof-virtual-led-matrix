@@ -7,8 +7,8 @@
     },
     {
       "type": "file",
-      "from": "examples/settings.sample.json",
-      "to": "examples/settings.sample.json"
+      "from": "./DOFConfigSelector.bat",
+      "to": "./DOFConfigSelector.bat"
     },
     {
       "type": "file",
