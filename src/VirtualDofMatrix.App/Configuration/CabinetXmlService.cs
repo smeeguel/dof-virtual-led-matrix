@@ -258,6 +258,7 @@ public sealed class CabinetXmlService
             x => x.Name!,
             x => x,
             StringComparer.OrdinalIgnoreCase);
+        var existingManagedNameSet = existingByName.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var unmatchedExistingNames = new HashSet<string>(existingByName.Keys, StringComparer.OrdinalIgnoreCase);
 
         var desiredOrdered = desiredVirtualToys.ToList();
@@ -363,6 +364,13 @@ public sealed class CabinetXmlService
             foreach (var existing in unmatchedExistingNames.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
             {
                 if (desiredByName.ContainsKey(existing))
+                {
+                    continue;
+                }
+
+                // Note: removeMissingManagedToys should only delete toys we classified as managed virtual LedStrip entries.
+                // This guards against accidentally deleting unrelated/manual Cabinet.xml toys.
+                if (!existingManagedNameSet.Contains(existing))
                 {
                     continue;
                 }
@@ -590,6 +598,12 @@ public sealed class CabinetXmlService
         {
             builder.AppendLine("- No managed virtual-toy changes detected.");
             return builder.ToString().TrimEnd();
+        }
+
+        var removedCount = plan.PlannedChanges.Count(change => change.ChangeType == CabinetXmlMergeChangeType.Removed);
+        if (removedCount > 0)
+        {
+            builder.AppendLine($"- Removal warning: {removedCount} managed virtual toy(s) will be removed from Cabinet.xml.");
         }
 
         foreach (var group in plan.PlannedChanges.GroupBy(x => x.ChangeType))

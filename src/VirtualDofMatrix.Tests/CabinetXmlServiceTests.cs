@@ -724,6 +724,46 @@ public sealed class CabinetXmlServiceTests
         Assert.Contains("</LedStrip>\r\n\r\n\t\t<LedStrip>", merged);
     }
 
+    [Fact]
+    public void FormatMergeSummary_ShouldCallOutManagedToyRemovals()
+    {
+        var xml = """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController><Name>Virtual Controller</Name></VirtualLEDStripController>
+                <TeensyStripController><Name>Hardware Controller</Name></TeensyStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>VirtualA</Name>
+                  <Width>32</Width>
+                  <Height>8</Height>
+                  <OutputControllerName>Virtual Controller</OutputControllerName>
+                </LedStrip>
+                <LedStrip>
+                  <Name>HardwareA</Name>
+                  <Width>16</Width>
+                  <Height>16</Height>
+                  <OutputControllerName>Hardware Controller</OutputControllerName>
+                </LedStrip>
+              </Toys>
+            </Cabinet>
+            """;
+
+        using var temp = new TempCabinetXml(xml);
+        var service = new CabinetXmlService();
+        var plan = service.BuildVirtualToyMergePlan(
+            temp.Path,
+            [],
+            removeMissingManagedToys: true);
+
+        var summary = service.FormatMergeSummary(plan, dryRun: true);
+
+        Assert.Contains("Removal warning: 1 managed virtual toy(s)", summary);
+        Assert.Contains("VirtualA", summary);
+        Assert.DoesNotContain("HardwareA", summary, StringComparison.Ordinal);
+    }
+
     private sealed class TempCabinetXml : IDisposable
     {
         public TempCabinetXml(string xml)

@@ -208,9 +208,21 @@ public partial class App : System.Windows.Application
         var originalWidth = _config.Matrix.Width;
         var originalHeight = _config.Matrix.Height;
         var originalRoutingFingerprint = BuildRoutingFingerprint(_config.Routing.Toys);
+        var originalToyIds = _config.Routing.Toys
+            .Select(toy => toy.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         CopyConfig(updated, _config);
         AppLogger.SetEnabled(_config.Debug.LogProtocol);
+        var currentToyIds = _config.Routing.Toys
+            .Select(toy => toy.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var deletedToyIds = originalToyIds
+            .Where(id => !currentToyIds.Contains(id))
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
         var resolutionChanged = originalWidth != _config.Matrix.Width || originalHeight != _config.Matrix.Height;
         var routingChanged = !string.Equals(
@@ -219,7 +231,7 @@ public partial class App : System.Windows.Application
             StringComparison.Ordinal);
         if (_config.Settings.AutoUpdateCabinetOnResolutionChange && (resolutionChanged || routingChanged))
         {
-            var updatedCabinet = TrySyncCabinetManagedVirtualToys();
+            var updatedCabinet = TrySyncCabinetManagedVirtualToys(deletedToyIds);
             if (updatedCabinet)
             {
                 WpfMessageBox.Show(_window,
@@ -299,7 +311,7 @@ public partial class App : System.Windows.Application
             : arg;
     }
 
-    private bool TrySyncCabinetManagedVirtualToys()
+    private bool TrySyncCabinetManagedVirtualToys(IReadOnlyCollection<string>? deletedToyIds = null)
     {
         if (_config is null || _window is null)
         {
@@ -323,6 +335,20 @@ public partial class App : System.Windows.Application
 
         try
         {
+            var requestManagedRemovals = false;
+            if (deletedToyIds is not null && deletedToyIds.Count > 0)
+            {
+                var toyList = string.Join(", ", deletedToyIds.OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
+                var removalPrompt = WpfMessageBox.Show(
+                    _window,
+                    $"You deleted {deletedToyIds.Count} toy(s): {toyList}\n\nAlso remove matching managed virtual toys from Cabinet.xml?",
+                    "Remove deleted toys from Cabinet.xml?",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question,
+                    MessageBoxResult.Yes);
+                requestManagedRemovals = removalPrompt == MessageBoxResult.Yes;
+            }
+
             var hasEnabledRoutingToys = _config.Routing.Toys.Any(toy => toy.Enabled);
             CabinetXmlMergePlan mergePlan;
             if (hasEnabledRoutingToys)
@@ -330,7 +356,7 @@ public partial class App : System.Windows.Application
                 mergePlan = _cabinetXmlService.BuildVirtualToyMergePlanFromRouting(
                     resolvedPath,
                     _config.Routing.Toys,
-                    removeMissingManagedToys: false);
+                    removeMissingManagedToys: requestManagedRemovals);
             }
             else
             {
@@ -344,7 +370,7 @@ public partial class App : System.Windows.Application
                 mergePlan = _cabinetXmlService.BuildVirtualToyMergePlan(
                     resolvedPath,
                     [new VirtualLedToyDefinition(_config.Settings.CabinetToyName, _config.Matrix.Width, _config.Matrix.Height, controllerName)],
-                    removeMissingManagedToys: false);
+                    removeMissingManagedToys: requestManagedRemovals);
             }
 
             if (!mergePlan.PlannedChanges.Any())
