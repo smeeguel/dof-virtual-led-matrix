@@ -96,11 +96,11 @@ Why this step exists:
 
 - The downloadable ZIP includes a `DOF/Config` folder with prebuilt configuration files used by this app.
 - DOF reads configuration from your local `{DOFInstallDir}\Config` folder (most commonly `C:\DirectOutput\Config`).
-- The selector script copies the correct template files into that folder so DOF has the right cabinet/toy setup for this app.
+- The setup script copies the correct template files into that folder so DOF has the right cabinet/toy setup for this app and refreshes DOF runtime files automatically.
 
 What to do (recommended):
 
-1. From the package root, run `DOFConfigSelector.bat`.
+1. From the package root, run `DOFConfigSetup.bat`.
 2. Pick the template that matches your setup from the numbered menu.
 3. Confirm copy when prompted.
 
@@ -112,28 +112,17 @@ What the script does:
 - If overwrite is detected, it shows a backup prompt (`[B/s/q]`) and defaults to **B** (backup) when you press Enter.
 - Backup folders use `Config_backup_YYYYMMDD_HHMMSS` style naming inside your selected config folder.
 - It copies template files into your DOF config folder and overwrites existing files from that template.
-- It prints copy details, shows key config file status, and ends with a success message when complete.
-- After copy, it reminds you to verify `GlobalConfig_B2SServer.xml` if you use a nonstandard DOF install path.
+- It automatically refreshes these package files into your active `{DOFInstallDir}` tree:
+  - `DOF/Config/GlobalConfig_B2SServer.xml` -> `{DOFInstallDir}/Config/GlobalConfig_B2SServer.xml`
+  - `DOF/x64/DirectOutput.dll` -> `{DOFInstallDir}/x64/DirectOutput.dll`
+  - `DOF/x86/DirectOutput.dll` -> `{DOFInstallDir}/x86/DirectOutput.dll`
+- It prints copy details, shows key config/runtime file status, and ends with a success message when complete.
 
 Quick troubleshooting:
 
 - `C:\DirectOutput\Config` not found: continue in the script and select a detected folder or enter your path manually.
-- Access denied/copy failed: run `DOFConfigSelector.bat` as Administrator, then try again.
-- Script blocked by Windows: right-click `DOFConfigSelector.bat`, choose **Run anyway** (or use the manual fallback below).
-
-### Step 1C fallback - Manual copy (if batch is blocked)
-
-If your system blocks `.bat` files (policy, SmartScreen, or security software), you can copy manually:
-
-1. Open `DOF/Config/templates`.
-2. Open the same template folder you would have selected in the script (for example `01-single-matrix`).
-3. Copy that template folder's contents.
-4. Paste into your DOF config folder: `{DOFInstallDir}\Config` (example: `C:\DirectOutput\Config`).
-
-If Windows asks to replace files:
-
-- New users/no existing custom DOF config: replace as needed.
-- Existing custom DOF config: merge carefully instead of blind overwrite.
+- Access denied/copy failed: run `DOFConfigSetup.bat` as Administrator, then try again.
+- Script blocked by Windows: right-click `DOFConfigSetup.bat`, choose **Run anyway**.
 
 First-launch tip:
 
@@ -147,7 +136,7 @@ First-launch tip:
 
 ## 2) Optional: Cabinet.xml for combination setups (virtual + hardware)
 
-If you already ran `DOFConfigSelector.bat` in Step 1C and your virtual matrix is working, you can skip this section.
+If you already ran `DOFConfigSetup.bat` in Step 1C and your virtual matrix is working, you can skip this section.
 
 Use Step 2 only when you have a combination setup (virtual + hardware toys), custom routing, or older custom DOF files you need to keep.
 Before editing, make a backup copy of `Cabinet.xml`.
