@@ -298,6 +298,29 @@ jobs:
             -StagingRoot $stagingDir `
             -AssetName $assetName
 
+      - name: Commit README mirrors when packaging refreshes them
+        id: sync_readme
+        shell: pwsh
+        run: |
+          # Packaging rewrites README mirrors from docs/instructions.html when needed.
+          # Auto-commit that sync so main always reflects the canonical instructions source.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          $readmeChanged = (git status --porcelain -- README.md docs/README.md)
+          if (-not [string]::IsNullOrWhiteSpace($readmeChanged)) {
+            git add README.md docs/README.md
+            git commit -m "docs: sync README mirrors from instructions during release packaging"
+            git push origin HEAD:main
+            Write-Host "README mirrors committed and pushed to main."
+          }
+          else {
+            Write-Host "README mirrors already synchronized; no docs commit required."
+          }
+
+          $currentSha = (git rev-parse HEAD).Trim()
+          "release_target=$currentSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Create and push tag
         shell: pwsh
         run: |
@@ -312,7 +335,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
-          RELEASE_TARGET: ${{ github.sha }}
+          RELEASE_TARGET: ${{ steps.sync_readme.outputs.release_target }}
           RELEASE_FILE: ${{ steps.package.outputs.artifact_path }}
           RELEASE_IS_PRERELEASE: ${{ inputs.is_prerelease }}
         run: |

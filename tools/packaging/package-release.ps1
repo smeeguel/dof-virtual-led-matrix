@@ -108,6 +108,30 @@ function Test-FileContentEquals {
     return $normalizedActual -eq $normalizedExpected
 }
 
+function Sync-MarkdownMirror {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Markdown,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Label
+    )
+
+    # Keep README mirrors self-healing during packaging: when docs/instructions.html changes,
+    # both repository markdown mirrors are rewritten in-place instead of failing the release job.
+    if (-not (Test-FileContentEquals -Path $Path -ExpectedContent $Markdown)) {
+        Write-MarkdownFile -DestinationPath $Path -Markdown $Markdown
+        Write-Host "$Label refreshed from docs/instructions.html"
+        return $true
+    }
+
+    Write-Host "$Label already up to date"
+    return $false
+}
+
 $repoRoot = Resolve-RepoPath "."
 $publishDir = [System.IO.Path]::GetFullPath($PublishOutput)
 $manifestFile = [System.IO.Path]::GetFullPath($ManifestPath)
@@ -137,14 +161,12 @@ if (-not (Test-Path -LiteralPath $repoInstructionsPath -PathType Leaf)) {
 $instructionsMarkdown = Get-InstructionsMarkdown -InstructionsPath $repoInstructionsPath
 
 $repoDocsReadmePath = Join-Path $repoRoot "docs/README.md"
-if (-not (Test-FileContentEquals -Path $repoDocsReadmePath -ExpectedContent $instructionsMarkdown)) {
-    Write-MarkdownFile -DestinationPath $repoDocsReadmePath -Markdown $instructionsMarkdown
-    throw "docs/README.md was stale. It has been refreshed from docs/instructions.html. Commit docs/README.md and re-run packaging."
-}
-
 $repoRootReadmePath = Join-Path $repoRoot "README.md"
-if (-not (Test-FileContentEquals -Path $repoRootReadmePath -ExpectedContent $instructionsMarkdown)) {
-    Write-MarkdownFile -DestinationPath $repoRootReadmePath -Markdown $instructionsMarkdown
+$repoDocsReadmeUpdated = Sync-MarkdownMirror -Path $repoDocsReadmePath -Markdown $instructionsMarkdown -Label "docs/README.md"
+$repoRootReadmeUpdated = Sync-MarkdownMirror -Path $repoRootReadmePath -Markdown $instructionsMarkdown -Label "README.md"
+
+if ($repoDocsReadmeUpdated -or $repoRootReadmeUpdated) {
+    Write-Host "README mirrors were refreshed in the repository checkout; downstream workflow steps can commit these updates."
 }
 
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
