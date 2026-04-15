@@ -51,6 +51,36 @@ function Resolve-MappingSourcePath {
     throw "Unable to resolve source path '$Path'. Checked: '$checked'"
 }
 
+function Write-StagingReadmeFromInstructions {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstructionsPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ReadmePath
+    )
+
+    # Mirror the user-facing setup guide into README.md so the release root stays self-documenting.
+    $instructionsHtml = Get-Content -LiteralPath $InstructionsPath -Raw
+    $pattern = '<script id="md-source" type="text/plain">(?s)(.*?)</script>'
+    $match = [System.Text.RegularExpressions.Regex]::Match($instructionsHtml, $pattern)
+
+    if (-not $match.Success) {
+        throw "Unable to locate markdown source block in instructions file: $InstructionsPath"
+    }
+
+    $markdown = $match.Groups[1].Value.Trim()
+    if ([string]::IsNullOrWhiteSpace($markdown)) {
+        throw "Markdown source block in instructions file is empty: $InstructionsPath"
+    }
+
+    $readmeDirectory = Split-Path -Parent $ReadmePath
+    New-Item -ItemType Directory -Path $readmeDirectory -Force | Out-Null
+    Set-Content -LiteralPath $ReadmePath -Value $markdown -Encoding utf8
+
+    Write-Host "Generated README mirror from instructions: $ReadmePath"
+}
+
 $repoRoot = Resolve-RepoPath "."
 $publishDir = [System.IO.Path]::GetFullPath($PublishOutput)
 $manifestFile = [System.IO.Path]::GetFullPath($ManifestPath)
@@ -196,6 +226,14 @@ for ($i = 0; $i -lt $manifest.mappings.Count; $i++) {
         }
     }
 }
+
+$stagingInstructionsPath = Join-Path $stagingDir "docs/instructions.html"
+if (-not (Test-Path -LiteralPath $stagingInstructionsPath -PathType Leaf)) {
+    throw "Required docs/instructions.html mapping is missing from staged package."
+}
+
+$stagingReadmePath = Join-Path $stagingDir "README.md"
+Write-StagingReadmeFromInstructions -InstructionsPath $stagingInstructionsPath -ReadmePath $stagingReadmePath
 
 $artifactPath = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $stagingDir) $AssetName))
 if (Test-Path -LiteralPath $artifactPath) {
