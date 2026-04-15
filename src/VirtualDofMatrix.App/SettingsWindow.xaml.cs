@@ -485,7 +485,7 @@ public partial class SettingsWindow : Window
             // Note: preserve the "at least one active toy" invariant after deletes by re-enabling the first remaining toy.
             _working.Routing.Toys[0].Enabled = true;
         }
-        EnsureCanonicalStartsForUnassignedToys(_working.Routing.Toys);
+        // Note: delete should not remap surviving toys; keep each remaining toy's existing source/layout properties intact.
         LoadToyCollections();
         _selectedToyId = _working.Routing.Toys.FirstOrDefault(x => x.Enabled)?.Id
             ?? _working.Routing.Toys.FirstOrDefault()?.Id;
