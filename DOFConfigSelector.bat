@@ -99,6 +99,8 @@ echo Success: Template files were copied to "%selectedDestination%".
 echo Next step: Launch VirtualDofMatrix.App.exe and continue the setup guide.
 echo Reminder: If your DOF install is in a custom location, confirm GlobalConfig_B2SServer.xml still points to your active ^<InstallDir^>\Config folder.
 if exist "%copyLog%" del /q "%copyLog%" >nul 2>&1
+echo.
+pause
 exit /b 0
 
 :selectTemplate
