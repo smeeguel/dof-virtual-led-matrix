@@ -305,7 +305,7 @@ public partial class SettingsWindow : Window
             // Note: keep actions compact and iconized so rows remain scannable while preserving keyboard/screen-reader affordances.
             var actionCluster = new StackPanel
             {
-                Orientation = Orientation.Horizontal,
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 8, 0),
             };
