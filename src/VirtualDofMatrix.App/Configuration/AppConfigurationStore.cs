@@ -30,12 +30,14 @@ public sealed class AppConfigurationStore
         var iniPath = ResolveToyIniPath(filePath, loaded.Routing?.ToyConfigIniPath);
         var createdIni = EnsureToyIniExists(iniPath, loaded);
         var iniApplied = ToyIniConfiguration.ApplyFromIni(loaded, iniPath);
+        var iniResynced = TryResyncToyIniFromCabinet(loaded, iniPath);
         var (normalized, shouldPersist) = ApplyLegacyDefaults(loaded);
         AppLogger.Info($"[config] settingsPath={filePath}");
         AppLogger.Info($"[config] toysIniPath={iniPath}");
-        AppLogger.Info($"[config] toysIniCreated={createdIni} toysIniApplied={iniApplied} routingToyCount={normalized.Routing.Toys.Count}");
+        AppLogger.Info($"[config] toysIniCreated={createdIni} toysIniApplied={iniApplied} toysIniResynced={iniResynced} routingToyCount={normalized.Routing.Toys.Count}");
         shouldPersist |= createdIni;
         shouldPersist |= iniApplied;
+        shouldPersist |= iniResynced;
 
         if (shouldPersist)
         {
@@ -352,6 +354,151 @@ public sealed class AppConfigurationStore
         modified |= EnsureUniqueToyNames(config.Routing.Toys);
 
         return modified;
+    }
+
+    private bool TryResyncToyIniFromCabinet(AppConfig config, string iniPath)
+    {
+        var cabinetPath = _cabinetXmlService.ResolveCabinetXmlPath(config.Settings.CabinetXmlPath);
+        if (string.IsNullOrWhiteSpace(cabinetPath))
+        {
+            return false;
+        }
+
+        IReadOnlyList<CabinetVirtualLedStripToy> virtualToys;
+        try
+        {
+            // Note: this read gates resync so we do not mutate toys.ini when Cabinet.xml cannot be parsed.
+            virtualToys = _cabinetXmlService.GetVirtualLedStripToys(cabinetPath);
+        }
+        catch (Exception ex)
+        {
+            Warn($"Skipping toys.ini resync because Cabinet.xml could not be parsed ({ex.Message}).");
+            return false;
+        }
+
+        if (virtualToys.Count == 0)
+        {
+            return false;
+        }
+
+        var desiredToys = BuildRoutingToysFromCabinet(config);
+        if (!RequiresToyIniResync(config.Routing.Toys, desiredToys))
+        {
+            return false;
+        }
+
+        var backupPath = BackupToyIniFile(iniPath);
+        var merged = MergeToyIniVisualState(existingToys: config.Routing.Toys, desiredToys: desiredToys);
+        config.Routing.Toys = merged;
+
+        AppLogger.Info($"[config] toys.ini resync applied using Cabinet.xml toy inventory. backupPath={(string.IsNullOrWhiteSpace(backupPath) ? "(none)" : backupPath)}");
+        return true;
+    }
+
+    private static bool RequiresToyIniResync(IReadOnlyList<ToyRouteConfig> existingToys, IReadOnlyList<ToyRouteConfig> desiredToys)
+    {
+        if (existingToys.Count != desiredToys.Count)
+        {
+            return true;
+        }
+
+        var existingByKey = existingToys
+            .Where(toy => !string.IsNullOrWhiteSpace(ToToyMatchKey(toy)))
+            .GroupBy(ToToyMatchKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var desired in desiredToys)
+        {
+            var key = ToToyMatchKey(desired);
+            if (!existingByKey.TryGetValue(key, out var existing))
+            {
+                return true;
+            }
+
+            if (existing.Mapping.Width != desired.Mapping.Width
+                || existing.Mapping.Height != desired.Mapping.Height
+                || !string.Equals(existing.Mapping.Mode, desired.Mapping.Mode, StringComparison.OrdinalIgnoreCase)
+                || existing.Source.CanonicalStart != desired.Source.CanonicalStart
+                || existing.Source.Length != desired.Source.Length
+                || !string.Equals(existing.Kind, desired.Kind, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static List<ToyRouteConfig> MergeToyIniVisualState(
+        IReadOnlyList<ToyRouteConfig> existingToys,
+        IReadOnlyList<ToyRouteConfig> desiredToys)
+    {
+        var existingByKey = existingToys
+            .Where(toy => !string.IsNullOrWhiteSpace(ToToyMatchKey(toy)))
+            .GroupBy(ToToyMatchKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
+
+        var merged = new List<ToyRouteConfig>(desiredToys.Count);
+        foreach (var desired in desiredToys)
+        {
+            var key = ToToyMatchKey(desired);
+            if (!existingByKey.TryGetValue(key, out var existing))
+            {
+                merged.Add(desired);
+                continue;
+            }
+
+            // Note: Cabinet.xml remains source-of-truth for toy shape/range; we only preserve user-facing visual/window preferences.
+            desired.Enabled = existing.Enabled;
+            desired.Window = CloneWithJson(existing.Window) ?? new ToyWindowOptionsConfig();
+            desired.Render = CloneWithJson(existing.Render) ?? new ToyRenderOptionsConfig();
+            desired.Bloom = CloneWithJson(existing.Bloom) ?? new ToyBloomOptionsConfig();
+            desired.OutputTargets = CloneWithJson(existing.OutputTargets) ?? [];
+            merged.Add(desired);
+        }
+
+        return merged;
+    }
+
+    private static T? CloneWithJson<T>(T source)
+    {
+        if (source is null)
+        {
+            return default;
+        }
+
+        var json = JsonSerializer.Serialize(source, SerializerOptions);
+        return JsonSerializer.Deserialize<T>(json, SerializerOptions);
+    }
+
+    private static string ToToyMatchKey(ToyRouteConfig toy)
+    {
+        var name = string.IsNullOrWhiteSpace(toy.Name) ? toy.Id : toy.Name;
+        return name?.Trim() ?? string.Empty;
+    }
+
+    private static string? BackupToyIniFile(string iniPath)
+    {
+        if (!File.Exists(iniPath))
+        {
+            return null;
+        }
+
+        var folder = Path.GetDirectoryName(iniPath);
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return null;
+        }
+
+        var backupPath = Path.Combine(folder, $"toys.ini.backup_{DateTime.Now:yyyyMMdd_HHmmss}");
+        var suffix = 1;
+        while (File.Exists(backupPath))
+        {
+            backupPath = Path.Combine(folder, $"toys.ini.backup_{DateTime.Now:yyyyMMdd_HHmmss}_{suffix++}");
+        }
+
+        File.Copy(iniPath, backupPath);
+        return backupPath;
     }
 
     private static bool EnsureUniqueToyNames(IReadOnlyList<ToyRouteConfig> toys)

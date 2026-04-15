@@ -535,4 +535,172 @@ public sealed class AppConfigurationStoreToyIniTests
             }
         }
     }
+
+    [Fact]
+    public void Load_WhenCabinetToysDifferFromToyIni_AutoResyncsAndCreatesBackup()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var cabinetPath = Path.Combine(tempRoot, "Cabinet.xml");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+
+            File.WriteAllText(cabinetPath, """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController>
+                  <Name>LED Strips 0</Name>
+                </VirtualLEDStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>Matrix1</Name>
+                  <Width>64</Width>
+                  <Height>16</Height>
+                  <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
+                  <FirstLedNumber>1</FirstLedNumber>
+                  <LedCount>1024</LedCount>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+              </Toys>
+            </Cabinet>
+            """);
+
+            File.WriteAllText(settingsPath, $$"""
+            {
+              "settings": {
+                "dofConfigFolderPath": "{{tempRoot.Replace("\\", "\\\\")}}",
+                "cabinetXmlPath": "{{cabinetPath.Replace("\\", "\\\\")}}"
+              },
+              "routing": {
+                "toyConfigIniPath": "toys.ini"
+              }
+            }
+            """);
+
+            File.WriteAllText(iniPath, """
+            [toy:backglass-main]
+            name = Matrix1
+            kind = matrix
+            enabled = true
+            width = 32
+            height = 8
+            sourceCanonicalStart = 0
+            sourceLength = 256
+            outputTargets = viewer
+
+            [toy:stale-toy]
+            name = OldToy
+            kind = matrix
+            enabled = true
+            width = 16
+            height = 16
+            sourceCanonicalStart = 256
+            sourceLength = 256
+            outputTargets = viewer
+            """);
+
+            var store = new AppConfigurationStore();
+            var loaded = store.Load(settingsPath);
+
+            Assert.Single(loaded.Routing.Toys);
+            var onlyToy = loaded.Routing.Toys[0];
+            Assert.Equal("Matrix1", onlyToy.Name);
+            Assert.Equal(64, onlyToy.Mapping.Width);
+            Assert.Equal(16, onlyToy.Mapping.Height);
+            Assert.Equal(1024, onlyToy.Source.Length);
+
+            Assert.DoesNotContain("stale-toy", File.ReadAllText(iniPath), StringComparison.OrdinalIgnoreCase);
+            Assert.True(Directory.EnumerateFiles(tempRoot, "toys.ini.backup_*", SearchOption.TopDirectoryOnly).Any());
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Load_WhenToyIniResyncs_PreservesExistingWindowAndRenderOptionsForMatchingToy()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var cabinetPath = Path.Combine(tempRoot, "Cabinet.xml");
+            var iniPath = Path.Combine(tempRoot, "toys.ini");
+
+            File.WriteAllText(cabinetPath, """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController>
+                  <Name>LED Strips 0</Name>
+                </VirtualLEDStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>Matrix1</Name>
+                  <Width>128</Width>
+                  <Height>32</Height>
+                  <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
+                  <FirstLedNumber>1</FirstLedNumber>
+                  <LedCount>4096</LedCount>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+              </Toys>
+            </Cabinet>
+            """);
+
+            File.WriteAllText(settingsPath, $$"""
+            {
+              "settings": {
+                "dofConfigFolderPath": "{{tempRoot.Replace("\\", "\\\\")}}",
+                "cabinetXmlPath": "{{cabinetPath.Replace("\\", "\\\\")}}"
+              },
+              "routing": {
+                "toyConfigIniPath": "toys.ini"
+              }
+            }
+            """);
+
+            File.WriteAllText(iniPath, """
+            [toy:backglass-main]
+            name = Matrix1
+            kind = matrix
+            enabled = false
+            width = 32
+            height = 8
+            sourceCanonicalStart = 0
+            sourceLength = 256
+            windowLeft = 222
+            renderBrightness = 0.65
+            outputTargets = viewer
+            """);
+
+            var store = new AppConfigurationStore();
+            var loaded = store.Load(settingsPath);
+
+            var toy = Assert.Single(loaded.Routing.Toys);
+            Assert.Equal("Matrix1", toy.Name);
+            Assert.False(toy.Enabled);
+            Assert.Equal(128, toy.Mapping.Width);
+            Assert.Equal(32, toy.Mapping.Height);
+            Assert.Equal(222, toy.Window.Left);
+            Assert.Equal(0.65, toy.Render.Brightness, precision: 3);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
 }

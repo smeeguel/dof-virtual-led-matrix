@@ -27,7 +27,7 @@
   <div class="shell">
     <main class="page">
       <article id="content"></article>
-      <p class="footer">Last updated: 2026-04-11</p>
+      <p class="footer">Last updated: 2026-04-15</p>
     </main>
   </div>
 
@@ -95,14 +95,40 @@ After DOF is installed from mjrnet:
 Why this step exists:
 
 - The downloadable ZIP includes a `DOF/Config` folder with prebuilt configuration files used by this app.
-- DOF reads configuration from your local `{DOFInstallDir}\Config` folder (for example `C:\DirectOutput\Config`).
-- Copying these files gives DOF the matching cabinet/toy setup needed to drive the virtual matrix correctly.
+- DOF reads configuration from your local `{DOFInstallDir}\Config` folder (most commonly `C:\DirectOutput\Config`).
+- The selector script copies the correct template files into that folder so DOF has the right cabinet/toy setup for this app.
 
-What to do:
+What to do (recommended):
 
-1. Open the ZIP contents and go to `DOF/Config`.
-2. Copy everything in that folder.
-3. Paste into your DOF config folder: `{DOFInstallDir}\Config` (example: `C:\DirectOutput\Config`).
+1. From the package root, run `DOFConfigSelector.bat`.
+2. Pick the template that matches your setup from the numbered menu.
+3. Confirm copy when prompted.
+
+What the script does:
+
+- It first tries `C:\DirectOutput\Config` automatically.
+- If needed, it can show other detected DOF config folders and let you pick one.
+- It shows a warning that destination config files can be overwritten.
+- If overwrite is detected, it shows a backup prompt (`[B/s/q]`) and defaults to **B** (backup) when you press Enter.
+- Backup folders use `Config_backup_YYYYMMDD_HHMMSS` style naming inside your selected config folder.
+- It copies template files into your DOF config folder and overwrites existing files from that template.
+- It prints copy details, shows key config file status, and ends with a success message when complete.
+- After copy, it reminds you to verify `GlobalConfig_B2SServer.xml` if you use a nonstandard DOF install path.
+
+Quick troubleshooting:
+
+- `C:\DirectOutput\Config` not found: continue in the script and select a detected folder or enter your path manually.
+- Access denied/copy failed: run `DOFConfigSelector.bat` as Administrator, then try again.
+- Script blocked by Windows: right-click `DOFConfigSelector.bat`, choose **Run anyway** (or use the manual fallback below).
+
+### Step 1C fallback - Manual copy (if batch is blocked)
+
+If your system blocks `.bat` files (policy, SmartScreen, or security software), you can copy manually:
+
+1. Open `DOF/Config/templates`.
+2. Open the same template folder you would have selected in the script (for example `01-single-matrix`).
+3. Copy that template folder's contents.
+4. Paste into your DOF config folder: `{DOFInstallDir}\Config` (example: `C:\DirectOutput\Config`).
 
 If Windows asks to replace files:
 
@@ -112,17 +138,19 @@ If Windows asks to replace files:
 First-launch tip:
 
 - If `toys.ini` is missing, the app now auto-generates it and pre-populates toy entries from virtual `LedStrip` toys found in `Cabinet.xml`.
+- If `Cabinet.xml` changes and `toys.ini` no longer matches, the app auto-repairs managed toy entries from `Cabinet.xml` and creates a `toys.ini.backup_YYYYMMDD_HHMMSS` file first.
 - This includes existing virtual matrix/strip geometry, mapping, and LED source ranges so fresh installs or reset configs start close to your current DOF setup.
 - One-dimensional `LedStrip` toys are imported with strip-style defaults (unlocked aspect ratio, transparent background, and strip-oriented starter window size).
 - Strip toys are imported with `sourceCanonicalStart = 0` for compatibility with current strip runtime routing behavior.
 
 ---
 
-## 2) Configure Cabinet.xml (beginner walkthrough)
+## 2) Optional: Cabinet.xml for combination setups (virtual + hardware)
 
-If all you want is the default single virtual LED matrix from the provided package config, you can skip Step 2.
+If you already ran `DOFConfigSelector.bat` in Step 1C and your virtual matrix is working, you can skip this section.
 
-Use Step 2 when you need to review or customize Cabinet.xml entries.
+Use Step 2 only when you have a combination setup (virtual + hardware toys), custom routing, or older custom DOF files you need to keep.
+Before editing, make a backup copy of `Cabinet.xml`.
 
 ### Step 2A - Open Cabinet.xml
 
@@ -135,7 +163,7 @@ Use search (`Ctrl+F`) for:
 
 - `VirtualLEDStripController`
 
-If you have the sample config from this repo/package applied, you should already have this controller type in your file.
+If Step 1C copied the template correctly, this entry should already be present.
 
 ### Step 2C - Confirm the pipe/controller name matches app settings
 
@@ -149,7 +177,7 @@ In `Cabinet.xml`, find the controller's pipe name value. In `settings.json`, fin
 
 These two names must match exactly (same spelling, same capitalization).
 
-Tip: the provided examples use `VirtualDofMatrix`.
+Tip: the provided examples use `VirtualDofMatrix`. Only change this if your setup requires it.
 
 ### Step 2D - Let the app safely update Cabinet.xml when needed
 
