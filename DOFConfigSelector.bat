@@ -11,7 +11,7 @@ REM Fail fast with a clear message if the templates folder is not present.
 if not exist "%templatesRoot%\" (
     echo Error: Templates directory not found.
     echo Expected path: "%templatesRoot%"
-    exit /b 1
+    call :failExit 1
 )
 
 REM Parse optional advanced override: --dof-config "X:\DirectOutput\Config"
@@ -21,7 +21,7 @@ if /i "%~1"=="--dof-config" (
     if "%~2"=="" (
         echo Error: --dof-config requires a destination path.
         echo Example: DOFConfigSelector.bat --dof-config "C:\DirectOutput\Config"
-        exit /b 1
+        call :failExit 1
     )
 
     set "hasOverride=1"
@@ -29,7 +29,7 @@ if /i "%~1"=="--dof-config" (
 ) else if not "%~1"=="" (
     echo Error: Unknown argument "%~1".
     echo Usage: DOFConfigSelector.bat [--dof-config "X:\DirectOutput\Config"]
-    exit /b 1
+    call :failExit 1
 )
 
 echo.
@@ -37,10 +37,10 @@ echo ===== DOF Config Template Selector =====
 echo.
 
 call :selectTemplate
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :failExit 1
 
 call :resolveDestination
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :failExit 1
 
 echo.
 echo Template selected: "%selectedTemplate%"
@@ -67,14 +67,14 @@ REM Use trailing backslash directory checks (more reliable across junctions/syml
 if not exist "%templateSource%\" (
     echo Error: Selected template folder was not found.
     echo Expected: "%templateSource%"
-    exit /b 1
+    call :failExit 1
 )
 
 call :countOverwriteCandidates
 if !overwriteCount! GTR 0 (
     echo Detected !overwriteCount! existing file^(s^) that will be overwritten.
     call :promptBackupChoice
-    if errorlevel 1 exit /b 1
+    if errorlevel 1 call :failExit 1
 ) else (
     echo No existing destination files will be overwritten, so backup is skipped.
 )
@@ -90,7 +90,7 @@ if %robocopyExit% GEQ 8 (
     echo Error: File copy failed. Robocopy exit code: %robocopyExit%.
     call :printRoboFailureReason %robocopyExit%
     echo Review the copy log for details: "%copyLog%"
-    exit /b 1
+    call :failExit 1
 )
 
 echo.
@@ -137,7 +137,7 @@ for /d %%D in ("%templatesRoot%\*") do (
 
 if !menuCount! EQU 0 (
     echo Error: No template folders found under "%templatesRoot%".
-    exit /b 1
+    call :failExit 1
 )
 
 :promptTemplateSelection
@@ -181,7 +181,7 @@ if defined hasOverride (
         echo Error: The override path is not a valid directory.
         echo Provided: "%overrideDestination%"
         echo Hint: Pass the DOF Config folder, for example "C:\DirectOutput\Config".
-        exit /b 1
+        call :failExit 1
     )
 
     set "selectedDestination=!normalizedOverride!"
@@ -392,7 +392,7 @@ mkdir "!backupFolder!" >nul 2>&1
 if errorlevel 1 (
     echo Error: Could not create backup folder.
     echo Hint: Try running this script as Administrator.
-    exit /b 1
+    call :failExit 1
 )
 
 set "backupLog=%TEMP%\DOFConfigSelector_backup_%RANDOM%_%RANDOM%.log"
@@ -402,7 +402,7 @@ if !backupExit! GEQ 8 (
     echo Error: Backup failed. Robocopy exit code: !backupExit!.
     echo Hint: Check folder permissions, file locks, or run as Administrator.
     echo Backup log: "!backupLog!"
-    exit /b 1
+    call :failExit 1
 )
 
 echo Backup complete: "!backupFolder!"
@@ -456,3 +456,8 @@ if %roboCode% GEQ 8 (
 )
 echo Reason: Unknown copy status.
 exit /b 0
+
+:failExit
+echo.
+pause
+exit /b %~1
