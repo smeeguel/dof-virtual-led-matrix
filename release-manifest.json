@@ -7,8 +7,8 @@
     },
     {
       "type": "file",
-      "from": "./DOFConfigSelector.bat",
-      "to": "./DOFConfigSelector.bat"
+      "from": "./DOFConfigSetup.bat",
+      "to": "./DOFConfigSetup.bat"
     },
     {
       "type": "file",
