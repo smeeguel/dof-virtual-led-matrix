@@ -62,7 +62,8 @@ goto :confirmCopy
 :copyTemplate
 REM Copy template contents (not the parent folder) into destination using robocopy for reliable logging.
 set "templateSource=%templatesRoot%\%selectedTemplate%"
-if not exist "%templateSource%\NUL" (
+REM Use trailing backslash directory checks (more reliable across junctions/symlinks than \NUL checks).
+if not exist "%templateSource%\" (
     echo Error: Selected template folder was not found.
     echo Expected: "%templateSource%"
     exit /b 1
@@ -167,7 +168,7 @@ if defined hasOverride (
     echo Using override destination from command line.
     call :normalizePath "%overrideDestination%" normalizedOverride
 
-    if not exist "!normalizedOverride!\NUL" (
+    if not exist "!normalizedOverride!\" (
         echo Error: The override path is not a valid directory.
         echo Provided: "%overrideDestination%"
         echo Hint: Pass the DOF Config folder, for example "C:\DirectOutput\Config".
@@ -183,7 +184,7 @@ echo Checking for your DOF Config folder...
 call :trackChecked "C:\DirectOutput\Config"
 
 REM Primary deterministic default location check.
-if exist "C:\DirectOutput\Config\NUL" (
+if exist "C:\DirectOutput\Config\" (
     set "selectedDestination=C:\DirectOutput\Config"
     echo Found default DOF location: "!selectedDestination!"
     exit /b 0
@@ -271,7 +272,7 @@ for %%S in (
     "\Pinball\DirectOutput\Config"
 ) do (
     call :trackChecked "%scanDrive%%%~S"
-    if exist "%scanDrive%%%~S\NUL" call :addMatch "%scanDrive%%%~S"
+    if exist "%scanDrive%%%~S\" call :addMatch "%scanDrive%%%~S"
 )
 
 REM Then perform bounded recursive search for \DirectOutput\Config on this drive.
@@ -321,7 +322,7 @@ if /i "!manualDestination!"=="Q" (
 )
 
 call :normalizePath "!manualDestination!" normalizedManual
-if not exist "!normalizedManual!\NUL" (
+if not exist "!normalizedManual!\" (
     echo That path is not a valid folder. Please try again.
     goto :manualPromptLoop
 )
