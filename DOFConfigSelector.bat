@@ -70,8 +70,14 @@ if not exist "%templateSource%\" (
     exit /b 1
 )
 
-call :promptBackupChoice
-if errorlevel 1 exit /b 1
+call :countOverwriteCandidates
+if !overwriteCount! GTR 0 (
+    echo Detected !overwriteCount! existing file^(s^) that will be overwritten.
+    call :promptBackupChoice
+    if errorlevel 1 exit /b 1
+) else (
+    echo No existing destination files will be overwritten, so backup is skipped.
+)
 
 set "copyLog=%TEMP%\DOFConfigSelector_%RANDOM%_%RANDOM%.log"
 echo Copying files...
@@ -352,7 +358,8 @@ echo Press Q to cancel.
 
 :backupPromptLoop
 set "backupChoice="
-set /p "backupChoice=Your choice [B/S/Q]: "
+set /p "backupChoice=Your choice [B/s/q]: "
+if not defined backupChoice set "backupChoice=B"
 if /i "!backupChoice!"=="Q" (
     echo Cancelled by user.
     exit /b 1
@@ -364,6 +371,16 @@ if /i "!backupChoice!"=="S" (
 if /i "!backupChoice!"=="B" goto :runBackup
 echo Please enter B, S, or Q.
 goto :backupPromptLoop
+
+:countOverwriteCandidates
+REM Count template files that already exist in destination so backup is only prompted when needed.
+set /a overwriteCount=0
+for /r "%templateSource%" %%F in (*) do (
+    set "sourceFile=%%~fF"
+    set "relativeFile=!sourceFile:%templateSource%\=!"
+    if exist "%selectedDestination%\!relativeFile!" set /a overwriteCount+=1
+)
+exit /b 0
 
 :runBackup
 call :buildTimestamp backupStamp
