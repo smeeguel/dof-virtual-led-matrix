@@ -462,15 +462,13 @@ for %%F in (
 exit /b 0
 
 :copyInstallArtifacts
-REM Automatically refresh GlobalConfig and both DirectOutput DLLs in the active DOF install.
+REM Automatically refresh both DirectOutput DLLs in the active DOF install.
 call :resolveInstallDir
 if errorlevel 1 exit /b 1
 
-set "globalConfigSource=%scriptDir%DOF\Config\GlobalConfig_B2SServer.xml"
 set "x64DllSource=%scriptDir%DOF\x64\DirectOutput.dll"
 set "x86DllSource=%scriptDir%DOF\x86\DirectOutput.dll"
 
-set "globalConfigTarget=%dofInstallDir%\Config\GlobalConfig_B2SServer.xml"
 set "x64DllTarget=%dofInstallDir%\x64\DirectOutput.dll"
 set "x86DllTarget=%dofInstallDir%\x86\DirectOutput.dll"
 
@@ -485,8 +483,6 @@ for %%D in ("%dofInstallDir%\Config" "%dofInstallDir%\x64" "%dofInstallDir%\x86"
     )
 )
 
-call :copySingleFile "%globalConfigSource%" "%globalConfigTarget%" "GlobalConfig_B2SServer.xml"
-if errorlevel 1 exit /b 1
 call :copySingleFile "%x64DllSource%" "%x64DllTarget%" "x64 DirectOutput.dll"
 if errorlevel 1 exit /b 1
 call :copySingleFile "%x86DllSource%" "%x86DllTarget%" "x86 DirectOutput.dll"
@@ -533,7 +529,6 @@ exit /b 0
 :printInstallArtifactSummary
 echo DOF runtime files refreshed in "%dofInstallDir%":
 for %%F in (
-    "%dofInstallDir%\Config\GlobalConfig_B2SServer.xml|GlobalConfig_B2SServer.xml"
     "%dofInstallDir%\x64\DirectOutput.dll|x64 DirectOutput.dll"
     "%dofInstallDir%\x86\DirectOutput.dll|x86 DirectOutput.dll"
 ) do (

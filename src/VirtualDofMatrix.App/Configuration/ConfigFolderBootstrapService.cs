@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Forms;
+using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 using WpfMessageBox = System.Windows.MessageBox;
 
@@ -11,6 +12,7 @@ namespace VirtualDofMatrix.App.Configuration;
 public sealed class ConfigFolderBootstrapService
 {
     public const string DefaultConfigFolderPath = @"C:\DirectOutput\Config";
+    private readonly GlobalConfigBootstrapService _globalConfigBootstrapService = new();
 
     public StartupConfigStatus ResolveAndPersist(AppConfig config)
     {
@@ -30,6 +32,8 @@ public sealed class ConfigFolderBootstrapService
         }
 
         config.Settings.DofConfigFolderPath = activePath;
+        var globalConfigResult = _globalConfigBootstrapService.EnsureRequiredTableConfigPattern(activePath);
+        HandleGlobalConfigBootstrapResult(globalConfigResult, activePath);
 
         var cabinetXmlPath = Path.Combine(activePath, "Cabinet.xml");
         var remediationHint = string.Empty;
@@ -53,6 +57,27 @@ public sealed class ConfigFolderBootstrapService
             LastLoadedUtc = DateTimeOffset.UtcNow,
             RemediationHint = remediationHint,
         };
+    }
+
+    private static void HandleGlobalConfigBootstrapResult(GlobalConfigBootstrapResult result, string activePath)
+    {
+        switch (result.Status)
+        {
+            case GlobalConfigBootstrapStatus.Created:
+            case GlobalConfigBootstrapStatus.Merged:
+            case GlobalConfigBootstrapStatus.Unchanged:
+                AppLogger.Info(result.Details);
+                return;
+            case GlobalConfigBootstrapStatus.Failed:
+            default:
+                AppLogger.Warn(result.Details);
+                WpfMessageBox.Show(
+                    $"Virtual DOF Matrix could not update {GlobalConfigBootstrapService.GlobalConfigFileName} in:\n{activePath}\n\n{result.Details}\n\nTry running the app as Administrator.",
+                    "GlobalConfig update warning",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+        }
     }
 
     private static string PromptForFolder(string fallbackPath)

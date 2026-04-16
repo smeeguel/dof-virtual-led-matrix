@@ -52,7 +52,7 @@ Why this step exists:
 
 - The downloadable ZIP includes a `DOF/Config` folder with prebuilt configuration files used by this app.
 - DOF reads configuration from your local `{DOFInstallDir}\Config` folder (most commonly `C:\DirectOutput\Config`).
-- The setup script copies the correct template files into that folder so DOF has the right cabinet/toy setup for this app and refreshes DOF runtime files automatically.
+- The setup script copies the correct template files into that folder so DOF has the right cabinet/toy setup for this app and refreshes DOF runtime DLL files automatically.
 
 What to do (recommended):
 
@@ -69,7 +69,6 @@ What the script does:
 - Backup folders use `Config_backup_YYYYMMDD_HHMMSS` style naming inside your selected config folder.
 - It copies template files into your DOF config folder and overwrites existing files from that template.
 - It automatically refreshes these package files into your active `{DOFInstallDir}` tree:
-  - `DOF/Config/GlobalConfig_B2SServer.xml` -> `{DOFInstallDir}/Config/GlobalConfig_B2SServer.xml`
   - `DOF/x64/DirectOutput.dll` -> `{DOFInstallDir}/x64/DirectOutput.dll`
   - `DOF/x86/DirectOutput.dll` -> `{DOFInstallDir}/x86/DirectOutput.dll`
 - It prints copy details, shows key config/runtime file status, and ends with a success message when complete.
@@ -83,6 +82,7 @@ Quick troubleshooting:
 First-launch tip:
 
 - If `toys.ini` is missing, the app now auto-generates it and pre-populates toy entries from virtual `LedStrip` toys found in `Cabinet.xml`.
+- At startup, the app auto-creates `GlobalConfig_B2SServer.xml` when missing and silently ensures `{InstallDir}\Config\directoutputconfig30.ini` exists in `TableConfigFilePatterns`.
 - If `Cabinet.xml` changes and `toys.ini` no longer matches, the app auto-repairs managed toy entries from `Cabinet.xml` and creates a `toys.ini.backup_YYYYMMDD_HHMMSS` file first.
 - This includes existing virtual matrix/strip geometry, mapping, and LED source ranges so fresh installs or reset configs start close to your current DOF setup.
 - One-dimensional `LedStrip` toys are imported with strip-style defaults (unlocked aspect ratio, transparent background, and strip-oriented starter window size).
@@ -416,3 +416,19 @@ Supported actions:
 For normal setup, manage toys through **Settings -> Virtual Toys** and save with **Save Global**.
 
 That is the recommended workflow for reliable day-to-day use.
+</script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    (function () {
+      const content = document.getElementById('content');
+      const source = document.getElementById('md-source').textContent;
+
+      if (window.marked) {
+        marked.setOptions({ gfm: true, breaks: false });
+        content.innerHTML = marked.parse(source);
+        return;
+      }
+
+      content.innerHTML = '<pre>' + source.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</pre>';
+    })();
+  

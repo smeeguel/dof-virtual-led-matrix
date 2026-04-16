@@ -3,7 +3,10 @@
     {
       "type": "directory",
       "from": "DOF",
-      "to": "DOF"
+      "to": "DOF",
+      "exclude": [
+        "Config/GlobalConfig_B2SServer.xml"
+      ]
     },
     {
       "type": "file",

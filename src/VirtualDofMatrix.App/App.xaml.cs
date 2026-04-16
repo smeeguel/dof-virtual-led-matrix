@@ -52,10 +52,10 @@ public partial class App : System.Windows.Application
         // Start each launch from a predictable baseline so logs/config-backed defaults are deterministic.
         AppLogger.ClearForNewLaunch();
         _config = _configurationStore.Load(_configFilePath);
+        AppLogger.Configure(_config.Debug.LogProtocol);
         _startupConfigStatus = _configFolderBootstrapService.ResolveAndPersist(_config);
         _activeTableOrRomName = ResolveActiveTableOrRomName(e.Args);
         _configurationStore.Save(_configFilePath, _config);
-        AppLogger.Configure(_config.Debug.LogProtocol);
 
         if (TryHandleControlClientMode(e.Args, _config))
         {
