@@ -2466,6 +2466,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // Note: keep this struct at a 16-byte multiple to match HLSL cbuffer packing exactly.
         public float Padding0;
         public float Padding1;
+        public float Padding2;
     }
 
     [StructLayout(LayoutKind.Sequential)]
