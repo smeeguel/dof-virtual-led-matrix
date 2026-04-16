@@ -5,7 +5,8 @@
   <OutputControllers>
     <VirtualLEDStripController>
       <Name>LED Strips 0</Name>
-      <NumberOfLedsStrip1>4144</NumberOfLedsStrip1>
+      <!-- Total LEDs: Matrix1 (4096) + Strip1 (32) + Strip2 (32) + Strip3 (32). -->
+      <NumberOfLedsStrip1>4192</NumberOfLedsStrip1>
       <PipeName>VirtualDofMatrix</PipeName>
       <ConnectTimeoutMs>2000</ConnectTimeoutMs>
       <ReconnectDelayMs>250</ReconnectDelayMs>
@@ -39,26 +40,27 @@
     <LedStrip>
       <Name>Strip2</Name>
       <Width>1</Width>
-      <Height>8</Height>
+      <Height>32</Height>
       <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
       <ColorOrder>RGB</ColorOrder>
       <FirstLedNumber>4129</FirstLedNumber>
       <FadingCurveName>SwissLizardsLedCurve</FadingCurveName>
       <Brightness>100</Brightness>
       <OutputControllerName>LED Strips 0</OutputControllerName>
-      <LedCount>8</LedCount>
+      <LedCount>32</LedCount>
     </LedStrip>
     <LedStrip>
       <Name>Strip3</Name>
       <Width>1</Width>
-      <Height>8</Height>
+      <Height>32</Height>
       <LedStripArrangement>TopDownAlternateRightLeft</LedStripArrangement>
       <ColorOrder>RGB</ColorOrder>
-      <FirstLedNumber>4137</FirstLedNumber>
+      <!-- Starts immediately after Strip2: 4129 + 32 LEDs = 4161. -->
+      <FirstLedNumber>4161</FirstLedNumber>
       <FadingCurveName>SwissLizardsLedCurve</FadingCurveName>
       <Brightness>100</Brightness>
       <OutputControllerName>LED Strips 0</OutputControllerName>
-      <LedCount>8</LedCount>
+      <LedCount>32</LedCount>
     </LedStrip>
     <LedWizEquivalent>
       <Name>LedWizEquivalent 30</Name>
