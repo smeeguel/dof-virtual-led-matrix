@@ -1451,6 +1451,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             FlatShading = visual?.FlatShading is true ? 1f : 0f,
             FullBrightnessRadius = (float)Math.Clamp(visual?.FullBrightnessRadiusMinPct ?? 0.8, 0.0, 1.0),
             OffStateAlpha = (float)Math.Clamp(visual?.OffStateAlpha ?? 0.0, 0.0, 1.0),
+            PaddingAfterOffStateAlpha = 0f,
             OffTintR = (visual?.OffStateTintR ?? 0) / 255f,
             OffTintG = (visual?.OffStateTintG ?? 0) / 255f,
             OffTintB = (visual?.OffStateTintB ?? 0) / 255f,
@@ -1461,6 +1462,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             BackgroundColorR = Math.Clamp(visual?.BackgroundColorR ?? 0f, 0f, 1f),
             BackgroundColorG = Math.Clamp(visual?.BackgroundColorG ?? 0f, 0f, 1f),
             BackgroundColorB = Math.Clamp(visual?.BackgroundColorB ?? 0f, 0f, 1f),
+            Padding0 = 0f,
+            Padding1 = 0f,
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -2453,6 +2456,9 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float FlatShading;
         public float FullBrightnessRadius;
         public float OffStateAlpha;
+        // Note: HLSL cbuffer packing does not split float3 across a register boundary.
+        // Keep an explicit pad here so OffTint starts on the next 16-byte register.
+        public float PaddingAfterOffStateAlpha;
         public float OffTintR;
         public float OffTintG;
         public float OffTintB;
@@ -2466,7 +2472,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         // Note: keep this struct at a 16-byte multiple to match HLSL cbuffer packing exactly.
         public float Padding0;
         public float Padding1;
-        public float Padding2;
     }
 
     [StructLayout(LayoutKind.Sequential)]
