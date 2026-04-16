@@ -294,8 +294,26 @@ for ($i = 0; $i -lt $manifest.mappings.Count; $i++) {
     }
 }
 
-$stagingInstructionsPath = Join-Path $stagingDir "docs/instructions.html"
-if (-not (Test-Path -LiteralPath $stagingInstructionsPath -PathType Leaf)) {
+# Validate that the docs/instructions.html source declared in manifest was actually staged,
+# regardless of whether the destination is docs/instructions.html or ./instructions.html.
+$instructionsMappings = @($manifest.mappings | Where-Object {
+    $_.type -and $_.type.ToLowerInvariant() -eq 'file' -and $_.from -eq 'docs/instructions.html'
+})
+
+if ($instructionsMappings.Count -eq 0) {
+    throw "Manifest must include a file mapping for docs/instructions.html."
+}
+
+$stagedInstructionsFound = $false
+foreach ($instructionsMapping in $instructionsMappings) {
+    $stagedInstructionsPath = [System.IO.Path]::GetFullPath((Join-Path $stagingDir $instructionsMapping.to))
+    if (Test-Path -LiteralPath $stagedInstructionsPath -PathType Leaf) {
+        $stagedInstructionsFound = $true
+        break
+    }
+}
+
+if (-not $stagedInstructionsFound) {
     throw "Required docs/instructions.html mapping is missing from staged package."
 }
 
