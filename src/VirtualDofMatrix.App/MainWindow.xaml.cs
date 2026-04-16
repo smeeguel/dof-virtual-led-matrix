@@ -349,7 +349,8 @@ public partial class MainWindow : Window
             effectiveMatrixConfig.DotShape,
             effectiveMatrixConfig.Mapping,
             effectiveMatrixConfig.DotSize,
-            effectiveMatrixConfig.MinDotSpacing,
+            effectiveMatrixConfig.MinDotSpacingX,
+            effectiveMatrixConfig.MinDotSpacingY,
             effectiveMatrixConfig.FillGapEnabled,
             effectiveMatrixConfig.Brightness,
             effectiveMatrixConfig.Gamma,
@@ -366,7 +367,7 @@ public partial class MainWindow : Window
 
         DotShapeText.Text = $"Dot shape: {effectiveMatrixConfig.DotShape}";
         DotSizeText.Text = $"Dot size: auto ({effectiveMatrixConfig.DotSize})";
-        DotSpacingText.Text = $"Min dot spacing: auto ({effectiveMatrixConfig.MinDotSpacing})";
+        DotSpacingText.Text = $"Min dot spacing: auto ({effectiveMatrixConfig.MinDotSpacingX}, {effectiveMatrixConfig.MinDotSpacingY})";
 
         if (_latestPresentation is not null)
         {
@@ -391,7 +392,8 @@ public partial class MainWindow : Window
         var strideFromWidth = (int)Math.Floor(viewportWidth / Math.Max(1, _config.Matrix.Width));
         var strideFromHeight = (int)Math.Floor(viewportHeight / Math.Max(1, _config.Matrix.Height));
         var isSingleAxisStrip = _config.Matrix.Width == 1 || _config.Matrix.Height == 1;
-        var spacing = Math.Max(HardMinimumDotSpacing, _config.Matrix.MinDotSpacing);
+        var spacingX = Math.Max(HardMinimumDotSpacing, _config.Matrix.MinDotSpacingX);
+        var spacingY = Math.Max(HardMinimumDotSpacing, _config.Matrix.MinDotSpacingY);
         int dotSize;
 
         if (isSingleAxisStrip)
@@ -399,19 +401,27 @@ public partial class MainWindow : Window
             var ledCount = Math.Max(_config.Matrix.Width, _config.Matrix.Height);
             var majorAxisPixels = _config.Matrix.Width > 1 ? viewportWidth : viewportHeight;
             var minorAxisPixels = _config.Matrix.Width > 1 ? viewportHeight : viewportWidth;
+            var majorAxisSpacing = _config.Matrix.Width > 1 ? spacingX : spacingY;
             var farBloomRadius = Math.Max(0, _config.Matrix.Bloom.FarRadiusPx);
             // Note: strip bulbs should primarily size from the short axis (thickness), while bloom
             // still needs breathing room on both sides so the glow doesn't get clipped.
             var candidateDotSizeFromMinorAxis = (int)Math.Floor(minorAxisPixels - (farBloomRadius * 2.0));
             // Note: major-axis fit remains a safety rail so long strips still fit end-to-end.
-            var candidateDotSizeFromMajorAxis = (int)Math.Floor((majorAxisPixels - (spacing * Math.Max(0, ledCount - 1))) / Math.Max(1, ledCount));
+            var candidateDotSizeFromMajorAxis = (int)Math.Floor((majorAxisPixels - (majorAxisSpacing * Math.Max(0, ledCount - 1))) / Math.Max(1, ledCount));
             dotSize = Math.Max(1, Math.Min(candidateDotSizeFromMinorAxis, candidateDotSizeFromMajorAxis));
 
             if (ledCount > 1)
             {
                 var remainingAxisPixels = majorAxisPixels - (dotSize * ledCount);
                 var stretchedSpacing = (int)Math.Floor(remainingAxisPixels / (ledCount - 1));
-                spacing = Math.Max(spacing, stretchedSpacing);
+                if (_config.Matrix.Width > 1)
+                {
+                    spacingX = Math.Max(spacingX, stretchedSpacing);
+                }
+                else
+                {
+                    spacingY = Math.Max(spacingY, stretchedSpacing);
+                }
             }
         }
         else
@@ -420,7 +430,22 @@ public partial class MainWindow : Window
             var stride = _config.Matrix.FillGapEnabled
                 ? Math.Max(1, Math.Max(strideFromWidth, strideFromHeight))
                 : Math.Max(1, Math.Min(strideFromWidth, strideFromHeight));
-            dotSize = Math.Max(1, stride - spacing);
+            dotSize = Math.Max(1, stride - Math.Max(spacingX, spacingY));
+
+            // Note: matrix spacing now mirrors strip behavior per axis, distributing remaining viewport space between neighbors.
+            if (_config.Matrix.Width > 1)
+            {
+                var remainingWidth = viewportWidth - (dotSize * _config.Matrix.Width);
+                var stretchedSpacingX = (int)Math.Floor(remainingWidth / (_config.Matrix.Width - 1));
+                spacingX = Math.Max(spacingX, stretchedSpacingX);
+            }
+
+            if (_config.Matrix.Height > 1)
+            {
+                var remainingHeight = viewportHeight - (dotSize * _config.Matrix.Height);
+                var stretchedSpacingY = (int)Math.Floor(remainingHeight / (_config.Matrix.Height - 1));
+                spacingY = Math.Max(spacingY, stretchedSpacingY);
+            }
         }
 
         return new MatrixConfig
@@ -431,7 +456,9 @@ public partial class MainWindow : Window
             Mapping = _config.Matrix.Mapping,
             DotShape = _config.Matrix.DotShape,
             DotSize = dotSize,
-            MinDotSpacing = spacing,
+            MinDotSpacing = Math.Max(spacingX, spacingY),
+            MinDotSpacingX = spacingX,
+            MinDotSpacingY = spacingY,
             FillGapEnabled = _config.Matrix.FillGapEnabled,
             Brightness = _config.Matrix.Brightness,
             Gamma = _config.Matrix.Gamma,

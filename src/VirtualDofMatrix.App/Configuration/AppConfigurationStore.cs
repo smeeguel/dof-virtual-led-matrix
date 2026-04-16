@@ -122,6 +122,35 @@ public sealed class AppConfigurationStore
             shouldPersist = true;
         }
 
+        // Note: when only legacy scalar spacing is present, infer both axes from that scalar value.
+        if (config.Matrix.MinDotSpacingX == 2 && config.Matrix.MinDotSpacingY == 2 && config.Matrix.MinDotSpacing > 2)
+        {
+            config.Matrix.MinDotSpacingX = config.Matrix.MinDotSpacing;
+            config.Matrix.MinDotSpacingY = config.Matrix.MinDotSpacing;
+            shouldPersist = true;
+        }
+
+        // Note: per-axis spacing defaults to the legacy scalar spacing so older configs preserve intent.
+        if (config.Matrix.MinDotSpacingX < 2)
+        {
+            config.Matrix.MinDotSpacingX = Math.Max(2, config.Matrix.MinDotSpacing);
+            shouldPersist = true;
+        }
+
+        if (config.Matrix.MinDotSpacingY < 2)
+        {
+            config.Matrix.MinDotSpacingY = Math.Max(2, config.Matrix.MinDotSpacing);
+            shouldPersist = true;
+        }
+
+        // Keep legacy scalar in sync so older UI/edit paths that still read MinDotSpacing remain predictable.
+        var normalizedScalarSpacing = Math.Max(config.Matrix.MinDotSpacingX, config.Matrix.MinDotSpacingY);
+        if (config.Matrix.MinDotSpacing != normalizedScalarSpacing)
+        {
+            config.Matrix.MinDotSpacing = normalizedScalarSpacing;
+            shouldPersist = true;
+        }
+
         var snappedBrightness = Math.Round(Math.Clamp(config.Matrix.Brightness, 0.0, 1.0) / 0.05, MidpointRounding.AwayFromZero) * 0.05;
         if (Math.Abs(snappedBrightness - config.Matrix.Brightness) > double.Epsilon)
         {
@@ -306,6 +335,37 @@ public sealed class AppConfigurationStore
             {
                 toy.Render = new ToyRenderOptionsConfig();
                 modified = true;
+            }
+            else
+            {
+                // Note: when only legacy scalar toy spacing exists, mirror it into both axis fields.
+                if (toy.Render.MinDotSpacingX == 2 && toy.Render.MinDotSpacingY == 2 && toy.Render.MinDotSpacing != 2)
+                {
+                    var fallbackToySpacing = Math.Max(0, toy.Render.MinDotSpacing);
+                    toy.Render.MinDotSpacingX = fallbackToySpacing;
+                    toy.Render.MinDotSpacingY = fallbackToySpacing;
+                    modified = true;
+                }
+
+                // Note: per-axis toy spacing defaults to the legacy scalar field for backward compatibility.
+                if (toy.Render.MinDotSpacingX < 0)
+                {
+                    toy.Render.MinDotSpacingX = Math.Max(0, toy.Render.MinDotSpacing);
+                    modified = true;
+                }
+
+                if (toy.Render.MinDotSpacingY < 0)
+                {
+                    toy.Render.MinDotSpacingY = Math.Max(0, toy.Render.MinDotSpacing);
+                    modified = true;
+                }
+
+                var normalizedToyScalarSpacing = Math.Max(Math.Max(0, toy.Render.MinDotSpacingX), Math.Max(0, toy.Render.MinDotSpacingY));
+                if (toy.Render.MinDotSpacing != normalizedToyScalarSpacing)
+                {
+                    toy.Render.MinDotSpacing = normalizedToyScalarSpacing;
+                    modified = true;
+                }
             }
 
             if (toy.Bloom is null)
@@ -630,6 +690,8 @@ public sealed class AppConfigurationStore
             {
                 DotShape = string.IsNullOrWhiteSpace(config.Matrix.DotShape) ? "circle" : config.Matrix.DotShape,
                 MinDotSpacing = config.Matrix.MinDotSpacing,
+                MinDotSpacingX = config.Matrix.MinDotSpacingX,
+                MinDotSpacingY = config.Matrix.MinDotSpacingY,
                 FillGapEnabled = config.Matrix.FillGapEnabled,
                 Brightness = config.Matrix.Brightness,
                 Gamma = config.Matrix.Gamma,

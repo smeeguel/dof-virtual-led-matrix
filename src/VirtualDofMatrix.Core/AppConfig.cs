@@ -49,6 +49,12 @@ public sealed class MatrixConfig
 
     public int MinDotSpacing { get; set; } = 2;
 
+    // Per-axis minimum spacing keeps matrix resize behavior controllable for non-square windows.
+    // Legacy MinDotSpacing remains as a compatibility fallback for older config payloads.
+    public int MinDotSpacingX { get; set; } = 2;
+
+    public int MinDotSpacingY { get; set; } = 2;
+
     public bool FillGapEnabled { get; set; } = false;
 
     public double Brightness { get; set; } = 1.0;
@@ -348,6 +354,11 @@ public sealed class ToyRenderOptionsConfig
     public string DotShape { get; set; } = "circle";
 
     public int MinDotSpacing { get; set; } = 2;
+
+    // Per-axis spacing mirrors matrix-level behavior for secondary toy windows.
+    public int MinDotSpacingX { get; set; } = 2;
+
+    public int MinDotSpacingY { get; set; } = 2;
 
     public bool FillGapEnabled { get; set; } = false;
 

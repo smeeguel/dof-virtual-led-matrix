@@ -143,6 +143,10 @@ internal static class ToyIniConfiguration
             lines.Add($"renderDotShape = {toy.Render.DotShape}");
             lines.Add("; renderMinDotSpacing options: integer >= 0 (example: 2)");
             lines.Add($"renderMinDotSpacing = {toy.Render.MinDotSpacing}");
+            lines.Add("; renderMinDotSpacingX options: integer >= 0 (example: 2)");
+            lines.Add($"renderMinDotSpacingX = {toy.Render.MinDotSpacingX}");
+            lines.Add("; renderMinDotSpacingY options: integer >= 0 (example: 2)");
+            lines.Add($"renderMinDotSpacingY = {toy.Render.MinDotSpacingY}");
             lines.Add("; fillGapEnabled options: true | false (example: false; true biases toward dominant axis and fills available viewport space)");
             lines.Add($"fillGapEnabled = {toy.Render.FillGapEnabled.ToString().ToLowerInvariant()}");
             lines.Add("; renderBrightness options: number 0.0..1.0 (example: 1.0)");
@@ -283,6 +287,19 @@ internal static class ToyIniConfiguration
 
         modified |= SetIfPresent(values, "renderDotShape", value => toy.Render.DotShape = value);
         modified |= SetIfPresent(values, "renderMinDotSpacing", value => toy.Render.MinDotSpacing = ParseInt(value, toy.Render.MinDotSpacing));
+        modified |= SetIfPresent(values, "renderMinDotSpacingX", value => toy.Render.MinDotSpacingX = ParseInt(value, toy.Render.MinDotSpacingX));
+        modified |= SetIfPresent(values, "renderMinDotSpacingY", value => toy.Render.MinDotSpacingY = ParseInt(value, toy.Render.MinDotSpacingY));
+        if (!values.ContainsKey("renderMinDotSpacingX"))
+        {
+            toy.Render.MinDotSpacingX = Math.Max(0, toy.Render.MinDotSpacing);
+        }
+
+        if (!values.ContainsKey("renderMinDotSpacingY"))
+        {
+            toy.Render.MinDotSpacingY = Math.Max(0, toy.Render.MinDotSpacing);
+        }
+
+        toy.Render.MinDotSpacing = Math.Max(Math.Max(0, toy.Render.MinDotSpacingX), Math.Max(0, toy.Render.MinDotSpacingY));
         modified |= SetIfPresent(values, "fillGapEnabled", value => toy.Render.FillGapEnabled = ParseBool(value, toy.Render.FillGapEnabled));
         modified |= SetIfPresent(values, "renderBrightness", value => toy.Render.Brightness = ParseDouble(value, toy.Render.Brightness));
         modified |= SetIfPresent(values, "renderGamma", value => toy.Render.Gamma = ParseDouble(value, toy.Render.Gamma));

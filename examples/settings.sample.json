@@ -10,6 +10,8 @@
     "toyConfigIniPath": "toys.ini"
   },
   "matrix": {
+    "minDotSpacingX": 2,
+    "minDotSpacingY": 2,
     "fillGapEnabled": false,
     "visual": {
       "offStateTintR": 15,

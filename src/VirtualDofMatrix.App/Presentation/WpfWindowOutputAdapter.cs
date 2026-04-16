@@ -309,6 +309,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 Mapping = toy.Mapping.Mode,
                 DotShape = toy.Render.DotShape,
                 MinDotSpacing = toy.Render.MinDotSpacing,
+                MinDotSpacingX = toy.Render.MinDotSpacingX,
+                MinDotSpacingY = toy.Render.MinDotSpacingY,
                 FillGapEnabled = toy.Render.FillGapEnabled,
                 Brightness = toy.Render.Brightness,
                 Gamma = toy.Render.Gamma,

@@ -117,9 +117,11 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
     private int _height;
     private int _surfaceWidth;
     private int _surfaceHeight;
-    private int _dotStride;
+    private int _dotStrideX;
+    private int _dotStrideY;
     private int _dotSize;
-    private int _dotPadding;
+    private int _dotPaddingX;
+    private int _dotPaddingY;
     private float[] _dotBodyMask = Array.Empty<float>();
     private float[] _dotCoreMask = Array.Empty<float>();
     private float[] _dotSpecularMask = Array.Empty<float>();
@@ -272,8 +274,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
                 var r = _cpuLedReadback[ledOffset];
                 var g = _cpuLedReadback[ledOffset + 1];
                 var b = _cpuLedReadback[ledOffset + 2];
-                var baseX = (raster % _width) * _dotStride;
-                var baseY = (raster / _width) * _dotStride;
+                var baseX = (raster % _width) * _dotStrideX;
+                var baseY = (raster / _width) * _dotStrideY;
                 RasterFastDot(baseX, baseY, r, g, b);
             }
         }
@@ -448,10 +450,12 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         }
 
         // Keep spacing behavior shape-agnostic and inter-dot only: spacing belongs between cells, not around viewport edges.
-        _dotPadding = Math.Max(0, style.DotSpacing);
-        _dotStride = _dotSize + _dotPadding;
-        _surfaceWidth = (width * _dotSize) + (Math.Max(0, width - 1) * _dotPadding);
-        _surfaceHeight = (height * _dotSize) + (Math.Max(0, height - 1) * _dotPadding);
+        _dotPaddingX = Math.Max(0, style.DotSpacingX);
+        _dotPaddingY = Math.Max(0, style.DotSpacingY);
+        _dotStrideX = _dotSize + _dotPaddingX;
+        _dotStrideY = _dotSize + _dotPaddingY;
+        _surfaceWidth = (width * _dotSize) + (Math.Max(0, width - 1) * _dotPaddingX);
+        _surfaceHeight = (height * _dotSize) + (Math.Max(0, height - 1) * _dotPaddingY);
         BuildDotMasks(style, _dotSize);
     }
 
@@ -1245,7 +1249,13 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             return false;
         }
 
-        SetBloomConstants(null, radius: _dotSize, directionX: _dotStride, directionY: _dotPadding);
+        SetBloomConstants(
+            null,
+            radius: _dotSize,
+            directionX: _dotStrideX,
+            directionY: _dotStrideY,
+            spacingX: _dotPaddingX,
+            spacingY: _dotPaddingY);
         _context.OMSetRenderTargets(_gpuBaseRtv);
         _context.RSSetViewport(new Viewport(0, 0, _surfaceWidth, _surfaceHeight, 0f, 1f));
         _context.VSSetShader(_fullscreenVertexShader);
@@ -1410,7 +1420,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         _context.PSSetShaderResources(0, NullPixelShaderSrvs);
     }
 
-    private void SetBloomConstants(BloomProfile? profile, float radius, float directionX, float directionY)
+    private void SetBloomConstants(BloomProfile? profile, float radius, float directionX, float directionY, float spacingX = 0f, float spacingY = 0f)
     {
         if (_context is null || _bloomConstantsBuffer is null)
         {
@@ -1430,6 +1440,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             Radius = profile is null ? Math.Max(0f, radius) : Math.Clamp(radius, 0f, 8f),
             DirectionX = directionX,
             DirectionY = directionY,
+            SpacingX = spacingX,
+            SpacingY = spacingY,
             SurfaceWidth = _surfaceWidth,
             SurfaceHeight = _surfaceHeight,
             BloomWidth = profile is null ? _width : _downsampleWidth,
@@ -1449,7 +1461,6 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
             BackgroundColorR = Math.Clamp(visual?.BackgroundColorR ?? 0f, 0f, 1f),
             BackgroundColorG = Math.Clamp(visual?.BackgroundColorG ?? 0f, 0f, 1f),
             BackgroundColorB = Math.Clamp(visual?.BackgroundColorB ?? 0f, 0f, 1f),
-            Padding0 = 0f,
         };
 
         var mapped = _context.Map(_bloomConstantsBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -2431,6 +2442,8 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float Radius;
         public float DirectionX;
         public float DirectionY;
+        public float SpacingX;
+        public float SpacingY;
         public float SurfaceWidth;
         public float SurfaceHeight;
         public float BloomWidth;
@@ -2452,6 +2465,7 @@ public sealed class GpuInstancedMatrixRenderer : IMatrixRenderer
         public float BackgroundColorB;
         // Note: keep this struct at a 16-byte multiple to match HLSL cbuffer packing exactly.
         public float Padding0;
+        public float Padding1;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -2495,6 +2509,7 @@ cbuffer BloomConstants : register(b0)
     float ScaleDivisor;
     float Radius;
     float2 Direction;
+    float2 Spacing;
     float2 SurfaceSize;
     float2 BloomSize;
     float DotShapeCircle;
@@ -2508,6 +2523,7 @@ cbuffer BloomConstants : register(b0)
     float RimHighlight;
     float BackgroundVisible;
     float3 BackgroundColor;
+    float2 Padding;
 }
 cbuffer LedPreprocessConstants : register(b1)
 {
@@ -2564,10 +2580,10 @@ float4 PSDotPass(VsOut input) : SV_Target
     // Note: solid window backgrounds should be baked into the GPU base pass so bloom/composite stay fully GPU-side.
     float3 bgColor = BackgroundVisible > 0.5f ? BackgroundColor : float3(0.0f, 0.0f, 0.0f);
     float bgAlpha = BackgroundVisible > 0.5f ? 1.0f : 0.0f;
-    float spacing = max(Direction.y, 0.0f);
+    float2 spacing = max(Spacing, float2(0.0f, 0.0f));
     // Note: in fill-gap mode we derive per-axis cell sizes from the actual viewport surface so
     // dots stretch to fill available space while still reserving explicit pixel gaps between neighbors.
-    float stride = max(Direction.x, 1.0f);
+    float2 stride = max(Direction, float2(1.0f, 1.0f));
     float2 pixel = input.Uv * SurfaceSize;
     float2 ledCoord;
     float2 within;
@@ -2576,10 +2592,10 @@ float4 PSDotPass(VsOut input) : SV_Target
     {
         float cols = max(BloomSize.x, 1.0f);
         float rows = max(BloomSize.y, 1.0f);
-        float dotWidth = max(1.0f, (SurfaceSize.x - (spacing * max(0.0f, cols - 1.0f))) / cols);
-        float dotHeight = max(1.0f, (SurfaceSize.y - (spacing * max(0.0f, rows - 1.0f))) / rows);
-        float stepX = dotWidth + spacing;
-        float stepY = dotHeight + spacing;
+        float dotWidth = max(1.0f, (SurfaceSize.x - (spacing.x * max(0.0f, cols - 1.0f))) / cols);
+        float dotHeight = max(1.0f, (SurfaceSize.y - (spacing.y * max(0.0f, rows - 1.0f))) / rows);
+        float stepX = dotWidth + spacing.x;
+        float stepY = dotHeight + spacing.y;
         ledCoord = floor(float2(pixel.x / max(stepX, 1.0f), pixel.y / max(stepY, 1.0f)));
         if (ledCoord.x < 0.0f || ledCoord.y < 0.0f || ledCoord.x >= cols || ledCoord.y >= rows) return float4(bgColor, bgAlpha);
         within = float2(pixel.x - (ledCoord.x * stepX), pixel.y - (ledCoord.y * stepY));

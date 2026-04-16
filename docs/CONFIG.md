@@ -36,6 +36,8 @@ An up-to-date runnable baseline is provided in `examples/settings.sample.json`.
   "mapping": "TopDownAlternateRightLeft",
   "dotShape": "circle",
   "minDotSpacing": 2,
+  "minDotSpacingX": 2,
+  "minDotSpacingY": 2,
   "fillGapEnabled": false,
   "brightness": 1.0,
   "gamma": 0.8,
@@ -52,7 +54,8 @@ Core fields:
 - `width`, `height`: matrix resolution. Keep `width * height <= 8800` for safe DOF compatibility.
 - `mapping`: logical index mapping mode (default: `TopDownAlternateRightLeft`).
 - `dotShape`: `circle` or `square`.
-- `minDotSpacing`: minimum spacing guardrail for renderer layout.
+- `minDotSpacing`: legacy scalar spacing fallback (kept for compatibility and auto-synced from axis values).
+- `minDotSpacingX`, `minDotSpacingY`: per-axis minimum spacing guardrails used by viewport-adaptive matrix layout.
 - `fillGapEnabled`: when `true`, renderer biases dot pitch toward the dominant viewport axis and uses stretch-to-fill behavior (short strips like `5x1`); when `false` (default), dot canvases stay square.
 - `brightness`: normalized brightness scalar.
 - `gamma`: gamma response control.

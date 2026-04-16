@@ -29,8 +29,10 @@ internal sealed class MatrixFrameRasterComposer
     private int _surfaceHeight;
     private int _stride;
     private byte[] _surfaceBgra = Array.Empty<byte>();
-    private int _dotSpacing;
-    private int _dotStride;
+    private int _dotSpacingX;
+    private int _dotSpacingY;
+    private int _dotStrideX;
+    private int _dotStrideY;
     private double _lutBrightness = double.NaN;
     private double _lutGamma = double.NaN;
     private bool _lutSoftKneeEnabled;
@@ -65,10 +67,12 @@ internal sealed class MatrixFrameRasterComposer
     {
         _config = config;
         _transparentBackground = config.Visual.TransparentBackground;
-        _dotSpacing = Math.Max(HardMinimumDotSpacing, config.MinDotSpacing);
-        _dotStride = config.DotSize + _dotSpacing;
-        _surfaceWidth = (config.Width * _dotStride) + _dotSpacing;
-        _surfaceHeight = (config.Height * _dotStride) + _dotSpacing;
+        _dotSpacingX = Math.Max(HardMinimumDotSpacing, config.MinDotSpacingX);
+        _dotSpacingY = Math.Max(HardMinimumDotSpacing, config.MinDotSpacingY);
+        _dotStrideX = config.DotSize + _dotSpacingX;
+        _dotStrideY = config.DotSize + _dotSpacingY;
+        _surfaceWidth = (config.Width * _dotStrideX) + _dotSpacingX;
+        _surfaceHeight = (config.Height * _dotStrideY) + _dotSpacingY;
         _stride = _surfaceWidth * 4;
         _surfaceBgra = new byte[_stride * _surfaceHeight];
         _previousSurfaceBgra = new byte[_surfaceBgra.Length];
@@ -165,8 +169,8 @@ internal sealed class MatrixFrameRasterComposer
                 var intensity = Math.Max(r, Math.Max(g, b)) / 255.0;
                 if (fullFrameRaster || MatrixCellIntersectsDirtyBounds(x, y))
                 {
-                    var dstX = _dotSpacing + (x * _dotStride);
-                    var dstY = _dotSpacing + (y * _dotStride);
+                    var dstX = _dotSpacingX + (x * _dotStrideX);
+                    var dstY = _dotSpacingY + (y * _dotStrideY);
                     RasterDot(dstX, dstY, r, g, b, intensity, _config.Visual);
                 }
             }
@@ -1137,8 +1141,8 @@ internal sealed class MatrixFrameRasterComposer
                     continue;
                 }
 
-                var dstX = _dotSpacing + (x * _dotStride);
-                var dstY = _dotSpacing + (y * _dotStride);
+                var dstX = _dotSpacingX + (x * _dotStrideX);
+                var dstY = _dotSpacingY + (y * _dotStrideY);
                 MarkRasterDirtyBounds(dstX - localMargin, dstY - localMargin, _kernel.Size + (localMargin * 2), _kernel.Size + (localMargin * 2));
             }
         }
@@ -1180,8 +1184,8 @@ internal sealed class MatrixFrameRasterComposer
             return false;
         }
 
-        var cellMinX = _dotSpacing + (matrixX * _dotStride);
-        var cellMinY = _dotSpacing + (matrixY * _dotStride);
+        var cellMinX = _dotSpacingX + (matrixX * _dotStrideX);
+        var cellMinY = _dotSpacingY + (matrixY * _dotStrideY);
         var cellMaxX = cellMinX + _kernel.Size - 1;
         var cellMaxY = cellMinY + _kernel.Size - 1;
         return cellMaxX >= minX && cellMinX <= maxX && cellMaxY >= minY && cellMinY <= maxY;

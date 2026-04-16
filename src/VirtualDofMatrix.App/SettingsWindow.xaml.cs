@@ -985,6 +985,8 @@ public partial class SettingsWindow : Window
                 Mapping = config.Matrix.Mapping,
                 DotShape = config.Matrix.DotShape,
                 MinDotSpacing = config.Matrix.MinDotSpacing,
+                MinDotSpacingX = config.Matrix.MinDotSpacingX,
+                MinDotSpacingY = config.Matrix.MinDotSpacingY,
                 FillGapEnabled = config.Matrix.FillGapEnabled,
                 Brightness = config.Matrix.Brightness,
                 Gamma = config.Matrix.Gamma,
@@ -1098,6 +1100,8 @@ public partial class SettingsWindow : Window
                     {
                         DotShape = toy.Render.DotShape,
                         MinDotSpacing = toy.Render.MinDotSpacing,
+                        MinDotSpacingX = toy.Render.MinDotSpacingX,
+                        MinDotSpacingY = toy.Render.MinDotSpacingY,
                         FillGapEnabled = toy.Render.FillGapEnabled,
                         Brightness = toy.Render.Brightness,
                         Gamma = toy.Render.Gamma,
@@ -1232,6 +1236,8 @@ public partial class SettingsWindow : Window
             {
                 DotShape = toy.Render.DotShape,
                 MinDotSpacing = toy.Render.MinDotSpacing,
+                MinDotSpacingX = toy.Render.MinDotSpacingX,
+                MinDotSpacingY = toy.Render.MinDotSpacingY,
                 FillGapEnabled = toy.Render.FillGapEnabled,
                 Brightness = toy.Render.Brightness,
                 Gamma = toy.Render.Gamma,

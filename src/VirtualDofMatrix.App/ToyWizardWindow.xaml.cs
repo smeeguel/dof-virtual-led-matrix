@@ -587,6 +587,8 @@ public partial class ToyWizardWindow : Window
             {
                 DotShape = (DotShapeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "circle",
                 MinDotSpacing = int.Parse(MinDotSpacingTextBox.Text),
+                MinDotSpacingX = int.Parse(MinDotSpacingTextBox.Text),
+                MinDotSpacingY = int.Parse(MinDotSpacingTextBox.Text),
                 FillGapEnabled = FillGapCheckBox.IsChecked == true,
                 Brightness = double.Parse(BrightnessTextBox.Text),
                 // Note: gamma remains toys.ini editable, but is intentionally hidden in the wizard for a simpler UI.
