@@ -57,8 +57,8 @@ function Get-InstructionsMarkdown {
         [string]$InstructionsPath
     )
 
-    # Parse the markdown source embedded in instructions.html so both docs/README.md and staged README.md
-    # are guaranteed to mirror the same canonical content on every packaging run.
+    # Parse the markdown source embedded in instructions.html so repository README mirrors
+    # are guaranteed to track the same canonical content on every packaging run.
     $instructionsHtml = Get-Content -LiteralPath $InstructionsPath -Raw
     $pattern = '<script id="md-source" type="text/plain">(?s)(.*?)</script>'
     $match = [System.Text.RegularExpressions.Regex]::Match($instructionsHtml, $pattern)
@@ -299,9 +299,14 @@ if (-not (Test-Path -LiteralPath $stagingInstructionsPath -PathType Leaf)) {
     throw "Required docs/instructions.html mapping is missing from staged package."
 }
 
+# Intentionally do NOT include a staged README.md in packaged release zips.
+# The zip already ships with instructions.html as the primary end-user document.
+# Keeping only one canonical doc avoids redundant files and reduces package clutter.
 $stagingReadmePath = Join-Path $stagingDir "README.md"
-Write-MarkdownFile -DestinationPath $stagingReadmePath -Markdown $instructionsMarkdown
-Write-Host "Generated staged README mirror from instructions: $stagingReadmePath"
+if (Test-Path -LiteralPath $stagingReadmePath -PathType Leaf) {
+    Remove-Item -LiteralPath $stagingReadmePath -Force
+    Write-Host "Removed staged README.md to keep release package documentation non-redundant."
+}
 
 $artifactPath = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $stagingDir) $AssetName))
 if (Test-Path -LiteralPath $artifactPath) {
