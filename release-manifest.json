@@ -16,7 +16,7 @@
     {
       "type": "file",
       "from": "docs/instructions.html",
-      "to": "docs/instructions.html"
+      "to": "./instructions.html"
     }
   ]
 }
