@@ -229,8 +229,12 @@ Near/Far glow option groups are shown only while **Glow** is enabled.
 Advanced fields that are still supported in `toys.ini` but intentionally hidden in the wizard:
 
 - `renderGamma`
+- `renderMinDotSpacingX`
+- `renderMinDotSpacingY`
 - `bloomThreshold`
 - `bloomSoftKnee`
+
+`renderMinDotSpacingX` and `renderMinDotSpacingY` let matrix toys use per-axis spacing, so wide/tall window resize can spread dots to fill available horizontal/vertical space independently.
 
 Compatibility note for `toys.ini` source fields:
 
