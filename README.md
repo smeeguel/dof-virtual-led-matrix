@@ -416,19 +416,3 @@ Supported actions:
 For normal setup, manage toys through **Settings -> Virtual Toys** and save with **Save Global**.
 
 That is the recommended workflow for reliable day-to-day use.
-</script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script>
-    (function () {
-      const content = document.getElementById('content');
-      const source = document.getElementById('md-source').textContent;
-
-      if (window.marked) {
-        marked.setOptions({ gfm: true, breaks: false });
-        content.innerHTML = marked.parse(source);
-        return;
-      }
-
-      content.innerHTML = '<pre>' + source.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</pre>';
-    })();
-  
