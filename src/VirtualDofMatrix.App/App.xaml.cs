@@ -281,14 +281,44 @@ public partial class App : System.Windows.Application
         existing.ToyOverrides ??= new Dictionary<string, TableToyOverrideConfig>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in toyEnabledOverrides)
         {
+            var globalEnabled = _config.Routing.Toys
+                .FirstOrDefault(toy => toy.Id.Equals(pair.Key, StringComparison.OrdinalIgnoreCase))
+                ?.Enabled ?? true;
+
+            // Note: if scoped enabled matches global enabled, remove the scoped entry instead of persisting a redundant override.
+            if (pair.Value == globalEnabled)
+            {
+                if (existing.ToyOverrides.TryGetValue(pair.Key, out var existingOverride)
+                    && (existingOverride.Window?.Left.HasValue == true
+                        || existingOverride.Window?.Top.HasValue == true
+                        || existingOverride.Window?.Width.HasValue == true
+                        || existingOverride.Window?.Height.HasValue == true))
+                {
+                    // Note: preserve reserved geometry fields if present; only clear Enabled so runtime still falls back to global.
+                    existingOverride.Enabled = null;
+                }
+                else
+                {
+                    existing.ToyOverrides.Remove(pair.Key);
+                }
+
+                continue;
+            }
+
             if (!existing.ToyOverrides.TryGetValue(pair.Key, out var toyOverride))
             {
                 toyOverride = new TableToyOverrideConfig();
                 existing.ToyOverrides[pair.Key] = toyOverride;
             }
-
             toyOverride.Enabled = pair.Value;
         }
+
+        // Note: remove empty table scopes so the sidecar only contains meaningful per-table deltas.
+        if (existing.ToyOverrides.Count == 0)
+        {
+            _config.Routing.TableToyVisibilityOverrides.Remove(existing);
+        }
+
         _configurationStore.Save(_configFilePath, _config);
         RefreshActiveScopeRoutingAndVisibility();
     }
