@@ -37,6 +37,7 @@
                 <Grid Margin="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
@@ -53,14 +54,40 @@
                                 ToolTip="Open the add toy wizard with friendly guided steps." />
                     </DockPanel>
 
+                    <Grid x:Name="VirtualToysHeaderGrid" Grid.Row="1" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="60" />
+                            <ColumnDefinition x:Name="VirtualToysScopeHeaderColumn" Width="0" />
+                            <ColumnDefinition Width="72" />
+                            <ColumnDefinition Width="72" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="Global"
+                                   FontWeight="SemiBold"
+                                   Foreground="#444"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Left"
+                                   ToolTip="Global enabled state. Used when no table override exists." />
+                        <TextBlock x:Name="VirtualToysScopeHeaderText"
+                                   Grid.Column="1"
+                                   Margin="12,0,0,0"
+                                   FontWeight="SemiBold"
+                                   Foreground="#444"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Left"
+                                   Visibility="Collapsed"
+                                   ToolTip="Table override enabled state. When present, table value takes precedence over global." />
+                    </Grid>
+
                     <ListBox x:Name="VirtualToysList"
-                             Grid.Row="1"
+                             Grid.Row="2"
                              IsHitTestVisible="True"
                              Margin="0,0,0,8"
                              AllowDrop="True"
                              Drop="OnVirtualToysListDrop" />
 
-                    <Border Grid.Row="2" Margin="0,12,0,0" Padding="10,8" BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA">
+                    <Border Grid.Row="3" Margin="0,12,0,0" Padding="10,8" BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,8">
                                 <Button x:Name="SaveGlobalButton"

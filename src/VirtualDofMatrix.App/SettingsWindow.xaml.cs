@@ -25,8 +25,9 @@ public partial class SettingsWindow : Window
     private readonly string _activeScopeName;
     private readonly bool _isTableScoped;
     private readonly Action<AppConfig>? _applyScopedSave;
-    private Dictionary<string, bool> _lastSavedToyEnabledStates = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyToggleByName = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, ToyEnabledSnapshot> _lastSavedToyEnabledStates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyGlobalToggleByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyScopeToggleByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DockPanel> _toyRowById = new(StringComparer.OrdinalIgnoreCase);
     private string? _selectedToyId;
     private System.Windows.Point? _toyDragStartPoint;
@@ -92,7 +93,16 @@ public partial class SettingsWindow : Window
 
         RefreshLedStripList(_working.Settings.CabinetXmlPath);
         SaveScopeButton.Content = _isTableScoped ? $"Save {_activeScopeName}" : "Save Scope";
+        ConfigureVirtualToyHeaders();
         UpdateSelectionTooltips();
+    }
+
+    private void ConfigureVirtualToyHeaders()
+    {
+        // Note: only render a scope column when an active table/ROM is available; global-only mode keeps the layout compact.
+        VirtualToysScopeHeaderColumn.Width = _isTableScoped ? GridLength.Auto : new GridLength(0);
+        VirtualToysScopeHeaderText.Text = _activeScopeName;
+        VirtualToysScopeHeaderText.Visibility = _isTableScoped ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnResolutionPresetChanged(object sender, SelectionChangedEventArgs e)
@@ -223,7 +233,8 @@ public partial class SettingsWindow : Window
                 {
                     RouteId = entry.Id,
                     DisplayName = ResolveDisplayName(entry, remainingVirtualCabinetEntries),
-                    Enabled = entry.Enabled,
+                    GlobalEnabled = ResolveGlobalEnabled(entry.Id),
+                    ScopeEnabled = entry.Enabled,
                     RouteConfig = entry,
                 })
                 .ToArray();
@@ -235,7 +246,8 @@ public partial class SettingsWindow : Window
                     {
                         RouteId = entry.Name,
                         DisplayName = entry.Name,
-                        Enabled = ResolveEnabled(entry.Name),
+                        GlobalEnabled = ResolveGlobalEnabled(entry.Name),
+                        ScopeEnabled = ResolveScopeEnabled(entry.Name),
                         RouteConfig = _working.Routing.Toys.FirstOrDefault(x => x.Id.Equals(entry.Name, StringComparison.OrdinalIgnoreCase)),
                     })
                     .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -247,7 +259,8 @@ public partial class SettingsWindow : Window
                 {
                     RouteId = entry.Name,
                     DisplayName = entry.Name,
-                    Enabled = ResolveEnabled(entry.Name),
+                    GlobalEnabled = ResolveGlobalEnabled(entry.Name),
+                    ScopeEnabled = ResolveScopeEnabled(entry.Name),
                 })
                 .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -267,7 +280,8 @@ public partial class SettingsWindow : Window
 
     private void RenderVirtualToyRows()
     {
-        _toyToggleByName.Clear();
+        _toyGlobalToggleByName.Clear();
+        _toyScopeToggleByName.Clear();
         _toyRowById.Clear();
         var rows = _virtualToys
             .Select(item =>
@@ -285,22 +299,39 @@ public partial class SettingsWindow : Window
             row.Drop += OnVirtualToyRowDrop;
             row.DragOver += OnVirtualToyRowDragOver;
 
-            var enabledToggle = new System.Windows.Controls.CheckBox
+            var globalToggle = new System.Windows.Controls.CheckBox
             {
-                IsChecked = item.Enabled,
+                IsChecked = item.GlobalEnabled,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 12, 0),
                 MinWidth = 42,
-                ToolTip = "Toggle toy visibility/output. Disabled toys are hidden.",
-                Tag = item.RouteId,
+                ToolTip = _isTableScoped
+                    ? "Global value fallback. If a table override exists, the table value takes precedence."
+                    : "Global enabled state. Disabled toys are hidden.",
+                Tag = new ToyToggleTag(item.RouteId, ToyToggleScope.Global),
             };
-            // Note: keep tooltip visible even when checkbox is disabled so users see why the final toy can't be turned off.
-            ToolTipService.SetShowOnDisabled(enabledToggle, true);
+            // Note: keep tooltip visible even when checkbox is disabled so users still understand precedence/lock behavior.
+            ToolTipService.SetShowOnDisabled(globalToggle, true);
 
-            enabledToggle.Checked += OnVirtualToyEnabledToggled;
-            enabledToggle.Unchecked += OnVirtualToyEnabledToggled;
-            _toyToggleByName[item.RouteId] = enabledToggle;
+            globalToggle.Checked += OnVirtualToyEnabledToggled;
+            globalToggle.Unchecked += OnVirtualToyEnabledToggled;
+            _toyGlobalToggleByName[item.RouteId] = globalToggle;
             _toyRowById[item.RouteId] = row;
+
+            var scopeToggle = new System.Windows.Controls.CheckBox
+            {
+                IsChecked = item.ScopeEnabled,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 12, 0),
+                MinWidth = 42,
+                Visibility = _isTableScoped ? Visibility.Visible : Visibility.Collapsed,
+                ToolTip = "Table override enabled state. When both global and table values exist, table wins for this active scope.",
+                Tag = new ToyToggleTag(item.RouteId, ToyToggleScope.Scope),
+            };
+            ToolTipService.SetShowOnDisabled(scopeToggle, true);
+            scopeToggle.Checked += OnVirtualToyEnabledToggled;
+            scopeToggle.Unchecked += OnVirtualToyEnabledToggled;
+            _toyScopeToggleByName[item.RouteId] = scopeToggle;
 
             // Note: keep actions compact and iconized so rows remain scannable while preserving keyboard/screen-reader affordances.
             var actionCluster = new StackPanel
@@ -341,13 +372,21 @@ public partial class SettingsWindow : Window
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(51, 51, 51)),
             };
-            enabledToggle.TabIndex = 0;
-            AutomationProperties.SetName(enabledToggle, $"Enable toy {item.DisplayName}");
+            globalToggle.TabIndex = 0;
+            AutomationProperties.SetName(globalToggle, $"Global enable toy {item.DisplayName}");
+            scopeToggle.TabIndex = 1;
+            AutomationProperties.SetName(scopeToggle, $"Scope enable toy {item.DisplayName}");
+            editButton.TabIndex = _isTableScoped ? 2 : 1;
+            deleteButton.TabIndex = _isTableScoped ? 3 : 2;
 
             actionCluster.Children.Add(editButton);
             actionCluster.Children.Add(deleteButton);
 
-            row.Children.Add(enabledToggle);
+            row.Children.Add(globalToggle);
+            if (_isTableScoped)
+            {
+                row.Children.Add(scopeToggle);
+            }
             row.Children.Add(actionCluster);
             row.Children.Add(name);
             return row;
@@ -399,21 +438,30 @@ public partial class SettingsWindow : Window
 
     private void OnVirtualToyEnabledToggled(object sender, RoutedEventArgs e)
     {
-        if (sender is not System.Windows.Controls.CheckBox { Tag: string toyName } toggle)
+        if (sender is not System.Windows.Controls.CheckBox { Tag: ToyToggleTag tag } toggle)
         {
             return;
         }
 
-        var toy = _virtualToys.FirstOrDefault(x => x.RouteId.Equals(toyName, StringComparison.OrdinalIgnoreCase));
+        var toy = _virtualToys.FirstOrDefault(x => x.RouteId.Equals(tag.RouteId, StringComparison.OrdinalIgnoreCase));
         if (toy is null)
         {
             return;
         }
 
         // Note: we mirror switch state immediately into the in-memory toy list so dirty/save UX stays predictable.
-        toy.Enabled = toggle.IsChecked == true;
-        EnsureAtLeastOneToyEnabled(toy);
+        if (tag.Scope == ToyToggleScope.Scope && _isTableScoped)
+        {
+            toy.ScopeEnabled = toggle.IsChecked == true;
+        }
+        else
+        {
+            toy.GlobalEnabled = toggle.IsChecked == true;
+        }
+
+        EnsureAtLeastOneToyEnabled(toy, tag.Scope);
         RefreshToyToggleInterlocks();
+        UpdateSummary();
         UpdateDirtyState();
     }
 
@@ -541,50 +589,84 @@ public partial class SettingsWindow : Window
         UpdateDirtyState();
     }
 
-    private void EnsureAtLeastOneToyEnabled(VirtualToyListItem changedToy)
+    private void EnsureAtLeastOneToyEnabled(VirtualToyListItem changedToy, ToyToggleScope changedScope)
     {
         if (_virtualToys.Count == 0)
         {
             return;
         }
 
-        if (_virtualToys.Any(x => x.Enabled))
+        if (_virtualToys.Any(IsEffectiveEnabled))
         {
             return;
         }
 
-        // Note: never allow the final enabled toy to be turned off; keep one viewer target active.
-        changedToy.Enabled = true;
-        if (_toyToggleByName.TryGetValue(changedToy.RouteId, out var toggle))
+        // Note: never allow the final effective toy to be turned off; keep one viewer target active.
+        if (_isTableScoped && changedScope == ToyToggleScope.Scope)
         {
-            toggle.IsChecked = true;
+            changedToy.ScopeEnabled = true;
+            if (_toyScopeToggleByName.TryGetValue(changedToy.RouteId, out var scopeToggle))
+            {
+                scopeToggle.IsChecked = true;
+            }
+        }
+        else
+        {
+            changedToy.GlobalEnabled = true;
+            if (_toyGlobalToggleByName.TryGetValue(changedToy.RouteId, out var globalToggle))
+            {
+                globalToggle.IsChecked = true;
+            }
         }
     }
 
     private void RefreshToyToggleInterlocks()
     {
-        var enabledCount = _virtualToys.Count(x => x.Enabled);
+        var enabledCount = _virtualToys.Count(IsEffectiveEnabled);
         var onlyEnabledToyName = enabledCount == 1
-            ? _virtualToys.First(x => x.Enabled).RouteId
+            ? _virtualToys.First(IsEffectiveEnabled).RouteId
             : null;
 
         foreach (var toy in _virtualToys)
         {
-            if (!_toyToggleByName.TryGetValue(toy.RouteId, out var toggle))
+            if (!_toyGlobalToggleByName.TryGetValue(toy.RouteId, out var globalToggle))
             {
                 continue;
             }
 
             var lockLastEnabled = onlyEnabledToyName is not null
                 && onlyEnabledToyName.Equals(toy.RouteId, StringComparison.OrdinalIgnoreCase);
-            toggle.IsEnabled = !lockLastEnabled;
-            toggle.ToolTip = lockLastEnabled
-                ? "At least one toy must be enabled"
-                : "Toggle toy visibility/output. Disabled toys are hidden.";
+
+            if (_isTableScoped)
+            {
+                if (_toyScopeToggleByName.TryGetValue(toy.RouteId, out var scopeToggle))
+                {
+                    scopeToggle.IsEnabled = !lockLastEnabled;
+                    scopeToggle.ToolTip = lockLastEnabled
+                        ? "At least one effective toy must be enabled for this table scope."
+                        : "Table override enabled state. When both global and table values exist, table wins for this active scope.";
+                }
+
+                globalToggle.IsEnabled = true;
+                globalToggle.ToolTip = "Global fallback value. Effective scope uses the table override when both are present.";
+            }
+            else
+            {
+                globalToggle.IsEnabled = !lockLastEnabled;
+                globalToggle.ToolTip = lockLastEnabled
+                    ? "At least one toy must be enabled."
+                    : "Global enabled state. Disabled toys are hidden.";
+            }
         }
     }
 
-    private bool ResolveEnabled(string toyName)
+    private bool ResolveGlobalEnabled(string toyName)
+    {
+        var configuredToy = _liveSource.Routing.Toys.FirstOrDefault(x => x.Id.Equals(toyName, StringComparison.OrdinalIgnoreCase));
+        return configuredToy?.Enabled ?? true;
+    }
+
+    private bool ResolveScopeEnabled(string toyName)
     {
         var configuredToy = _working.Routing.Toys.FirstOrDefault(x => x.Id.Equals(toyName, StringComparison.OrdinalIgnoreCase));
         return configuredToy?.Enabled ?? true;
@@ -703,12 +785,25 @@ public partial class SettingsWindow : Window
 
     private void UpdateSummary()
     {
-        var enabledToys = _working.Routing.Toys.Where(t => t.Enabled).ToArray();
-        var totalEnabledLeds = enabledToys.Sum(t => Math.Max(1, t.Mapping.Width * t.Mapping.Height));
-        SummaryText.Text = $"Summary: {enabledToys.Length} enabled virtual toy(s), {totalEnabledLeds} routed LEDs total.";
+        var enabledToys = _virtualToys.Where(IsEffectiveEnabled).ToArray();
+        var totalEnabledLeds = enabledToys.Sum(GetToyLedCount);
+        var scopeLabel = _isTableScoped ? _activeScopeName : "Global";
+        SummaryText.Text = $"Summary ({scopeLabel}): {enabledToys.Length} effective enabled virtual toy(s), {totalEnabledLeds} routed LEDs total.";
         SummaryStatusText.Text = totalEnabledLeds <= CabinetXmlService.SafeMaxLedTotal
             ? $"Status: combined enabled toy LEDs are within safe DOF target (<= {CabinetXmlService.SafeMaxLedTotal})."
             : $"Status: combined enabled toy LEDs exceed safe DOF target (<= {CabinetXmlService.SafeMaxLedTotal}).";
+    }
+
+    private int GetToyLedCount(VirtualToyListItem item)
+    {
+        var route = item.RouteConfig
+            ?? _working.Routing.Toys.FirstOrDefault(x => x.Id.Equals(item.RouteId, StringComparison.OrdinalIgnoreCase));
+        if (route is null)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, route.Mapping.Width * route.Mapping.Height);
     }
 
     private void UpdateSelectionTooltips()
@@ -772,7 +867,9 @@ public partial class SettingsWindow : Window
 
         var isConfigDirty = BuildFingerprint(config) != _lastAppliedFingerprint;
         var isToyDirty = _virtualToys.Any(item =>
-            !_lastSavedToyEnabledStates.TryGetValue(item.RouteId, out var previous) || previous != item.Enabled);
+            !_lastSavedToyEnabledStates.TryGetValue(item.RouteId, out var previous)
+            || previous.GlobalEnabled != item.GlobalEnabled
+            || (_isTableScoped && previous.ScopeEnabled != item.ScopeEnabled));
 
         var hasToyChanges = isConfigDirty || isToyDirty;
         SaveGlobalButton.Visibility = hasToyChanges ? Visibility.Visible : Visibility.Collapsed;
@@ -781,16 +878,18 @@ public partial class SettingsWindow : Window
 
     private void OnSaveGlobalVirtualToys(object sender, RoutedEventArgs e)
     {
-        SaveVirtualToyState("global");
+        SaveVirtualToyState("global", useScopeValues: false);
     }
 
     private void OnSaveScopedVirtualToys(object sender, RoutedEventArgs e)
     {
-        SaveVirtualToyState(_activeScopeName);
+        SaveVirtualToyState(_activeScopeName, useScopeValues: true);
     }
 
-    private void SaveVirtualToyState(string scopeLabel)
+    private void SaveVirtualToyState(string scopeLabel, bool useScopeValues)
     {
+        SyncWorkingToyEnabledState(useScopeValues);
+
         if (!TryBuildConfig(out var config, out var error))
         {
             WpfMessageBox.Show(this, error, "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -819,7 +918,7 @@ public partial class SettingsWindow : Window
                 continue;
             }
 
-            toy.Enabled = item.Enabled;
+            toy.Enabled = IsEffectiveEnabled(item);
         }
     }
 
@@ -845,7 +944,30 @@ public partial class SettingsWindow : Window
 
     private void SnapshotSavedToyState()
     {
-        _lastSavedToyEnabledStates = _virtualToys.ToDictionary(x => x.RouteId, x => x.Enabled, StringComparer.OrdinalIgnoreCase);
+        _lastSavedToyEnabledStates = _virtualToys.ToDictionary(
+            x => x.RouteId,
+            x => new ToyEnabledSnapshot(x.GlobalEnabled, x.ScopeEnabled),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private bool IsEffectiveEnabled(VirtualToyListItem item)
+    {
+        return _isTableScoped ? item.ScopeEnabled : item.GlobalEnabled;
+    }
+
+    private void SyncWorkingToyEnabledState(bool useScopeValues)
+    {
+        // Note: save actions can target either global or active scope; synchronize the working routing list before building the persisted config.
+        foreach (var item in _virtualToys)
+        {
+            var toy = _working.Routing.Toys.FirstOrDefault(x => x.Id.Equals(item.RouteId, StringComparison.OrdinalIgnoreCase));
+            if (toy is null)
+            {
+                continue;
+            }
+
+            toy.Enabled = useScopeValues ? item.ScopeEnabled : item.GlobalEnabled;
+        }
     }
 
     private static string BuildFingerprint(AppConfig config) => JsonSerializer.Serialize(config, FingerprintSerializerOptions);
@@ -1193,9 +1315,21 @@ public partial class SettingsWindow : Window
 
         public required string DisplayName { get; init; }
 
-        public bool Enabled { get; set; }
+        public bool GlobalEnabled { get; set; }
+
+        public bool ScopeEnabled { get; set; }
 
         public ToyRouteConfig? RouteConfig { get; init; }
+    }
+
+    private sealed record ToyEnabledSnapshot(bool GlobalEnabled, bool ScopeEnabled);
+
+    private sealed record ToyToggleTag(string RouteId, ToyToggleScope Scope);
+
+    private enum ToyToggleScope
+    {
+        Global,
+        Scope,
     }
 
     private static ToyRouteConfig CloneToy(ToyRouteConfig toy)
