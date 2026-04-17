@@ -28,7 +28,7 @@ public partial class SettingsWindow : Window
     private Dictionary<string, ToyEnabledSnapshot> _lastSavedToyEnabledStates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyGlobalToggleByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyScopeToggleByName = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Panel> _toyRowById = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, System.Windows.Controls.Panel> _toyRowById = new(StringComparer.OrdinalIgnoreCase);
     private string? _selectedToyId;
     private System.Windows.Point? _toyDragStartPoint;
     private string? _toyDragSourceId;
@@ -407,7 +407,7 @@ public partial class SettingsWindow : Window
 
     private void OnVirtualToyRowSelected(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (sender is not Panel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
+        if (sender is not System.Windows.Controls.Panel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
         {
             return;
         }
@@ -947,7 +947,7 @@ public partial class SettingsWindow : Window
 
     private void OnVirtualToyRowMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (sender is not Panel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
+        if (sender is not System.Windows.Controls.Panel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
         {
             return;
         }
@@ -988,7 +988,7 @@ public partial class SettingsWindow : Window
     {
         if (!e.Data.GetDataPresent(typeof(string))
             || e.Data.GetData(typeof(string)) is not string sourceId
-            || sender is not Panel targetRow
+            || sender is not System.Windows.Controls.Panel targetRow
             || targetRow.Tag is not string targetId
             || string.IsNullOrWhiteSpace(sourceId)
             || string.IsNullOrWhiteSpace(targetId))
