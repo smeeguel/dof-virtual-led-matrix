@@ -96,7 +96,8 @@ public sealed class WpfWindowOutputAdapterTests
         var state = WpfWindowOutputAdapter.ComputeOverlayState(
             toyId: "matrix-main",
             selectedToyId: null,
-            hoveredToyId: "matrix-main");
+            hoveredToyId: "matrix-main",
+            isLayoutEditModeEnabled: false);
 
         Assert.False(state.IsSelected);
         Assert.True(state.IsHovered);
@@ -109,11 +110,13 @@ public sealed class WpfWindowOutputAdapterTests
         var selectedToyState = WpfWindowOutputAdapter.ComputeOverlayState(
             toyId: "matrix-main",
             selectedToyId: "matrix-main",
-            hoveredToyId: "strip-topper");
+            hoveredToyId: "strip-topper",
+            isLayoutEditModeEnabled: true);
         var hoveredToyState = WpfWindowOutputAdapter.ComputeOverlayState(
             toyId: "strip-topper",
             selectedToyId: "matrix-main",
-            hoveredToyId: "strip-topper");
+            hoveredToyId: "strip-topper",
+            isLayoutEditModeEnabled: true);
 
         Assert.True(selectedToyState.IsSelected);
         Assert.False(selectedToyState.IsHovered);
@@ -121,6 +124,20 @@ public sealed class WpfWindowOutputAdapterTests
         Assert.False(hoveredToyState.IsSelected);
         Assert.True(hoveredToyState.IsHovered);
         Assert.True(hoveredToyState.ShowNameOverlay);
+    }
+
+    [Fact]
+    public void ComputeOverlayState_HidesNameWhenSettingsClosedAndToyNotHovered()
+    {
+        var state = WpfWindowOutputAdapter.ComputeOverlayState(
+            toyId: "matrix-main",
+            selectedToyId: "matrix-main",
+            hoveredToyId: null,
+            isLayoutEditModeEnabled: false);
+
+        Assert.True(state.IsSelected);
+        Assert.False(state.IsHovered);
+        Assert.False(state.ShowNameOverlay);
     }
 
     [Fact]

@@ -846,8 +846,12 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             toyLabel = toyId;
         }
 
-        var (isSelected, _, showNameOverlay) = ComputeOverlayState(toyId, _selectedToyId, _hoveredToyId);
-        // Note: labels preview on hover, while borders remain tied to explicit locked selection.
+        var (isSelected, _, showNameOverlay) = ComputeOverlayState(
+            toyId,
+            _selectedToyId,
+            _hoveredToyId,
+            _layoutEditModeEnabled);
+        // Note: in layout mode labels stay visible for all toys; outside layout mode labels are hover-preview only.
         toyWindow.SetLayoutEditOverlay(toyLabel, _layoutEditModeEnabled, isSelected, showNameOverlay);
     }
 
@@ -855,13 +859,15 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     internal static (bool IsSelected, bool IsHovered, bool ShowNameOverlay) ComputeOverlayState(
         string toyId,
         string? selectedToyId,
-        string? hoveredToyId)
+        string? hoveredToyId,
+        bool isLayoutEditModeEnabled)
     {
         var isSelected = !string.IsNullOrWhiteSpace(selectedToyId)
             && string.Equals(selectedToyId, toyId, StringComparison.OrdinalIgnoreCase);
         var isHovered = !string.IsNullOrWhiteSpace(hoveredToyId)
             && string.Equals(hoveredToyId, toyId, StringComparison.OrdinalIgnoreCase);
-        return (isSelected, isHovered, isSelected || isHovered);
+        var showNameOverlay = isLayoutEditModeEnabled || isHovered;
+        return (isSelected, isHovered, showNameOverlay);
     }
 
     // Overview: helper used by tests to prove hover transitions cannot clear or overwrite locked selection state.

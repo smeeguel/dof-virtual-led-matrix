@@ -562,7 +562,8 @@ public partial class MainWindow : Window
 
     private void UpdateDetachedLayoutOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected, bool showNameOverlay, bool compactOverlay)
     {
-        if (!isEditModeEnabled)
+        // Note: keep detached overlay alive either for layout mode (always-on labels/selection) or transient hover previews.
+        if (!isEditModeEnabled && !showNameOverlay)
         {
             _layoutOverlayWindow?.Hide();
             return;
@@ -579,10 +580,11 @@ public partial class MainWindow : Window
         _layoutOverlayNameBorder.Padding = compactOverlay ? new Thickness(4, 2, 4, 2) : new Thickness(6, 3, 6, 3);
         _layoutOverlayNameText.FontSize = compactOverlay ? 10 : 12;
         _layoutOverlayNameText.Text = string.IsNullOrWhiteSpace(toyLabel) ? "(unnamed toy)" : toyLabel;
-        // Note: hover previews only the toy name; selection remains the only trigger for the drag/selection border.
+        // Note: layout mode keeps names pinned for all toys; outside layout mode names appear only during hover preview.
         _layoutOverlayNameBorder.Visibility = showNameOverlay ? Visibility.Visible : Visibility.Collapsed;
-        _layoutOverlaySelectionBorder.BorderThickness = isSelected ? new Thickness(4) : new Thickness(0);
-        _layoutOverlaySelectionBorder.BorderBrush = isSelected ? WpfBrushes.Yellow : WpfBrushes.Transparent;
+        // Note: selection borders remain an edit-mode affordance even when hover previews are allowed outside edit mode.
+        _layoutOverlaySelectionBorder.BorderThickness = isEditModeEnabled && isSelected ? new Thickness(4) : new Thickness(0);
+        _layoutOverlaySelectionBorder.BorderBrush = isEditModeEnabled && isSelected ? WpfBrushes.Yellow : WpfBrushes.Transparent;
 
         if (!_layoutOverlayWindow.IsVisible)
         {
