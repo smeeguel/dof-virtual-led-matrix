@@ -132,8 +132,7 @@ public sealed class AppConfigurationStore
 
         if (string.IsNullOrWhiteSpace(config.Routing.TableOverrideIniPath))
         {
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            config.Routing.TableOverrideIniPath = Path.Combine(localAppData, "VirtualDofMatrix", "table-toy-overrides.ini");
+            config.Routing.TableOverrideIniPath = "table-toy-overrides.ini";
             shouldPersist = true;
         }
 
@@ -1116,8 +1115,10 @@ public sealed class AppConfigurationStore
                 : Path.Combine(settingsDirectory, expandedPath);
         }
 
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localAppData, "VirtualDofMatrix", "table-toy-overrides.ini");
+        var settingsDirectory = Path.GetDirectoryName(settingsJsonPath);
+        return string.IsNullOrWhiteSpace(settingsDirectory)
+            ? "table-toy-overrides.ini"
+            : Path.Combine(settingsDirectory, "table-toy-overrides.ini");
     }
 
     private static void Warn(string message)

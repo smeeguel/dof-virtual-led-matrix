@@ -8,7 +8,7 @@
   "routing": {
     "routingSchemaVersion": "1",
     "toyConfigIniPath": "toys.ini",
-    "tableOverrideIniPath": "%LOCALAPPDATA%\\VirtualDofMatrix\\table-toy-overrides.ini"
+    "tableOverrideIniPath": "table-toy-overrides.ini"
   },
   "matrix": {
     "minDotSpacingX": 2,
