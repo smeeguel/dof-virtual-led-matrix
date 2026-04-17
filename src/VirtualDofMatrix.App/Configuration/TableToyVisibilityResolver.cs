@@ -20,13 +20,75 @@ internal static class TableToyVisibilityResolver
 
         var scopeOverride = routing.TableToyVisibilityOverrides?
             .FirstOrDefault(entry => entry.TableKey.Equals(activeScopeKey, StringComparison.OrdinalIgnoreCase));
-        if (scopeOverride?.ToyEnabledOverrides is not null
-            && scopeOverride.ToyEnabledOverrides.TryGetValue(toy.Id, out var scopedEnabled))
+        if (scopeOverride?.ToyOverrides is not null
+            && scopeOverride.ToyOverrides.TryGetValue(toy.Id, out var scopedOverride))
         {
-            return scopedEnabled;
+            var mergedOverride = MergeOverrides(baseOverride: null, scopedOverride);
+            if (mergedOverride.Enabled.HasValue)
+            {
+                return mergedOverride.Enabled.Value;
+            }
         }
 
         return toy.Enabled;
+    }
+
+    public static TableToyOverrideConfig MergeOverrides(TableToyOverrideConfig? baseOverride, TableToyOverrideConfig? scopedOverride)
+    {
+        // Note: field-wise nullable merge keeps the schema additive, so future keys can be introduced
+        // without changing callers that only care about today's enabled bit.
+        var merged = CloneOverride(baseOverride) ?? new TableToyOverrideConfig();
+        if (scopedOverride is null)
+        {
+            return merged;
+        }
+
+        if (scopedOverride.Enabled.HasValue)
+        {
+            merged.Enabled = scopedOverride.Enabled.Value;
+        }
+
+        if (scopedOverride.Window?.Left.HasValue == true)
+        {
+            merged.Window.Left = scopedOverride.Window.Left.Value;
+        }
+
+        if (scopedOverride.Window?.Top.HasValue == true)
+        {
+            merged.Window.Top = scopedOverride.Window.Top.Value;
+        }
+
+        if (scopedOverride.Window?.Width.HasValue == true)
+        {
+            merged.Window.Width = scopedOverride.Window.Width.Value;
+        }
+
+        if (scopedOverride.Window?.Height.HasValue == true)
+        {
+            merged.Window.Height = scopedOverride.Window.Height.Value;
+        }
+
+        return merged;
+    }
+
+    private static TableToyOverrideConfig? CloneOverride(TableToyOverrideConfig? source)
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        return new TableToyOverrideConfig
+        {
+            Enabled = source.Enabled,
+            Window = new TableToyWindowOverrideConfig
+            {
+                Left = source.Window?.Left,
+                Top = source.Window?.Top,
+                Width = source.Window?.Width,
+                Height = source.Window?.Height,
+            },
+        };
     }
 
     public static int CountEnabledToysForActiveScope(RoutingConfig routing)

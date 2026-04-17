@@ -273,20 +273,25 @@ In **Settings -> Virtual Toys**:
 
 ## Table-specific visibility override file
 
-Per-table toy visibility is saved to a dedicated INI file (not the app install folder):
+Per-table toy overrides are saved to a dedicated INI file (not the app install folder):
 
 - Default path: `<app-folder>\table-toy-overrides.ini`
 - Optional override: `routing.tableOverrideIniPath` in `settings.json`
 
-Format:
+Format (current + reserved future keys):
 
 ```ini
 [table:Tron Legacy (Stern 2011)]
 toy:matrix-main.enabled = true
 toy:matrix-topper.enabled = false
+; reserved for future per-table toy location/size overrides:
+; toy:matrix-main.window.left = 100
+; toy:matrix-main.window.top = 200
+; toy:matrix-main.window.width = 960
+; toy:matrix-main.window.height = 240
 ```
 
-Use this file when you want to hand-edit table-specific enabled states. Keep toy IDs exactly the same as your configured routing toy IDs.
+Current builds only apply `enabled`; reserved `window.*` keys are ignored at runtime for now, and kept for forward-compatible schema growth. Keep toy IDs exactly the same as your configured routing toy IDs.
 
 
 ## 8) DOF-side changes needed for extra toys

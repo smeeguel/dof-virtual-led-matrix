@@ -512,7 +512,14 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         {
             // Note: table-scoped disable writes into overrides only; global toy defaults remain unchanged.
             var tableOverride = GetOrCreateTableOverride(activeScopeKey);
-            tableOverride.ToyEnabledOverrides[toy.Id] = false;
+            tableOverride.ToyOverrides ??= new Dictionary<string, TableToyOverrideConfig>(StringComparer.OrdinalIgnoreCase);
+            if (!tableOverride.ToyOverrides.TryGetValue(toy.Id, out var toyOverride))
+            {
+                toyOverride = new TableToyOverrideConfig();
+                tableOverride.ToyOverrides[toy.Id] = toyOverride;
+            }
+
+            toyOverride.Enabled = false;
         }
 
         _persistConfig();
@@ -533,7 +540,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         var created = new TableToyVisibilityOverrideConfig
         {
             TableKey = scopeKey,
-            ToyEnabledOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase),
+            ToyOverrides = new Dictionary<string, TableToyOverrideConfig>(StringComparer.OrdinalIgnoreCase),
         };
         _config.Routing.TableToyVisibilityOverrides.Add(created);
         return created;

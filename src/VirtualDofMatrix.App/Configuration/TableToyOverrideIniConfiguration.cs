@@ -1,9 +1,11 @@
 using System.IO;
+using System.Globalization;
 using VirtualDofMatrix.Core;
 
 namespace VirtualDofMatrix.App.Configuration;
 
-// Overview: parses optional per-table toy visibility overrides from a dedicated sidecar INI.
+// Overview: parses optional per-table toy overrides from a dedicated sidecar INI.
+// The sidecar schema uses "toy:<id>.<field>" keys so future nullable fields can be added without breaking.
 internal static class TableToyOverrideIniConfiguration
 {
     public static bool ApplyFromIni(AppConfig config, string iniPath)
@@ -28,31 +30,63 @@ internal static class TableToyOverrideIniConfiguration
                 continue;
             }
 
-            var toyOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            var toyOverrides = new Dictionary<string, TableToyOverrideConfig>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in section.Value)
             {
-                if (!pair.Key.StartsWith("toy:", StringComparison.OrdinalIgnoreCase)
-                    || !pair.Key.EndsWith(".enabled", StringComparison.OrdinalIgnoreCase))
+                if (!TryParseToyFieldKey(pair.Key, out var toyId, out var fieldName))
                 {
                     continue;
                 }
 
-                var toyId = pair.Key[4..^8].Trim();
-                if (string.IsNullOrWhiteSpace(toyId))
+                if (!toyOverrides.TryGetValue(toyId, out var toyOverride))
                 {
-                    continue;
+                    toyOverride = new TableToyOverrideConfig();
+                    toyOverrides[toyId] = toyOverride;
                 }
+                toyOverride.Window ??= new TableToyWindowOverrideConfig();
 
-                if (TryParseBool(pair.Value, out var enabled))
+                // Note: parser intentionally ignores unknown/future keys so current builds stay forward-compatible.
+                if (fieldName.Equals("enabled", StringComparison.OrdinalIgnoreCase))
                 {
-                    toyOverrides[toyId] = enabled;
+                    if (TryParseBool(pair.Value, out var enabled))
+                    {
+                        toyOverride.Enabled = enabled;
+                    }
+                }
+                else if (fieldName.Equals("window.left", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (TryParseNullableDouble(pair.Value, out var left))
+                    {
+                        toyOverride.Window.Left = left;
+                    }
+                }
+                else if (fieldName.Equals("window.top", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (TryParseNullableDouble(pair.Value, out var top))
+                    {
+                        toyOverride.Window.Top = top;
+                    }
+                }
+                else if (fieldName.Equals("window.width", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (TryParseNullableDouble(pair.Value, out var width))
+                    {
+                        toyOverride.Window.Width = width;
+                    }
+                }
+                else if (fieldName.Equals("window.height", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (TryParseNullableDouble(pair.Value, out var height))
+                    {
+                        toyOverride.Window.Height = height;
+                    }
                 }
             }
 
             parsedOverrides.Add(new TableToyVisibilityOverrideConfig
             {
                 TableKey = tableKey,
-                ToyEnabledOverrides = toyOverrides,
+                ToyOverrides = toyOverrides,
             });
         }
 
@@ -72,9 +106,11 @@ internal static class TableToyOverrideIniConfiguration
 
         var lines = new List<string>
         {
-            "; Managed by Virtual DOF Matrix. Per-table toy visibility overrides live here.",
+            "; Managed by Virtual DOF Matrix. Per-table toy overrides live here.",
             "; Section format: [table:<table-id>]",
-            "; Entry format: toy:<toy-id>.enabled = true|false",
+            "; Entry format: toy:<toy-id>.<field> = <value>",
+            "; MVP field: toy:<toy-id>.enabled = true|false",
+            "; Reserved future fields: toy:<toy-id>.window.left/top/width/height = <double>",
         };
 
         var sortedTables = (config.Routing.TableToyVisibilityOverrides ?? [])
@@ -87,12 +123,39 @@ internal static class TableToyOverrideIniConfiguration
             lines.Add(string.Empty);
             lines.Add($"[table:{tableOverride.TableKey}]");
 
-            var sortedToys = (tableOverride.ToyEnabledOverrides ?? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase))
+            var sortedToys = (tableOverride.ToyOverrides ?? new Dictionary<string, TableToyOverrideConfig>(StringComparer.OrdinalIgnoreCase))
                 .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             foreach (var toyEntry in sortedToys)
             {
-                lines.Add($"toy:{toyEntry.Key}.enabled = {toyEntry.Value.ToString().ToLowerInvariant()}");
+                var toyId = toyEntry.Key;
+                var toyOverride = toyEntry.Value ?? new TableToyOverrideConfig();
+                var windowOverride = toyOverride.Window ?? new TableToyWindowOverrideConfig();
+                if (toyOverride.Enabled.HasValue)
+                {
+                    lines.Add($"toy:{toyId}.enabled = {toyOverride.Enabled.Value.ToString().ToLowerInvariant()}");
+                }
+
+                // Note: these reserved geometry keys are persisted when present, but ignored at runtime in MVP.
+                if (windowOverride.Left.HasValue)
+                {
+                    lines.Add($"toy:{toyId}.window.left = {windowOverride.Left.Value.ToString(CultureInfo.InvariantCulture)}");
+                }
+
+                if (windowOverride.Top.HasValue)
+                {
+                    lines.Add($"toy:{toyId}.window.top = {windowOverride.Top.Value.ToString(CultureInfo.InvariantCulture)}");
+                }
+
+                if (windowOverride.Width.HasValue)
+                {
+                    lines.Add($"toy:{toyId}.window.width = {windowOverride.Width.Value.ToString(CultureInfo.InvariantCulture)}");
+                }
+
+                if (windowOverride.Height.HasValue)
+                {
+                    lines.Add($"toy:{toyId}.window.height = {windowOverride.Height.Value.ToString(CultureInfo.InvariantCulture)}");
+                }
             }
         }
 
@@ -173,5 +236,44 @@ internal static class TableToyOverrideIniConfiguration
                 value = false;
                 return false;
         }
+    }
+
+    private static bool TryParseToyFieldKey(string key, out string toyId, out string fieldName)
+    {
+        toyId = string.Empty;
+        fieldName = string.Empty;
+        if (!key.StartsWith("toy:", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var normalized = key[4..].Trim();
+        var dotIndex = normalized.IndexOf('.');
+        if (dotIndex <= 0 || dotIndex >= normalized.Length - 1)
+        {
+            return false;
+        }
+
+        toyId = normalized[..dotIndex].Trim();
+        fieldName = normalized[(dotIndex + 1)..].Trim();
+        return !string.IsNullOrWhiteSpace(toyId) && !string.IsNullOrWhiteSpace(fieldName);
+    }
+
+    private static bool TryParseNullableDouble(string raw, out double? value)
+    {
+        value = null;
+        var normalized = raw.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return true;
+        }
+
+        if (double.TryParse(normalized, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        return false;
     }
 }

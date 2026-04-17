@@ -271,7 +271,26 @@ public sealed class TableToyVisibilityOverrideConfig
 {
     public string TableKey { get; set; } = string.Empty;
 
-    public Dictionary<string, bool> ToyEnabledOverrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    // Per-toy override objects are field-wise nullable so future keys (for example geometry)
+    // can be added additively without changing the table section shape.
+    public Dictionary<string, TableToyOverrideConfig> ToyOverrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class TableToyOverrideConfig
+{
+    // MVP uses this field today; null means "no scoped enabled override".
+    public bool? Enabled { get; set; }
+
+    // Reserved for future per-table toy geometry overrides.
+    public TableToyWindowOverrideConfig Window { get; set; } = new();
+}
+
+public sealed class TableToyWindowOverrideConfig
+{
+    public double? Left { get; set; }
+    public double? Top { get; set; }
+    public double? Width { get; set; }
+    public double? Height { get; set; }
 }
 
 public sealed class RoutingPolicyConfig

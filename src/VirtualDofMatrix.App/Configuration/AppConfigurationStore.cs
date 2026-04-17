@@ -251,10 +251,28 @@ public sealed class AppConfigurationStore
                 modified = true;
             }
 
-            if (overrideEntry.ToyEnabledOverrides is null)
+            if (overrideEntry.ToyOverrides is null)
             {
-                overrideEntry.ToyEnabledOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                overrideEntry.ToyOverrides = new Dictionary<string, TableToyOverrideConfig>(StringComparer.OrdinalIgnoreCase);
                 modified = true;
+            }
+
+            // Note: guarantee nested override objects exist so field-wise merge logic can remain null-safe.
+            var toyIds = overrideEntry.ToyOverrides.Keys.ToArray();
+            foreach (var toyId in toyIds)
+            {
+                var toyOverride = overrideEntry.ToyOverrides[toyId] ?? new TableToyOverrideConfig();
+                if (!ReferenceEquals(toyOverride, overrideEntry.ToyOverrides[toyId]))
+                {
+                    overrideEntry.ToyOverrides[toyId] = toyOverride;
+                    modified = true;
+                }
+
+                if (toyOverride.Window is null)
+                {
+                    toyOverride.Window = new TableToyWindowOverrideConfig();
+                    modified = true;
+                }
             }
         }
 

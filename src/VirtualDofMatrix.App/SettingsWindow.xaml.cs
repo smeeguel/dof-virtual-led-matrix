@@ -498,7 +498,7 @@ public partial class SettingsWindow : Window
 
         foreach (var tableOverride in _working.Routing.TableToyVisibilityOverrides ?? [])
         {
-            tableOverride.ToyEnabledOverrides?.Remove(toyId);
+            tableOverride.ToyOverrides?.Remove(toyId);
         }
     }
 
@@ -712,10 +712,11 @@ public partial class SettingsWindow : Window
 
         var scopedOverride = (_working.Routing.TableToyVisibilityOverrides ?? [])
             .FirstOrDefault(entry => entry.TableKey.Equals(_activeScopeName, StringComparison.OrdinalIgnoreCase));
-        if (scopedOverride?.ToyEnabledOverrides is not null
-            && scopedOverride.ToyEnabledOverrides.TryGetValue(toyName, out var scopedEnabled))
+        if (scopedOverride?.ToyOverrides is not null
+            && scopedOverride.ToyOverrides.TryGetValue(toyName, out var toyOverride)
+            && toyOverride.Enabled.HasValue)
         {
-            return scopedEnabled;
+            return toyOverride.Enabled.Value;
         }
 
         return ResolveGlobalEnabled(toyName);
@@ -1249,7 +1250,22 @@ public partial class SettingsWindow : Window
                     .Select(entry => new TableToyVisibilityOverrideConfig
                     {
                         TableKey = entry.TableKey,
-                        ToyEnabledOverrides = new Dictionary<string, bool>(entry.ToyEnabledOverrides, StringComparer.OrdinalIgnoreCase),
+                        ToyOverrides = new Dictionary<string, TableToyOverrideConfig>(
+                            (entry.ToyOverrides ?? new Dictionary<string, TableToyOverrideConfig>(StringComparer.OrdinalIgnoreCase)).ToDictionary(
+                                pair => pair.Key,
+                                pair => new TableToyOverrideConfig
+                                {
+                                    Enabled = pair.Value?.Enabled,
+                                    Window = new TableToyWindowOverrideConfig
+                                    {
+                                        Left = pair.Value?.Window?.Left,
+                                        Top = pair.Value?.Window?.Top,
+                                        Width = pair.Value?.Window?.Width,
+                                        Height = pair.Value?.Window?.Height,
+                                    },
+                                },
+                                StringComparer.OrdinalIgnoreCase),
+                            StringComparer.OrdinalIgnoreCase),
                     })
                     .ToList(),
                 Toys = config.Routing.Toys.Select(toy => new ToyRouteConfig

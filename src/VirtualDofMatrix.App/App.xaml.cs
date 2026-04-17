@@ -277,7 +277,18 @@ public partial class App : System.Windows.Application
         }
 
         // Note: scoped visibility writes are isolated from global Routing.Toys[].Enabled so global defaults remain untouched.
-        existing.ToyEnabledOverrides = new Dictionary<string, bool>(toyEnabledOverrides, StringComparer.OrdinalIgnoreCase);
+        // The override model is field-wise nullable, so only Enabled is updated here while future fields are preserved.
+        existing.ToyOverrides ??= new Dictionary<string, TableToyOverrideConfig>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in toyEnabledOverrides)
+        {
+            if (!existing.ToyOverrides.TryGetValue(pair.Key, out var toyOverride))
+            {
+                toyOverride = new TableToyOverrideConfig();
+                existing.ToyOverrides[pair.Key] = toyOverride;
+            }
+
+            toyOverride.Enabled = pair.Value;
+        }
         _configurationStore.Save(_configFilePath, _config);
         RefreshActiveScopeRoutingAndVisibility();
     }
