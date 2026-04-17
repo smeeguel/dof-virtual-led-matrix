@@ -65,6 +65,8 @@ public partial class MainWindow : Window
     public event EventHandler? SettingsRequested;
     public event EventHandler? ExitRequested;
     public event EventHandler? LayoutWindowSelected;
+    public event EventHandler? LayoutWindowMouseEntered;
+    public event EventHandler? LayoutWindowMouseLeft;
 
     public bool IsAspectRatioLocked => _config.Window.LockAspectRatio;
 
@@ -103,6 +105,9 @@ public partial class MainWindow : Window
         Loaded += (_, _) => ReinitializeRendererForViewport();
         SizeChanged += OnWindowSizeChanged;
         LocationChanged += (_, _) => SyncLayoutOverlayWindowBounds();
+        // Note: raise explicit hover events for layout editing so adapters do not depend on routed event quirks.
+        MouseEnter += (_, _) => NotifyLayoutHoverChanged(isHovered: true);
+        MouseLeave += (_, _) => NotifyLayoutHoverChanged(isHovered: false);
         Closed += (_, _) =>
         {
             _idleClearTimer.Stop();
@@ -202,6 +207,9 @@ public partial class MainWindow : Window
 
     private void OnTransparentHoverCaptureMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        // Note: transparent toy windows use an explicit hit-test layer, so forward hover state from this layer too.
+        NotifyLayoutHoverChanged(isHovered: true);
+
         if (_config.Window.BackgroundVisible)
         {
             return;
@@ -213,12 +221,26 @@ public partial class MainWindow : Window
 
     private void OnTransparentHoverCaptureMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        // Note: keep hover lifecycle symmetrical for transparent windows by notifying leave from capture layer.
+        NotifyLayoutHoverChanged(isHovered: false);
+
         if (_config.Window.BackgroundVisible)
         {
             return;
         }
 
         TransparentHoverCapture.Background = new SolidColorBrush(WpfColor.FromArgb(1, 0, 0, 0));
+    }
+
+    private void NotifyLayoutHoverChanged(bool isHovered)
+    {
+        if (isHovered)
+        {
+            LayoutWindowMouseEntered?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        LayoutWindowMouseLeft?.Invoke(this, EventArgs.Empty);
     }
 
     private static System.Windows.Media.Brush BuildWindowBackgroundBrush(WindowConfig window)

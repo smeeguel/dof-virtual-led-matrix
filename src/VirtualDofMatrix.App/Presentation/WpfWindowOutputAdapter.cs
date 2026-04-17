@@ -775,16 +775,18 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         };
 
         // Note: enter/leave only controls transient hover preview labels and must never mutate locked selection.
-        window.MouseEnter += (_, _) =>
+        // MainWindow raises these explicitly so transparent windows and opaque windows follow the same hover path.
+        window.LayoutWindowMouseEntered += (_, _) =>
         {
             _hoveredToyId = toyId;
             RefreshLayoutOverlays();
         };
-        window.MouseLeave += (_, _) =>
+        window.LayoutWindowMouseLeft += (_, _) =>
         {
-            if (string.Equals(_hoveredToyId, toyId, StringComparison.OrdinalIgnoreCase))
+            var nextHoveredToyId = ReduceHoverState(_hoveredToyId, toyId, isMouseEnter: false);
+            if (!string.Equals(nextHoveredToyId, _hoveredToyId, StringComparison.OrdinalIgnoreCase))
             {
-                _hoveredToyId = null;
+                _hoveredToyId = nextHoveredToyId;
                 RefreshLayoutOverlays();
             }
         };

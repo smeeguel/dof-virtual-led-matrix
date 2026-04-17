@@ -134,6 +134,22 @@ public sealed class WpfWindowOutputAdapterTests
         Assert.Equal("matrix-main", hoveredToyId);
     }
 
+    [Fact]
+    public void ReduceHoverState_MouseEnterAndMatchingLeave_TracksTransientHoverLifecycle()
+    {
+        var hoveredOnEnter = WpfWindowOutputAdapter.ReduceHoverState(
+            currentHoveredToyId: null,
+            toyId: "matrix-main",
+            isMouseEnter: true);
+        var hoveredAfterLeave = WpfWindowOutputAdapter.ReduceHoverState(
+            currentHoveredToyId: hoveredOnEnter,
+            toyId: "matrix-main",
+            isMouseEnter: false);
+
+        Assert.Equal("matrix-main", hoveredOnEnter);
+        Assert.Null(hoveredAfterLeave);
+    }
+
     private static ToyRouteConfig BuildToy(string id, bool enabled, string adapter, bool targetEnabled)
     {
         return new ToyRouteConfig
