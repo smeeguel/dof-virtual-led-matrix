@@ -703,18 +703,25 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        var globalDirty = IsGlobalSaveDirty();
+        var scopeDirty = _isTableScoped && IsScopeSaveDirty();
+
         // Note: OK is now the single commit point; it persists global and scoped changes independently when either side is dirty.
-        if (IsGlobalSaveDirty())
+        if (globalDirty)
         {
             Result = globalConfig;
             SettingsApplied?.Invoke(this, globalConfig);
             _lastAppliedFingerprint = BuildFingerprint(globalConfig);
-            SnapshotSavedToyState();
         }
 
-        if (_isTableScoped && IsScopeSaveDirty())
+        if (scopeDirty)
         {
             SaveScopeVisibilityState();
+        }
+
+        if (globalDirty || scopeDirty)
+        {
+            SnapshotSavedToyState();
         }
 
         Close();
@@ -733,7 +740,6 @@ public partial class SettingsWindow : Window
             toy => toy.ScopeEnabled,
             StringComparer.OrdinalIgnoreCase);
         _applyScopeVisibilitySave?.Invoke(_activeScopeName, scopeEnabledMap);
-        SnapshotSavedToyState();
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)

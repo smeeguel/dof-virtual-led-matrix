@@ -179,7 +179,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         EnsureMainHostToySelection();
 
         // Note: pre-create viewer toy windows so users immediately see one viewport per enabled toy.
-        foreach (var toy in _config.Routing.Toys.Where(t => t.Enabled))
+        foreach (var toy in _config.Routing.Toys.Where(IsToyEnabledForCurrentScope))
         {
             var hasViewerTarget = toy.OutputTargets.Any(target => target.Enabled &&
                 string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
@@ -196,7 +196,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     {
         var toyConfig = FindToyConfig(frame.ToyId);
         var toyEnabledForViewer = toyConfig is not null
-            && toyConfig.Enabled
+            && IsToyEnabledForCurrentScope(toyConfig)
             && toyConfig.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
 
         if (!toyEnabledForViewer)
@@ -481,13 +481,13 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private int GetEnabledToyCount()
     {
-        return _config.Routing.Toys.Count(toy => toy.Enabled);
+        return _config.Routing.Toys.Count(IsToyEnabledForCurrentScope);
     }
 
     private void DisableToy(string toyId)
     {
         var toy = FindToyConfig(toyId);
-        if (toy is null || !toy.Enabled || GetEnabledToyCount() <= 1)
+        if (toy is null || !IsToyEnabledForCurrentScope(toy) || GetEnabledToyCount() <= 1)
         {
             return;
         }
@@ -597,7 +597,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
         foreach (var toy in _config.Routing.Toys)
         {
-            var enabledForViewer = toy.Enabled
+            var enabledForViewer = IsToyEnabledForCurrentScope(toy)
                 && toy.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
             if (enabledForViewer)
             {
@@ -690,7 +690,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     {
         var toyConfig = FindToyConfig(toyId);
         var enabledForViewer = toyConfig is not null
-            && toyConfig.Enabled
+            && IsToyEnabledForCurrentScope(toyConfig)
             && toyConfig.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
 
         if (!enabledForViewer)
@@ -737,7 +737,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         if (enabled)
         {
             foreach (var toy in _config.Routing.Toys.Where(t =>
-                         t.Enabled && t.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase))))
+                         IsToyEnabledForCurrentScope(t) && t.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase))))
             {
                 _bindings.GetOrAdd(toy.Id, CreateBindingForToy);
             }
@@ -824,6 +824,30 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         return toy.OutputTargets.Any(target =>
                 target.Enabled
                 && string.Equals(target.Adapter, adapterName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool IsToyEnabledForCurrentScope(ToyRouteConfig toy)
+    {
+        if (toy is null)
+        {
+            return false;
+        }
+
+        var activeScopeKey = _config.Routing.ActiveTableOverrideKey;
+        if (string.IsNullOrWhiteSpace(activeScopeKey))
+        {
+            return toy.Enabled;
+        }
+
+        var scopeOverride = _config.Routing.TableToyVisibilityOverrides?
+            .FirstOrDefault(entry => entry.TableKey.Equals(activeScopeKey, StringComparison.OrdinalIgnoreCase));
+        if (scopeOverride?.ToyEnabledOverrides is not null
+            && scopeOverride.ToyEnabledOverrides.TryGetValue(toy.Id, out var scopedEnabled))
+        {
+            return scopedEnabled;
+        }
+
+        return toy.Enabled;
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);

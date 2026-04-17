@@ -260,6 +260,10 @@ public sealed class RoutingConfig
     // Optional per-table visibility overrides. Global routing toy enabled values remain the fallback defaults.
     public List<TableToyVisibilityOverrideConfig> TableToyVisibilityOverrides { get; set; } = [];
 
+    // Runtime-only active table scope key used to evaluate effective toy enabled states.
+    [JsonIgnore]
+    public string? ActiveTableOverrideKey { get; set; }
+
     public List<ToyRouteConfig> Toys { get; set; } = [];
 }
 

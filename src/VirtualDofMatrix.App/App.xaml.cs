@@ -55,6 +55,7 @@ public partial class App : System.Windows.Application
         AppLogger.Configure(_config.Debug.LogProtocol);
         _startupConfigStatus = _configFolderBootstrapService.ResolveAndPersist(_config);
         _activeTableOrRomName = ResolveActiveTableOrRomName(e.Args);
+        UpdateActiveTableOverrideKey();
         _configurationStore.Save(_configFilePath, _config);
 
         if (TryHandleControlClientMode(e.Args, _config))
@@ -277,6 +278,7 @@ public partial class App : System.Windows.Application
         // Note: scoped visibility writes are isolated from global Routing.Toys[].Enabled so global defaults remain untouched.
         existing.ToyEnabledOverrides = new Dictionary<string, bool>(toyEnabledOverrides, StringComparer.OrdinalIgnoreCase);
         _configurationStore.Save(_configFilePath, _config);
+        _windowOutputAdapter?.SyncVisibilityFromConfig();
     }
 
     private void RestartForRendererSwitch()
@@ -574,6 +576,7 @@ public partial class App : System.Windows.Application
         {
             var tokens = command.Args ?? [];
             _activeTableOrRomName = ResolveActiveTableOrRomName(tokens);
+            UpdateActiveTableOverrideKey();
             var defaultVisible = HasArg(tokens, "--default-show-virtual-led");
             var show = PopperLaunchOptions.ResolveTableLaunchVisibility(tokens, defaultVisible);
             SetMatrixVisibility(show, "table-launch");
@@ -584,6 +587,20 @@ public partial class App : System.Windows.Application
     {
         var contextValue = !string.IsNullOrWhiteSpace(metadata.TableName) ? metadata.TableName : metadata.RomName;
         _runtimeTableOrRomName = string.IsNullOrWhiteSpace(contextValue) ? null : contextValue;
+        UpdateActiveTableOverrideKey();
+        _windowOutputAdapter?.SyncVisibilityFromConfig();
+    }
+
+    private void UpdateActiveTableOverrideKey()
+    {
+        if (_config?.Routing is null)
+        {
+            return;
+        }
+
+        _config.Routing.ActiveTableOverrideKey = !string.IsNullOrWhiteSpace(_runtimeTableOrRomName)
+            ? _runtimeTableOrRomName
+            : _activeTableOrRomName;
     }
 
     private static string? ResolveActiveTableOrRomName(IEnumerable<string> args)
