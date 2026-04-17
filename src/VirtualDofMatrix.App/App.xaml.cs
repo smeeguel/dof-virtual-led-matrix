@@ -562,7 +562,10 @@ public partial class App : System.Windows.Application
         if (commandText.Equals("show", StringComparison.OrdinalIgnoreCase) ||
             commandText.Equals("frontend-return", StringComparison.OrdinalIgnoreCase))
         {
+            _runtimeTableOrRomName = null;
+            UpdateActiveTableOverrideKey();
             SetMatrixVisibility(true, commandText);
+            _windowOutputAdapter?.SyncVisibilityFromConfig();
             return;
         }
 
@@ -576,6 +579,7 @@ public partial class App : System.Windows.Application
         {
             var tokens = command.Args ?? [];
             _activeTableOrRomName = ResolveActiveTableOrRomName(tokens);
+            _runtimeTableOrRomName = null;
             UpdateActiveTableOverrideKey();
             var defaultVisible = HasArg(tokens, "--default-show-virtual-led");
             var show = PopperLaunchOptions.ResolveTableLaunchVisibility(tokens, defaultVisible);
@@ -598,9 +602,11 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        _config.Routing.ActiveTableOverrideKey = !string.IsNullOrWhiteSpace(_runtimeTableOrRomName)
-            ? _runtimeTableOrRomName
-            : _activeTableOrRomName;
+        // Note: scoped visibility should only affect live runtime when table/ROM metadata is actively present.
+        // Launch-time hints are still used for Settings context, but not for runtime visibility overrides.
+        _config.Routing.ActiveTableOverrideKey = string.IsNullOrWhiteSpace(_runtimeTableOrRomName)
+            ? null
+            : _runtimeTableOrRomName;
     }
 
     private static string? ResolveActiveTableOrRomName(IEnumerable<string> args)
