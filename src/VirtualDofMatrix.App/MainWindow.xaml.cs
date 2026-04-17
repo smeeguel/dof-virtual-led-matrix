@@ -65,6 +65,8 @@ public partial class MainWindow : Window
     public event EventHandler? SettingsRequested;
     public event EventHandler? ExitRequested;
     public event EventHandler? LayoutWindowSelected;
+    public event EventHandler? LayoutWindowMouseEntered;
+    public event EventHandler? LayoutWindowMouseLeft;
 
     public bool IsAspectRatioLocked => _config.Window.LockAspectRatio;
 
@@ -103,6 +105,9 @@ public partial class MainWindow : Window
         Loaded += (_, _) => ReinitializeRendererForViewport();
         SizeChanged += OnWindowSizeChanged;
         LocationChanged += (_, _) => SyncLayoutOverlayWindowBounds();
+        // Note: raise explicit hover events for layout editing so adapters do not depend on routed event quirks.
+        MouseEnter += (_, _) => NotifyLayoutHoverChanged(isHovered: true);
+        MouseLeave += (_, _) => NotifyLayoutHoverChanged(isHovered: false);
         Closed += (_, _) =>
         {
             _idleClearTimer.Stop();
@@ -202,6 +207,9 @@ public partial class MainWindow : Window
 
     private void OnTransparentHoverCaptureMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        // Note: transparent toy windows use an explicit hit-test layer, so forward hover state from this layer too.
+        NotifyLayoutHoverChanged(isHovered: true);
+
         if (_config.Window.BackgroundVisible)
         {
             return;
@@ -213,12 +221,26 @@ public partial class MainWindow : Window
 
     private void OnTransparentHoverCaptureMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        // Note: keep hover lifecycle symmetrical for transparent windows by notifying leave from capture layer.
+        NotifyLayoutHoverChanged(isHovered: false);
+
         if (_config.Window.BackgroundVisible)
         {
             return;
         }
 
         TransparentHoverCapture.Background = new SolidColorBrush(WpfColor.FromArgb(1, 0, 0, 0));
+    }
+
+    private void NotifyLayoutHoverChanged(bool isHovered)
+    {
+        if (isHovered)
+        {
+            LayoutWindowMouseEntered?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        LayoutWindowMouseLeft?.Invoke(this, EventArgs.Empty);
     }
 
     private static System.Windows.Media.Brush BuildWindowBackgroundBrush(WindowConfig window)
@@ -526,7 +548,7 @@ public partial class MainWindow : Window
         }
     }
 
-    public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected)
+    public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected, bool showNameOverlay)
     {
         // Note: compact mode keeps labels readable even on very short toy windows (for example narrow flashers).
         var compactOverlay = MatrixViewportBorder.ActualHeight > 0 && MatrixViewportBorder.ActualHeight < 80;
@@ -535,12 +557,13 @@ public partial class MainWindow : Window
         LayoutSelectionBorder.BorderThickness = new Thickness(0);
 
         // Note: this companion overlay window guarantees labels/outlines stay above all render paths, including direct-present.
-        UpdateDetachedLayoutOverlay(toyLabel, isEditModeEnabled, isSelected, compactOverlay);
+        UpdateDetachedLayoutOverlay(toyLabel, isEditModeEnabled, isSelected, showNameOverlay, compactOverlay);
     }
 
-    private void UpdateDetachedLayoutOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected, bool compactOverlay)
+    private void UpdateDetachedLayoutOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected, bool showNameOverlay, bool compactOverlay)
     {
-        if (!isEditModeEnabled)
+        // Note: keep detached overlay alive either for layout mode (always-on labels/selection) or transient hover previews.
+        if (!isEditModeEnabled && !showNameOverlay)
         {
             _layoutOverlayWindow?.Hide();
             return;
@@ -557,8 +580,11 @@ public partial class MainWindow : Window
         _layoutOverlayNameBorder.Padding = compactOverlay ? new Thickness(4, 2, 4, 2) : new Thickness(6, 3, 6, 3);
         _layoutOverlayNameText.FontSize = compactOverlay ? 10 : 12;
         _layoutOverlayNameText.Text = string.IsNullOrWhiteSpace(toyLabel) ? "(unnamed toy)" : toyLabel;
-        _layoutOverlaySelectionBorder.BorderThickness = isSelected ? new Thickness(4) : new Thickness(0);
-        _layoutOverlaySelectionBorder.BorderBrush = isSelected ? WpfBrushes.Yellow : WpfBrushes.Transparent;
+        // Note: layout mode keeps names pinned for all toys; outside layout mode names appear only during hover preview.
+        _layoutOverlayNameBorder.Visibility = showNameOverlay ? Visibility.Visible : Visibility.Collapsed;
+        // Note: selection borders remain an edit-mode affordance even when hover previews are allowed outside edit mode.
+        _layoutOverlaySelectionBorder.BorderThickness = isEditModeEnabled && isSelected ? new Thickness(4) : new Thickness(0);
+        _layoutOverlaySelectionBorder.BorderBrush = isEditModeEnabled && isSelected ? WpfBrushes.Yellow : WpfBrushes.Transparent;
 
         if (!_layoutOverlayWindow.IsVisible)
         {
