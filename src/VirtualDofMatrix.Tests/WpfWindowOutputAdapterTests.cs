@@ -155,6 +155,28 @@ public sealed class WpfWindowOutputAdapterTests
     }
 
     [Fact]
+    public void ComputeSelectionBorderState_ShowsHoverBorderWhenNoToyIsLockSelected()
+    {
+        var showSelectionBorder = WpfWindowOutputAdapter.ComputeSelectionBorderState(
+            isSelected: false,
+            isHovered: true,
+            selectedToyId: null);
+
+        Assert.True(showSelectionBorder);
+    }
+
+    [Fact]
+    public void ComputeSelectionBorderState_HidesHoverBorderWhenAnotherToyIsLockSelected()
+    {
+        var showSelectionBorder = WpfWindowOutputAdapter.ComputeSelectionBorderState(
+            isSelected: false,
+            isHovered: true,
+            selectedToyId: "matrix-main");
+
+        Assert.False(showSelectionBorder);
+    }
+
+    [Fact]
     public void ReduceHoverState_MouseLeaveDifferentToy_DoesNotClearHoverOrSelectionInputs()
     {
         var hoveredToyId = WpfWindowOutputAdapter.ReduceHoverState(

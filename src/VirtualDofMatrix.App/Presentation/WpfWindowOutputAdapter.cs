@@ -927,13 +927,14 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             toyLabel = toyId;
         }
 
-        var (isSelected, _, showNameOverlay) = ComputeOverlayState(
+        var (isSelected, isHovered, showNameOverlay) = ComputeOverlayState(
             toyId,
             _selectedToyId,
             _hoveredToyId,
             _layoutEditModeEnabled);
+        var showSelectionBorder = ComputeSelectionBorderState(isSelected, isHovered, _selectedToyId);
         // Note: in layout mode labels stay visible for all toys; outside layout mode labels are hover-preview only.
-        toyWindow.SetLayoutEditOverlay(toyLabel, _layoutEditModeEnabled, isSelected, showNameOverlay);
+        toyWindow.SetLayoutEditOverlay(toyLabel, _layoutEditModeEnabled, showSelectionBorder, showNameOverlay);
     }
 
     // Overview: helper kept internal for deterministic tests of hover/selection overlay gating without WPF event plumbing.
@@ -950,6 +951,18 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         var hasLockedSelection = !string.IsNullOrWhiteSpace(selectedToyId);
         var showNameOverlay = isLayoutEditModeEnabled || (isHovered && !hasLockedSelection);
         return (isSelected, isHovered, showNameOverlay);
+    }
+
+    // Overview: keep border precedence explicit so hover previews can outline toys only when no lock selection exists.
+    internal static bool ComputeSelectionBorderState(bool isSelected, bool isHovered, string? selectedToyId)
+    {
+        if (isSelected)
+        {
+            return true;
+        }
+
+        var hasLockedSelection = !string.IsNullOrWhiteSpace(selectedToyId);
+        return isHovered && !hasLockedSelection;
     }
 
     // Overview: helper used by tests to prove hover transitions cannot clear or overwrite locked selection state.
