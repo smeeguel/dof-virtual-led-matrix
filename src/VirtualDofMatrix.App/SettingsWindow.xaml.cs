@@ -468,12 +468,38 @@ public partial class SettingsWindow : Window
         else
         {
             toy.GlobalEnabled = toggle.IsChecked == true;
+
+            if (_isTableScoped)
+            {
+                // Note: global changes intentionally reset table-local enabled overrides for this toy so scoped state
+                // immediately tracks the new global baseline unless/until the user sets a fresh table-specific value.
+                toy.ScopeEnabled = toy.GlobalEnabled;
+                if (_toyScopeToggleByName.TryGetValue(toy.RouteId, out var scopeToggle))
+                {
+                    scopeToggle.IsChecked = toy.ScopeEnabled;
+                }
+
+                ClearToyScopedOverridesAcrossTables(toy.RouteId);
+            }
         }
 
         EnsureAtLeastOneToyEnabled(toy, tag.Scope);
         RefreshToyToggleInterlocks();
         UpdateSummary();
         UpdateDirtyState();
+    }
+
+    private void ClearToyScopedOverridesAcrossTables(string toyId)
+    {
+        if (string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        foreach (var tableOverride in _working.Routing.TableToyVisibilityOverrides ?? [])
+        {
+            tableOverride.ToyEnabledOverrides?.Remove(toyId);
+        }
     }
 
     private void OnAddToyClicked(object sender, RoutedEventArgs e)
