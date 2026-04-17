@@ -203,7 +203,7 @@ From there you can:
 - Edit toys
 - Enable or disable toys
 - Move and resize toy windows
-- Save changes with **Save Global**
+- Click **OK** to save changes (global + active table overrides).
 
 If you are new, this is the recommended workflow.
 
@@ -262,7 +262,7 @@ You can keep the defaults, or adjust options such as:
 1. Make sure the toy is enabled
 2. Click **Save**
 3. Confirm the toy appears in the list
-4. Click **Save Global**
+4. Click **OK**
 5. Launch a table and confirm the toy animates
 
 ---
@@ -288,7 +288,7 @@ Common edits:
 
 ### Step 6C - Save your changes
 
-1. Click **Save Global**
+1. Click **OK**
 2. If prompted for cabinet updates, review the summary and confirm
 3. Make sure the toy window refreshes as expected
 
@@ -306,6 +306,25 @@ In **Settings -> Virtual Toys**:
 - Choosing **Exit** from any viewer window closes the full app
 
 ---
+
+
+## Table-specific visibility override file
+
+Per-table toy visibility is saved to a dedicated INI file (not the app install folder):
+
+- Default path: `%LOCALAPPDATA%\VirtualDofMatrix\table-toy-overrides.ini`
+- Optional override: `routing.tableOverrideIniPath` in `settings.json`
+
+Format:
+
+```ini
+[table:Tron Legacy (Stern 2011)]
+toy:matrix-main.enabled = true
+toy:matrix-topper.enabled = false
+```
+
+Use this file when you want to hand-edit table-specific enabled states. Keep toy IDs exactly the same as your configured routing toy IDs.
+
 
 ## 8) DOF-side changes needed for extra toys
 
@@ -421,12 +440,12 @@ If all else fails:
 - In **Settings -> Virtual Toys**, make sure each toy is enabled
 - Re-check toy size and layout settings
 - Confirm DOF is actually outputting data for those extra toy ranges
-- Click **Save Global** after every change
+- Click **OK** after every change
 
 ### I changed toy settings and they reverted later
 
 - This usually means the changes were not saved
-- Open Settings, re-apply the changes, and click **Save Global**
+- Open Settings, re-apply the changes, and click **OK**
 
 ### Works in VPX but not Popper (or reverse)
 
@@ -439,7 +458,7 @@ If all else fails:
 
 ## Final reminder
 
-For normal setup, manage toys through **Settings -> Virtual Toys** and save with **Save Global**.
+For normal setup, manage toys through **Settings -> Virtual Toys** and save with **OK**.
 
 That is the recommended workflow for reliable day-to-day use.
 </script>

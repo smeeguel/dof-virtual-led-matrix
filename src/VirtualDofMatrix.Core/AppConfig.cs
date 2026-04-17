@@ -254,6 +254,9 @@ public sealed class RoutingConfig
     // Optional INI file used to define toy-specific routing/visual settings with comments.
     public string ToyConfigIniPath { get; set; } = "toys.ini";
 
+    // Optional INI file used to store per-table toy visibility overrides.
+    public string TableOverrideIniPath { get; set; } = string.Empty;
+
     // Optional per-table visibility overrides. Global routing toy enabled values remain the fallback defaults.
     public List<TableToyVisibilityOverrideConfig> TableToyVisibilityOverrides { get; set; } = [];
 

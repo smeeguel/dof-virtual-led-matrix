@@ -30,13 +30,17 @@ public sealed class AppConfigurationStore
         var iniPath = ResolveToyIniPath(filePath, loaded.Routing?.ToyConfigIniPath);
         var createdIni = EnsureToyIniExists(iniPath, loaded);
         var iniApplied = ToyIniConfiguration.ApplyFromIni(loaded, iniPath);
+        var tableOverrideIniPath = ResolveTableOverrideIniPath(filePath, loaded.Routing?.TableOverrideIniPath);
+        var tableOverridesApplied = TableToyOverrideIniConfiguration.ApplyFromIni(loaded, tableOverrideIniPath);
         var iniResynced = TryResyncToyIniFromCabinet(loaded, iniPath);
         var (normalized, shouldPersist) = ApplyLegacyDefaults(loaded);
         AppLogger.Info($"[config] settingsPath={filePath}");
         AppLogger.Info($"[config] toysIniPath={iniPath}");
+        AppLogger.Info($"[config] tableOverrideIniPath={tableOverrideIniPath}");
         AppLogger.Info($"[config] toysIniCreated={createdIni} toysIniApplied={iniApplied} toysIniResynced={iniResynced} routingToyCount={normalized.Routing.Toys.Count}");
         shouldPersist |= createdIni;
         shouldPersist |= iniApplied;
+        shouldPersist |= tableOverridesApplied;
         shouldPersist |= iniResynced;
 
         if (shouldPersist)
@@ -62,16 +66,20 @@ public sealed class AppConfigurationStore
             SerializerOptions) ?? new AppConfig();
         settingsSnapshot.Routing ??= new RoutingConfig();
         settingsSnapshot.Routing.Toys = [];
+        settingsSnapshot.Routing.TableToyVisibilityOverrides = [];
 
         var json = JsonSerializer.Serialize(settingsSnapshot, SerializerOptions);
         File.WriteAllText(filePath, json);
 
         var iniPath = ResolveToyIniPath(filePath, normalized.Routing?.ToyConfigIniPath);
         ToyIniConfiguration.SaveToIni(normalized, iniPath);
+        var tableOverrideIniPath = ResolveTableOverrideIniPath(filePath, normalized.Routing?.TableOverrideIniPath);
+        TableToyOverrideIniConfiguration.SaveToIni(normalized, tableOverrideIniPath);
         AppLogger.Info($"[config] saved settingsPath={filePath}");
         // Note: guard nullability in logging so analyzers stay green even if routing defaults change later.
         var routingToyCount = normalized.Routing?.Toys.Count ?? 0;
         AppLogger.Info($"[config] saved toysIniPath={iniPath} routingToyCount={routingToyCount}");
+        AppLogger.Info($"[config] saved tableOverrideIniPath={tableOverrideIniPath}");
     }
 
     private static (AppConfig Config, bool ShouldPersist) ApplyLegacyDefaults(AppConfig config)
@@ -113,6 +121,19 @@ public sealed class AppConfigurationStore
         if (config.Settings.DefaultStripBulbSize <= 0)
         {
             config.Settings.DefaultStripBulbSize = 32;
+            shouldPersist = true;
+        }
+
+        if (config.Routing is null)
+        {
+            config.Routing = new RoutingConfig();
+            shouldPersist = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Routing.TableOverrideIniPath))
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            config.Routing.TableOverrideIniPath = Path.Combine(localAppData, "VirtualDofMatrix", "table-toy-overrides.ini");
             shouldPersist = true;
         }
 
@@ -1077,6 +1098,26 @@ public sealed class AppConfigurationStore
         return string.IsNullOrWhiteSpace(settingsDirectory)
             ? iniFileName
             : Path.Combine(settingsDirectory, iniFileName);
+    }
+
+    private static string ResolveTableOverrideIniPath(string settingsJsonPath, string? configuredPath)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            var expandedPath = Environment.ExpandEnvironmentVariables(configuredPath);
+            if (Path.IsPathRooted(expandedPath))
+            {
+                return expandedPath;
+            }
+
+            var settingsDirectory = Path.GetDirectoryName(settingsJsonPath);
+            return string.IsNullOrWhiteSpace(settingsDirectory)
+                ? expandedPath
+                : Path.Combine(settingsDirectory, expandedPath);
+        }
+
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(localAppData, "VirtualDofMatrix", "table-toy-overrides.ini");
     }
 
     private static void Warn(string message)

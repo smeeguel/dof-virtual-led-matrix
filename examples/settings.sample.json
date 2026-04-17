@@ -8,15 +8,7 @@
   "routing": {
     "routingSchemaVersion": "1",
     "toyConfigIniPath": "toys.ini",
-    "tableToyVisibilityOverrides": [
-      {
-        "tableKey": "ExampleTable",
-        "toyEnabledOverrides": {
-          "matrix-main": true,
-          "matrix-topper": false
-        }
-      }
-    ]
+    "tableOverrideIniPath": "%LOCALAPPDATA%\\VirtualDofMatrix\\table-toy-overrides.ini"
   },
   "matrix": {
     "minDotSpacingX": 2,

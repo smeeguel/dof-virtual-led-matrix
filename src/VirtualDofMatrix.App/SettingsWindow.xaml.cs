@@ -1203,6 +1203,7 @@ public partial class SettingsWindow : Window
             {
                 RoutingSchemaVersion = config.Routing.RoutingSchemaVersion,
                 ToyConfigIniPath = config.Routing.ToyConfigIniPath,
+                TableOverrideIniPath = config.Routing.TableOverrideIniPath,
                 Policy = new RoutingPolicyConfig
                 {
                     DefaultStripLength = config.Routing.Policy.DefaultStripLength,
