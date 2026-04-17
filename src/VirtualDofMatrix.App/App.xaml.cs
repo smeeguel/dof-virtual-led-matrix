@@ -97,7 +97,8 @@ public partial class App : System.Windows.Application
             ShowSettingsDialog,
             Shutdown,
             toyId => _settingsWindow?.SelectToy(toyId),
-            OpenToyEditorFromWindow);
+            OpenToyEditorFromWindow,
+            () => _config.Routing.ActiveTableOverrideKey);
         var outputAdapters = new List<IOutputAdapter>
         {
             _windowOutputAdapter,

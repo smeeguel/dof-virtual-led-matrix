@@ -19,6 +19,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly Action _requestAppExit;
     private readonly Action<string> _notifyToyWindowSelected;
     private readonly Action<string> _requestToyEdit;
+    private readonly Func<string?> _resolveActiveTableScopeKey;
     private readonly string _defaultGpuPresentMode;
     private readonly double _defaultOffStateAlpha;
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
@@ -34,7 +35,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         Action openSettings,
         Action requestAppExit,
         Action<string> notifyToyWindowSelected,
-        Action<string> requestToyEdit)
+        Action<string> requestToyEdit,
+        Func<string?> resolveActiveTableScopeKey)
     {
         _dispatcher = dispatcher;
         _config = config;
@@ -44,6 +46,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _requestAppExit = requestAppExit;
         _notifyToyWindowSelected = notifyToyWindowSelected;
         _requestToyEdit = requestToyEdit;
+        _resolveActiveTableScopeKey = resolveActiveTableScopeKey;
         _defaultGpuPresentMode = _config.Matrix.Visual.GpuPresentMode;
         _defaultOffStateAlpha = _config.Matrix.Visual.OffStateAlpha;
         _mainHostToyId = ResolveMainHostToyId(currentHostToyId: null, _config.Routing.Toys, Name);
@@ -475,7 +478,15 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             window.ContextMenu.Items.Insert(1, disableToyItem);
         }
 
-        // Note: keep at least one toy active globally; hide disable action if this is the last enabled toy.
+        var toyName = FindToyConfig(toyId)?.Name;
+        var resolvedToyLabel = !string.IsNullOrWhiteSpace(toyName) ? toyName : toyId;
+        var activeScopeKey = _resolveActiveTableScopeKey();
+        // Note: context action text mirrors effective scope so users can tell whether the action is table-scoped or global.
+        disableToyItem.Header = !string.IsNullOrWhiteSpace(activeScopeKey)
+            ? $"Disable for {activeScopeKey}"
+            : $"Disable {resolvedToyLabel}";
+
+        // Note: keep at least one toy active in the effective (global or table override) scope.
         disableToyItem.Visibility = GetEnabledToyCount() > 1 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -492,10 +503,40 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             return;
         }
 
-        toy.Enabled = false;
+        var activeScopeKey = _resolveActiveTableScopeKey();
+        if (string.IsNullOrWhiteSpace(activeScopeKey))
+        {
+            toy.Enabled = false;
+        }
+        else
+        {
+            // Note: table-scoped disable writes into overrides only; global toy defaults remain unchanged.
+            var tableOverride = GetOrCreateTableOverride(activeScopeKey);
+            tableOverride.ToyEnabledOverrides[toy.Id] = false;
+        }
+
         _persistConfig();
         RebuildViewerBindingsOnUiThread();
         _notifyToyWindowSelected(GetMainHostToyId() ?? string.Empty);
+    }
+
+    private TableToyVisibilityOverrideConfig GetOrCreateTableOverride(string scopeKey)
+    {
+        _config.Routing.TableToyVisibilityOverrides ??= [];
+        var existing = _config.Routing.TableToyVisibilityOverrides
+            .FirstOrDefault(entry => entry.TableKey.Equals(scopeKey, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var created = new TableToyVisibilityOverrideConfig
+        {
+            TableKey = scopeKey,
+            ToyEnabledOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase),
+        };
+        _config.Routing.TableToyVisibilityOverrides.Add(created);
+        return created;
     }
 
     private void ApplyToyWindowConfig(Window window, ToyWindowOptionsConfig? options)
