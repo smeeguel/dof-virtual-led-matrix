@@ -89,21 +89,6 @@
 
                     <Border Grid.Row="3" Margin="0,12,0,0" Padding="10,8" BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA">
                         <StackPanel>
-                            <DockPanel Margin="0,0,0,8">
-                                <Button x:Name="SaveGlobalButton"
-                                        DockPanel.Dock="Right"
-                                        Content="Save Global"
-                                        Width="110"
-                                        Visibility="Collapsed"
-                                        Click="OnSaveGlobalVirtualToys" />
-                                <Button x:Name="SaveScopeButton"
-                                        DockPanel.Dock="Right"
-                                        Content="Save Scope"
-                                        Width="140"
-                                        Margin="0,0,8,0"
-                                        Visibility="Collapsed"
-                                        Click="OnSaveScopedVirtualToys" />
-                            </DockPanel>
                             <TextBlock x:Name="HardwareSummaryHeaderText" FontWeight="SemiBold" Text="Hardware Toys (read-only): 0" />
                             <ItemsControl x:Name="HardwareNamesItemsControl" Margin="0,6,0,0" IsHitTestVisible="False">
                                 <ItemsControl.ItemTemplate>

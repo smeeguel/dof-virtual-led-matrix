@@ -96,7 +96,6 @@ public partial class SettingsWindow : Window
         UpdateAdvancedControlState();
 
         RefreshLedStripList(_working.Settings.CabinetXmlPath);
-        SaveScopeButton.Content = _isTableScoped ? $"Save {_activeScopeName}" : "Save Scope";
         ConfigureVirtualToyHeaders();
         UpdateSelectionTooltips();
     }
@@ -704,6 +703,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        // Note: OK is now the single commit point; it persists global and scoped changes independently when either side is dirty.
         if (IsGlobalSaveDirty())
         {
             Result = globalConfig;
@@ -718,34 +718,6 @@ public partial class SettingsWindow : Window
         }
 
         Close();
-    }
-
-    private void OnSaveGlobalVirtualToys(object sender, RoutedEventArgs e)
-    {
-        if (!TryBuildConfig(out var globalConfig, out var error, useScopeValuesForToys: false))
-        {
-            WpfMessageBox.Show(this, error, "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        Result = globalConfig;
-        SettingsApplied?.Invoke(this, globalConfig);
-        _lastAppliedFingerprint = BuildFingerprint(globalConfig);
-        SnapshotSavedToyState();
-        UpdateDirtyState();
-        SummaryStatusText.Text = "Status: saved virtual toy changes to global.";
-    }
-
-    private void OnSaveScopedVirtualToys(object sender, RoutedEventArgs e)
-    {
-        if (!_isTableScoped)
-        {
-            return;
-        }
-
-        SaveScopeVisibilityState();
-        UpdateDirtyState();
-        SummaryStatusText.Text = $"Status: saved virtual toy changes to {_activeScopeName}.";
     }
 
     private void SaveScopeVisibilityState()
@@ -937,8 +909,7 @@ public partial class SettingsWindow : Window
 
     private void UpdateDirtyState()
     {
-        SaveGlobalButton.Visibility = IsGlobalSaveDirty() ? Visibility.Visible : Visibility.Collapsed;
-        SaveScopeButton.Visibility = _isTableScoped && IsScopeSaveDirty() ? Visibility.Visible : Visibility.Collapsed;
+        // Note: explicit Save Global/Save Scope buttons were removed. Dirty-state is still tracked for OK-save routing.
     }
 
     private void ApplyVirtualToyEnabledStates(AppConfig config, bool? useScopeValuesForToys = null)
