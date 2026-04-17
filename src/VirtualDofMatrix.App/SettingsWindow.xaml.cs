@@ -306,7 +306,7 @@ public partial class SettingsWindow : Window
             {
                 IsChecked = item.GlobalEnabled,
                 VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Left,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
                 Margin = new Thickness(0),
                 ToolTip = _isTableScoped
                     ? "Global value fallback. If a table override exists, the table value takes precedence."
@@ -325,7 +325,7 @@ public partial class SettingsWindow : Window
             {
                 IsChecked = item.ScopeEnabled,
                 VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Left,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
                 Margin = new Thickness(0),
                 Visibility = _isTableScoped ? Visibility.Visible : Visibility.Collapsed,
                 ToolTip = "Table override enabled state. When both global and table values exist, table wins for this active scope.",
@@ -692,10 +692,11 @@ public partial class SettingsWindow : Window
             var globalToyChanged = _virtualToys.Any(item =>
                 !_lastSavedToyEnabledStates.TryGetValue(item.RouteId, out var previous)
                 || previous.GlobalEnabled != item.GlobalEnabled);
+            var globalError = string.Empty;
 
             // Note: global checkbox changes should still persist in scoped sessions; save global first, then apply scoped effective config.
             if (globalToyChanged
-                && TryBuildConfig(out var globalConfig, out var globalError, useScopeValuesForToys: false))
+                && TryBuildConfig(out var globalConfig, out globalError, useScopeValuesForToys: false))
             {
                 _applyScopedSave?.Invoke(Clone(globalConfig));
             }
