@@ -141,6 +141,20 @@ public sealed class WpfWindowOutputAdapterTests
     }
 
     [Fact]
+    public void ComputeOverlayState_HidesHoverNameWhenDifferentToyIsLockSelected()
+    {
+        var hoveredToyState = WpfWindowOutputAdapter.ComputeOverlayState(
+            toyId: "strip-topper",
+            selectedToyId: "matrix-main",
+            hoveredToyId: "strip-topper",
+            isLayoutEditModeEnabled: false);
+
+        Assert.False(hoveredToyState.IsSelected);
+        Assert.True(hoveredToyState.IsHovered);
+        Assert.False(hoveredToyState.ShowNameOverlay);
+    }
+
+    [Fact]
     public void ReduceHoverState_MouseLeaveDifferentToy_DoesNotClearHoverOrSelectionInputs()
     {
         var hoveredToyId = WpfWindowOutputAdapter.ReduceHoverState(

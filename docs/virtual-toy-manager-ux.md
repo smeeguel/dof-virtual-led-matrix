@@ -9,6 +9,33 @@
 
 ---
 
+## Virtual toy row interaction model (implemented)
+
+The Virtual Toys list now uses a two-layer interaction model so users can preview quickly without losing an explicit selection target.
+
+### Hover preview (transient default)
+
+1. Moving the pointer over a toy row applies a subtle hover tint in the list.
+2. Hover emits a preview event to the window adapter.
+3. Leaving the row clears preview automatically.
+4. Hover is transient and never changes the locked toy selection.
+
+### Click lock (explicit selection)
+
+1. Clicking a row locks that toy as the active selection.
+2. Locked rows use a stronger tint than hover.
+3. Locked selection controls focused window/border targeting.
+4. Clicking a different row moves the lock to that row.
+
+### Unselect lifecycle
+
+1. Clicking the already selected row again clears the lock.
+2. Clearing lock emits a selection-clear event (`null` toy id semantics).
+3. Hover can continue to preview toys when no lock exists.
+4. If a locked toy is deleted/rebuilt out of the current list, lock state is cleared.
+
+---
+
 ## Information architecture (IA)
 
 ## 1) Dashboard

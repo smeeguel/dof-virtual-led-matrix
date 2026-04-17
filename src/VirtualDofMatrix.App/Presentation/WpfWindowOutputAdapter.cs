@@ -117,6 +117,44 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _dispatcher.Invoke(() => FocusToyWindowOnUiThread(toyId));
     }
 
+    public void ClearToySelection()
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            ClearToySelectionOnUiThread();
+            return;
+        }
+
+        _dispatcher.Invoke(ClearToySelectionOnUiThread);
+    }
+
+    public void PreviewToyWindow(string toyId)
+    {
+        if (string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            PreviewToyWindowOnUiThread(toyId);
+            return;
+        }
+
+        _dispatcher.Invoke(() => PreviewToyWindowOnUiThread(toyId));
+    }
+
+    public void ClearToyPreview()
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            ClearToyPreviewOnUiThread();
+            return;
+        }
+
+        _dispatcher.Invoke(ClearToyPreviewOnUiThread);
+    }
+
     public void SetLayoutEditMode(bool enabled)
     {
         if (_dispatcher.CheckAccess())
@@ -764,6 +802,49 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         RefreshLayoutOverlays();
     }
 
+    private void ClearToySelectionOnUiThread()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedToyId))
+        {
+            return;
+        }
+
+        _selectedToyId = null;
+        RefreshLayoutOverlays();
+    }
+
+    private void PreviewToyWindowOnUiThread(string toyId)
+    {
+        var toyConfig = FindToyConfig(toyId);
+        var enabledForViewer = toyConfig is not null
+            && IsToyEnabledForCurrentScope(toyConfig)
+            && toyConfig.OutputTargets.Any(target => target.Enabled && string.Equals(target.Adapter, Name, StringComparison.OrdinalIgnoreCase));
+
+        if (!enabledForViewer)
+        {
+            return;
+        }
+
+        if (string.Equals(_hoveredToyId, toyId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _hoveredToyId = toyId;
+        RefreshLayoutOverlays();
+    }
+
+    private void ClearToyPreviewOnUiThread()
+    {
+        if (string.IsNullOrWhiteSpace(_hoveredToyId))
+        {
+            return;
+        }
+
+        _hoveredToyId = null;
+        RefreshLayoutOverlays();
+    }
+
     private void WireWindowSelectionCallbacks(MainWindow window, string toyId)
     {
         // Note: click/drag creates a locked layout selection, while hover remains a transient preview signal.
@@ -866,7 +947,8 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             && string.Equals(selectedToyId, toyId, StringComparison.OrdinalIgnoreCase);
         var isHovered = !string.IsNullOrWhiteSpace(hoveredToyId)
             && string.Equals(hoveredToyId, toyId, StringComparison.OrdinalIgnoreCase);
-        var showNameOverlay = isLayoutEditModeEnabled || isHovered;
+        var hasLockedSelection = !string.IsNullOrWhiteSpace(selectedToyId);
+        var showNameOverlay = isLayoutEditModeEnabled || (isHovered && !hasLockedSelection);
         return (isSelected, isHovered, showNameOverlay);
     }
 

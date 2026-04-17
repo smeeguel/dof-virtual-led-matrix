@@ -32,7 +32,8 @@ public partial class SettingsWindow : Window
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyGlobalToggleByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyScopeToggleByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, System.Windows.Controls.Panel> _toyRowById = new(StringComparer.OrdinalIgnoreCase);
-    private string? _selectedToyId;
+    private string? _lockedToyId;
+    private string? _hoveredToyId;
     private System.Windows.Point? _toyDragStartPoint;
     private string? _toyDragSourceId;
 
@@ -61,7 +62,8 @@ public partial class SettingsWindow : Window
 
     public AppConfig? Result { get; private set; }
     public event EventHandler<AppConfig>? SettingsApplied;
-    public event EventHandler<string>? ToySelected;
+    public event EventHandler<string?>? ToySelected;
+    public event EventHandler<string?>? ToyHoverChanged;
 
     private void PopulateControls()
     {
@@ -302,6 +304,8 @@ public partial class SettingsWindow : Window
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(64) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.MouseLeftButtonUp += OnVirtualToyRowSelected;
+            row.MouseEnter += OnVirtualToyRowMouseEnter;
+            row.MouseLeave += OnVirtualToyRowMouseLeave;
             row.PreviewMouseLeftButtonDown += OnVirtualToyRowMouseDown;
             row.PreviewMouseMove += OnVirtualToyRowMouseMove;
             row.Drop += OnVirtualToyRowDrop;
@@ -406,6 +410,7 @@ public partial class SettingsWindow : Window
             .ToArray();
 
         VirtualToysList.ItemsSource = rows;
+        NormalizeToyInteractionState();
         RefreshToyRowHighlight();
         RefreshToyToggleInterlocks();
     }
@@ -417,8 +422,18 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        ToySelected?.Invoke(this, toyId);
-        _selectedToyId = toyId;
+        // Note: clicking a row locks that toy for focused editing; clicking the same row again explicitly clears the lock.
+        if (string.Equals(_lockedToyId, toyId, StringComparison.OrdinalIgnoreCase))
+        {
+            SetLockedToySelection(null);
+        }
+        else
+        {
+            SetLockedToySelection(toyId);
+        }
+
+        // Note: keep hover state in sync with pointer location so row tint doesn't appear "stuck" after lock toggle clicks.
+        SetHoveredToyPreview(toyId);
         RefreshToyRowHighlight();
     }
 
@@ -429,8 +444,35 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        _selectedToyId = toyId;
+        SetLockedToySelection(toyId);
+        SetHoveredToyPreview(null);
         RefreshToyRowHighlight();
+    }
+
+    private void OnVirtualToyRowMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Panel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        SetHoveredToyPreview(toyId);
+        RefreshToyRowHighlight();
+    }
+
+    private void OnVirtualToyRowMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Panel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
+        {
+            return;
+        }
+
+        // Note: pointer exit clears transient preview unless that row is the active lock target.
+        if (!string.Equals(_lockedToyId, toyId, StringComparison.OrdinalIgnoreCase))
+        {
+            SetHoveredToyPreview(null);
+            RefreshToyRowHighlight();
+        }
     }
 
     private void RefreshToyRowHighlight()
@@ -440,12 +482,21 @@ public partial class SettingsWindow : Window
             row.Background = System.Windows.Media.Brushes.Transparent;
         }
 
-        if (_selectedToyId is null || !_toyRowById.TryGetValue(_selectedToyId, out var selected))
+        // Note: hover preview tint is intentionally subtle and only visible when the row is not currently lock-selected.
+        if (!string.IsNullOrWhiteSpace(_hoveredToyId)
+            && _toyRowById.TryGetValue(_hoveredToyId, out var hovered)
+            && !string.Equals(_lockedToyId, _hoveredToyId, StringComparison.OrdinalIgnoreCase))
+        {
+            hovered.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(40, 64, 156, 255));
+        }
+
+        // Note: lock tint must win over hover so users always know which toy is pinned for editing/focus.
+        if (string.IsNullOrWhiteSpace(_lockedToyId) || !_toyRowById.TryGetValue(_lockedToyId, out var selected))
         {
             return;
         }
 
-        selected.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(80, 255, 255, 0));
+        selected.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(96, 255, 214, 102));
     }
 
     private void OnVirtualToyEnabledToggled(object sender, RoutedEventArgs e)
@@ -522,11 +573,11 @@ public partial class SettingsWindow : Window
         // created toys don't spawn on top of existing windows while preserving fully explicit coordinates.
         ToyWindowPlacementPlanner.AssignMissingWindowPositions(_working.Routing.Toys, _working.Window, ToyPlacementGapPixels);
         LoadToyCollections();
-        _selectedToyId = wizard.Result.Id;
+        SetLockedToySelection(wizard.Result.Id);
+        SetHoveredToyPreview(null);
         RefreshToyRowHighlight();
         // Note: creating a toy should feel immediate; apply to runtime now so its window appears without extra Save clicks.
         ApplyWorkingConfigImmediately();
-        ToySelected?.Invoke(this, wizard.Result.Id);
         UpdateSummary();
         UpdateDirtyState();
     }
@@ -576,8 +627,9 @@ public partial class SettingsWindow : Window
         }
         // Note: delete should not remap surviving toys; keep each remaining toy's existing source/layout properties intact.
         LoadToyCollections();
-        _selectedToyId = _working.Routing.Toys.FirstOrDefault(x => x.Enabled)?.Id
-            ?? _working.Routing.Toys.FirstOrDefault()?.Id;
+        SetLockedToySelection(_working.Routing.Toys.FirstOrDefault(x => x.Enabled)?.Id
+            ?? _working.Routing.Toys.FirstOrDefault()?.Id);
+        SetHoveredToyPreview(null);
         RefreshToyRowHighlight();
         ApplyWorkingConfigImmediately();
         UpdateSummary();
@@ -591,7 +643,8 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        _selectedToyId = toyId;
+        SetLockedToySelection(toyId);
+        SetHoveredToyPreview(null);
         RefreshToyRowHighlight();
         EditToyById(toyId);
     }
@@ -624,7 +677,8 @@ public partial class SettingsWindow : Window
         _working.Routing.Toys[index] = wizard.Result;
         EnsureCanonicalStartsForUnassignedToys(_working.Routing.Toys);
         LoadToyCollections();
-        _selectedToyId = wizard.Result.Id;
+        SetLockedToySelection(wizard.Result.Id);
+        SetHoveredToyPreview(null);
         RefreshToyRowHighlight();
         UpdateSummary();
         UpdateDirtyState();
@@ -1128,12 +1182,51 @@ public partial class SettingsWindow : Window
         _working.Routing.Toys.Insert(destinationIndex, movingToy);
         EnsureCanonicalStartsForUnassignedToys(_working.Routing.Toys);
 
-        _selectedToyId = movingToy.Id;
+        SetLockedToySelection(movingToy.Id);
+        SetHoveredToyPreview(null);
         LoadToyCollections();
         RefreshToyRowHighlight();
         ApplyWorkingConfigImmediately();
         UpdateSummary();
         UpdateDirtyState();
+    }
+
+    private void SetLockedToySelection(string? toyId)
+    {
+        var normalizedToyId = string.IsNullOrWhiteSpace(toyId) ? null : toyId;
+        if (string.Equals(_lockedToyId, normalizedToyId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _lockedToyId = normalizedToyId;
+        ToySelected?.Invoke(this, _lockedToyId);
+    }
+
+    private void SetHoveredToyPreview(string? toyId)
+    {
+        var normalizedToyId = string.IsNullOrWhiteSpace(toyId) ? null : toyId;
+        if (string.Equals(_hoveredToyId, normalizedToyId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _hoveredToyId = normalizedToyId;
+        ToyHoverChanged?.Invoke(this, _hoveredToyId);
+    }
+
+    private void NormalizeToyInteractionState()
+    {
+        // Note: list rebuilds can remove toys; clear stale lock/hover IDs so adapters receive explicit clear semantics.
+        if (!string.IsNullOrWhiteSpace(_lockedToyId) && !_toyRowById.ContainsKey(_lockedToyId))
+        {
+            SetLockedToySelection(null);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_hoveredToyId) && !_toyRowById.ContainsKey(_hoveredToyId))
+        {
+            SetHoveredToyPreview(null);
+        }
     }
 
     private static string DetectResolutionPreset(int width, int height)

@@ -177,10 +177,30 @@ public partial class App : System.Windows.Application
         };
 
         dialog.SettingsApplied += (_, appliedConfig) => ApplySettings(appliedConfig);
-        dialog.ToySelected += (_, toyId) => _windowOutputAdapter?.FocusToyWindow(toyId);
+        dialog.ToyHoverChanged += (_, toyId) =>
+        {
+            if (string.IsNullOrWhiteSpace(toyId))
+            {
+                _windowOutputAdapter?.ClearToyPreview();
+                return;
+            }
+
+            _windowOutputAdapter?.PreviewToyWindow(toyId);
+        };
+        dialog.ToySelected += (_, toyId) =>
+        {
+            if (string.IsNullOrWhiteSpace(toyId))
+            {
+                _windowOutputAdapter?.ClearToySelection();
+                return;
+            }
+
+            _windowOutputAdapter?.FocusToyWindow(toyId);
+        };
         dialog.Closed += (_, _) =>
         {
             _windowOutputAdapter?.SetLayoutEditMode(false);
+            _windowOutputAdapter?.ClearToyPreview();
             _settingsWindow = null;
         };
         _settingsWindow = dialog;
