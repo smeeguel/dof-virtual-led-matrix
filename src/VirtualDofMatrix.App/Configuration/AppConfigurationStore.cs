@@ -216,6 +216,28 @@ public sealed class AppConfigurationStore
             modified = true;
         }
 
+        if (config.Routing.TableToyVisibilityOverrides is null)
+        {
+            config.Routing.TableToyVisibilityOverrides = [];
+            modified = true;
+        }
+
+        for (var i = 0; i < config.Routing.TableToyVisibilityOverrides.Count; i++)
+        {
+            var overrideEntry = config.Routing.TableToyVisibilityOverrides[i] ?? new TableToyVisibilityOverrideConfig();
+            if (!ReferenceEquals(overrideEntry, config.Routing.TableToyVisibilityOverrides[i]))
+            {
+                config.Routing.TableToyVisibilityOverrides[i] = overrideEntry;
+                modified = true;
+            }
+
+            if (overrideEntry.ToyEnabledOverrides is null)
+            {
+                overrideEntry.ToyEnabledOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                modified = true;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(config.Routing.RoutingSchemaVersion))
         {
             Warn("routing.routingSchemaVersion is missing; defaulting to '1'.");

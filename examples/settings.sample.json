@@ -7,7 +7,16 @@
   },
   "routing": {
     "routingSchemaVersion": "1",
-    "toyConfigIniPath": "toys.ini"
+    "toyConfigIniPath": "toys.ini",
+    "tableToyVisibilityOverrides": [
+      {
+        "tableKey": "ExampleTable",
+        "toyEnabledOverrides": {
+          "matrix-main": true,
+          "matrix-topper": false
+        }
+      }
+    ]
   },
   "matrix": {
     "minDotSpacingX": 2,

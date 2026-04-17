@@ -169,7 +169,7 @@ public partial class App : System.Windows.Application
         }
 
         var tableScope = !string.IsNullOrWhiteSpace(_runtimeTableOrRomName) ? _runtimeTableOrRomName : _activeTableOrRomName;
-        var dialog = new SettingsWindow(_config, _cabinetXmlService, tableScope, ApplySettings)
+        var dialog = new SettingsWindow(_config, _cabinetXmlService, tableScope, ApplySettings, ApplyScopedToyVisibilityOverrides)
         {
             Owner = _window,
         };
@@ -256,6 +256,27 @@ public partial class App : System.Windows.Application
         _windowOutputAdapter?.RebuildViewerBindings();
         _windowOutputAdapter?.SyncVisibilityFromConfig();
         PersistWindowSettings();
+    }
+
+    private void ApplyScopedToyVisibilityOverrides(string scopeKey, IReadOnlyDictionary<string, bool> toyEnabledOverrides)
+    {
+        if (_config is null || string.IsNullOrWhiteSpace(scopeKey))
+        {
+            return;
+        }
+
+        _config.Routing.TableToyVisibilityOverrides ??= [];
+        var existing = _config.Routing.TableToyVisibilityOverrides
+            .FirstOrDefault(entry => entry.TableKey.Equals(scopeKey, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            existing = new TableToyVisibilityOverrideConfig { TableKey = scopeKey };
+            _config.Routing.TableToyVisibilityOverrides.Add(existing);
+        }
+
+        // Note: scoped visibility writes are isolated from global Routing.Toys[].Enabled so global defaults remain untouched.
+        existing.ToyEnabledOverrides = new Dictionary<string, bool>(toyEnabledOverrides, StringComparer.OrdinalIgnoreCase);
+        _configurationStore.Save(_configFilePath, _config);
     }
 
     private void RestartForRendererSwitch()
