@@ -90,6 +90,50 @@ public sealed class WpfWindowOutputAdapterTests
         Assert.Equal("strip-topper", hostToyId);
     }
 
+    [Fact]
+    public void ComputeOverlayState_ShowsNameWhenHoveredWithoutSelecting()
+    {
+        var state = WpfWindowOutputAdapter.ComputeOverlayState(
+            toyId: "matrix-main",
+            selectedToyId: null,
+            hoveredToyId: "matrix-main");
+
+        Assert.False(state.IsSelected);
+        Assert.True(state.IsHovered);
+        Assert.True(state.ShowNameOverlay);
+    }
+
+    [Fact]
+    public void ComputeOverlayState_SelectionRemainsLockedWhenHoveringDifferentToy()
+    {
+        var selectedToyState = WpfWindowOutputAdapter.ComputeOverlayState(
+            toyId: "matrix-main",
+            selectedToyId: "matrix-main",
+            hoveredToyId: "strip-topper");
+        var hoveredToyState = WpfWindowOutputAdapter.ComputeOverlayState(
+            toyId: "strip-topper",
+            selectedToyId: "matrix-main",
+            hoveredToyId: "strip-topper");
+
+        Assert.True(selectedToyState.IsSelected);
+        Assert.False(selectedToyState.IsHovered);
+        Assert.True(selectedToyState.ShowNameOverlay);
+        Assert.False(hoveredToyState.IsSelected);
+        Assert.True(hoveredToyState.IsHovered);
+        Assert.True(hoveredToyState.ShowNameOverlay);
+    }
+
+    [Fact]
+    public void ReduceHoverState_MouseLeaveDifferentToy_DoesNotClearHoverOrSelectionInputs()
+    {
+        var hoveredToyId = WpfWindowOutputAdapter.ReduceHoverState(
+            currentHoveredToyId: "matrix-main",
+            toyId: "strip-topper",
+            isMouseEnter: false);
+
+        Assert.Equal("matrix-main", hoveredToyId);
+    }
+
     private static ToyRouteConfig BuildToy(string id, bool enabled, string adapter, bool targetEnabled)
     {
         return new ToyRouteConfig

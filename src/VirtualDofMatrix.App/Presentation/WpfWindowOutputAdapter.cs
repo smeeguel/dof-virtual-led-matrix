@@ -25,6 +25,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private readonly ConcurrentDictionary<string, ToyWindowBinding> _bindings = new(StringComparer.OrdinalIgnoreCase);
     private bool _layoutEditModeEnabled;
     private string? _selectedToyId;
+    private string? _hoveredToyId;
     private string? _mainHostToyId;
 
     public WpfWindowOutputAdapter(
@@ -765,11 +766,27 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private void WireWindowSelectionCallbacks(MainWindow window, string toyId)
     {
+        // Note: click/drag creates a locked layout selection, while hover remains a transient preview signal.
         window.LayoutWindowSelected += (_, _) =>
         {
             _selectedToyId = toyId;
             _notifyToyWindowSelected(toyId);
             RefreshLayoutOverlays();
+        };
+
+        // Note: enter/leave only controls transient hover preview labels and must never mutate locked selection.
+        window.MouseEnter += (_, _) =>
+        {
+            _hoveredToyId = toyId;
+            RefreshLayoutOverlays();
+        };
+        window.MouseLeave += (_, _) =>
+        {
+            if (string.Equals(_hoveredToyId, toyId, StringComparison.OrdinalIgnoreCase))
+            {
+                _hoveredToyId = null;
+                RefreshLayoutOverlays();
+            }
         };
     }
 
@@ -780,6 +797,11 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         {
             // Note: start each settings/layout session with no pre-selected toy so outlines only appear after an explicit user action.
             _selectedToyId = null;
+        }
+        else
+        {
+            // Note: hover state is only meaningful during active layout sessions.
+            _hoveredToyId = null;
         }
 
         if (enabled)
@@ -822,9 +844,35 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             toyLabel = toyId;
         }
 
-        var selected = !string.IsNullOrWhiteSpace(_selectedToyId)
-            && string.Equals(_selectedToyId, toyId, StringComparison.OrdinalIgnoreCase);
-        toyWindow.SetLayoutEditOverlay(toyLabel, _layoutEditModeEnabled, selected);
+        var (isSelected, _, showNameOverlay) = ComputeOverlayState(toyId, _selectedToyId, _hoveredToyId);
+        // Note: labels preview on hover, while borders remain tied to explicit locked selection.
+        toyWindow.SetLayoutEditOverlay(toyLabel, _layoutEditModeEnabled, isSelected, showNameOverlay);
+    }
+
+    // Overview: helper kept internal for deterministic tests of hover/selection overlay gating without WPF event plumbing.
+    internal static (bool IsSelected, bool IsHovered, bool ShowNameOverlay) ComputeOverlayState(
+        string toyId,
+        string? selectedToyId,
+        string? hoveredToyId)
+    {
+        var isSelected = !string.IsNullOrWhiteSpace(selectedToyId)
+            && string.Equals(selectedToyId, toyId, StringComparison.OrdinalIgnoreCase);
+        var isHovered = !string.IsNullOrWhiteSpace(hoveredToyId)
+            && string.Equals(hoveredToyId, toyId, StringComparison.OrdinalIgnoreCase);
+        return (isSelected, isHovered, isSelected || isHovered);
+    }
+
+    // Overview: helper used by tests to prove hover transitions cannot clear or overwrite locked selection state.
+    internal static string? ReduceHoverState(string? currentHoveredToyId, string toyId, bool isMouseEnter)
+    {
+        if (isMouseEnter)
+        {
+            return toyId;
+        }
+
+        return string.Equals(currentHoveredToyId, toyId, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : currentHoveredToyId;
     }
 
     private string? GetMainHostToyId()

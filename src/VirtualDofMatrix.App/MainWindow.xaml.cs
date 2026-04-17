@@ -526,7 +526,7 @@ public partial class MainWindow : Window
         }
     }
 
-    public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected)
+    public void SetLayoutEditOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected, bool showNameOverlay)
     {
         // Note: compact mode keeps labels readable even on very short toy windows (for example narrow flashers).
         var compactOverlay = MatrixViewportBorder.ActualHeight > 0 && MatrixViewportBorder.ActualHeight < 80;
@@ -535,10 +535,10 @@ public partial class MainWindow : Window
         LayoutSelectionBorder.BorderThickness = new Thickness(0);
 
         // Note: this companion overlay window guarantees labels/outlines stay above all render paths, including direct-present.
-        UpdateDetachedLayoutOverlay(toyLabel, isEditModeEnabled, isSelected, compactOverlay);
+        UpdateDetachedLayoutOverlay(toyLabel, isEditModeEnabled, isSelected, showNameOverlay, compactOverlay);
     }
 
-    private void UpdateDetachedLayoutOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected, bool compactOverlay)
+    private void UpdateDetachedLayoutOverlay(string toyLabel, bool isEditModeEnabled, bool isSelected, bool showNameOverlay, bool compactOverlay)
     {
         if (!isEditModeEnabled)
         {
@@ -557,6 +557,8 @@ public partial class MainWindow : Window
         _layoutOverlayNameBorder.Padding = compactOverlay ? new Thickness(4, 2, 4, 2) : new Thickness(6, 3, 6, 3);
         _layoutOverlayNameText.FontSize = compactOverlay ? 10 : 12;
         _layoutOverlayNameText.Text = string.IsNullOrWhiteSpace(toyLabel) ? "(unnamed toy)" : toyLabel;
+        // Note: hover previews only the toy name; selection remains the only trigger for the drag/selection border.
+        _layoutOverlayNameBorder.Visibility = showNameOverlay ? Visibility.Visible : Visibility.Collapsed;
         _layoutOverlaySelectionBorder.BorderThickness = isSelected ? new Thickness(4) : new Thickness(0);
         _layoutOverlaySelectionBorder.BorderBrush = isSelected ? WpfBrushes.Yellow : WpfBrushes.Transparent;
 
