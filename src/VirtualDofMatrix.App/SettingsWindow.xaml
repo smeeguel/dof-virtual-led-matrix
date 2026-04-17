@@ -56,10 +56,9 @@
 
                     <Grid x:Name="VirtualToysHeaderGrid" Grid.Row="1" Margin="0,0,0,6">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="60" />
+                            <ColumnDefinition Width="56" />
                             <ColumnDefinition x:Name="VirtualToysScopeHeaderColumn" Width="0" />
-                            <ColumnDefinition Width="72" />
-                            <ColumnDefinition Width="72" />
+                            <ColumnDefinition Width="64" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0"
@@ -71,12 +70,13 @@
                                    ToolTip="Global enabled state. Used when no table override exists." />
                         <TextBlock x:Name="VirtualToysScopeHeaderText"
                                    Grid.Column="1"
-                                   Margin="12,0,0,0"
                                    FontWeight="SemiBold"
                                    Foreground="#444"
                                    VerticalAlignment="Center"
                                    HorizontalAlignment="Left"
                                    Visibility="Collapsed"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTipService.ShowDuration="120000"
                                    ToolTip="Table override enabled state. When present, table value takes precedence over global." />
                     </Grid>
 
@@ -89,21 +89,6 @@
 
                     <Border Grid.Row="3" Margin="0,12,0,0" Padding="10,8" BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA">
                         <StackPanel>
-                            <DockPanel Margin="0,0,0,8">
-                                <Button x:Name="SaveGlobalButton"
-                                        DockPanel.Dock="Right"
-                                        Content="Save Global"
-                                        Width="110"
-                                        Visibility="Collapsed"
-                                        Click="OnSaveGlobalVirtualToys" />
-                                <Button x:Name="SaveScopeButton"
-                                        DockPanel.Dock="Right"
-                                        Content="Save Scope"
-                                        Width="140"
-                                        Margin="0,0,8,0"
-                                        Visibility="Collapsed"
-                                        Click="OnSaveScopedVirtualToys" />
-                            </DockPanel>
                             <TextBlock x:Name="HardwareSummaryHeaderText" FontWeight="SemiBold" Text="Hardware Toys (read-only): 0" />
                             <ItemsControl x:Name="HardwareNamesItemsControl" Margin="0,6,0,0" IsHitTestVisible="False">
                                 <ItemsControl.ItemTemplate>

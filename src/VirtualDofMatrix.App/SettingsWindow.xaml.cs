@@ -28,7 +28,7 @@ public partial class SettingsWindow : Window
     private Dictionary<string, ToyEnabledSnapshot> _lastSavedToyEnabledStates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyGlobalToggleByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyScopeToggleByName = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, DockPanel> _toyRowById = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Panel> _toyRowById = new(StringComparer.OrdinalIgnoreCase);
     private string? _selectedToyId;
     private System.Windows.Point? _toyDragStartPoint;
     private string? _toyDragSourceId;
@@ -92,7 +92,6 @@ public partial class SettingsWindow : Window
         UpdateAdvancedControlState();
 
         RefreshLedStripList(_working.Settings.CabinetXmlPath);
-        SaveScopeButton.Content = _isTableScoped ? $"Save {_activeScopeName}" : "Save Scope";
         ConfigureVirtualToyHeaders();
         UpdateSelectionTooltips();
     }
@@ -100,8 +99,9 @@ public partial class SettingsWindow : Window
     private void ConfigureVirtualToyHeaders()
     {
         // Note: only render a scope column when an active table/ROM is available; global-only mode keeps the layout compact.
-        VirtualToysScopeHeaderColumn.Width = _isTableScoped ? GridLength.Auto : new GridLength(0);
+        VirtualToysScopeHeaderColumn.Width = _isTableScoped ? new GridLength(160) : new GridLength(0);
         VirtualToysScopeHeaderText.Text = _activeScopeName;
+        VirtualToysScopeHeaderText.ToolTip = $"{_activeScopeName} (table override; takes precedence over global when both exist).";
         VirtualToysScopeHeaderText.Visibility = _isTableScoped ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -286,13 +286,16 @@ public partial class SettingsWindow : Window
         var rows = _virtualToys
             .Select(item =>
         {
-            var row = new DockPanel
+            var row = new Grid
             {
-                LastChildFill = true,
                 Margin = new Thickness(0, 4, 0, 4),
                 Tag = item.RouteId,
                 AllowDrop = true,
             };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = _isTableScoped ? new GridLength(160) : new GridLength(0) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(64) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.MouseLeftButtonUp += OnVirtualToyRowSelected;
             row.PreviewMouseLeftButtonDown += OnVirtualToyRowMouseDown;
             row.PreviewMouseMove += OnVirtualToyRowMouseMove;
@@ -303,8 +306,8 @@ public partial class SettingsWindow : Window
             {
                 IsChecked = item.GlobalEnabled,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 12, 0),
-                MinWidth = 42,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0),
                 ToolTip = _isTableScoped
                     ? "Global value fallback. If a table override exists, the table value takes precedence."
                     : "Global enabled state. Disabled toys are hidden.",
@@ -322,8 +325,8 @@ public partial class SettingsWindow : Window
             {
                 IsChecked = item.ScopeEnabled,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 12, 0),
-                MinWidth = 42,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0),
                 Visibility = _isTableScoped ? Visibility.Visible : Visibility.Collapsed,
                 ToolTip = "Table override enabled state. When both global and table values exist, table wins for this active scope.",
                 Tag = new ToyToggleTag(item.RouteId, ToyToggleScope.Scope),
@@ -338,7 +341,7 @@ public partial class SettingsWindow : Window
             {
                 Orientation = System.Windows.Controls.Orientation.Horizontal,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 8, 0),
+                Margin = new Thickness(0),
             };
 
             var editButton = new System.Windows.Controls.Button
@@ -386,9 +389,13 @@ public partial class SettingsWindow : Window
             if (_isTableScoped)
             {
                 row.Children.Add(scopeToggle);
+                Grid.SetColumn(scopeToggle, 1);
             }
-            row.Children.Add(actionCluster);
             row.Children.Add(name);
+            row.Children.Add(actionCluster);
+            Grid.SetColumn(globalToggle, 0);
+            Grid.SetColumn(actionCluster, 2);
+            Grid.SetColumn(name, 3);
             return row;
         })
             .ToArray();
@@ -400,7 +407,7 @@ public partial class SettingsWindow : Window
 
     private void OnVirtualToyRowSelected(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (sender is not DockPanel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
+        if (sender is not Panel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
         {
             return;
         }
@@ -674,14 +681,33 @@ public partial class SettingsWindow : Window
 
     private void OnOk(object sender, RoutedEventArgs e)
     {
-        if (!TryBuildConfig(out var config, out var error))
+        if (!TryBuildConfig(out var effectiveConfig, out var error))
         {
             WpfMessageBox.Show(this, error, "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        Result = config;
-        SettingsApplied?.Invoke(this, config);
+        if (_isTableScoped)
+        {
+            var globalToyChanged = _virtualToys.Any(item =>
+                !_lastSavedToyEnabledStates.TryGetValue(item.RouteId, out var previous)
+                || previous.GlobalEnabled != item.GlobalEnabled);
+
+            // Note: global checkbox changes should still persist in scoped sessions; save global first, then apply scoped effective config.
+            if (globalToyChanged
+                && TryBuildConfig(out var globalConfig, out var globalError, useScopeValuesForToys: false))
+            {
+                _applyScopedSave?.Invoke(Clone(globalConfig));
+            }
+            else if (globalToyChanged)
+            {
+                WpfMessageBox.Show(this, globalError, "Invalid global toy settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        }
+
+        Result = effectiveConfig;
+        SettingsApplied?.Invoke(this, effectiveConfig);
         Close();
     }
 
@@ -708,7 +734,7 @@ public partial class SettingsWindow : Window
         OnSettingChanged(sender, e);
     }
 
-    private bool TryBuildConfig(out AppConfig config, out string error)
+    private bool TryBuildConfig(out AppConfig config, out string error, bool? useScopeValuesForToys = null)
     {
         config = Clone(_working);
         error = string.Empty;
@@ -750,7 +776,7 @@ public partial class SettingsWindow : Window
         config.Settings.CabinetXmlPath = CabinetPathTextBox.Text.Trim();
         config.Settings.DofConfigFolderPath = Path.GetDirectoryName(config.Settings.CabinetXmlPath) ?? config.Settings.DofConfigFolderPath;
         config.Settings.CabinetToyName = string.IsNullOrWhiteSpace(LedStripCombo.Text) ? "Matrix1" : LedStripCombo.Text.Trim();
-        ApplyVirtualToyEnabledStates(config);
+        ApplyVirtualToyEnabledStates(config, useScopeValuesForToys);
         MergeLiveToyWindowState(config);
 
         return true;
@@ -858,53 +884,10 @@ public partial class SettingsWindow : Window
 
     private void UpdateDirtyState()
     {
-        if (!TryBuildConfig(out var config, out _))
-        {
-            SaveGlobalButton.Visibility = Visibility.Collapsed;
-            SaveScopeButton.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        var isConfigDirty = BuildFingerprint(config) != _lastAppliedFingerprint;
-        var isToyDirty = _virtualToys.Any(item =>
-            !_lastSavedToyEnabledStates.TryGetValue(item.RouteId, out var previous)
-            || previous.GlobalEnabled != item.GlobalEnabled
-            || (_isTableScoped && previous.ScopeEnabled != item.ScopeEnabled));
-
-        var hasToyChanges = isConfigDirty || isToyDirty;
-        SaveGlobalButton.Visibility = hasToyChanges ? Visibility.Visible : Visibility.Collapsed;
-        SaveScopeButton.Visibility = _isTableScoped && hasToyChanges ? Visibility.Visible : Visibility.Collapsed;
+        // Note: explicit per-scope save buttons were removed; OK persists both global/scoped toy changes as needed.
     }
 
-    private void OnSaveGlobalVirtualToys(object sender, RoutedEventArgs e)
-    {
-        SaveVirtualToyState("global", useScopeValues: false);
-    }
-
-    private void OnSaveScopedVirtualToys(object sender, RoutedEventArgs e)
-    {
-        SaveVirtualToyState(_activeScopeName, useScopeValues: true);
-    }
-
-    private void SaveVirtualToyState(string scopeLabel, bool useScopeValues)
-    {
-        SyncWorkingToyEnabledState(useScopeValues);
-
-        if (!TryBuildConfig(out var config, out var error))
-        {
-            WpfMessageBox.Show(this, error, "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        _working = Clone(config);
-        _applyScopedSave?.Invoke(Clone(config));
-        _lastAppliedFingerprint = BuildFingerprint(config);
-        SnapshotSavedToyState();
-        UpdateDirtyState();
-        SummaryStatusText.Text = $"Status: saved virtual toy changes to {scopeLabel}.";
-    }
-
-    private void ApplyVirtualToyEnabledStates(AppConfig config)
+    private void ApplyVirtualToyEnabledStates(AppConfig config, bool? useScopeValuesForToys = null)
     {
         config.Routing ??= new RoutingConfig();
         config.Routing.Toys ??= [];
@@ -918,7 +901,12 @@ public partial class SettingsWindow : Window
                 continue;
             }
 
-            toy.Enabled = IsEffectiveEnabled(item);
+            toy.Enabled = useScopeValuesForToys switch
+            {
+                true => item.ScopeEnabled,
+                false => item.GlobalEnabled,
+                _ => IsEffectiveEnabled(item),
+            };
         }
     }
 
@@ -955,26 +943,11 @@ public partial class SettingsWindow : Window
         return _isTableScoped ? item.ScopeEnabled : item.GlobalEnabled;
     }
 
-    private void SyncWorkingToyEnabledState(bool useScopeValues)
-    {
-        // Note: save actions can target either global or active scope; synchronize the working routing list before building the persisted config.
-        foreach (var item in _virtualToys)
-        {
-            var toy = _working.Routing.Toys.FirstOrDefault(x => x.Id.Equals(item.RouteId, StringComparison.OrdinalIgnoreCase));
-            if (toy is null)
-            {
-                continue;
-            }
-
-            toy.Enabled = useScopeValues ? item.ScopeEnabled : item.GlobalEnabled;
-        }
-    }
-
     private static string BuildFingerprint(AppConfig config) => JsonSerializer.Serialize(config, FingerprintSerializerOptions);
 
     private void OnVirtualToyRowMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (sender is not DockPanel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
+        if (sender is not Panel { Tag: string toyId } || string.IsNullOrWhiteSpace(toyId))
         {
             return;
         }
@@ -1015,7 +988,7 @@ public partial class SettingsWindow : Window
     {
         if (!e.Data.GetDataPresent(typeof(string))
             || e.Data.GetData(typeof(string)) is not string sourceId
-            || sender is not DockPanel targetRow
+            || sender is not Panel targetRow
             || targetRow.Tag is not string targetId
             || string.IsNullOrWhiteSpace(sourceId)
             || string.IsNullOrWhiteSpace(targetId))
