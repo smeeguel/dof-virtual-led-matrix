@@ -14,6 +14,7 @@ namespace VirtualDofMatrix.App;
 public partial class SettingsWindow : Window
 {
     private const string CustomResolution = "Custom";
+    private const double ToyPlacementGapPixels = 24;
     private static readonly JsonSerializerOptions FingerprintSerializerOptions = new(JsonSerializerDefaults.Web);
 
     private AppConfig _working;
@@ -517,6 +518,9 @@ public partial class SettingsWindow : Window
         // Note: new toys are appended to routing config first, then list rows are rebuilt from that source of truth.
         _working.Routing.Toys.Add(wizard.Result);
         EnsureCanonicalStartsForUnassignedToys(_working.Routing.Toys);
+        // Note: assign deterministic initial toy placement for entries missing either Left/Top so newly
+        // created toys don't spawn on top of existing windows while preserving fully explicit coordinates.
+        ToyWindowPlacementPlanner.AssignMissingWindowPositions(_working.Routing.Toys, _working.Window, ToyPlacementGapPixels);
         LoadToyCollections();
         _selectedToyId = wizard.Result.Id;
         RefreshToyRowHighlight();

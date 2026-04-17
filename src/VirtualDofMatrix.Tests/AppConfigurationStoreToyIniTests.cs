@@ -149,6 +149,107 @@ public sealed class AppConfigurationStoreToyIniTests
     }
 
     [Fact]
+    public void Load_WhenBootstrapImportsMixedOrientations_AssignsUniqueAxisAwareWindowPositions()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var settingsPath = Path.Combine(tempRoot, "settings.json");
+            var cabinetPath = Path.Combine(tempRoot, "Cabinet.xml");
+
+            File.WriteAllText(cabinetPath, """
+            <Cabinet>
+              <OutputControllers>
+                <VirtualLEDStripController>
+                  <Name>LED Strips 0</Name>
+                </VirtualLEDStripController>
+              </OutputControllers>
+              <Toys>
+                <LedStrip>
+                  <Name>MatrixWideA</Name>
+                  <Width>64</Width>
+                  <Height>16</Height>
+                  <FirstLedNumber>1</FirstLedNumber>
+                  <LedCount>1024</LedCount>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+                <LedStrip>
+                  <Name>MatrixWideB</Name>
+                  <Width>32</Width>
+                  <Height>8</Height>
+                  <FirstLedNumber>1025</FirstLedNumber>
+                  <LedCount>256</LedCount>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+                <LedStrip>
+                  <Name>MatrixTallA</Name>
+                  <Width>8</Width>
+                  <Height>32</Height>
+                  <FirstLedNumber>1281</FirstLedNumber>
+                  <LedCount>256</LedCount>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+                <LedStrip>
+                  <Name>MatrixTallB</Name>
+                  <Width>4</Width>
+                  <Height>24</Height>
+                  <FirstLedNumber>1537</FirstLedNumber>
+                  <LedCount>96</LedCount>
+                  <OutputControllerName>LED Strips 0</OutputControllerName>
+                </LedStrip>
+              </Toys>
+            </Cabinet>
+            """);
+
+            File.WriteAllText(settingsPath, $$"""
+            {
+              "window": {
+                "left": 50,
+                "top": 20,
+                "width": 300,
+                "height": 120
+              },
+              "settings": {
+                "dofConfigFolderPath": "{{tempRoot.Replace("\\", "\\\\")}}",
+                "cabinetXmlPath": "{{cabinetPath.Replace("\\", "\\\\")}}"
+              },
+              "routing": {
+                "toyConfigIniPath": "toys.ini"
+              }
+            }
+            """);
+
+            var store = new AppConfigurationStore();
+            var loaded = store.Load(settingsPath);
+
+            var toys = loaded.Routing.Toys;
+            Assert.Equal(4, toys.Count);
+            Assert.Equal(4, toys.Select(toy => $"{toy.Window.Left}:{toy.Window.Top}").Distinct(StringComparer.Ordinal).Count());
+
+            var horizontal = toys.Where(toy => toy.Mapping.Width >= toy.Mapping.Height).ToArray();
+            var vertical = toys.Where(toy => toy.Mapping.Height > toy.Mapping.Width).ToArray();
+
+            Assert.Equal(2, horizontal.Length);
+            Assert.Equal(2, vertical.Length);
+
+            Assert.All(horizontal, toy => Assert.Equal(50, toy.Window.Left));
+            Assert.True(horizontal[0].Window.Top < horizontal[1].Window.Top);
+
+            Assert.All(vertical, toy => Assert.Equal(20, toy.Window.Top));
+            Assert.True(vertical[0].Window.Left < vertical[1].Window.Left);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void Save_WhenRoutingContainsToys_PersistsToyDefinitionsOnlyToIniNotSettingsJson()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"vdm-tests-{Guid.NewGuid():N}");

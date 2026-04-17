@@ -10,6 +10,7 @@ public sealed class AppConfigurationStore
 {
     // Note: keep routing normalization aligned with the documented Teensy compatibility target.
     private const int MaxCompatibleStripCount = 8;
+    private const double ToyPlacementGapPixels = 24;
     private readonly CabinetXmlService _cabinetXmlService = new();
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -509,6 +510,9 @@ public sealed class AppConfigurationStore
 
         var backupPath = BackupToyIniFile(iniPath);
         var merged = MergeToyIniVisualState(existingToys: config.Routing.Toys, desiredToys: desiredToys);
+        // Note: after Cabinet.xml merge/resync, auto-place only toys missing a full window coordinate pair
+        // so first-run/new toys do not stack on top of each other before toys.ini is rewritten.
+        ToyWindowPlacementPlanner.AssignMissingWindowPositions(merged, config.Window, ToyPlacementGapPixels);
         config.Routing.Toys = merged;
 
         AppLogger.Info($"[config] toys.ini resync applied using Cabinet.xml toy inventory. backupPath={(string.IsNullOrWhiteSpace(backupPath) ? "(none)" : backupPath)}");
@@ -870,6 +874,9 @@ public sealed class AppConfigurationStore
             SerializerOptions) ?? new AppConfig();
         bootstrap.Routing ??= new RoutingConfig();
         bootstrap.Routing.Toys = BuildRoutingToysFromCabinet(bootstrap);
+        // Note: bootstrap-imported toys may not carry explicit positions; assign deterministic initial
+        // lanes before first toys.ini write while preserving any explicit Left/Top pairs.
+        ToyWindowPlacementPlanner.AssignMissingWindowPositions(bootstrap.Routing.Toys, bootstrap.Window, ToyPlacementGapPixels);
         return bootstrap;
     }
 
