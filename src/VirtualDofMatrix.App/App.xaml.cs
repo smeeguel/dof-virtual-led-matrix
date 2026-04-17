@@ -55,7 +55,7 @@ public partial class App : System.Windows.Application
         AppLogger.Configure(_config.Debug.LogProtocol);
         _startupConfigStatus = _configFolderBootstrapService.ResolveAndPersist(_config);
         _activeTableOrRomName = ResolveActiveTableOrRomName(e.Args);
-        UpdateActiveTableOverrideKey();
+        RefreshActiveScopeRoutingAndVisibility();
         _configurationStore.Save(_configFilePath, _config);
 
         if (TryHandleControlClientMode(e.Args, _config))
@@ -278,7 +278,7 @@ public partial class App : System.Windows.Application
         // Note: scoped visibility writes are isolated from global Routing.Toys[].Enabled so global defaults remain untouched.
         existing.ToyEnabledOverrides = new Dictionary<string, bool>(toyEnabledOverrides, StringComparer.OrdinalIgnoreCase);
         _configurationStore.Save(_configFilePath, _config);
-        _windowOutputAdapter?.SyncVisibilityFromConfig();
+        RefreshActiveScopeRoutingAndVisibility();
     }
 
     private void RestartForRendererSwitch()
@@ -563,9 +563,9 @@ public partial class App : System.Windows.Application
             commandText.Equals("frontend-return", StringComparison.OrdinalIgnoreCase))
         {
             _runtimeTableOrRomName = null;
-            UpdateActiveTableOverrideKey();
+            _activeTableOrRomName = null;
+            RefreshActiveScopeRoutingAndVisibility();
             SetMatrixVisibility(true, commandText);
-            _windowOutputAdapter?.SyncVisibilityFromConfig();
             return;
         }
 
@@ -580,7 +580,7 @@ public partial class App : System.Windows.Application
             var tokens = command.Args ?? [];
             _activeTableOrRomName = ResolveActiveTableOrRomName(tokens);
             _runtimeTableOrRomName = null;
-            UpdateActiveTableOverrideKey();
+            RefreshActiveScopeRoutingAndVisibility();
             var defaultVisible = HasArg(tokens, "--default-show-virtual-led");
             var show = PopperLaunchOptions.ResolveTableLaunchVisibility(tokens, defaultVisible);
             SetMatrixVisibility(show, "table-launch");
@@ -591,22 +591,27 @@ public partial class App : System.Windows.Application
     {
         var contextValue = !string.IsNullOrWhiteSpace(metadata.TableName) ? metadata.TableName : metadata.RomName;
         _runtimeTableOrRomName = string.IsNullOrWhiteSpace(contextValue) ? null : contextValue;
-        UpdateActiveTableOverrideKey();
-        _windowOutputAdapter?.SyncVisibilityFromConfig();
+        RefreshActiveScopeRoutingAndVisibility();
     }
 
-    private void UpdateActiveTableOverrideKey()
+    private void RefreshActiveScopeRoutingAndVisibility()
     {
         if (_config?.Routing is null)
         {
             return;
         }
 
-        // Note: scoped visibility should only affect live runtime when table/ROM metadata is actively present.
-        // Launch-time hints are still used for Settings context, but not for runtime visibility overrides.
-        _config.Routing.ActiveTableOverrideKey = string.IsNullOrWhiteSpace(_runtimeTableOrRomName)
-            ? null
-            : _runtimeTableOrRomName;
+        // Note: table metadata has precedence at runtime; launch args provide fallback until metadata arrives.
+        var activeScopeKey = !string.IsNullOrWhiteSpace(_runtimeTableOrRomName)
+            ? _runtimeTableOrRomName
+            : _activeTableOrRomName;
+        _config.Routing.ActiveTableOverrideKey = activeScopeKey;
+        var enabledCount = TableToyVisibilityResolver.CountEnabledToysForActiveScope(_config.Routing);
+        AppLogger.Info($"[scope] activeTableKey='{(string.IsNullOrWhiteSpace(activeScopeKey) ? "(none)" : activeScopeKey)}' enabledToyCount={enabledCount}");
+
+        // Note: routing/visibility must be refreshed together so disabled toys stop receiving frames and windows hide promptly.
+        _windowOutputAdapter?.RebuildViewerBindings();
+        _windowOutputAdapter?.SyncVisibilityFromConfig();
     }
 
     private static string? ResolveActiveTableOrRomName(IEnumerable<string> args)

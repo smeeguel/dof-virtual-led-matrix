@@ -828,26 +828,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
     private bool IsToyEnabledForCurrentScope(ToyRouteConfig toy)
     {
-        if (toy is null)
-        {
-            return false;
-        }
-
-        var activeScopeKey = _config.Routing.ActiveTableOverrideKey;
-        if (string.IsNullOrWhiteSpace(activeScopeKey))
-        {
-            return toy.Enabled;
-        }
-
-        var scopeOverride = _config.Routing.TableToyVisibilityOverrides?
-            .FirstOrDefault(entry => entry.TableKey.Equals(activeScopeKey, StringComparison.OrdinalIgnoreCase));
-        if (scopeOverride?.ToyEnabledOverrides is not null
-            && scopeOverride.ToyEnabledOverrides.TryGetValue(toy.Id, out var scopedEnabled))
-        {
-            return scopedEnabled;
-        }
-
-        return toy.Enabled;
+        return TableToyVisibilityResolver.IsToyEnabledForScope(_config.Routing, toy);
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);

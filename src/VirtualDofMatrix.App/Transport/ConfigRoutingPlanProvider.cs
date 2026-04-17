@@ -1,5 +1,6 @@
 using VirtualDofMatrix.Core;
 using VirtualDofMatrix.Core.Toys;
+using VirtualDofMatrix.App.Configuration;
 
 namespace VirtualDofMatrix.App.Transport;
 
@@ -18,7 +19,8 @@ public sealed class ConfigRoutingPlanProvider : IRoutingPlanProvider
         var definitions = new List<ToyDefinition>();
         foreach (var toy in _config.Routing.Toys)
         {
-            if (!toy.Enabled)
+            var enabledForScope = TableToyVisibilityResolver.IsToyEnabledForScope(_config.Routing, toy);
+            if (!enabledForScope)
             {
                 continue;
             }
@@ -36,7 +38,7 @@ public sealed class ConfigRoutingPlanProvider : IRoutingPlanProvider
 
             definitions.Add(new ToyDefinition(
                 Id: toy.Id,
-                Enabled: toy.Enabled,
+                Enabled: enabledForScope,
                 Kind: toy.Kind,
                 Width: toy.Mapping.Width,
                 Height: toy.Mapping.Height,
