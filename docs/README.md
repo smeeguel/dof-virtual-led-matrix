@@ -5,6 +5,10 @@ This guide is written for everyday cabinet owners, including first-time DOF user
 GitHub repo:
 https://github.com/smeeguel/dof-virtual-led-matrix
 
+Prefer a visual walkthrough? Watch the beginner setup guide below:
+
+[![Watch the Virtual DOF Matrix setup guide](https://img.youtube.com/vi/T-KVuO11OeE/hqdefault.jpg)](https://www.youtube.com/watch?v=T-KVuO11OeE)
+
 ---
 
 ## What this app does
