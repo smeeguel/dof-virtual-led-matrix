@@ -1115,10 +1115,10 @@ public sealed class AppConfigurationStore
                 : Path.Combine(settingsDirectory, expandedPath);
         }
 
-        var settingsDirectory = Path.GetDirectoryName(settingsJsonPath);
-        return string.IsNullOrWhiteSpace(settingsDirectory)
+        var defaultSettingsDirectory = Path.GetDirectoryName(settingsJsonPath);
+        return string.IsNullOrWhiteSpace(defaultSettingsDirectory)
             ? "table-toy-overrides.ini"
-            : Path.Combine(settingsDirectory, "table-toy-overrides.ini");
+            : Path.Combine(defaultSettingsDirectory, "table-toy-overrides.ini");
     }
 
     private static void Warn(string message)
