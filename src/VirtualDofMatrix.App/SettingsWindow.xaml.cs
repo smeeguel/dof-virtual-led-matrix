@@ -238,7 +238,7 @@ public partial class SettingsWindow : Window
                     RouteId = entry.Id,
                     DisplayName = ResolveDisplayName(entry, remainingVirtualCabinetEntries),
                     GlobalEnabled = ResolveGlobalEnabled(entry.Id),
-                    ScopeEnabled = entry.Enabled,
+                    ScopeEnabled = ResolveScopeEnabled(entry.Id),
                     RouteConfig = entry,
                 })
                 .ToArray();
