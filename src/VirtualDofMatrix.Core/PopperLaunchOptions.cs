@@ -66,7 +66,7 @@ public static class PopperLaunchOptions
                 return true;
             }
 
-            var tokens = raw.Split([' ', ',', ';', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var tokens = raw.Split(new[] { ' ', ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             foreach (var token in tokens)
             {
                 var normalizedToken = NormalizeToken(token);
