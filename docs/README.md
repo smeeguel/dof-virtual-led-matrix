@@ -5,6 +5,9 @@ This guide is written for everyday cabinet owners, including first-time DOF user
 GitHub repo:
 https://github.com/smeeguel/dof-virtual-led-matrix
 
+Need help or want to share feedback? Use this simple form:
+https://forms.gle/1CWDqyuZR86VikSF6
+
 Prefer a visual walkthrough? Watch the beginner setup guide below:
 
 [![Watch the Virtual DOF Matrix setup guide](https://img.youtube.com/vi/T-KVuO11OeE/hqdefault.jpg)](https://www.youtube.com/watch?v=T-KVuO11OeE)
@@ -426,6 +429,13 @@ If all else fails:
   - `C:\DirectOutput\x64\DirectOutput.dll`
   - `C:\DirectOutput\x86\DirectOutput.dll`
 - If you want automatic startup, configure Popper to launch the app as shown in Step 9
+
+### How testers can retrieve logs
+
+1. Open **Settings -> Advanced**.
+2. Click **Open debug.log** to open the active log file directly.
+3. If needed, click **Open Logs Folder** to open the containing folder for easy upload/sharing.
+4. If you see **"No log file yet. Start emulator and retry."**, start a table so the emulator produces runtime activity, then try again.
 
 ---
 
