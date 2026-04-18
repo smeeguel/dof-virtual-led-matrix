@@ -521,6 +521,20 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             window.ContextMenu.Items.Insert(1, disableToyItem);
         }
 
+        var saveGlobalTag = $"save-global-geometry:{toyId}";
+        var saveGlobalGeometryItem = window.ContextMenu.Items
+            .OfType<System.Windows.Controls.MenuItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag as string, saveGlobalTag, StringComparison.OrdinalIgnoreCase));
+        if (saveGlobalGeometryItem is null)
+        {
+            saveGlobalGeometryItem = new System.Windows.Controls.MenuItem
+            {
+                Tag = saveGlobalTag,
+            };
+            saveGlobalGeometryItem.Click += (_, _) => SaveToyGlobalGeometryFromWindow(toyId, window);
+            window.ContextMenu.Items.Insert(2, saveGlobalGeometryItem);
+        }
+
         var toyName = FindToyConfig(toyId)?.Name;
         var resolvedToyLabel = !string.IsNullOrWhiteSpace(toyName) ? toyName : toyId;
         var activeScopeKey = _resolveActiveTableScopeKey();
@@ -528,6 +542,11 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         disableToyItem.Header = !string.IsNullOrWhiteSpace(activeScopeKey)
             ? $"Disable for {activeScopeKey}"
             : $"Disable {resolvedToyLabel}";
+        saveGlobalGeometryItem.Header = $"Save {resolvedToyLabel} global position";
+        // Note: global geometry save affordance is only meaningful when a table scope is active.
+        saveGlobalGeometryItem.Visibility = !string.IsNullOrWhiteSpace(activeScopeKey)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         // Note: keep at least one toy active in the effective (global or table override) scope.
         disableToyItem.Visibility = GetEnabledToyCount() > 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -753,6 +772,55 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
     }
 
+    private void SaveToyGlobalGeometryFromWindow(string toyId, Window window)
+    {
+        var toy = FindToyConfig(toyId);
+        if (toy is null)
+        {
+            return;
+        }
+
+        PersistGlobalWindowGeometry(toy, window);
+        ClearScopedToyGeometryOverride(toyId);
+        _persistConfig();
+        ReapplyEffectiveToyWindowGeometry();
+    }
+
+    private void ClearScopedToyGeometryOverride(string toyId)
+    {
+        var activeScopeKey = _resolveActiveTableScopeKey();
+        if (string.IsNullOrWhiteSpace(activeScopeKey))
+        {
+            return;
+        }
+
+        var tableOverride = _config.Routing.TableToyVisibilityOverrides?
+            .FirstOrDefault(entry => entry.TableKey.Equals(activeScopeKey, StringComparison.OrdinalIgnoreCase));
+        if (tableOverride?.ToyOverrides is null
+            || !tableOverride.ToyOverrides.TryGetValue(toyId, out var toyOverride)
+            || toyOverride.Window is null)
+        {
+            return;
+        }
+
+        toyOverride.Window.Left = null;
+        toyOverride.Window.Top = null;
+        toyOverride.Window.Width = null;
+        toyOverride.Window.Height = null;
+
+        // Note: clean out empty scoped toy entries while preserving any scoped enabled override values.
+        if (!toyOverride.Enabled.HasValue)
+        {
+            tableOverride.ToyOverrides.Remove(toyId);
+        }
+
+        // Note: remove scope blocks that no longer carry any toy deltas.
+        if (tableOverride.ToyOverrides.Count == 0)
+        {
+            _config.Routing.TableToyVisibilityOverrides?.Remove(tableOverride);
+        }
+    }
+
     private ToyGeometrySaveTarget ResolveGeometrySaveTargetMode()
     {
         return string.IsNullOrWhiteSpace(_resolveActiveTableScopeKey())
@@ -849,6 +917,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
 
             ApplyEffectiveToyWindowConfig(binding.Window, FindToyConfig(toyId));
             ApplyLayoutOverlay(toyId, binding.Window);
+            EnsureToyContextMenuItems(binding.Window, toyId);
 
             return;
         }
