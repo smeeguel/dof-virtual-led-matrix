@@ -36,6 +36,7 @@ public partial class SettingsWindow : Window
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyGlobalToggleByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, System.Windows.Controls.CheckBox> _toyScopeToggleByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, System.Windows.Controls.Panel> _toyRowById = new(StringComparer.OrdinalIgnoreCase);
+    private bool _isPopulatingControls;
     private string? _lockedToyId;
     private string? _hoveredToyId;
     private System.Windows.Point? _toyDragStartPoint;
@@ -59,7 +60,9 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         // Prefer the informational version so packaged test builds can display full tags (for example: 0.1.1-test.build.45.1).
         Title = $"{BaseWindowTitle} (v{ResolveDisplayVersion()})";
+        _isPopulatingControls = true;
         PopulateControls();
+        _isPopulatingControls = false;
         LoadToyCollections();
         SettingsTabs.SelectedIndex = 0;
         CaptureCurrentAsCleanState();
@@ -194,9 +197,19 @@ public partial class SettingsWindow : Window
 
     private void OnSettingChanged(object sender, RoutedEventArgs e)
     {
+        if (_isPopulatingControls)
+        {
+            return;
+        }
+
         if (ReferenceEquals(sender, DebugCheckBox))
         {
             UpdateAdvancedControlState();
+        }
+
+        if (ReferenceEquals(sender, DebugCheckBox) || ReferenceEquals(sender, LogFramesCheckBox))
+        {
+            ApplyAdvancedLoggingChangesImmediately();
         }
 
         UpdateSelectionTooltips();
@@ -1061,6 +1074,27 @@ public partial class SettingsWindow : Window
     {
         var debugLoggingEnabled = DebugCheckBox.IsChecked == true;
         LogFramesCheckBox.IsEnabled = debugLoggingEnabled;
+    }
+
+    private void ApplyAdvancedLoggingChangesImmediately()
+    {
+        if (!TryBuildConfig(out var config, out _))
+        {
+            return;
+        }
+
+        // Note: Advanced debug logging toggles should apply as soon as the checkbox changes.
+        // We route through the same runtime apply path used elsewhere so logging behavior updates
+        // immediately without requiring an OK click.
+        _working = Clone(config);
+        if (_applyGlobalSave is not null)
+        {
+            _applyGlobalSave(config);
+        }
+        else
+        {
+            SettingsApplied?.Invoke(this, config);
+        }
     }
 
     private static string NormalizeRenderer(string? renderer)
