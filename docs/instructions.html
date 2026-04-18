@@ -304,9 +304,15 @@ In **Settings -> Virtual Toys**:
 - Each toy row has an on/off switch
 - Turning a toy off hides its viewer window
 - At least one toy must stay enabled
+- If a table is running, toy enable/disable can be table-specific (active table scope) without changing your global default
+- You can also right-click a toy window and choose **Disable for &lt;active table&gt;** for a quick table-specific disable
 - If you change toy width or height and save, the window rebuilds immediately
 - New toys (and Cabinet.xml bootstrap toys) that do not already have both window position values are auto-placed on first spawn so their windows do not overlap by default
 - You can keep Settings open while moving or resizing toy windows
+- Window move/resize now saves automatically:
+  - No active table: saves to **global** toy window position/size
+  - Active table: saves to that table's **table-specific** window position/size override
+- While a table is active, you can right-click a toy window and choose **Save &lt;toyname&gt; global position** to copy the current geometry to global and clear that toy's table-specific geometry override
 - Choosing **Exit** from any viewer window closes the full app
 
 ---
@@ -319,20 +325,28 @@ Per-table toy overrides are saved to a dedicated INI file (not the app install f
 - Default path: `<app-folder>\table-toy-overrides.ini`
 - Optional override: `routing.tableOverrideIniPath` in `settings.json`
 
-Format (current + reserved future keys):
+Format (currently used keys):
 
 ```ini
 [table:Tron Legacy (Stern 2011)]
 toy:matrix-main.enabled = true
 toy:matrix-topper.enabled = false
-; reserved for future per-table toy location/size overrides:
-; toy:matrix-main.window.left = 100
-; toy:matrix-main.window.top = 200
-; toy:matrix-main.window.width = 960
-; toy:matrix-main.window.height = 240
+toy:matrix-main.window.left = 100
+toy:matrix-main.window.top = 200
+toy:matrix-main.window.width = 960
+toy:matrix-main.window.height = 240
 ```
 
-Current builds only apply `enabled`; reserved `window.*` keys are ignored at runtime for now, and kept for forward-compatible schema growth. Keep toy IDs exactly the same as your configured routing toy IDs.
+Both `enabled` and `window.*` are active now:
+
+- `enabled` controls table-specific on/off behavior
+- `window.left/top/width/height` controls table-specific window geometry
+
+Most users do not need to edit this file manually. It is updated automatically by the GUI when you toggle toy scope visibility or move/resize toy windows during an active table.
+
+Tip: if you want to keep the current table layout but make it your global default, right-click that toy window and choose **Save &lt;toyname&gt; global position**.
+
+Keep toy IDs exactly the same as your configured routing toy IDs.
 
 
 ## 8) DOF-side changes needed for extra toys
