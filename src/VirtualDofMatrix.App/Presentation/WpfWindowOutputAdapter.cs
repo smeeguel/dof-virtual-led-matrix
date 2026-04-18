@@ -264,7 +264,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             // transparent/colored backgrounds, so matrix toys get the same background behavior as strips.
             ApplyPrimaryToyVisualOverrides(toyConfig);
             ApplyEffectiveToyWindowConfig(_mainWindow, toyConfig);
-            WireGeometryPersistence(_mainWindow, toyId);
+            WireGeometryPersistence(_mainWindow, toyId, ResolveGeometrySaveTargetMode);
             WireWindowSelectionCallbacks(_mainWindow, toyId);
             ApplyLayoutOverlay(toyId, _mainWindow);
             EnsureToyContextMenuItems(_mainWindow, toyId);
@@ -295,7 +295,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         WireWindowSelectionCallbacks(toyWindow, toyId);
         ApplyLayoutOverlay(toyId, toyWindow);
         EnsureToyContextMenuItems(toyWindow, toyId);
-        WireGeometryPersistence(toyWindow, toyId);
+        WireGeometryPersistence(toyWindow, toyId, ResolveGeometrySaveTargetMode);
 
         return new ToyWindowBinding(toyWindow, frame => toyWindow.ApplyPresentation(ToPresentation(frame)));
     }
@@ -640,7 +640,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
     }
 
-    private void WireGeometryPersistence(Window window, string toyId)
+    private void WireGeometryPersistence(Window window, string toyId, Func<ToyGeometrySaveTarget> resolveSaveTarget)
     {
         void SyncToConfigOnly()
         {
@@ -650,17 +650,14 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 return;
             }
 
-            toy.Window ??= new ToyWindowOptionsConfig();
-            toy.Window.Left = window.Left;
-            toy.Window.Top = window.Top;
-            toy.Window.Width = window.Width;
-            toy.Window.Height = window.Height;
-            toy.Window.AlwaysOnTop = window.Topmost;
-            toy.Window.Borderless = window.WindowStyle == WindowStyle.None;
-            if (window is MainWindow mainWindow)
+            var saveTarget = resolveSaveTarget();
+            if (saveTarget == ToyGeometrySaveTarget.Scope)
             {
-                toy.Window.LockAspectRatio = mainWindow.IsAspectRatioLocked;
+                PersistScopeWindowGeometry(toy, window);
+                return;
             }
+
+            PersistGlobalWindowGeometry(toy, window);
         }
 
         // Note: dragging/resizing can emit many LocationChanged/SizeChanged events.
@@ -699,6 +696,68 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 _bindings.TryRemove(toyId, out _);
             }
         };
+    }
+
+    private void PersistGlobalWindowGeometry(ToyRouteConfig toy, Window window)
+    {
+        toy.Window ??= new ToyWindowOptionsConfig();
+        toy.Window.Left = window.Left;
+        toy.Window.Top = window.Top;
+        toy.Window.Width = window.Width;
+        toy.Window.Height = window.Height;
+        toy.Window.AlwaysOnTop = window.Topmost;
+        toy.Window.Borderless = window.WindowStyle == WindowStyle.None;
+        if (window is MainWindow mainWindow)
+        {
+            toy.Window.LockAspectRatio = mainWindow.IsAspectRatioLocked;
+        }
+    }
+
+    private void PersistScopeWindowGeometry(ToyRouteConfig toy, Window window)
+    {
+        var activeScopeKey = _resolveActiveTableScopeKey();
+        if (string.IsNullOrWhiteSpace(activeScopeKey))
+        {
+            // Note: if scope mode is requested with no active scope key, fall back to global persistence
+            // so geometry edits are never dropped.
+            PersistGlobalWindowGeometry(toy, window);
+            return;
+        }
+
+        var tableOverride = GetOrCreateTableOverride(activeScopeKey);
+        tableOverride.ToyOverrides ??= new Dictionary<string, TableToyOverrideConfig>(StringComparer.OrdinalIgnoreCase);
+        if (!tableOverride.ToyOverrides.TryGetValue(toy.Id, out var toyOverride))
+        {
+            toyOverride = new TableToyOverrideConfig();
+            tableOverride.ToyOverrides[toy.Id] = toyOverride;
+        }
+
+        // Note: preserve scoped enabled overrides while only mutating geometry fields.
+        toyOverride.Window ??= new TableToyWindowOverrideConfig();
+        toyOverride.Window.Left = window.Left;
+        toyOverride.Window.Top = window.Top;
+        toyOverride.Window.Width = window.Width;
+        toyOverride.Window.Height = window.Height;
+
+        // Note: trim redundant scoped geometry fields so table overrides only persist deltas.
+        if (toy.Window is not null
+            && toyOverride.Window.Left == toy.Window.Left
+            && toyOverride.Window.Top == toy.Window.Top
+            && toyOverride.Window.Width == toy.Window.Width
+            && toyOverride.Window.Height == toy.Window.Height)
+        {
+            toyOverride.Window.Left = null;
+            toyOverride.Window.Top = null;
+            toyOverride.Window.Width = null;
+            toyOverride.Window.Height = null;
+        }
+    }
+
+    private ToyGeometrySaveTarget ResolveGeometrySaveTargetMode()
+    {
+        return string.IsNullOrWhiteSpace(_resolveActiveTableScopeKey())
+            ? ToyGeometrySaveTarget.Global
+            : ToyGeometrySaveTarget.Scope;
     }
 
     private void SyncVisibilityFromConfigOnUiThread()
@@ -1055,6 +1114,12 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private bool IsToyEnabledForCurrentScope(ToyRouteConfig toy)
     {
         return TableToyVisibilityResolver.IsToyEnabledForScope(_config.Routing, toy);
+    }
+
+    private enum ToyGeometrySaveTarget
+    {
+        Global,
+        Scope,
     }
 
     private sealed record ToyWindowBinding(Window Window, Action<ToyFrame> Render);
