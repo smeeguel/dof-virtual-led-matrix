@@ -194,6 +194,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         _bindings.Clear();
 
         CreateInitialViewerBindings();
+        ReapplyEffectiveToyWindowGeometry();
         SyncVisibilityFromConfigOnUiThread();
         RefreshLayoutOverlays();
     }
@@ -262,6 +263,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
             // Note: keep the primary host window in parity with secondary toy windows, including
             // transparent/colored backgrounds, so matrix toys get the same background behavior as strips.
             ApplyPrimaryToyVisualOverrides(toyConfig);
+            ApplyEffectiveToyWindowConfig(_mainWindow, toyConfig);
             WireGeometryPersistence(_mainWindow, toyId);
             WireWindowSelectionCallbacks(_mainWindow, toyId);
             ApplyLayoutOverlay(toyId, _mainWindow);
@@ -286,6 +288,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         // Note: keep toy windows unowned so each window's layout popup can render reliably above its own swapchain surface.
         // Owned-window z-order behavior can suppress per-window overlay popups for secondary toys while Settings is open.
 
+        ApplyEffectiveToyWindowConfig(toyWindow, toyConfig);
         toyWindow.Show();
         toyWindow.SettingsRequested += (_, _) => _openSettings();
         toyWindow.ExitRequested += (_, _) => _requestAppExit();
@@ -330,6 +333,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private AppConfig BuildToyWindowAppConfig(ToyRouteConfig? toyConfig, string toyId)
     {
         var toy = toyConfig ?? new ToyRouteConfig { Id = toyId };
+        var effectiveWindow = TableToyVisibilityResolver.ResolveEffectiveToyWindowOptions(_config.Routing, toy);
         ResolveToyBackgroundRgb(toy.Window, out var backgroundR, out var backgroundG, out var backgroundB);
 
         var clone = new AppConfig
@@ -406,10 +410,10 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 LockAspectRatio = toy.Window.LockAspectRatio,
                 BackgroundVisible = toy.Window.BackgroundVisible,
                 BackgroundColor = toy.Window.BackgroundColor,
-                Left = toy.Window.Left ?? _config.Window.Left,
-                Top = toy.Window.Top ?? _config.Window.Top,
-                Width = toy.Window.Width ?? _config.Window.Width,
-                Height = toy.Window.Height ?? _config.Window.Height,
+                Left = effectiveWindow.Left ?? _config.Window.Left,
+                Top = effectiveWindow.Top ?? _config.Window.Top,
+                Width = effectiveWindow.Width ?? _config.Window.Width,
+                Height = effectiveWindow.Height ?? _config.Window.Height,
             },
         };
 
@@ -615,6 +619,27 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
         }
     }
 
+    private void ApplyEffectiveToyWindowConfig(Window window, ToyRouteConfig? toy)
+    {
+        if (toy is null)
+        {
+            return;
+        }
+
+        // Note: scope-specific table overrides only replace geometry fields, while all other window flags
+        // continue to come from the global toy definition.
+        var effectiveWindow = TableToyVisibilityResolver.ResolveEffectiveToyWindowOptions(_config.Routing, toy);
+        ApplyToyWindowConfig(window, effectiveWindow);
+    }
+
+    private void ReapplyEffectiveToyWindowGeometry()
+    {
+        foreach (var pair in _bindings)
+        {
+            ApplyEffectiveToyWindowConfig(pair.Value.Window, FindToyConfig(pair.Key));
+        }
+    }
+
     private void WireGeometryPersistence(Window window, string toyId)
     {
         void SyncToConfigOnly()
@@ -679,6 +704,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
     private void SyncVisibilityFromConfigOnUiThread()
     {
         EnsureMainHostToySelection();
+        ReapplyEffectiveToyWindowGeometry();
 
         var enabledToyIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -762,6 +788,7 @@ public sealed class WpfWindowOutputAdapter : IOutputAdapter
                 }
             }
 
+            ApplyEffectiveToyWindowConfig(binding.Window, FindToyConfig(toyId));
             ApplyLayoutOverlay(toyId, binding.Window);
 
             return;

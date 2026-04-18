@@ -71,6 +71,28 @@ internal static class TableToyVisibilityResolver
         return merged;
     }
 
+    public static ToyWindowOptionsConfig ResolveEffectiveToyWindowOptions(RoutingConfig routing, ToyRouteConfig toy)
+    {
+        var globalWindow = toy?.Window ?? new ToyWindowOptionsConfig();
+        var scopedWindow = ResolveScopedToyOverride(routing, toy?.Id)?.Window;
+
+        // Note: only geometry fields participate in scoped precedence today; all other toy window
+        // fields intentionally remain global so this helper is additive and low-risk.
+        return new ToyWindowOptionsConfig
+        {
+            UseGlobalWindow = globalWindow.UseGlobalWindow,
+            AlwaysOnTop = globalWindow.AlwaysOnTop,
+            Borderless = globalWindow.Borderless,
+            LockAspectRatio = globalWindow.LockAspectRatio,
+            BackgroundVisible = globalWindow.BackgroundVisible,
+            BackgroundColor = globalWindow.BackgroundColor,
+            Left = scopedWindow?.Left ?? globalWindow.Left,
+            Top = scopedWindow?.Top ?? globalWindow.Top,
+            Width = scopedWindow?.Width ?? globalWindow.Width,
+            Height = scopedWindow?.Height ?? globalWindow.Height,
+        };
+    }
+
     private static TableToyOverrideConfig? CloneOverride(TableToyOverrideConfig? source)
     {
         if (source is null)
@@ -99,5 +121,30 @@ internal static class TableToyVisibilityResolver
         }
 
         return routing.Toys.Count(toy => IsToyEnabledForScope(routing, toy));
+    }
+
+    private static TableToyOverrideConfig? ResolveScopedToyOverride(RoutingConfig routing, string? toyId)
+    {
+        if (routing is null || string.IsNullOrWhiteSpace(toyId))
+        {
+            return null;
+        }
+
+        var activeScopeKey = routing.ActiveTableOverrideKey;
+        if (string.IsNullOrWhiteSpace(activeScopeKey))
+        {
+            return null;
+        }
+
+        var scopeOverride = routing.TableToyVisibilityOverrides?
+            .FirstOrDefault(entry => entry.TableKey.Equals(activeScopeKey, StringComparison.OrdinalIgnoreCase));
+        if (scopeOverride?.ToyOverrides is null)
+        {
+            return null;
+        }
+
+        return scopeOverride.ToyOverrides.TryGetValue(toyId, out var scopedOverride)
+            ? scopedOverride
+            : null;
     }
 }
