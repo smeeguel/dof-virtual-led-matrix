@@ -261,7 +261,8 @@ jobs:
             /p:PublishTrimmed=false `
             /p:DebugType=None `
             /p:DebugSymbols=false `
-            /p:Version=${{ steps.version.outputs.version }}
+            /p:Version=${{ steps.version.outputs.version }} `
+            /p:InformationalVersion=${{ steps.version.outputs.tag }}
 
       - name: Stage release package
         id: package
