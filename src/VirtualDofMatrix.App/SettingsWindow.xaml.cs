@@ -1,4 +1,5 @@
 using System.IO;
+using System.Reflection;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation;
@@ -13,6 +14,7 @@ namespace VirtualDofMatrix.App;
 // Overview: SettingsWindow is a working-copy editor that applies runtime-safe changes without mutating the live config until confirmed.
 public partial class SettingsWindow : Window
 {
+    private const string BaseWindowTitle = "Virtual DOF Matrix Settings";
     private const string CustomResolution = "Custom";
     private const double ToyPlacementGapPixels = 24;
     private static readonly JsonSerializerOptions FingerprintSerializerOptions = new(JsonSerializerDefaults.Web);
@@ -53,6 +55,8 @@ public partial class SettingsWindow : Window
         _applyScopeVisibilitySave = applyScopeVisibilitySave;
 
         InitializeComponent();
+        // Prefer the informational version so packaged test builds can display full tags (for example: 0.1.1-test.build.45.1).
+        Title = $"{BaseWindowTitle} (v{ResolveDisplayVersion()})";
         PopulateControls();
         LoadToyCollections();
         SettingsTabs.SelectedIndex = 0;
@@ -64,6 +68,43 @@ public partial class SettingsWindow : Window
     public event EventHandler<AppConfig>? SettingsApplied;
     public event EventHandler<string?>? ToySelected;
     public event EventHandler<string?>? ToyHoverChanged;
+
+    private static string ResolveDisplayVersion()
+    {
+        var assembly = typeof(SettingsWindow).Assembly;
+        var informationalVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion?
+            .Trim();
+
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return NormalizeDisplayVersion(informationalVersion);
+        }
+
+        var assemblyVersion = assembly.GetName().Version?.ToString()?.Trim();
+        return string.IsNullOrWhiteSpace(assemblyVersion) ? "dev" : NormalizeDisplayVersion(assemblyVersion);
+    }
+
+    private static string NormalizeDisplayVersion(string versionText)
+    {
+        var normalized = versionText.Trim();
+
+        // Packaged builds may include SemVer metadata (`+...`) and release tags may include a leading `v`.
+        // Strip both so the window title stays concise and consistently formatted as "(v<version>)".
+        var metadataSeparator = normalized.IndexOf('+');
+        if (metadataSeparator >= 0)
+        {
+            normalized = normalized[..metadataSeparator];
+        }
+
+        if (normalized.StartsWith('v') || normalized.StartsWith('V'))
+        {
+            normalized = normalized[1..];
+        }
+
+        return string.IsNullOrWhiteSpace(normalized) ? "dev" : normalized;
+    }
 
     private void PopulateControls()
     {
