@@ -1,10 +1,12 @@
 using System.IO;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using VirtualDofMatrix.App.Configuration;
+using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
 using WpfMessageBox = System.Windows.MessageBox;
 using Win32OpenFileDialog = Microsoft.Win32.OpenFileDialog;
@@ -223,6 +225,54 @@ public partial class SettingsWindow : Window
             RefreshLedStripList(picker.FileName);
             LoadToyCollections();
             OnSettingChanged(sender, e);
+        }
+    }
+
+    private void OnOpenDebugLog(object sender, RoutedEventArgs e)
+    {
+        var logFilePath = AppLogger.GetLogFilePath();
+        OpenLogTarget(logFilePath, "file");
+    }
+
+    private void OnOpenLogsFolder(object sender, RoutedEventArgs e)
+    {
+        var logFilePath = AppLogger.GetLogFilePath();
+        var logFolderPath = Path.GetDirectoryName(logFilePath) ?? AppContext.BaseDirectory;
+        OpenLogTarget(logFolderPath, "folder");
+    }
+
+    private void OpenLogTarget(string targetPath, string targetKind)
+    {
+        var exists = targetKind.Equals("folder", StringComparison.OrdinalIgnoreCase)
+            ? Directory.Exists(targetPath)
+            : File.Exists(targetPath);
+
+        if (!exists)
+        {
+            // Note: emit a telemetry breadcrumb even when file/folder is missing so support can confirm the button is discoverable.
+            Trace.WriteLine($"Telemetry: SettingsAdvanced.OpenLogTarget requested {targetKind} missing path={targetPath}");
+            AppLogger.Warn($"Telemetry: settings advanced open-{targetKind} requested but missing path '{targetPath}'.");
+            WpfMessageBox.Show(this, "No log file yet. Start emulator and retry.", "Logs", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            // Note: UseShellExecute delegates to Explorer/registered app handlers, which matches end-user expectations for opening logs.
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = targetPath,
+                UseShellExecute = true,
+            });
+
+            Trace.WriteLine($"Telemetry: SettingsAdvanced.OpenLogTarget opened {targetKind} path={targetPath}");
+            AppLogger.Info($"Telemetry: settings advanced opened log {targetKind} '{targetPath}'.");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Telemetry: SettingsAdvanced.OpenLogTarget failed {targetKind} path={targetPath} error={ex.Message}");
+            AppLogger.Error($"Telemetry: failed to open log {targetKind} '{targetPath}': {ex.Message}");
+            WpfMessageBox.Show(this, $"Could not open {targetKind}: {targetPath}", "Logs", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

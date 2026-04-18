@@ -43,6 +43,15 @@ internal static class AppLogger
         Configure(enabled);
     }
 
+    public static string GetLogFilePath()
+    {
+        lock (Gate)
+        {
+            // Note: expose the active runtime path so UI commands and diagnostics stay tied to one source of truth.
+            return _logFilePath;
+        }
+    }
+
     public static void Info(string message)
     {
         WriteLine("INFO", message);

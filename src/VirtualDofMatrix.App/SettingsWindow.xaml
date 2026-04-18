@@ -197,6 +197,17 @@
                               ToolTip="Logs detailed protocol and rendering activity for troubleshooting."/>
                     <CheckBox x:Name="LogFramesCheckBox" Margin="24,6,0,0" Content="Log Frames" Checked="OnSettingChanged" Unchecked="OnSettingChanged"
                               ToolTip="Logs per-frame named-pipe payload lines (for example: Pipe frame seq=..., payload=... bytes)."/>
+                    <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                        <Button Content="Open debug.log"
+                                Width="140"
+                                Click="OnOpenDebugLog"
+                                ToolTip="Open the currently active debug log file path from runtime logging configuration." />
+                        <Button Content="Open Logs Folder"
+                                Width="140"
+                                Margin="8,0,0,0"
+                                Click="OnOpenLogsFolder"
+                                ToolTip="Open the folder that contains debug.log for quick sharing and troubleshooting." />
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
         </TabControl>
