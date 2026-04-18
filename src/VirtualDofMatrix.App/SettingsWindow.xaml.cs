@@ -79,11 +79,31 @@ public partial class SettingsWindow : Window
 
         if (!string.IsNullOrWhiteSpace(informationalVersion))
         {
-            return informationalVersion;
+            return NormalizeDisplayVersion(informationalVersion);
         }
 
         var assemblyVersion = assembly.GetName().Version?.ToString()?.Trim();
-        return string.IsNullOrWhiteSpace(assemblyVersion) ? "dev" : assemblyVersion;
+        return string.IsNullOrWhiteSpace(assemblyVersion) ? "dev" : NormalizeDisplayVersion(assemblyVersion);
+    }
+
+    private static string NormalizeDisplayVersion(string versionText)
+    {
+        var normalized = versionText.Trim();
+
+        // Packaged builds may include SemVer metadata (`+...`) and release tags may include a leading `v`.
+        // Strip both so the window title stays concise and consistently formatted as "(v<version>)".
+        var metadataSeparator = normalized.IndexOf('+');
+        if (metadataSeparator >= 0)
+        {
+            normalized = normalized[..metadataSeparator];
+        }
+
+        if (normalized.StartsWith('v') || normalized.StartsWith('V'))
+        {
+            normalized = normalized[1..];
+        }
+
+        return string.IsNullOrWhiteSpace(normalized) ? "dev" : normalized;
     }
 
     private void PopulateControls()
