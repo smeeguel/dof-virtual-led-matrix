@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <TargetFrameworks>net8.0;net8.0-windows</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
@@ -22,6 +21,26 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VirtualDofMatrix.Core\VirtualDofMatrix.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Keep app-layer tests on the Windows target only so CI environments without
+       WindowsDesktop SDK support can still execute the full core regression suite. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
     <ProjectReference Include="..\VirtualDofMatrix.App\VirtualDofMatrix.App.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <Compile Remove="AppConfigurationStoreToyIniTests.cs" />
+    <Compile Remove="BloomBlurStrategyTests.cs" />
+    <Compile Remove="CabinetXmlServiceTests.cs" />
+    <Compile Remove="FrameTransportStreamParserTests.cs" />
+    <Compile Remove="GlobalConfigBootstrapServiceTests.cs" />
+    <Compile Remove="GpuRendererBoundaryTests.cs" />
+    <Compile Remove="TableToyOverrideIniConfigurationTests.cs" />
+    <Compile Remove="TableToyVisibilityResolverTests.cs" />
+    <Compile Remove="ToyWindowPlacementPlannerTests.cs" />
+    <Compile Remove="VisualQualityProfilesTests.cs" />
+    <Compile Remove="WpfWindowOutputAdapterTests.cs" />
+    <Compile Remove="WriteableBitmapRendererSnapshotTests.cs" />
   </ItemGroup>
 </Project>

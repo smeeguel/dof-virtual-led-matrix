@@ -22,13 +22,17 @@ public sealed class MatrixMapperTests
     {
         var config = new AppConfig();
 
-        Assert.Equal(256, config.Matrix.Width);
+        // Keep this regression anchored to the current high-resolution defaults used
+        // by the viewer pipeline so accidental config drift is caught quickly.
+        Assert.Equal(128, config.Matrix.Width);
         Assert.Equal(32, config.Matrix.Height);
         Assert.Equal("TopDownAlternateRightLeft", config.Matrix.Mapping);
         Assert.Equal("circle", config.Matrix.DotShape);
         Assert.Equal(2, config.Matrix.MinDotSpacing);
+        Assert.Equal(2, config.Matrix.MinDotSpacingX);
+        Assert.Equal(2, config.Matrix.MinDotSpacingY);
         Assert.Equal(1.0, config.Matrix.Brightness);
-        Assert.Equal(1.0, config.Matrix.Gamma);
+        Assert.Equal(0.8, config.Matrix.Gamma);
 
         Assert.True(config.Matrix.MinDotSpacing >= 2);
     }
