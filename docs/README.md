@@ -1,5 +1,24 @@
 # Virtual DOF Matrix by Migs: Setup Guide
 
+## Table of Contents
+
+- [What this app does](#what-this-app-does)
+- [Quick Start (Recommended)](#quick-start-recommended)
+- [Before you start](#before-you-start)
+- [1) Install DOF first, then run the setup script](#1-install-dof-first-then-run-the-setup-script)
+- [2) Optional: Cabinet.xml for combination setups (virtual + hardware)](#2-optional-cabinetxml-for-combination-setups-virtual--hardware)
+- [3) First launch order](#3-first-launch-order)
+- [4) Toy setup workflow (recommended)](#4-toy-setup-workflow-recommended)
+- [5) Add a new toy](#5-add-a-new-toy)
+- [6) Edit an existing toy](#6-edit-an-existing-toy)
+- [7) Virtual Toys behavior notes](#7-virtual-toys-behavior-notes)
+- [Table-specific visibility override file](#table-specific-visibility-override-file)
+- [8) DOF-side changes needed for extra toys](#8-dof-side-changes-needed-for-extra-toys)
+- [9) Add custom GIF / community light shows (DOF Config Tool)](#9-add-custom-gif--community-light-shows-dof-config-tool)
+- [10) Popper setup](#10-popper-setup)
+- [11) Troubleshooting](#11-troubleshooting)
+- [Final reminder](#final-reminder)
+
 This guide is written for everyday cabinet owners, including first-time DOF users.
 
 GitHub repo:
