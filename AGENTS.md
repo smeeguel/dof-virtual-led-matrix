@@ -563,3 +563,12 @@ Before committing any change in this repository:
 2. If settings were added, removed, or renamed, update `examples/settings.sample.json` to match the current runtime schema.
 3. If setup or behavior documentation changed, update `docs/instructions.html` in the same commit.
 4. Keep `docs/instructions.html` end-user focused; do not add tester/developer planning content there.
+
+## Agent-only documentation placement
+
+Keep `docs/README.md` and `docs/instructions.html` strictly end-user facing.
+
+For agent/developer context, place guidance in this root `AGENTS.md` (or deeper scoped AGENTS files) instead of user docs.
+
+When architecture/runtime detail is needed for LLM-assisted documentation work, use `docs/ARCHITECTURE.md` as the primary technical reference.
+

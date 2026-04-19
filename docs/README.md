@@ -14,16 +14,6 @@ Prefer a visual walkthrough? Watch the beginner setup guide below:
 
 ---
 
-## Developer / Agent Technical Docs
-
-If you need full architecture + runtime flow context (for AI-assisted docs, tutorials, or integrations), read:
-
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md)
-
-This file is written to be repo-independent and detailed enough to support documentation work without browsing source code directly.
-
----
-
 ## What this app does
 
 Virtual DOF Matrix displays DOF LED output in one or more virtual on-screen windows, such as a backglass matrix or addressable LED strips.
