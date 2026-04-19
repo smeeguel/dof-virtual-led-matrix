@@ -362,7 +362,7 @@ Choose one of these cabinet templates:
 - **Single matrix only**
   - `Cabinet_SingleMatrix.json`
 - **Matrix + 3 LED strips**
-  - `Cabinet_BackMatrixPlus4LEDStrips.json`
+  - `Cabinet_BackMatrixPlus3LEDStrips.json`
 
 ### What this import adds
 
