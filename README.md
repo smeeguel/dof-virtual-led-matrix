@@ -29,7 +29,7 @@ You do not need to understand DOF deeply to use this app. Just follow the steps 
 3. Launch `VirtualDofMatrix.App.exe`
 4. Launch a VPX table
 
-If it does not work, come back to the troubleshooting section in Step 10.
+If it does not work, come back to the troubleshooting section in Step 11.
 
 ---
 
@@ -157,7 +157,7 @@ Always start in this order:
 
 If VPX or DOF starts first, the app might miss the initial connection.
 
-If you use the Popper startup automation in Step 9, Popper can launch the app for you.
+If you use the Popper startup automation in Step 10, Popper can launch the app for you.
 
 ---
 
@@ -328,7 +328,102 @@ In general, these need to stay aligned:
 
 ---
 
-## 9) Popper setup
+## 9) Add custom GIF / community light shows (DOF Config Tool)
+
+This step is optional, but highly recommended if you want enhanced light shows, including community-created GIF animations.
+
+Open the DOF Config Tool:
+
+- https://configtool.vpuniverse.com/app/home
+
+### Important note
+
+The pre-packaged configs included with this app **do NOT include custom GIF animations**.
+
+- These animations are created by the community
+- They are not mine to redistribute
+- You can download them directly from the DOF Config Tool, one table at a time
+
+### Step 9A - Create or import a cabinet
+
+1. Go to **Cabinet -> Manage**
+2. Create a cabinet
+3. Click the **three dots** next to your cabinet
+4. Choose **Import Cabinet...**
+
+From your Virtual DOF Matrix download, open:
+
+```
+DOF\ConfigToolCabinets
+```
+
+Choose one of these cabinet templates:
+
+- **Single matrix only**
+  - `Cabinet_SingleMatrix.json`
+- **Matrix + 3 LED strips**
+  - `Cabinet_BackMatrixPlus4LEDStrips.json`
+
+### What this import adds
+
+Importing the cabinet JSON sets up the DOF-side pieces this app needs, including:
+
+- 1 **Teensy device** (emulated by the client app)
+- One or more **Toy Combos**
+- One or more **Port Assignments**
+
+Those port assignments tell DOF which devices to output to, and in which LED order.
+
+### Step 9B - Add custom table effects and GIF animations
+
+Once the cabinet JSON is imported, you can add custom table effects.
+
+1. Go to **Tables -> Configurations**
+2. Search for the table you want to customize
+3. Open that table's configuration
+
+If the table supports enhanced effects, you will see an expandable section called:
+
+- **Special MX Effect Configurations (optional)**
+
+To enable them:
+
+1. Expand that section
+2. Download any embedded GIF(s) you want
+3. Click **Apply MX Effects to your User Configuration**
+4. Click **Save / Update**
+
+### Step 9C - Generate and install the updated DOF config
+
+1. Click **Generate Config** at the top
+2. Download `directoutputconfig.zip`
+3. Extract the ZIP
+4. Copy all extracted files (typically about 4 files) into your DOF `Config` folder
+
+Example:
+
+```
+{Your DOF Install Folder}\Config
+```
+
+For many users this may be something like:
+
+```
+C:\DirectOutput\Config
+```
+
+But your DOF install location might be different.
+
+### Step 9D - Restart and test
+
+1. Restart the **Virtual DOF Matrix** app
+2. Launch the table
+
+If everything is set up correctly, you should now see the custom or GIF-driven light effects for that table.
+
+---
+
+## 10) Popper setup
 
 You can launch the app once at Popper startup, then control visibility during table launch and exit.
 
@@ -397,7 +492,7 @@ Supported actions:
 
 ---
 
-## 10) Troubleshooting
+## 11) Troubleshooting
 
 ### App opens but no animation
 
@@ -442,7 +537,7 @@ If all else fails:
 - Re-check both DOF DLL locations:
   - `C:\DirectOutput\x64\DirectOutput.dll`
   - `C:\DirectOutput\x86\DirectOutput.dll`
-- If you want automatic startup, configure Popper to launch the app as shown in Step 9
+- If you want automatic startup, configure Popper to launch the app as shown in Step 10
 
 ### How testers can retrieve logs
 
