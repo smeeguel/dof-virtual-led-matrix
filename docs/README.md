@@ -393,9 +393,39 @@ Importing the cabinet JSON sets up the DOF-side pieces this app needs, including
 
 Those port assignments tell DOF which devices to output to, and in which LED order.
 
-### Step 9B - Add custom table effects and GIF animations
+### Step 9B - Easiest option: apply custom MX content to all tables
 
-Once the cabinet JSON is imported, you can add custom table effects.
+This is the easiest path for most beginners.
+
+1. Go to **Tables -> Configurations**
+2. Click the **three dots** (**More Actions...**)
+3. Select **Apply MC Configuration to All Tables**
+4. Confirm the warning popup
+5. Click **Download Zip of all MX Gif's**
+6. Extract `MX_Images.zip` into your DOF `Config` folder
+7. Back in the Config Tool, click **Generate Config** at the top
+8. Download `directoutputconfig.zip`
+9. Extract that ZIP too
+10. Copy all extracted files into your DOF `Config` folder
+11. Restart the **Virtual DOF Matrix** app, then restart VPX, Popper, or any table session you already had open
+
+Example:
+
+```
+{Your DOF Install Folder}\Config
+```
+
+For many users this may be something like:
+
+```
+C:\DirectOutput\Config
+```
+
+But your DOF install location might be different.
+
+### Step 9C - Optional advanced route: customize individual tables only
+
+Use this path only if you want to customize one table at a time instead of applying MX content to all tables.
 
 1. Go to **Tables -> Configurations**
 2. Search for the table you want to customize
@@ -411,13 +441,10 @@ To enable them:
 2. Download any embedded GIF(s) you want
 3. Click **Apply MX Effects to your User Configuration**
 4. Click **Save / Update**
-
-### Step 9C - Generate and install the updated DOF config
-
-1. Click **Generate Config** at the top
-2. Download `directoutputconfig.zip`
-3. Extract the ZIP
-4. Copy all extracted files (typically about 4 files) into your DOF `Config` folder
+5. Click **Generate Config** at the top
+6. Download `directoutputconfig.zip`
+7. Extract the ZIP
+8. Copy all extracted files into your DOF `Config` folder
 
 Example:
 
@@ -436,9 +463,10 @@ But your DOF install location might be different.
 ### Step 9D - Restart and test
 
 1. Restart the **Virtual DOF Matrix** app
-2. Launch the table
+2. Restart VPX, Popper, or any table session you already had open
+3. Launch the table
 
-If everything is set up correctly, you should now see the custom or GIF-driven light effects for that table.
+If everything is set up correctly, you should now see the custom or GIF-driven light effects.
 
 ---
 
