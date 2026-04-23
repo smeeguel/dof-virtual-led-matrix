@@ -17,6 +17,5 @@ This folder stages the MSI/Burn installer path while the existing ZIP release fl
 ## Notes
 
 - Current release ZIP packaging in `tools/packaging/package-release.ps1` is intentionally unchanged during this transition.
-
-
-- WiX MSBuild SDK version is pinned in repository `global.json` (`WixToolset.Sdk` 4.0.5) so Visual Studio and `dotnet` resolve the same installer SDK without forcing a specific .NET SDK feature band.
+- Install the **WiX Toolset Visual Studio 2022/2026 extension** so Visual Studio can load WiX SDK projects.
+- WiX MSBuild SDK version is pinned in repository `global.json` (`WixToolset.Sdk` 6.0.2) so Visual Studio and `dotnet` resolve the same installer SDK without forcing a specific .NET SDK feature band.
