@@ -7,6 +7,8 @@
     UpgradeCode="E01E4CCA-D4FC-4576-BA9C-E3894127B40E">
 
     <!-- Burn provides setup.exe UX and binds the EULA from the repository root. -->
+    <!-- WiX v6 hyperlinkLicense theme requires WixStdbaLicenseUrl to be explicitly defined. -->
+    <WixVariable Id="WixStdbaLicenseUrl" Value="https://raw.githubusercontent.com/jsm174/dof-virtual-led-matrix/main/EULA.txt" />
     <BootstrapperApplication>
       <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseFile="..\..\EULA.txt" />
     </BootstrapperApplication>
