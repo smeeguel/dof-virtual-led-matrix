@@ -1,0 +1,13 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Bundle
+    Name="Virtual DOF Matrix"
+    Manufacturer="Virtual DOF Matrix"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="E01E4CCA-D4FC-4576-BA9C-E3894127B40E">
+
+    <!-- Keep bundle UX minimal while wiring the MSI/Burn path during packaging transition. -->
+    <Chain>
+      <MsiPackage SourceFile="..\VirtualDofMatrix.Setup\bin\$(var.Configuration)\VirtualDofMatrix.Msi.msi" DisplayInternalUI="no" />
+    </Chain>
+  </Bundle>
+</Wix>

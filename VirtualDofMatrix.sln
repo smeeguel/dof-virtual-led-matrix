@@ -1,12 +1,20 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Core", "src/VirtualDofMatrix.Core/VirtualDofMatrix.Core.csproj", "{A11EF832-CA20-4DEA-8CA1-A8C7EC2C4B7A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Core", "src\VirtualDofMatrix.Core\VirtualDofMatrix.Core.csproj", "{A11EF832-CA20-4DEA-8CA1-A8C7EC2C4B7A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.App", "src/VirtualDofMatrix.App/VirtualDofMatrix.App.csproj", "{393BE8D7-434A-4C7C-BBDB-02C89A9D1433}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.App", "src\VirtualDofMatrix.App\VirtualDofMatrix.App.csproj", "{393BE8D7-434A-4C7C-BBDB-02C89A9D1433}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Tests", "src/VirtualDofMatrix.Tests/VirtualDofMatrix.Tests.csproj", "{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Tests", "src\VirtualDofMatrix.Tests\VirtualDofMatrix.Tests.csproj", "{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "installer", "installer", "{6E13A93E-402E-4A4C-BB78-D528750527D8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomActions", "installer\CustomActions\CustomActions.csproj", "{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}"
+EndProject
+Project("{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}") = "VirtualDofMatrix.Msi", "installer\VirtualDofMatrix.Setup\VirtualDofMatrix.Msi.wixproj", "{0BADEE7C-7003-4ECD-99A0-4BC512E5C127}"
+EndProject
+Project("{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}") = "VirtualDofMatrix.Bundle", "installer\VirtualDofMatrix.Setup\VirtualDofMatrix.Bundle.wixproj", "{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -26,5 +34,22 @@ Global
 		{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0BADEE7C-7003-4ECD-99A0-4BC512E5C127}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0BADEE7C-7003-4ECD-99A0-4BC512E5C127}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0BADEE7C-7003-4ECD-99A0-4BC512E5C127}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0BADEE7C-7003-4ECD-99A0-4BC512E5C127}.Release|Any CPU.Build.0 = Release|Any CPU
+		{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
+		{0BADEE7C-7003-4ECD-99A0-4BC512E5C127} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
+		{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
 	EndGlobalSection
 EndGlobal

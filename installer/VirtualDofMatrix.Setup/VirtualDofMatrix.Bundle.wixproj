@@ -1,0 +1,16 @@
+<Project Sdk="WixToolset.Sdk/4.0.5">
+  <PropertyGroup>
+    <OutputType>Bundle</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Platform>x64</Platform>
+    <Cultures>en-US</Cultures>
+    <OutputName>setup</OutputName>
+    <DefineConstants>ProductVersion=1.0.0</DefineConstants>
+    <EnableDefaultItems>false</EnableDefaultItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="VirtualDofMatrix.Msi.wixproj" Name="VirtualDofMatrixMsi" />
+    <Compile Include="Bundle.wxs" />
+  </ItemGroup>
+</Project>
