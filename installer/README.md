@@ -8,6 +8,20 @@ This folder stages the MSI/Burn installer path while the existing ZIP release fl
 - `installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Bundle.csproj` builds the Burn bootstrapper (`setup.exe`).
 - `installer/CustomActions/CustomActions.csproj` builds elevated C# custom actions consumed by the MSI.
 
+## CI-friendly build flow
+
+1. Publish app binaries (`dotnet publish`) to a known directory.
+2. Build bundle with `InstallerAppPublishDir` pointing at that publish directory.
+
+Example:
+
+```powershell
+dotnet build installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Bundle.csproj `
+  -c Release `
+  /p:Version=0.1.0 `
+  /p:InstallerAppPublishDir="src/VirtualDofMatrix.App/bin/Release/net8.0-windows/win-x64/publish/"
+```
+
 ## Expected artifacts
 
 - MSI: `installer/VirtualDofMatrix.Setup/bin/<Configuration>/VirtualDofMatrix.Msi.msi`

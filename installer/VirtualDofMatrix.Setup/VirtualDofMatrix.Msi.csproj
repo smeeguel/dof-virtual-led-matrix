@@ -5,7 +5,8 @@
     <Platform>x64</Platform>
     <Cultures>en-US</Cultures>
     <Version>0.1.0</Version>
-    <DefineConstants>ProductVersion=$(Version);ProductName=Virtual DOF Matrix;Manufacturer=Virtual DOF Matrix</DefineConstants>
+    <InstallerAppPublishDir Condition="'$(InstallerAppPublishDir)' == ''">..\..\src\VirtualDofMatrix.App\bin\Release\net8.0-windows\win-x64\publish\</InstallerAppPublishDir>
+    <DefineConstants>ProductVersion=$(Version);ProductName=Virtual DOF Matrix;Manufacturer=Virtual DOF Matrix;AppPublishDir=$(InstallerAppPublishDir)</DefineConstants>
     <EnableDefaultItems>false</EnableDefaultItems>
   </PropertyGroup>
 
@@ -14,8 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Build app output before MSI authoring so required runtime files can be harvested into INSTALLFOLDER. -->
-    <ProjectReference Include="..\..\src\VirtualDofMatrix.App\VirtualDofMatrix.App.csproj" Name="VirtualDofMatrixApp" />
+    <!-- Keep elevated custom actions wired so installer privileges can be expanded without changing MSI plumbing. -->
     <ProjectReference Include="..\CustomActions\CustomActions.csproj" Name="CustomActions" />
     <Compile Include="Product.wxs" />
     <WixExtension Include="WixToolset.UI.wixext" />

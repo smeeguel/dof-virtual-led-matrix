@@ -25,9 +25,9 @@
       <ComponentGroupRef Id="AppFiles" />
     </Feature>
 
-    <!-- Harvest all app build artifacts needed to run VirtualDofMatrix.App from the referenced project output. -->
+    <!-- Harvest published app artifacts; CI passes InstallerAppPublishDir to package release-ready binaries. -->
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
-      <Files Include="$(var.VirtualDofMatrixApp.TargetDir)**" Exclude="$(var.VirtualDofMatrixApp.TargetDir)**\*.pdb" />
+      <Files Include="$(var.AppPublishDir)**" Exclude="$(var.AppPublishDir)**\*.pdb" />
     </ComponentGroup>
 
     <!-- Provide install-directory selection UI in MSI. -->
