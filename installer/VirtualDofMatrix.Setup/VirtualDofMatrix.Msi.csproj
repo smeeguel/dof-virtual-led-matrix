@@ -1,4 +1,4 @@
-<Project Sdk="WixToolset.Sdk/4.0.5">
+<Project Sdk="WixToolset.Sdk">
   <PropertyGroup>
     <OutputType>Package</OutputType>
     <TargetFramework>net8.0</TargetFramework>
