@@ -264,6 +264,35 @@ jobs:
             /p:Version=${{ steps.version.outputs.version }} `
             /p:InformationalVersion=${{ steps.version.outputs.tag }}
 
+      - name: Build installer bundle
+        id: installer
+        shell: pwsh
+        run: |
+          $publishDir = (Resolve-Path "src/VirtualDofMatrix.App/bin/Release/net8.0-windows/win-x64/publish").Path
+          if (-not (Test-Path -LiteralPath $publishDir -PathType Container)) {
+            throw "Publish directory not found for installer packaging: $publishDir"
+          }
+
+          # Build Burn bundle from already-published app payload so setup.exe always matches release bits.
+          dotnet build installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Bundle.csproj `
+            -c Release `
+            /p:Version=${{ steps.version.outputs.version }} `
+            /p:InstallerAppPublishDir="$publishDir\\"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installer bundle build failed."
+          }
+
+          # WiX SDK can place bundle output under framework/platform subfolders; discover setup.exe dynamically.
+          $bundlePath = Get-ChildItem -Path "installer/VirtualDofMatrix.Setup/bin" -Filter "setup.exe" -Recurse -File |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if ([string]::IsNullOrWhiteSpace($bundlePath) -or -not (Test-Path -LiteralPath $bundlePath -PathType Leaf)) {
+            throw "Installer bundle output not found under installer/VirtualDofMatrix.Setup/bin."
+          }
+
+          "installer_path=$bundlePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Stage release package
         id: package
         shell: pwsh
@@ -338,6 +367,7 @@ jobs:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
           RELEASE_TARGET: ${{ steps.sync_readme.outputs.release_target }}
           RELEASE_FILE: ${{ steps.package.outputs.artifact_path }}
+          RELEASE_INSTALLER: ${{ steps.installer.outputs.installer_path }}
           RELEASE_IS_PRERELEASE: ${{ inputs.is_prerelease }}
         run: |
           # Use the built-in GitHub CLI here so we avoid JavaScript action runtime deprecations (Node 20 -> 24 migration).
@@ -348,6 +378,9 @@ jobs:
             "--target", $env:RELEASE_TARGET,
             "--generate-notes"
           )
+          if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_INSTALLER) -and (Test-Path -LiteralPath $env:RELEASE_INSTALLER -PathType Leaf)) {
+            $args += $env:RELEASE_INSTALLER
+          }
           if ("$env:RELEASE_IS_PRERELEASE" -eq "true") {
             $args += "--prerelease"
           }
