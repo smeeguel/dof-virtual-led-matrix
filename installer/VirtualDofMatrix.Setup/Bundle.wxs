@@ -1,0 +1,18 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle
+    Name="$(var.ProductName)"
+    Manufacturer="$(var.Manufacturer)"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="E01E4CCA-D4FC-4576-BA9C-E3894127B40E">
+
+    <!-- Burn provides setup.exe UX and binds the EULA from the repository root. -->
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseFile="..\..\EULA.txt" />
+    </BootstrapperApplication>
+
+    <Chain>
+      <MsiPackage SourceFile="$(var.VirtualDofMatrixMsi.TargetPath)" DisplayInternalUI="no" />
+    </Chain>
+  </Bundle>
+</Wix>
