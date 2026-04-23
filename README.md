@@ -2,22 +2,22 @@
 
 ## Table of Contents
 
-- [What this app does](#what-this-app-does)
-- [Quick Start (Recommended)](#quick-start-recommended)
-- [Before you start](#before-you-start)
-- [1) Install DOF first, then run the setup script](#1-install-dof-first-then-run-the-setup-script)
-- [2) Optional: Cabinet.xml for combination setups (virtual + hardware)](#2-optional-cabinetxml-for-combination-setups-virtual--hardware)
-- [3) First launch order](#3-first-launch-order)
-- [4) Toy setup workflow (recommended)](#4-toy-setup-workflow-recommended)
-- [5) Add a new toy](#5-add-a-new-toy)
-- [6) Edit an existing toy](#6-edit-an-existing-toy)
-- [7) Virtual Toys behavior notes](#7-virtual-toys-behavior-notes)
-- [Table-specific visibility override file](#table-specific-visibility-override-file)
-- [8) DOF-side changes needed for extra toys](#8-dof-side-changes-needed-for-extra-toys)
-- [9) Add custom GIF / community light shows (DOF Config Tool)](#9-add-custom-gif--community-light-shows-dof-config-tool)
-- [10) Popper setup](#10-popper-setup)
-- [11) Troubleshooting](#11-troubleshooting)
-- [Final reminder](#final-reminder)
+- [1) What this app does](#1-what-this-app-does)
+- [2) Quick Start (Recommended)](#2-quick-start-recommended)
+- [3) Before you start](#3-before-you-start)
+- [4) Install DOF first, then run the setup script](#4-install-dof-first-then-run-the-setup-script)
+- [5) Optional: Cabinet.xml for combination setups (virtual + hardware)](#5-optional-cabinetxml-for-combination-setups-virtual--hardware)
+- [6) First launch order](#6-first-launch-order)
+- [7) Toy setup workflow (recommended)](#7-toy-setup-workflow-recommended)
+- [8) Add a new toy](#8-add-a-new-toy)
+- [9) Edit an existing toy](#9-edit-an-existing-toy)
+- [10) Virtual Toys behavior notes](#10-virtual-toys-behavior-notes)
+- [11) Table-specific visibility override file](#11-table-specific-visibility-override-file)
+- [12) DOF-side changes needed for extra toys](#12-dof-side-changes-needed-for-extra-toys)
+- [13) Add custom GIF / community light shows (DOF Config Tool)](#13-add-custom-gif--community-light-shows-dof-config-tool)
+- [14) Popper setup](#14-popper-setup)
+- [15) Troubleshooting](#15-troubleshooting)
+- [16) License, usage, and disclaimers](#16-license-usage-and-disclaimers)
 
 This guide is written for everyday cabinet owners, including first-time DOF users.
 
@@ -33,7 +33,7 @@ Prefer a visual walkthrough? Watch the beginner setup guide below:
 
 ---
 
-## What this app does
+## 1) What this app does
 
 Virtual DOF Matrix displays DOF LED output in one or more virtual on-screen windows, such as a backglass matrix or addressable LED strips.
 
@@ -41,18 +41,18 @@ You do not need to understand DOF deeply to use this app. Just follow the steps 
 
 ---
 
-## Quick Start (Recommended)
+## 2) Quick Start (Recommended)
 
 1. Install DOF from mjrnet (Step 1A)
 2. Run `DOFConfigSetup.bat` from this package (Step 1B)
 3. Launch `VirtualDofMatrix.App.exe`
 4. Launch a VPX table
 
-If it does not work, come back to the troubleshooting section in Step 11.
+If it does not work, come back to the troubleshooting section in Step 15.
 
 ---
 
-## Before you start
+## 3) Before you start
 
 You need:
 
@@ -61,11 +61,11 @@ You need:
 - Visual Pinball X (VPX) if you want to launch tables
 - A front-end like PinUP Popper only if you use a front-end workflow (optional)
 
-If DOF is not installed yet, Step 1 covers that.
+If DOF is not installed yet, Step 4 covers that.
 
 ---
 
-## 1) Install DOF first, then run the setup script
+## 4) Install DOF first, then run the setup script
 
 This order matters.
 
@@ -121,11 +121,11 @@ Quick troubleshooting:
 
 ---
 
-## 2) Optional: Cabinet.xml for combination setups (virtual + hardware)
+## 5) Optional: Cabinet.xml for combination setups (virtual + hardware)
 
 ⚠️ Most users can skip this section.
 
-Use Step 2 only if you have a combination setup with virtual + hardware toys, custom routing, or older custom DOF files you need to keep.
+Use Step 5 only if you have a combination setup with virtual + hardware toys, custom routing, or older custom DOF files you need to keep.
 
 Before editing, make a backup copy of `Cabinet.xml`.
 
@@ -140,7 +140,7 @@ Search for:
 
 - `VirtualLEDStripController`
 
-If Step 1B completed correctly, this entry should already be present.
+If Step 4B completed correctly, this entry should already be present.
 
 ### Step 2C - Confirm the pipe/controller name matches app settings
 
@@ -167,7 +167,7 @@ The app updates only its managed virtual toy data and leaves unrelated hardware 
 
 ---
 
-## 3) First launch order
+## 6) First launch order
 
 Always start in this order:
 
@@ -176,11 +176,11 @@ Always start in this order:
 
 If VPX or DOF starts first, the app might miss the initial connection.
 
-If you use the Popper startup automation in Step 10, Popper can launch the app for you.
+If you use the Popper startup automation in Step 14, Popper can launch the app for you.
 
 ---
 
-## 4) Toy setup workflow (recommended)
+## 7) Toy setup workflow (recommended)
 
 For normal use, manage toys in:
 
@@ -198,7 +198,7 @@ If you are new, this is the recommended workflow.
 
 ---
 
-## 5) Add a new toy
+## 8) Add a new toy
 
 Use this when creating a second, third, or fourth virtual output.
 
@@ -256,7 +256,7 @@ You can keep the defaults, or adjust options such as:
 
 ---
 
-## 6) Edit an existing toy
+## 9) Edit an existing toy
 
 Use this when you want to adjust a toy you already created.
 
@@ -283,7 +283,7 @@ Common edits:
 
 ---
 
-## 7) Virtual Toys behavior notes
+## 10) Virtual Toys behavior notes
 
 In **Settings -> Virtual Toys**:
 
@@ -304,7 +304,7 @@ In **Settings -> Virtual Toys**:
 ---
 
 
-## Table-specific visibility override file
+## 11) Table-specific visibility override file
 
 Per-table toy overrides are saved to a dedicated INI file (not the app install folder):
 
@@ -335,7 +335,7 @@ Tip: if you want to keep the current table layout but make it your global defaul
 Keep toy IDs exactly the same as your configured routing toy IDs.
 
 
-## 8) DOF-side changes needed for extra toys
+## 12) DOF-side changes needed for extra toys
 
 Adding toys in the app is the correct first step, but DOF must still output data for those toy ranges.
 
@@ -347,7 +347,7 @@ In general, these need to stay aligned:
 
 ---
 
-## 9) Add custom GIF / community light shows (DOF Config Tool)
+## 13) Add custom GIF / community light shows (DOF Config Tool)
 
 This step is optional, but highly recommended if you want enhanced light shows, including community-created GIF animations.
 
@@ -470,7 +470,7 @@ If everything is set up correctly, you should now see the custom or GIF-driven l
 
 ---
 
-## 10) Popper setup
+## 14) Popper setup
 
 You can launch the app once at Popper startup, then control visibility during table launch and exit.
 
@@ -539,7 +539,7 @@ Supported actions:
 
 ---
 
-## 11) Troubleshooting
+## 15) Troubleshooting
 
 ### App opens but no animation
 
@@ -584,7 +584,7 @@ If all else fails:
 - Re-check both DOF DLL locations:
   - `C:\DirectOutput\x64\DirectOutput.dll`
   - `C:\DirectOutput\x86\DirectOutput.dll`
-- If you want automatic startup, configure Popper to launch the app as shown in Step 10
+- If you want automatic startup, configure Popper to launch the app as shown in Step 14
 
 ### How testers can retrieve logs
 
@@ -595,8 +595,25 @@ If all else fails:
 
 ---
 
-## Final reminder
+## 16) License, usage, and disclaimers
 
-For normal setup, manage toys through **Settings -> Virtual Toys** and save with **OK**.
+Virtual DOF Matrix is open-source under the MIT License.
 
-That is the recommended workflow for reliable day-to-day use.
+You are free to:
+- Use, modify, and share the software
+- Contribute improvements
+
+Please note:
+- Modified versions must not be redistributed under the same name
+- This project depends on third-party tools such as DOF, VPX, and PinUP Popper, which are not included with this project
+- Community-created GIF / MX assets are not distributed with this project
+- This software interacts with DOF configuration files and external systems, so use it at your own risk
+- Before making changes, it is strongly recommended to back up your DOF folder, usually:
+
+```
+C:\DirectOutput
+```
+
+This application does not collect or transmit any user data. Any logs it creates remain local to your machine.
+
+This is a community-driven project. If you run into issues or want to suggest features, use the feedback form linked at the top of this guide or visit the GitHub repository for updates and discussions.
