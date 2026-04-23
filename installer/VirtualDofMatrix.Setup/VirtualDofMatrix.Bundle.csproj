@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Platform>x64</Platform>
     <Cultures>en-US</Cultures>
-    <OutputName>setup</OutputName>
+    <OutputName>VirtualDofMatrixInstaller</OutputName>
     <Version>0.1.0</Version>
     <DefineConstants>ProductVersion=$(Version);ProductName=Virtual DOF Matrix;Manufacturer=Virtual DOF Matrix</DefineConstants>
     <EnableDefaultItems>false</EnableDefaultItems>

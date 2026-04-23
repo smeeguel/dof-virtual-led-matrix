@@ -10,7 +10,8 @@
 
     <SummaryInformation Description="Virtual DOF Matrix installer" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of Virtual DOF Matrix is already installed." />
-    <MediaTemplate />
+    <!-- Embed cabinets into the MSI so GitHub releases can ship a single installer file without detached cab*.cab payloads. -->
+    <MediaTemplate EmbedCab="yes" />
 
     <!-- ARP metadata: name/publisher/version come from Package attributes above; extra fields are explicit here. -->
     <Property Id="ARPCOMMENTS" Value="Virtual DOF Matrix emulator/viewer for DOF serial output." />
@@ -30,6 +31,8 @@
     </ComponentGroup>
 
     <!-- Provide install-directory selection UI in MSI. -->
+    <!-- Bind the MSI license dialog to the repository EULA content instead of the WiX placeholder lorem ipsum. -->
+    <WixVariable Id="WixUILicenseRtf" Value="Eula.rtf" />
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
   </Package>
 </Wix>

@@ -18,5 +18,7 @@
     <!-- Keep elevated custom actions wired so installer privileges can be expanded without changing MSI plumbing. -->
     <ProjectReference Include="..\CustomActions\CustomActions.csproj" Name="CustomActions" />
     <Compile Include="Product.wxs" />
+    <!-- Include the RTF license source so WixVariable WixUILicenseRtf resolves during local and CI builds. -->
+    <Content Include="Eula.rtf" />
   </ItemGroup>
 </Project>
