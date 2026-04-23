@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="VirtualDofMatrix.Msi.wixproj" Name="VirtualDofMatrixMsi" />
+    <ProjectReference Include="VirtualDofMatrix.Msi.csproj" Name="VirtualDofMatrixMsi" />
     <Compile Include="Bundle.wxs" />
   </ItemGroup>
 </Project>

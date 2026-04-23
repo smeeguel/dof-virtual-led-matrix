@@ -4,8 +4,8 @@ This folder stages the MSI/Burn installer path while the existing ZIP release fl
 
 ## Build entry points
 
-- `installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Msi.wixproj` builds the MSI package.
-- `installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Bundle.wixproj` builds the Burn bootstrapper (`setup.exe`).
+- `installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Msi.csproj` builds the MSI package.
+- `installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Bundle.csproj` builds the Burn bootstrapper (`setup.exe`).
 - `installer/CustomActions/CustomActions.csproj` builds elevated C# custom actions consumed by the MSI.
 
 ## Expected artifacts

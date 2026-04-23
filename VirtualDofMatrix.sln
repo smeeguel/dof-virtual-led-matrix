@@ -12,9 +12,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "installer", "installer", "{
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomActions", "installer\CustomActions\CustomActions.csproj", "{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}"
 EndProject
-Project("{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}") = "VirtualDofMatrix.Msi", "installer\VirtualDofMatrix.Setup\VirtualDofMatrix.Msi.wixproj", "{0BADEE7C-7003-4ECD-99A0-4BC512E5C127}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Msi", "installer\VirtualDofMatrix.Setup\VirtualDofMatrix.Msi.csproj", "{FADC8198-208E-40EE-8753-A7E7153BC791}"
 EndProject
-Project("{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}") = "VirtualDofMatrix.Bundle", "installer\VirtualDofMatrix.Setup\VirtualDofMatrix.Bundle.wixproj", "{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Bundle", "installer\VirtualDofMatrix.Setup\VirtualDofMatrix.Bundle.csproj", "{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,18 +38,18 @@ Global
 		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0BADEE7C-7003-4ECD-99A0-4BC512E5C127}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0BADEE7C-7003-4ECD-99A0-4BC512E5C127}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0BADEE7C-7003-4ECD-99A0-4BC512E5C127}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0BADEE7C-7003-4ECD-99A0-4BC512E5C127}.Release|Any CPU.Build.0 = Release|Any CPU
-		{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FADC8198-208E-40EE-8753-A7E7153BC791}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FADC8198-208E-40EE-8753-A7E7153BC791}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FADC8198-208E-40EE-8753-A7E7153BC791}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FADC8198-208E-40EE-8753-A7E7153BC791}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
-		{0BADEE7C-7003-4ECD-99A0-4BC512E5C127} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
-		{052AB51E-8A76-45CD-AC66-2ECD0AA96A0B} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
+		{FADC8198-208E-40EE-8753-A7E7153BC791} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
+		{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
 	EndGlobalSection
 EndGlobal
