@@ -273,7 +273,7 @@ jobs:
             throw "Publish directory not found for installer packaging: $publishDir"
           }
 
-          # Build Burn bundle from already-published app payload so setup.exe always matches release bits.
+          # Build Burn bundle from already-published app payload so VirtualDofMatrixInstaller.exe always matches release bits.
           dotnet build installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Bundle.csproj `
             -c Release `
             /p:Version=${{ steps.version.outputs.version }} `
@@ -282,8 +282,8 @@ jobs:
             throw "Installer bundle build failed."
           }
 
-          # WiX SDK can place bundle output under framework/platform subfolders; discover setup.exe dynamically.
-          $bundlePath = Get-ChildItem -Path "installer/VirtualDofMatrix.Setup/bin" -Filter "setup.exe" -Recurse -File |
+          # WiX SDK can place bundle output under framework/platform subfolders; discover VirtualDofMatrixInstaller.exe dynamically.
+          $bundlePath = Get-ChildItem -Path "installer/VirtualDofMatrix.Setup/bin" -Filter "VirtualDofMatrixInstaller.exe" -Recurse -File |
             Sort-Object LastWriteTimeUtc -Descending |
             Select-Object -First 1 -ExpandProperty FullName
 
