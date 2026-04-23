@@ -18,6 +18,5 @@
     <!-- Keep elevated custom actions wired so installer privileges can be expanded without changing MSI plumbing. -->
     <ProjectReference Include="..\CustomActions\CustomActions.csproj" Name="CustomActions" />
     <Compile Include="Product.wxs" />
-    <WixExtension Include="WixToolset.UI.wixext" />
   </ItemGroup>
 </Project>

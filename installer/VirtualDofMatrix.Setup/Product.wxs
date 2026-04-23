@@ -13,7 +13,6 @@
     <MediaTemplate />
 
     <!-- ARP metadata: name/publisher/version come from Package attributes above; extra fields are explicit here. -->
-    <Property Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" />
     <Property Id="ARPCOMMENTS" Value="Virtual DOF Matrix emulator/viewer for DOF serial output." />
 
     <!-- Install root defaults to Program Files and is exposed through the WixUI_InstallDir dialog set. -->
@@ -27,7 +26,7 @@
 
     <!-- Harvest published app artifacts; CI passes InstallerAppPublishDir to package release-ready binaries. -->
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
-      <Files Include="$(var.AppPublishDir)**" Exclude="$(var.AppPublishDir)**\*.pdb" />
+      <Files Include="$(var.AppPublishDir)**" />
     </ComponentGroup>
 
     <!-- Provide install-directory selection UI in MSI. -->

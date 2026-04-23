@@ -17,6 +17,5 @@
   <ItemGroup>
     <ProjectReference Include="VirtualDofMatrix.Msi.csproj" Name="VirtualDofMatrixMsi" />
     <Compile Include="Bundle.wxs" />
-    <WixExtension Include="WixToolset.BootstrapperApplications.wixext" />
   </ItemGroup>
 </Project>
