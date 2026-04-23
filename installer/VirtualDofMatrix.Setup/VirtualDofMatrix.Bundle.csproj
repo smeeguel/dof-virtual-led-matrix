@@ -5,12 +5,18 @@
     <Platform>x64</Platform>
     <Cultures>en-US</Cultures>
     <OutputName>setup</OutputName>
-    <DefineConstants>ProductVersion=1.0.0</DefineConstants>
+    <Version>0.1.0</Version>
+    <DefineConstants>ProductVersion=$(Version);ProductName=Virtual DOF Matrix;Manufacturer=Virtual DOF Matrix</DefineConstants>
     <EnableDefaultItems>false</EnableDefaultItems>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="WixToolset.BootstrapperApplications.wixext" Version="4.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="VirtualDofMatrix.Msi.csproj" Name="VirtualDofMatrixMsi" />
     <Compile Include="Bundle.wxs" />
+    <WixExtension Include="WixToolset.BootstrapperApplications.wixext" />
   </ItemGroup>
 </Project>

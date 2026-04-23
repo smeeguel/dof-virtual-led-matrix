@@ -1,7 +1,8 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
-    Name="Virtual DOF Matrix"
-    Manufacturer="Virtual DOF Matrix"
+    Name="$(var.ProductName)"
+    Manufacturer="$(var.Manufacturer)"
     Version="$(var.ProductVersion)"
     UpgradeCode="C817B8D6-BF5E-460B-8F7F-6EB79BB66D31"
     Scope="perMachine"
@@ -11,21 +12,25 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of Virtual DOF Matrix is already installed." />
     <MediaTemplate />
 
-    <!-- Minimal install footprint so the MSI can be introduced without changing existing ZIP release flow yet. -->
-    <ComponentGroup Id="InstallerMarkerComponents" Directory="ProgramFiles64Folder">
-      <Component Id="InstallMarker" Guid="*">
-        <RegistryValue
-          Root="HKLM"
-          Key="Software\VirtualDofMatrix"
-          Name="Installed"
-          Type="integer"
-          Value="1"
-          KeyPath="yes" />
-      </Component>
+    <!-- ARP metadata: name/publisher/version come from Package attributes above; extra fields are explicit here. -->
+    <Property Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" />
+    <Property Id="ARPCOMMENTS" Value="Virtual DOF Matrix emulator/viewer for DOF serial output." />
+
+    <!-- Install root defaults to Program Files and is exposed through the WixUI_InstallDir dialog set. -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="VirtualDofMatrix" />
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+    </Feature>
+
+    <!-- Harvest all app build artifacts needed to run VirtualDofMatrix.App from the referenced project output. -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.VirtualDofMatrixApp.TargetDir)**" Exclude="$(var.VirtualDofMatrixApp.TargetDir)**\*.pdb" />
     </ComponentGroup>
 
-    <Feature Id="MainFeature" Title="Virtual DOF Matrix" Level="1">
-      <ComponentGroupRef Id="InstallerMarkerComponents" />
-    </Feature>
+    <!-- Provide install-directory selection UI in MSI. -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
   </Package>
 </Wix>

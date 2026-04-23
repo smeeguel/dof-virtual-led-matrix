@@ -4,12 +4,20 @@
     <TargetFramework>net8.0</TargetFramework>
     <Platform>x64</Platform>
     <Cultures>en-US</Cultures>
-    <DefineConstants>ProductVersion=1.0.0</DefineConstants>
+    <Version>0.1.0</Version>
+    <DefineConstants>ProductVersion=$(Version);ProductName=Virtual DOF Matrix;Manufacturer=Virtual DOF Matrix</DefineConstants>
     <EnableDefaultItems>false</EnableDefaultItems>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CustomActions\CustomActions.csproj" />
+    <PackageReference Include="WixToolset.UI.wixext" Version="4.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Build app output before MSI authoring so required runtime files can be harvested into INSTALLFOLDER. -->
+    <ProjectReference Include="..\..\src\VirtualDofMatrix.App\VirtualDofMatrix.App.csproj" Name="VirtualDofMatrixApp" />
+    <ProjectReference Include="..\CustomActions\CustomActions.csproj" Name="CustomActions" />
     <Compile Include="Product.wxs" />
+    <WixExtension Include="WixToolset.UI.wixext" />
   </ItemGroup>
 </Project>

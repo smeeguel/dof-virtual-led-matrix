@@ -1,13 +1,18 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle
-    Name="Virtual DOF Matrix"
-    Manufacturer="Virtual DOF Matrix"
+    Name="$(var.ProductName)"
+    Manufacturer="$(var.Manufacturer)"
     Version="$(var.ProductVersion)"
     UpgradeCode="E01E4CCA-D4FC-4576-BA9C-E3894127B40E">
 
-    <!-- Keep bundle UX minimal while wiring the MSI/Burn path during packaging transition. -->
+    <!-- Burn provides setup.exe UX and binds the EULA from the repository root. -->
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseFile="..\..\EULA.txt" />
+    </BootstrapperApplication>
+
     <Chain>
-      <MsiPackage SourceFile="..\VirtualDofMatrix.Setup\bin\$(var.Configuration)\VirtualDofMatrix.Msi.msi" DisplayInternalUI="no" />
+      <MsiPackage SourceFile="$(var.VirtualDofMatrixMsi.TargetPath)" DisplayInternalUI="no" />
     </Chain>
   </Bundle>
 </Wix>
