@@ -284,7 +284,7 @@ jobs:
           }
 
           # WiX SDK may emit under architecture/configuration folders; discover the newest MSI dynamically.
-          $msiPath = Get-ChildItem -Path "installer/VirtualDofMatrix.Setup/bin" -Filter "VirtualDofMatrix.Msi.msi" -Recurse -File |
+          $msiPath = Get-ChildItem -Path "installer/VirtualDofMatrix.Setup/bin" -Filter "VirtualDOFMatrixSetup.msi" -Recurse -File |
             Sort-Object LastWriteTimeUtc -Descending |
             Select-Object -First 1 -ExpandProperty FullName
 

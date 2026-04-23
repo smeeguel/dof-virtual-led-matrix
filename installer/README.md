@@ -24,7 +24,7 @@ dotnet build installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Msi.csproj `
 
 ## Expected artifacts
 
-- MSI: `installer/VirtualDofMatrix.Setup/bin/<Configuration>/VirtualDofMatrix.Msi.msi` (single-file MSI; cabinets are embedded)
+- MSI: `installer/VirtualDofMatrix.Setup/bin/<Configuration>/VirtualDOFMatrixSetup.msi` (single-file MSI; cabinets are embedded)
 - Bundle EXE (optional/local only): depends on local Burn configuration
 - Custom actions: `installer/CustomActions/bin/<Configuration>/net8.0-windows/`
 
