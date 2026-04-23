@@ -24,7 +24,7 @@ dotnet build installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Msi.csproj `
 
 ## Expected artifacts
 
-- MSI: `installer/VirtualDofMatrix.Setup/bin/<Configuration>/VirtualDofMatrix.Msi.msi`
+- MSI: `installer/VirtualDofMatrix.Setup/bin/<Configuration>/VirtualDofMatrix.Msi.msi` (single-file MSI; cabinets are embedded)
 - Bundle EXE (optional/local only): depends on local Burn configuration
 - Custom actions: `installer/CustomActions/bin/<Configuration>/net8.0-windows/`
 
@@ -33,3 +33,4 @@ dotnet build installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Msi.csproj `
 - GitHub release packaging now publishes the MSI directly as the installer artifact and keeps the ZIP package flow unchanged.
 - Install the **WiX Toolset Visual Studio 2022/2026 extension** so Visual Studio can load WiX SDK projects.
 - WiX MSBuild SDK version is pinned in repository `global.json` (`WixToolset.Sdk` 6.0.2) so Visual Studio and `dotnet` resolve the same installer SDK without forcing a specific .NET SDK feature band.
+- The MSI license dialog is sourced from `installer/VirtualDofMatrix.Setup/Eula.rtf`, which mirrors the project `EULA.txt` text for installer UI compatibility.
