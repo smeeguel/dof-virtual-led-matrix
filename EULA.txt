@@ -1,0 +1,141 @@
+Virtual DOF Matrix – End User License Agreement (EULA)
+
+Last updated: April 2026
+
+---
+
+1. Acceptance
+
+By installing or using Virtual DOF Matrix (“the Software”), you agree to this agreement.
+If you do not agree, do not install or use the Software.
+
+---
+
+2. License Grant
+
+You are granted a free, non-exclusive, non-transferable license to use the Software for personal or non-commercial purposes.
+
+You may:
+
+* Use the Software on your own systems
+* Share the original, unmodified distribution package
+
+You may not:
+
+* Sell the Software
+* Redistribute modified versions under the same name without permission
+* Claim authorship of the Software
+
+---
+
+3. Open Source Components
+
+The Software may include components licensed under the MIT License.
+Those components remain governed by their respective licenses.
+
+---
+
+4. Third-Party Dependencies
+
+This Software interacts with third-party tools including:
+
+* DirectOutput Framework (DOF)
+* Visual Pinball X (VPX)
+* PinUP Popper
+
+These are not owned or controlled by the author.
+
+The Software may also rely on user-provided or community-created content such as:
+
+* DOF configuration files
+* ROM mappings
+* Community GIF / MX animations
+
+These assets are not distributed with the Software unless explicitly stated.
+
+---
+
+5. No Warranty
+
+The Software is provided “AS IS”, without warranty of any kind.
+
+The author does not guarantee:
+
+* Compatibility with all systems or cabinet setups
+* Stability or uninterrupted operation
+* Correct behavior across all DOF configurations
+
+---
+
+6. Limitation of Liability
+
+To the maximum extent permitted by law, the author is not liable for:
+
+* System or hardware damage
+* Corruption of DOF, VPX, or configuration files
+* Data loss
+* Any indirect or consequential damages
+
+Use the Software at your own risk.
+
+---
+
+7. Configuration and System Changes
+
+The Software may:
+
+* Read or modify configuration files (e.g., Cabinet.xml, settings.json)
+* Communicate via named pipes or COM ports
+* Persist runtime settings
+
+You are responsible for maintaining backups of your system and configuration files.
+
+---
+
+8. Community Content Disclaimer
+
+Some features depend on community-created content (e.g., MX GIF animations).
+
+These:
+
+* Are not owned by the author
+* Are not included in this distribution
+* Must be obtained separately via official tools
+
+---
+
+9. No Telemetry
+
+The Software does not collect, transmit, or store personal data externally.
+Any logs generated remain local to your machine.
+
+---
+
+10. Support and Updates
+
+The Software is provided without any obligation of support.
+
+The author may update or discontinue the Software at any time.
+
+---
+
+11. Branding
+
+You may not redistribute modified versions of this Software using the name
+“Virtual DOF Matrix” or similar branding without permission.
+
+---
+
+12. Termination
+
+This license terminates automatically if you violate these terms.
+
+---
+
+13. Governing Law
+
+This agreement is governed by the laws of the author’s jurisdiction.
+
+---
+
+By installing or using this Software, you acknowledge that you have read and agree to this agreement.
