@@ -1,0 +1,36 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+    Name="$(var.ProductName)"
+    Manufacturer="$(var.Manufacturer)"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="C817B8D6-BF5E-460B-8F7F-6EB79BB66D31"
+    Scope="perMachine"
+    Language="1033">
+
+    <SummaryInformation Description="Virtual DOF Matrix installer" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Virtual DOF Matrix is already installed." />
+    <MediaTemplate />
+
+    <!-- ARP metadata: name/publisher/version come from Package attributes above; extra fields are explicit here. -->
+    <Property Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" />
+    <Property Id="ARPCOMMENTS" Value="Virtual DOF Matrix emulator/viewer for DOF serial output." />
+
+    <!-- Install root defaults to Program Files and is exposed through the WixUI_InstallDir dialog set. -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="VirtualDofMatrix" />
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+    </Feature>
+
+    <!-- Harvest published app artifacts; CI passes InstallerAppPublishDir to package release-ready binaries. -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.AppPublishDir)**" Exclude="$(var.AppPublishDir)**\*.pdb" />
+    </ComponentGroup>
+
+    <!-- Provide install-directory selection UI in MSI. -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+  </Package>
+</Wix>
