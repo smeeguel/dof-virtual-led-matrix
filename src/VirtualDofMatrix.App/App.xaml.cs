@@ -884,15 +884,63 @@ public partial class App : System.Windows.Application
 
     private static string ResolveConfigFilePath()
     {
-        // Note: single-file publishes can leave Assembly.Location blank, so we anchor to BaseDirectory first.
+        // Note: app settings/toys.ini live in a writable per-user profile path so Program Files installs do not fail.
+        var configRoot = ResolveWritableConfigRoot();
+        Directory.CreateDirectory(configRoot);
+
+        var settingsPath = Path.GetFullPath(Path.Combine(configRoot, ConfigFileName));
+        if (File.Exists(settingsPath))
+        {
+            return settingsPath;
+        }
+
+        // Migration safety: if a legacy settings.json/toys.ini exists beside the EXE, copy once into the writable profile root.
+        // If this copy fails we silently continue and let defaults bootstrap in the writable location.
+        TryMigrateLegacyConfigFiles(configRoot);
+        return settingsPath;
+    }
+
+    private static string ResolveWritableConfigRoot()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localAppData))
+        {
+            return Path.Combine(localAppData, "VirtualDofMatrix");
+        }
+
+        // Safety fallback for unusual environments where LocalApplicationData is unavailable.
+        return Path.Combine(Path.GetTempPath(), "VirtualDofMatrix");
+    }
+
+    private static void TryMigrateLegacyConfigFiles(string writableConfigRoot)
+    {
         var baseDirectory = AppContext.BaseDirectory;
         if (string.IsNullOrWhiteSpace(baseDirectory))
         {
-            // Note: this guard mostly helps unusual host/test environments where BaseDirectory is unexpectedly empty.
-            baseDirectory = Environment.CurrentDirectory;
+            return;
         }
 
-        return Path.GetFullPath(Path.Combine(baseDirectory, ConfigFileName));
+        TryCopyLegacyFile(baseDirectory, writableConfigRoot, ConfigFileName);
+        TryCopyLegacyFile(baseDirectory, writableConfigRoot, "toys.ini");
+    }
+
+    private static void TryCopyLegacyFile(string sourceRoot, string destinationRoot, string fileName)
+    {
+        var sourcePath = Path.Combine(sourceRoot, fileName);
+        var destinationPath = Path.Combine(destinationRoot, fileName);
+        if (!File.Exists(sourcePath) || File.Exists(destinationPath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Copy(sourcePath, destinationPath);
+        }
+        catch
+        {
+            // Ignore migration copy failures so first-run bootstrap can still create writable defaults.
+        }
     }
 
     private static bool HasArg(string[] args, string expected)
