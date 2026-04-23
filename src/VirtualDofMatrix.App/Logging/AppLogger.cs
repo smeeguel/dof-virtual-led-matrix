@@ -8,14 +8,33 @@ internal static class AppLogger
 {
     private static readonly object Gate = new();
     private static bool _enabled;
-    private static string _logFilePath = Path.Combine(AppContext.BaseDirectory, "debug.log");
+    private static string _logFilePath = BuildLogFilePath();
+
+    // Note: logs now live under a per-user writable profile location to avoid write failures under Program Files.
+    // Legacy debug.log files beside the executable are intentionally ignored from this point forward.
+    private static string GetWritableLogRoot()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localAppData))
+        {
+            return Path.Combine(localAppData, "VirtualDofMatrix", "Logs");
+        }
+
+        // Safety fallback for unusual environments where LocalApplicationData is unavailable.
+        return Path.Combine(Path.GetTempPath(), "VirtualDofMatrix", "Logs");
+    }
+
+    private static string BuildLogFilePath()
+    {
+        return Path.Combine(GetWritableLogRoot(), "debug.log");
+    }
 
     public static void ClearForNewLaunch()
     {
         lock (Gate)
         {
-            _logFilePath = Path.Combine(AppContext.BaseDirectory, "debug.log");
-            Directory.CreateDirectory(Path.GetDirectoryName(_logFilePath) ?? AppContext.BaseDirectory);
+            _logFilePath = BuildLogFilePath();
+            Directory.CreateDirectory(Path.GetDirectoryName(_logFilePath) ?? GetWritableLogRoot());
 
             // Note: we wipe the prior session so each app launch starts with a clean debug.log.
             File.WriteAllText(_logFilePath, string.Empty, Encoding.UTF8);
@@ -27,7 +46,7 @@ internal static class AppLogger
         lock (Gate)
         {
             _enabled = enabled;
-            _logFilePath = Path.Combine(AppContext.BaseDirectory, "debug.log");
+            _logFilePath = BuildLogFilePath();
             if (!_enabled)
             {
                 return;
@@ -82,7 +101,7 @@ internal static class AppLogger
 
     private static void AppendLine(string line)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_logFilePath) ?? AppContext.BaseDirectory);
+        Directory.CreateDirectory(Path.GetDirectoryName(_logFilePath) ?? GetWritableLogRoot());
         File.AppendAllText(_logFilePath, line + Environment.NewLine, Encoding.UTF8);
     }
 }

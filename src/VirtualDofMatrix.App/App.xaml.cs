@@ -41,86 +41,97 @@ public partial class App : System.Windows.Application
 
     public App()
     {
+        // Note: register global crash handlers early so startup exceptions are surfaced instead of failing silently.
+        RegisterGlobalExceptionHandlers();
+
         // Note: pin config lookup to the executable directory so Popper/PinUP working dir changes cannot redirect toys.ini.
         _configFilePath = ResolveConfigFilePath();
     }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
-
-        // Start each launch from a predictable baseline so logs/config-backed defaults are deterministic.
-        AppLogger.ClearForNewLaunch();
-        _config = _configurationStore.Load(_configFilePath);
-        AppLogger.Configure(_config.Debug.LogProtocol);
-        _startupConfigStatus = _configFolderBootstrapService.ResolveAndPersist(_config);
-        _activeTableOrRomName = ResolveActiveTableOrRomName(e.Args);
-        RefreshActiveScopeRoutingAndVisibility();
-        _configurationStore.Save(_configFilePath, _config);
-
-        if (TryHandleControlClientMode(e.Args, _config))
+        try
         {
-            Shutdown();
-            return;
+            base.OnStartup(e);
+
+            // Start each launch from a predictable baseline so logs/config-backed defaults are deterministic.
+            AppLogger.ClearForNewLaunch();
+            _config = _configurationStore.Load(_configFilePath);
+            AppLogger.Configure(_config.Debug.LogProtocol);
+            _startupConfigStatus = _configFolderBootstrapService.ResolveAndPersist(_config);
+            _activeTableOrRomName = ResolveActiveTableOrRomName(e.Args);
+            RefreshActiveScopeRoutingAndVisibility();
+            _configurationStore.Save(_configFilePath, _config);
+
+            if (TryHandleControlClientMode(e.Args, _config))
+            {
+                Shutdown();
+                return;
+            }
+
+            _window = new MainWindow(_config, _startupConfigStatus)
+            {
+                DataContext = _config,
+            };
+
+            _window.SettingsRequested += (_, _) => ShowSettingsDialog();
+            _window.ExitRequested += (_, _) => Shutdown();
+
+            _windowSettingsSaveTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(250),
+            };
+            _windowSettingsSaveTimer.Tick += (_, _) =>
+            {
+                _windowSettingsSaveTimer.Stop();
+                PersistWindowSettings();
+            };
+
+            _window.LocationChanged += (_, _) => ScheduleWindowSettingsPersist();
+            _window.SizeChanged += (_, _) => ScheduleWindowSettingsPersist();
+            _window.Closing += (_, _) => PersistWindowSettings();
+
+            var routingPlanProvider = new ConfigRoutingPlanProvider(_config);
+            var toyRouter = new ToyRouter(_config.Routing.Policy);
+            _broadcastAdapter = new NamedPipeBroadcastAdapter(_config);
+            _windowOutputAdapter = new WpfWindowOutputAdapter(
+                Dispatcher,
+                _config,
+                _window,
+                PersistWindowSettings,
+                ShowSettingsDialog,
+                Shutdown,
+                toyId => _settingsWindow?.SelectToy(toyId),
+                OpenToyEditorFromWindow,
+                () => _config.Routing.ActiveTableOverrideKey);
+            var outputAdapters = new List<IOutputAdapter>
+            {
+                _windowOutputAdapter,
+                _broadcastAdapter,
+            };
+
+            _transportHost = new FrameTransportHost(_config, toyRouter, routingPlanProvider, outputAdapters);
+            _transportHost.TableContextMetadataReceived += OnTableContextMetadataReceived;
+
+            await _transportHost.StartAsync();
+            StartControlServer(_config);
+
+            MainWindow = _window;
+            _isAppReady = true;
+
+            var visibleOnStartup = ResolveInitialVisibility(e.Args);
+            SetMatrixVisibility(visibleOnStartup, "startup");
+            if (visibleOnStartup)
+            {
+                // Note: startup visibility control shows MainWindow for global "show" state, but per-toy
+                // enabled flags still decide which toy windows should actually remain visible.
+                _windowOutputAdapter?.SyncVisibilityFromConfig();
+            }
         }
-
-        _window = new MainWindow(_config, _startupConfigStatus)
+        catch (Exception ex)
         {
-            DataContext = _config,
-        };
-
-        _window.SettingsRequested += (_, _) => ShowSettingsDialog();
-        _window.ExitRequested += (_, _) => Shutdown();
-
-        _windowSettingsSaveTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(250),
-        };
-        _windowSettingsSaveTimer.Tick += (_, _) =>
-        {
-            _windowSettingsSaveTimer.Stop();
-            PersistWindowSettings();
-        };
-
-        _window.LocationChanged += (_, _) => ScheduleWindowSettingsPersist();
-        _window.SizeChanged += (_, _) => ScheduleWindowSettingsPersist();
-        _window.Closing += (_, _) => PersistWindowSettings();
-
-        var routingPlanProvider = new ConfigRoutingPlanProvider(_config);
-        var toyRouter = new ToyRouter(_config.Routing.Policy);
-        _broadcastAdapter = new NamedPipeBroadcastAdapter(_config);
-        _windowOutputAdapter = new WpfWindowOutputAdapter(
-            Dispatcher,
-            _config,
-            _window,
-            PersistWindowSettings,
-            ShowSettingsDialog,
-            Shutdown,
-            toyId => _settingsWindow?.SelectToy(toyId),
-            OpenToyEditorFromWindow,
-            () => _config.Routing.ActiveTableOverrideKey);
-        var outputAdapters = new List<IOutputAdapter>
-        {
-            _windowOutputAdapter,
-            _broadcastAdapter,
-        };
-
-        _transportHost = new FrameTransportHost(_config, toyRouter, routingPlanProvider, outputAdapters);
-        _transportHost.TableContextMetadataReceived += OnTableContextMetadataReceived;
-
-        await _transportHost.StartAsync();
-        StartControlServer(_config);
-
-        MainWindow = _window;
-        _isAppReady = true;
-
-        var visibleOnStartup = ResolveInitialVisibility(e.Args);
-        SetMatrixVisibility(visibleOnStartup, "startup");
-        if (visibleOnStartup)
-        {
-            // Note: startup visibility control shows MainWindow for global "show" state, but per-toy
-            // enabled flags still decide which toy windows should actually remain visible.
-            _windowOutputAdapter?.SyncVisibilityFromConfig();
+            ReportFatalException("A startup error prevented Virtual DOF Matrix from launching.", ex);
+            Shutdown(-1);
         }
     }
 
@@ -155,6 +166,80 @@ public partial class App : System.Windows.Application
         _broadcastAdapter = null;
 
         base.OnExit(e);
+    }
+
+    private void RegisterGlobalExceptionHandlers()
+    {
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnCurrentDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
+
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        ReportFatalException("An unexpected UI error occurred.", e.Exception);
+        e.Handled = true;
+        Shutdown(-1);
+    }
+
+    private void OnCurrentDomainUnhandledException(object? sender, UnhandledExceptionEventArgs e)
+    {
+        var exception = e.ExceptionObject as Exception
+            ?? new InvalidOperationException($"Unhandled non-exception object: {e.ExceptionObject}");
+        ReportFatalException("A fatal runtime error occurred.", exception);
+    }
+
+    private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        ReportFatalException("An unobserved background task error occurred.", e.Exception);
+        e.SetObserved();
+    }
+
+    private void ReportFatalException(string headline, Exception exception)
+    {
+        // Note: crash diagnostics are duplicated into a dedicated startup-crash log file as a fallback signal.
+        var details = $"{headline}{Environment.NewLine}{Environment.NewLine}{exception}";
+
+        try
+        {
+            AppLogger.Error(details);
+        }
+        catch
+        {
+            // Ignore logger failures and continue with crash-log fallback.
+        }
+
+        try
+        {
+            var logFilePath = AppLogger.GetLogFilePath();
+            var logDirectory = Path.GetDirectoryName(logFilePath);
+            if (string.IsNullOrWhiteSpace(logDirectory))
+            {
+                logDirectory = Path.Combine(Path.GetTempPath(), "VirtualDofMatrix", "Logs");
+            }
+
+            Directory.CreateDirectory(logDirectory);
+            var crashLogPath = Path.Combine(logDirectory, "startup-crash.log");
+            var crashEntry = $"[{DateTimeOffset.UtcNow:O}] {details}{Environment.NewLine}{Environment.NewLine}";
+            File.AppendAllText(crashLogPath, crashEntry, Encoding.UTF8);
+        }
+        catch
+        {
+            // If crash logging fails we still want to show the user-facing error message below.
+        }
+
+        try
+        {
+            WpfMessageBox.Show(
+                details,
+                "Virtual DOF Matrix - Startup Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        catch
+        {
+            // In rare shutdown edge-cases MessageBox can fail; nothing else to do.
+        }
     }
 
     private void ShowSettingsDialog()
@@ -799,15 +884,63 @@ public partial class App : System.Windows.Application
 
     private static string ResolveConfigFilePath()
     {
-        // Note: single-file publishes can leave Assembly.Location blank, so we anchor to BaseDirectory first.
+        // Note: app settings/toys.ini live in a writable per-user profile path so Program Files installs do not fail.
+        var configRoot = ResolveWritableConfigRoot();
+        Directory.CreateDirectory(configRoot);
+
+        var settingsPath = Path.GetFullPath(Path.Combine(configRoot, ConfigFileName));
+        if (File.Exists(settingsPath))
+        {
+            return settingsPath;
+        }
+
+        // Migration safety: if a legacy settings.json/toys.ini exists beside the EXE, copy once into the writable profile root.
+        // If this copy fails we silently continue and let defaults bootstrap in the writable location.
+        TryMigrateLegacyConfigFiles(configRoot);
+        return settingsPath;
+    }
+
+    private static string ResolveWritableConfigRoot()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localAppData))
+        {
+            return Path.Combine(localAppData, "VirtualDofMatrix");
+        }
+
+        // Safety fallback for unusual environments where LocalApplicationData is unavailable.
+        return Path.Combine(Path.GetTempPath(), "VirtualDofMatrix");
+    }
+
+    private static void TryMigrateLegacyConfigFiles(string writableConfigRoot)
+    {
         var baseDirectory = AppContext.BaseDirectory;
         if (string.IsNullOrWhiteSpace(baseDirectory))
         {
-            // Note: this guard mostly helps unusual host/test environments where BaseDirectory is unexpectedly empty.
-            baseDirectory = Environment.CurrentDirectory;
+            return;
         }
 
-        return Path.GetFullPath(Path.Combine(baseDirectory, ConfigFileName));
+        TryCopyLegacyFile(baseDirectory, writableConfigRoot, ConfigFileName);
+        TryCopyLegacyFile(baseDirectory, writableConfigRoot, "toys.ini");
+    }
+
+    private static void TryCopyLegacyFile(string sourceRoot, string destinationRoot, string fileName)
+    {
+        var sourcePath = Path.Combine(sourceRoot, fileName);
+        var destinationPath = Path.Combine(destinationRoot, fileName);
+        if (!File.Exists(sourcePath) || File.Exists(destinationPath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Copy(sourcePath, destinationPath);
+        }
+        catch
+        {
+            // Ignore migration copy failures so first-run bootstrap can still create writable defaults.
+        }
     }
 
     private static bool HasArg(string[] args, string expected)
