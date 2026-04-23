@@ -10,7 +10,11 @@
     <!-- WiX v6 hyperlinkLicense theme requires WixStdbaLicenseUrl to be explicitly defined. -->
     <WixVariable Id="WixStdbaLicenseUrl" Value="https://raw.githubusercontent.com/jsm174/dof-virtual-led-matrix/main/EULA.txt" />
     <BootstrapperApplication>
-      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseFile="..\..\EULA.txt" />
+      <!-- Expose the default-checked launch option on the final screen so users can open the app immediately. -->
+      <bal:WixStandardBootstrapperApplication
+        Theme="hyperlinkLicense"
+        LicenseFile="..\..\EULA.txt"
+        LaunchTarget="[INSTALLFOLDER]VirtualDofMatrix.App.exe" />
     </BootstrapperApplication>
 
     <Chain>

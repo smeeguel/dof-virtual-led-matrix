@@ -15,6 +15,9 @@
 
     <!-- ARP metadata: name/publisher/version come from Package attributes above; extra fields are explicit here. -->
     <Property Id="ARPCOMMENTS" Value="Virtual DOF Matrix emulator/viewer for DOF serial output." />
+    <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
 
     <!-- Install root defaults to Program Files and is exposed through the WixUI_InstallDir dialog set. -->
     <StandardDirectory Id="ProgramFiles64Folder">
@@ -34,5 +37,23 @@
     <!-- Bind the MSI license dialog to the repository EULA content instead of the WiX placeholder lorem ipsum. -->
     <WixVariable Id="WixUILicenseRtf" Value="Eula.rtf" />
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <CustomAction
+      Id="LaunchInstalledApp"
+      BinaryRef="Wix4UtilCA_X64"
+      DllEntry="WixShellExec"
+      Impersonate="yes" />
+    <!-- Resolve the executable path at runtime so WixShellExecTarget does not contain a static [INSTALLFOLDER] reference. -->
+    <SetProperty
+      Id="WixShellExecTarget"
+      Value="[INSTALLFOLDER]VirtualDofMatrix.App.exe"
+      Before="LaunchInstalledApp"
+      Sequence="ui" />
+    <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
+    <ui:Publish
+      Dialog="ExitDialog"
+      Control="Finish"
+      Event="DoAction"
+      Value="LaunchInstalledApp"
+      Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
   </Package>
 </Wix>
