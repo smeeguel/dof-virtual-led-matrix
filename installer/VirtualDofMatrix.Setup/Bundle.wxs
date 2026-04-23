@@ -12,7 +12,7 @@
     </BootstrapperApplication>
 
     <Chain>
-      <MsiPackage SourceFile="$(var.VirtualDofMatrixMsi.TargetPath)" DisplayInternalUI="no" />
+      <MsiPackage SourceFile="$(var.VirtualDofMatrixMsi.TargetPath)" />
     </Chain>
   </Bundle>
 </Wix>
