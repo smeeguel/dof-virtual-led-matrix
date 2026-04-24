@@ -131,8 +131,8 @@ public static class CustomActionEntrypoints
             EnsureDirectoryExists(dofRootPath, session, "DOF root destination");
 
             var templateDirectoryName = ResolveTemplateDirectoryName(toyTemplate);
-            var templateSourceFolder = Path.Combine(Path.Combine(installFolder, "DOF"), Path.Combine("Config\\templates", templateDirectoryName));
-            var sourceDofRoot = Path.Combine(installFolder, "DOF");
+            var sourceDofRoot = ResolveDofPayloadRoot(installFolder, session);
+            var templateSourceFolder = Path.Combine(sourceDofRoot, Path.Combine("Config\\templates", templateDirectoryName));
 
             session.Log("Resolved template source folder: '{0}'.", templateSourceFolder);
             session.Log("Resolved DOF payload source root: '{0}'.", sourceDofRoot);
@@ -291,6 +291,28 @@ public static class CustomActionEntrypoints
 
         Directory.CreateDirectory(path);
         session.Log("Ensured {0} exists at '{1}'.", description, path);
+    }
+
+    private static string ResolveDofPayloadRoot(string installFolder, Session session)
+    {
+        // Some WiX harvest layouts preserve a top-level "DOF" folder while others place "Config/x64/x86"
+        // directly under INSTALLFOLDER. Probe both shapes so runtime copy logic is resilient across packaging modes.
+        var payloadRootWithDofFolder = Path.Combine(installFolder, "DOF");
+        if (Directory.Exists(payloadRootWithDofFolder))
+        {
+            session.Log("Using DOF payload root with explicit folder: '{0}'.", payloadRootWithDofFolder);
+            return payloadRootWithDofFolder;
+        }
+
+        var flatPayloadConfigFolder = Path.Combine(installFolder, "Config");
+        if (Directory.Exists(flatPayloadConfigFolder))
+        {
+            session.Log("Using DOF payload root without explicit DOF folder: '{0}'.", installFolder);
+            return installFolder;
+        }
+
+        session.Log("DOF payload root probe failed for INSTALLFOLDER '{0}'.", installFolder);
+        return payloadRootWithDofFolder;
     }
 
     private static string ResolveTemplateDirectoryName(string templateValue)
