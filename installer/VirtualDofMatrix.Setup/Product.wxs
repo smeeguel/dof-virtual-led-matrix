@@ -36,7 +36,18 @@
     <!-- Provide install-directory selection UI in MSI. -->
     <!-- Bind the MSI license dialog to the repository EULA content instead of the WiX placeholder lorem ipsum. -->
     <WixVariable Id="WixUILicenseRtf" Value="Eula.rtf" />
-    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <!-- WiX UI extension wiring lives in ui:WixUI, while button event publishing uses the core Publish element under UI. -->
+    <UI>
+      <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+      <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
+      <Publish
+        Dialog="ExitDialog"
+        Control="Finish"
+        Event="DoAction"
+        Value="LaunchInstalledApp"
+        Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
+
     <CustomAction
       Id="LaunchInstalledApp"
       BinaryRef="Wix4UtilCA_X64"
@@ -48,12 +59,5 @@
       Value="[INSTALLFOLDER]VirtualDofMatrix.App.exe"
       Before="LaunchInstalledApp"
       Sequence="ui" />
-    <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
-    <ui:Publish
-      Dialog="ExitDialog"
-      Control="Finish"
-      Event="DoAction"
-      Value="LaunchInstalledApp"
-      Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
   </Package>
 </Wix>
