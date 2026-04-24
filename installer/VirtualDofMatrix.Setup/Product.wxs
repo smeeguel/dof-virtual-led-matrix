@@ -21,6 +21,8 @@
     <Property Id="BACKUP_PATH" Secure="yes" />
     <Property Id="DOFROOTPATH" Secure="yes" />
     <Property Id="TOY_TEMPLATE" Value="single_matrix" Secure="yes" />
+    <!-- Mirror TOY_TEMPLATE into SecureCustomProperties so deferred actions always receive template selections from UI sequence transitions. -->
+    <Property Id="SecureCustomProperties" Value="DOFCONFIGPATH;BACKUP_ENABLED;BACKUP_PATH;DOFROOTPATH;TOY_TEMPLATE" />
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
@@ -52,6 +54,31 @@
     <UI>
       <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
       <DialogRef Id="BrowseDlg" />
+      <Dialog Id="TemplateSelectDlg" Width="370" Height="270" Title="[ProductName] - Choose LED template">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose LED template" />
+        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="24"
+          Text="Select the virtual LED layout to install into your DOF config." />
+
+        <!-- Keep this picker intentionally simple so the install flow remains InstallDir -> TemplateSelect -> VerifyReady. -->
+        <Control Id="TemplateLabel" Type="Text" X="20" Y="70" Width="330" Height="12" Text="LED template:" />
+        <Control Id="TemplateRadioGroup" Type="RadioButtonGroup" X="20" Y="88" Width="330" Height="68" Property="TOY_TEMPLATE">
+          <RadioButtonGroup Property="TOY_TEMPLATE">
+            <RadioButton Value="single_matrix" X="0" Y="0" Width="320" Height="16" Text="Single matrix" />
+            <RadioButton Value="matrix_plus_3_strips" X="0" Y="24" Width="320" Height="16" Text="Matrix and flasher strips" />
+          </RadioButtonGroup>
+        </Control>
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="InstallDirDlg" Condition="1" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Condition="1" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
+      </Dialog>
+
       <!-- Dialog Title expects plain text or a defined localization string id; do not use undefined WixUI font loc tokens. -->
       <Dialog Id="DofConfigDlg" Width="370" Height="270" Title="[ProductName] - DOF Setup Options">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="DOF setup options" />
@@ -109,7 +136,9 @@
         </Control>
       </Dialog>
 
-      <!-- Keep InstallDirDlg Next on stock WixUI_InstallDir wiring (SetTargetPath + VerifyReadyDlg) to avoid path-selection regressions. -->
+      <!-- Preserve SetTargetPath behavior, then move to TemplateSelectDlg instead of VerifyReadyDlg. -->
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" Condition="1" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="5" Condition="1" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
       <Publish
         Dialog="ExitDialog"
