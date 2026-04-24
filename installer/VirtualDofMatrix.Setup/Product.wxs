@@ -90,9 +90,9 @@
         <Publish Dialog="BrowseDlg" Control="OK" Event="SetTargetPath" Value="[_BrowseProperty]" Order="1" />
         <Publish Dialog="BrowseDlg" Control="OK" Event="EndDialog" Value="Return" Order="2" />
         <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" />
-        <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1" />
+        <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="WIXUI_INSTALLDIR" Order="1" />
         <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2" />
-        <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" />
+        <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="WIXUI_INSTALLDIR" Order="1" />
         <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="2" Condition="NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID &lt;&gt; &quot;1&quot;" />
         <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="3" Condition="WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID = &quot;1&quot;" />
         <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TemplateSelectDlg" Order="1" Condition="NOT Installed" />
