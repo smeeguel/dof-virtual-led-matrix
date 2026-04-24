@@ -34,3 +34,14 @@ dotnet build installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Msi.csproj `
 - Install the **WiX Toolset Visual Studio 2022/2026 extension** so Visual Studio can load WiX SDK projects.
 - WiX MSBuild SDK version is pinned in repository `global.json` (`WixToolset.Sdk` 6.0.2) so Visual Studio and `dotnet` resolve the same installer SDK without forcing a specific .NET SDK feature band.
 - The MSI license dialog is sourced from `installer/VirtualDofMatrix.Setup/Eula.rtf`, which mirrors the project `EULA.txt` text for installer UI compatibility.
+- MSI UI now captures and summarizes the following setup properties before install: `DOFCONFIGPATH`, `BACKUP_ENABLED`, `BACKUP_PATH`, and `TOY_TEMPLATE`.
+- The selected values are staged into deferred custom action data via `SetPersistInstallerSelectionsData` and consumed by `PersistInstallerSelections`.
+
+## WiX authoring safety patterns (FireGiant-backed)
+
+- `Publish` elements should be authored either as:
+  - child elements under `Control`, or
+  - child elements under `UI` with explicit `Dialog` + `Control` attributes.
+- Use `Condition="..."` on `Publish` instead of inner text payloads to avoid schema validation failures in modern WiX toolsets.
+- Dialog `Title` values should be plain strings (or explicit `!(loc.<Id>)` values that are defined in a loaded `.wxl` file). Do not reference undeclared localization ids.
+- If you need localized UI strings, define string ids in your `.wxl` resources and then reference those ids consistently from `.wxs`.
