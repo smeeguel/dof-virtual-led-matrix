@@ -113,7 +113,8 @@
         Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
     </UI>
 
-    <Binary Id="CustomActionBinary" SourceFile="$(var.CustomActions.TargetPath)" />
+    <!-- DTF custom actions must reference the generated *.CA.dll payload, not the plain project output DLL. -->
+    <Binary Id="CustomActionBinary" SourceFile="$(var.CustomActions.TargetDir)VirtualDofMatrix.CustomActions.CA.dll" />
     <CustomAction Id="DetectDofDefaults" BinaryRef="CustomActionBinary" DllEntry="DetectDofDefaults" Execute="immediate" Return="check" />
     <CustomAction Id="PersistInstallerSelections" BinaryRef="CustomActionBinary" DllEntry="PersistInstallerSelections" Execute="deferred" Impersonate="no" Return="check" />
     <CustomAction
