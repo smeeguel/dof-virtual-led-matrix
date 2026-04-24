@@ -1,9 +1,27 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <!-- SfxCA binds CLR v2.0.50727 at runtime, so custom actions must target a CLR2-compatible framework. -->
+    <TargetFramework>net35</TargetFramework>
+    <!-- Force x64 packaging so DTF uses tools/x64/SfxCA.dll instead of x86, matching the x64 MSI package. -->
+    <Platform>x64</Platform>
+    <ImplicitUsings>false</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
     <AssemblyName>VirtualDofMatrix.CustomActions</AssemblyName>
     <RootNamespace>VirtualDofMatrix.CustomActions</RootNamespace>
+    <!-- Emit a DTF custom action payload so WiX can bind this assembly as executable MSI custom actions. -->
+    <GenerateCustomActionPackage>true</GenerateCustomActionPackage>
+    <!-- DTF packaging requires referenced support assemblies (for example WixToolset.Dtf.WindowsInstaller.dll)
+         to be copied to the output folder before MakeSfxCA runs. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net35" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="WixToolset.Dtf.CustomAction" Version="6.0.2" />
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller" Version="6.0.2">
+      <!-- Keep Copy Local explicitly enabled so Visual Studio builds include this DLL in CA support files. -->
+      <Private>true</Private>
+    </PackageReference>
+  </ItemGroup>
 </Project>
