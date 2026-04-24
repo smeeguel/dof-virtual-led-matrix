@@ -34,3 +34,5 @@ dotnet build installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Msi.csproj `
 - Install the **WiX Toolset Visual Studio 2022/2026 extension** so Visual Studio can load WiX SDK projects.
 - WiX MSBuild SDK version is pinned in repository `global.json` (`WixToolset.Sdk` 6.0.2) so Visual Studio and `dotnet` resolve the same installer SDK without forcing a specific .NET SDK feature band.
 - The MSI license dialog is sourced from `installer/VirtualDofMatrix.Setup/Eula.rtf`, which mirrors the project `EULA.txt` text for installer UI compatibility.
+- MSI UI now captures and summarizes the following setup properties before install: `DOFCONFIGPATH`, `BACKUP_ENABLED`, `BACKUP_PATH`, and `TOY_TEMPLATE`.
+- The selected values are staged into deferred custom action data via `SetPersistInstallerSelectionsData` and consumed by `PersistInstallerSelections`.
