@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using WixToolset.Dtf.WindowsInstaller;
 
 namespace VirtualDofMatrix.CustomActions;
@@ -277,8 +278,34 @@ public static class CustomActionEntrypoints
             Directory.CreateDirectory(destinationFolder);
         }
 
-        File.Copy(sourceFile, destinationFile, true);
-        session.Log("Copied {0}: '{1}' -> '{2}'.", description, sourceFile, destinationFile);
+        var attempt = 0;
+        while (true)
+        {
+            attempt++;
+
+            try
+            {
+                File.Copy(sourceFile, destinationFile, true);
+                session.Log("Copied {0}: '{1}' -> '{2}' on attempt {3}.", description, sourceFile, destinationFile, attempt);
+                return;
+            }
+            catch (IOException ex)
+            {
+                if (!IsSharingOrLockViolation(ex))
+                {
+                    throw;
+                }
+
+                session.Log("{0} copy hit a file lock on attempt {1}: {2}", description, attempt, ex.Message);
+
+                // Keep installer open and let the user close locking apps (for example Visual Pinball), then retry.
+                if (!PromptRetryForLockedFile(session, description, destinationFile))
+                {
+                    throw new IOException(string.Format(CultureInfo.InvariantCulture,
+                        "{0} copy was canceled by user after file-lock prompt for '{1}'.", description, destinationFile), ex);
+                }
+            }
+        }
     }
 
     private static void EnsureDirectoryExists(string path, Session session, string description)
@@ -313,6 +340,38 @@ public static class CustomActionEntrypoints
 
         session.Log("DOF payload root probe failed for INSTALLFOLDER '{0}'.", installFolder);
         return payloadRootWithDofFolder;
+    }
+
+    private static bool PromptRetryForLockedFile(Session session, string description, string destinationFile)
+    {
+        try
+        {
+            using (var record = new Record(1))
+            {
+                record[1] = string.Format(CultureInfo.InvariantCulture,
+                    "{0} is in use: {1}\n\nClose apps that may be using DirectOutput (for example Visual Pinball), then click Retry. Click Cancel to abort setup.",
+                    description,
+                    destinationFile);
+
+                // Compose an MSI error message with Retry/Cancel buttons so the installer can continue in-place.
+                var retryCancelErrorMessage = (InstallMessage)((int)InstallMessage.Error | 0x00000005);
+                var result = session.Message(retryCancelErrorMessage, record);
+                session.Log("File-lock prompt result for '{0}': {1}.", destinationFile, result);
+                return result == MessageResult.Retry;
+            }
+        }
+        catch (Exception ex)
+        {
+            session.Log("PromptRetryForLockedFile failed, defaulting to cancel: {0}", ex);
+            return false;
+        }
+    }
+
+    private static bool IsSharingOrLockViolation(IOException exception)
+    {
+        var hResult = Marshal.GetHRForException(exception);
+        var win32ErrorCode = hResult & 0xFFFF;
+        return win32ErrorCode == 32 || win32ErrorCode == 33;
     }
 
     private static string ResolveTemplateDirectoryName(string templateValue)
