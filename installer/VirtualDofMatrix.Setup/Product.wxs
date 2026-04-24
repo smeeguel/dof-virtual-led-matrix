@@ -45,7 +45,8 @@
     <UI>
       <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
       <DialogRef Id="BrowseDlg" />
-      <Dialog Id="DofConfigDlg" Width="370" Height="270" Title="!(loc.WixUI_Font_Title)DOF Setup Options">
+      <!-- Dialog Title expects plain text or a defined localization string id; do not use undefined WixUI font loc tokens. -->
+      <Dialog Id="DofConfigDlg" Width="370" Height="270" Title="[ProductName] - DOF Setup Options">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="DOF setup options" />
         <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="30" Text="Choose your DOF Config folder and installer behavior." />
 
@@ -80,7 +81,7 @@
         </Control>
       </Dialog>
 
-      <Dialog Id="DofSummaryDlg" Width="370" Height="270" Title="!(loc.WixUI_Font_Title)Ready to apply DOF setup">
+      <Dialog Id="DofSummaryDlg" Width="370" Height="270" Title="[ProductName] - Ready to apply DOF setup">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Confirm DOF setup choices" />
         <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="20" Text="Review values before installation starts." />
         <Control Id="SummaryBlock" Type="Text" X="20" Y="50" Width="330" Height="120" NoPrefix="yes"
