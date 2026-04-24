@@ -27,7 +27,7 @@ public static class CustomActionEntrypoints
         // Compute a backup target under the inferred DOF root unless the user already supplied an explicit location.
         if (string.IsNullOrWhiteSpace(session["BACKUP_PATH"]))
         {
-            var dofRoot = ResolveDofRootFromConfigPath(selectedPath);
+            var dofRoot = ResolveDofRootFromConfigPath(selectedPath ?? DefaultDofConfigPath);
             var stampedName = $"ConfigBackup-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}";
             session["BACKUP_PATH"] = Path.Combine(dofRoot, "Backups", stampedName);
         }
