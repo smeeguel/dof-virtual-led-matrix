@@ -1,4 +1,6 @@
+using System;
 using System.Globalization;
+using System.IO;
 using WixToolset.Dtf.WindowsInstaller;
 
 namespace VirtualDofMatrix.CustomActions;
@@ -14,8 +16,8 @@ public static class CustomActionEntrypoints
         try
         {
             // Keep path detection deterministic and readable so installer logs can be used for support requests.
-            var explicitPath = session["DOFCONFIGPATH"]?.Trim();
-            var selectedPath = string.IsNullOrWhiteSpace(explicitPath) ? DefaultDofConfigPath : explicitPath;
+            var explicitPath = session["DOFCONFIGPATH"] == null ? null : session["DOFCONFIGPATH"].Trim();
+            var selectedPath = IsNullOrWhiteSpace(explicitPath) ? DefaultDofConfigPath : explicitPath;
 
             if (Directory.Exists(DefaultDofConfigPath))
             {
@@ -23,15 +25,15 @@ public static class CustomActionEntrypoints
             }
 
             session["DOFCONFIGPATH"] = selectedPath;
-            session["BACKUP_ENABLED"] = string.IsNullOrWhiteSpace(session["BACKUP_ENABLED"]) ? "1" : session["BACKUP_ENABLED"];
-            session["TOY_TEMPLATE"] = string.IsNullOrWhiteSpace(session["TOY_TEMPLATE"]) ? DefaultTemplate : session["TOY_TEMPLATE"];
+            session["BACKUP_ENABLED"] = IsNullOrWhiteSpace(session["BACKUP_ENABLED"]) ? "1" : session["BACKUP_ENABLED"];
+            session["TOY_TEMPLATE"] = IsNullOrWhiteSpace(session["TOY_TEMPLATE"]) ? DefaultTemplate : session["TOY_TEMPLATE"];
 
             // Compute a backup target under the inferred DOF root unless the user already supplied an explicit location.
-            if (string.IsNullOrWhiteSpace(session["BACKUP_PATH"]))
+            if (IsNullOrWhiteSpace(session["BACKUP_PATH"]))
             {
                 var dofRoot = ResolveDofRootFromConfigPath(selectedPath ?? DefaultDofConfigPath);
                 var stampedName = $"ConfigBackup-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}";
-                session["BACKUP_PATH"] = Path.Combine(dofRoot, "Backups", stampedName);
+                session["BACKUP_PATH"] = Path.Combine(Path.Combine(dofRoot, "Backups"), stampedName);
             }
 
             session.Log("DetectDofDefaults selected DOFCONFIGPATH='{0}', BACKUP_ENABLED='{1}', TOY_TEMPLATE='{2}'.",
@@ -72,6 +74,24 @@ public static class CustomActionEntrypoints
 
     private static string ReadCustomActionDataValue(CustomActionData customActionData, string key) =>
         customActionData.ContainsKey(key) ? customActionData[key] : string.Empty;
+
+    private static bool IsNullOrWhiteSpace(string value)
+    {
+        if (value == null)
+        {
+            return true;
+        }
+
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (!char.IsWhiteSpace(value[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private static string ResolveDofRootFromConfigPath(string configPath)
     {
