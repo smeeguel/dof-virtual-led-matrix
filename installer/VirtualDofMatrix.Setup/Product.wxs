@@ -64,11 +64,12 @@
         </Control>
 
         <Control Id="TemplateLabel" Type="Text" X="20" Y="101" Width="330" Height="12" Text="Toy template (TOY_TEMPLATE):" />
-        <Control Id="SingleTemplate" Type="RadioButtonGroup" X="20" Y="115" Width="330" Height="32" Property="TOY_TEMPLATE">
-          <RadioButtonGroup Property="TOY_TEMPLATE">
-            <RadioButton Value="single_matrix" X="0" Y="0" Width="220" Height="14" Text="Single matrix" />
-            <RadioButton Value="matrix_plus_3_strips" X="0" Y="16" Width="260" Height="14" Text="Matrix + 3 strips" />
-          </RadioButtonGroup>
+        <!-- Use a ComboBox for template selection to avoid runtime dialog-instantiation issues seen with RadioButtonGroup markup. -->
+        <Control Id="TemplateSelect" Type="ComboBox" X="20" Y="115" Width="330" Height="18" Property="TOY_TEMPLATE" ComboList="yes">
+          <ComboBox Property="TOY_TEMPLATE">
+            <ListItem Text="Single matrix" Value="single_matrix" />
+            <ListItem Text="Matrix + 3 strips" Value="matrix_plus_3_strips" />
+          </ComboBox>
         </Control>
 
         <Control Id="BackupCheck" Type="CheckBox" X="20" Y="152" Width="330" Height="16" Property="BACKUP_ENABLED" CheckBoxValue="1" Text="Enable backup before overwriting files (BACKUP_ENABLED)" />
