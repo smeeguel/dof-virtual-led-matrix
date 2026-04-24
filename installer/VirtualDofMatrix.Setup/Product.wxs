@@ -32,11 +32,16 @@
 
     <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
       <ComponentGroupRef Id="AppFiles" />
+      <ComponentGroupRef Id="DofPayloadFiles" />
     </Feature>
 
     <!-- Harvest published app artifacts; CI passes InstallerAppPublishDir to package release-ready binaries. -->
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
       <Files Include="$(var.AppPublishDir)**" />
+    </ComponentGroup>
+    <!-- Ship DOF templates + DirectOutput architecture DLL payload so deferred custom actions can copy from [INSTALLFOLDER]\DOF\. -->
+    <ComponentGroup Id="DofPayloadFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.DofPayloadDir)**" />
     </ComponentGroup>
 
     <!-- Provide install-directory selection UI in MSI. -->
