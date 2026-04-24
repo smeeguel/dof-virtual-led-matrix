@@ -166,6 +166,8 @@
 
     <InstallExecuteSequence>
       <!-- Stage public UI properties into deferred CustomActionData so execute-sequence logic sees the final user selections. -->
+      <!-- Run DOF detection in execute sequence as well so passive/silent installs cannot bypass prerequisite checks. -->
+      <Custom Action="DetectDofInstall" Before="ValidateInstallerSelections" Condition="NOT Installed AND DOF_DETECTED &lt;&gt; 1" />
       <Custom Action="SetApplyDofTemplateAndBinariesData" Before="ApplyDofTemplateAndBinaries" Condition="NOT Installed" />
       <Custom Action="ValidateInstallerSelections" Before="SetApplyDofTemplateAndBinariesData" Condition="NOT Installed" />
       <Custom Action="ApplyDofTemplateAndBinaries" After="InstallFiles" Condition="NOT Installed AND DOF_DETECTED = 1" />
