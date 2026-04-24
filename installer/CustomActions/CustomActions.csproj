@@ -7,10 +7,16 @@
     <RootNamespace>VirtualDofMatrix.CustomActions</RootNamespace>
     <!-- Emit a DTF custom action payload so WiX can bind this assembly as executable MSI custom actions. -->
     <GenerateCustomActionPackage>true</GenerateCustomActionPackage>
+    <!-- DTF packaging requires referenced support assemblies (for example WixToolset.Dtf.WindowsInstaller.dll)
+         to be copied to the output folder before MakeSfxCA runs. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="WixToolset.Dtf.CustomAction" Version="6.0.2" />
-    <PackageReference Include="WixToolset.Dtf.WindowsInstaller" Version="6.0.2" />
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller" Version="6.0.2">
+      <!-- Keep Copy Local explicitly enabled so Visual Studio builds include this DLL in CA support files. -->
+      <Private>true</Private>
+    </PackageReference>
   </ItemGroup>
 </Project>
