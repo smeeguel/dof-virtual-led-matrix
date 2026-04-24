@@ -51,7 +51,10 @@
 
         <Control Id="DofPathLabel" Type="Text" X="20" Y="60" Width="330" Height="12" Text="DOF config folder (DOFCONFIGPATH):" />
         <Control Id="DofPathEdit" Type="PathEdit" X="20" Y="74" Width="255" Height="18" Property="DOFCONFIGPATH" />
-        <Control Id="DofBrowse" Type="PushButton" X="282" Y="74" Width="68" Height="18" Text="Browse..." />
+        <Control Id="DofBrowse" Type="PushButton" X="282" Y="74" Width="68" Height="18" Text="Browse...">
+          <Publish Event="SetProperty" Value="_BrowseProperty=DOFCONFIGPATH" Condition="1" />
+          <Publish Event="SpawnDialog" Value="BrowseDlg" Condition="1" />
+        </Control>
 
         <Control Id="TemplateLabel" Type="Text" X="20" Y="101" Width="330" Height="12" Text="Toy template (TOY_TEMPLATE):" />
         <Control Id="SingleTemplate" Type="RadioButtonGroup" X="20" Y="115" Width="330" Height="32" Property="TOY_TEMPLATE">
@@ -65,16 +68,16 @@
         <Control Id="BackupPathLabel" Type="Text" X="20" Y="172" Width="330" Height="12" Text="Backup path (BACKUP_PATH):" />
         <Control Id="BackupPathEdit" Type="PathEdit" X="20" Y="186" Width="330" Height="18" Property="BACKUP_PATH" />
 
-        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
-        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
-        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)" />
-
-        <Publish Control="DofBrowse" Event="SetProperty" Value="_BrowseProperty=DOFCONFIGPATH" />
-        <Publish Control="DofBrowse" Event="SpawnDialog" Value="BrowseDlg" />
-        <Publish Control="Back" Event="NewDialog" Value="InstallDirDlg">1</Publish>
-        <Publish Control="Next" Event="DoAction" Value="DetectDofDefaults">1</Publish>
-        <Publish Control="Next" Event="NewDialog" Value="DofSummaryDlg">1</Publish>
-        <Publish Control="Cancel" Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="InstallDirDlg" Condition="1" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="DoAction" Value="DetectDofDefaults" Condition="1" />
+          <Publish Event="NewDialog" Value="DofSummaryDlg" Condition="1" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
       </Dialog>
 
       <Dialog Id="DofSummaryDlg" Width="370" Height="270" Title="!(loc.WixUI_Font_Title)Ready to apply DOF setup">
@@ -85,19 +88,21 @@
         <Control Id="OverwriteWarning" Type="Text" X="20" Y="178" Width="330" Height="28" NoPrefix="yes"
           Text="Warning: existing DOF config files may be overwritten during setup. Keep a backup if needed." />
 
-        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
-        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
-        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)" />
-
-        <Publish Control="Back" Event="NewDialog" Value="DofConfigDlg">1</Publish>
-        <Publish Control="Next" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
-        <Publish Control="Cancel" Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="DofConfigDlg" Condition="1" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Condition="1" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
       </Dialog>
 
       <!-- Insert custom configuration and summary pages into the stock WixUI_InstallDir flow. -->
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg">1</Publish>
-      <Publish Dialog="DofSummaryDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DofSummaryDlg">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Condition="1" />
+      <Publish Dialog="DofSummaryDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="1" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DofSummaryDlg" Condition="1" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
       <Publish
         Dialog="ExitDialog"
