@@ -111,7 +111,7 @@ What the script does:
 
 You do not need to copy files manually.
 
-If you run the MSI installer instead of the batch script, the installer now shows a DOF setup page where you can set the DOF config path, backup options, and template before continuing.
+If you run the MSI installer instead of the batch script, the installer now performs a DOF detection check right after the EULA screen. If no valid DOF install is found, setup blocks and shows a dialog with the mjrnet download link and a **Browse for DOF folder...** option so you can select a custom DOF root.
 
 Quick troubleshooting:
 
