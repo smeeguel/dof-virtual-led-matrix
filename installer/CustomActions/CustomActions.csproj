@@ -3,6 +3,8 @@
     <!-- DTF MakeSfxCA reflects over the built assembly with .NET Framework APIs.
          Targeting .NET Framework avoids System.Runtime 8.0 reflection-only load failures. -->
     <TargetFramework>net48</TargetFramework>
+    <!-- Force x64 packaging so DTF uses tools/x64/SfxCA.dll instead of x86, matching the x64 MSI package. -->
+    <Platform>x64</Platform>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
