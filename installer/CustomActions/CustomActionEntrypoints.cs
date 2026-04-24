@@ -9,45 +9,88 @@ namespace VirtualDofMatrix.CustomActions;
 
 public static class CustomActionEntrypoints
 {
+    private const string DofDownloadUrl = "http://mjrnet.org/pinscape/dll-updates.html#DOF";
+    private const string DefaultDofRootPath = @"C:\DirectOutput";
     private const string DefaultDofConfigPath = @"C:\DirectOutput\Config";
     private const string DefaultTemplate = "single_matrix";
 
     [CustomAction]
-    public static ActionResult DetectDofDefaults(Session session)
+    public static ActionResult DetectDofInstall(Session session)
     {
         try
         {
-            // Keep path detection deterministic and readable so installer logs can be used for support requests.
-            var explicitPath = session["DOFCONFIGPATH"] == null ? null : session["DOFCONFIGPATH"].Trim();
-            var selectedPath = IsNullOrWhiteSpace(explicitPath) ? DefaultDofConfigPath : explicitPath;
-
-            if (Directory.Exists(DefaultDofConfigPath))
+            // Check default location first so common installs advance without extra prompts.
+            var selectedRootPath = string.Empty;
+            if (IsValidDofRoot(DefaultDofRootPath))
             {
-                selectedPath = DefaultDofConfigPath;
+                selectedRootPath = DefaultDofRootPath;
+            }
+            else
+            {
+                // Fallback: support custom user-selected DOF roots from the browse flow.
+                var explicitRootPath = NormalizePath(session["DOFROOTPATH"]);
+                if (IsValidDofRoot(explicitRootPath))
+                {
+                    selectedRootPath = explicitRootPath;
+                }
             }
 
-            session["DOFCONFIGPATH"] = selectedPath;
+            if (!IsNullOrWhiteSpace(selectedRootPath))
+            {
+                var selectedConfigPath = Path.Combine(selectedRootPath, "Config");
+                session["DOFROOTPATH"] = selectedRootPath;
+                session["DOFCONFIGPATH"] = selectedConfigPath;
+                session["DOF_DETECTED"] = "1";
+
+                if (IsNullOrWhiteSpace(session["BACKUP_PATH"]))
+                {
+                    var stampedName = BuildTimestampedBackupFolderName();
+                    session["BACKUP_PATH"] = Path.Combine(Path.Combine(selectedRootPath, "Backups"), stampedName);
+                }
+            }
+            else
+            {
+                // Keep detection state explicit so UI conditions remain deterministic.
+                session["DOF_DETECTED"] = "0";
+            }
+
             session["BACKUP_ENABLED"] = IsNullOrWhiteSpace(session["BACKUP_ENABLED"]) ? "1" : session["BACKUP_ENABLED"];
             session["TOY_TEMPLATE"] = IsNullOrWhiteSpace(session["TOY_TEMPLATE"]) ? DefaultTemplate : session["TOY_TEMPLATE"];
 
-            // Compute a backup target under the inferred DOF root unless the user already supplied an explicit location.
-            if (IsNullOrWhiteSpace(session["BACKUP_PATH"]))
-            {
-                var dofRoot = ResolveDofRootFromConfigPath(selectedPath ?? DefaultDofConfigPath);
-                var stampedName = BuildTimestampedBackupFolderName();
-                session["BACKUP_PATH"] = Path.Combine(Path.Combine(dofRoot, "Backups"), stampedName);
-            }
-
-            session.Log("DetectDofDefaults selected DOFCONFIGPATH='{0}', BACKUP_ENABLED='{1}', TOY_TEMPLATE='{2}', BACKUP_PATH='{3}'.",
-                session["DOFCONFIGPATH"], session["BACKUP_ENABLED"], session["TOY_TEMPLATE"], session["BACKUP_PATH"]);
+            session.Log("DetectDofInstall result DOF_DETECTED='{0}', DOFROOTPATH='{1}', DOFCONFIGPATH='{2}', BACKUP_ENABLED='{3}', TOY_TEMPLATE='{4}', BACKUP_PATH='{5}'.",
+                session["DOF_DETECTED"], session["DOFROOTPATH"], session["DOFCONFIGPATH"], session["BACKUP_ENABLED"], session["TOY_TEMPLATE"], session["BACKUP_PATH"]);
 
             return ActionResult.Success;
         }
         catch (Exception ex)
         {
-            session.Log("DetectDofDefaults failed: {0}", ex);
+            session.Log("DetectDofInstall failed: {0}", ex);
             return ActionResult.Failure;
         }
+    }
+
+    [CustomAction]
+    public static ActionResult ShowInvalidDofSelectionMessage(Session session)
+    {
+        const string userMessage = "This folder does not appear to be a valid DirectOutput Framework (DOF) install. " +
+            "Select the DOF root folder that contains Config plus x64 or x86, or install both 32-bit and 64-bit DOF installers from " +
+            DofDownloadUrl + ".";
+
+        try
+        {
+            using (var record = new Record(1))
+            {
+                record[1] = userMessage;
+                session.Message(InstallMessage.Error, record);
+            }
+        }
+        catch
+        {
+            // Keep the dialog flow resilient in reduced/silent UI modes.
+        }
+
+        session.Log("ShowInvalidDofSelectionMessage displayed guidance for invalid DOF root.");
+        return ActionResult.Success;
     }
 
     [CustomAction]
@@ -56,10 +99,12 @@ public static class CustomActionEntrypoints
         try
         {
             var requestedPath = NormalizePath(session["DOFCONFIGPATH"]);
+            var dofRootPath = NormalizePath(session["DOFROOTPATH"]);
+
             if (IsNullOrWhiteSpace(requestedPath))
             {
                 return FailWithUserMessage(session, "DOF config path is required.",
-                    "Please select your DirectOutput Config folder (for example C:\\DirectOutput\\Config) and try again.");
+                    BuildDofMissingMessage("DOF must be installed before continuing."));
             }
 
             if (!HasConfigSuffix(requestedPath))
@@ -72,11 +117,25 @@ public static class CustomActionEntrypoints
             if (IsNullOrWhiteSpace(dofRoot) || !Path.IsPathRooted(dofRoot))
             {
                 return FailWithUserMessage(session, "Could not derive DOF root folder from DOFCONFIGPATH.",
-                    "Installer could not derive the DirectOutput root folder from the selected Config path.");
+                    BuildDofMissingMessage("Installer could not derive the DirectOutput root folder from the selected Config path."));
+            }
+
+            if (!IsNullOrWhiteSpace(dofRootPath) &&
+                !dofRoot.Equals(dofRootPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return FailWithUserMessage(session, "DOFROOTPATH and DOFCONFIGPATH are inconsistent.",
+                    BuildDofMissingMessage("The selected DirectOutput root and config folders do not match."));
+            }
+
+            if (!IsValidDofRoot(dofRoot))
+            {
+                return FailWithUserMessage(session, "Detected DOF root is invalid or incomplete.",
+                    BuildDofMissingMessage("DirectOutput must include Config and at least one architecture folder (x64 or x86)."));
             }
 
             session["DOFCONFIGPATH"] = requestedPath;
             session["DOFROOTPATH"] = dofRoot;
+            session["DOF_DETECTED"] = "1";
 
             if (IsNullOrWhiteSpace(session["TOY_TEMPLATE"]))
             {
@@ -470,9 +529,30 @@ public static class CustomActionEntrypoints
         var normalizedPath = NormalizePath(configPath);
         if (HasConfigSuffix(normalizedPath))
         {
-            return Path.GetDirectoryName(normalizedPath) ?? @"C:\DirectOutput";
+            return Path.GetDirectoryName(normalizedPath) ?? DefaultDofRootPath;
         }
 
         return string.Empty;
+    }
+
+    private static bool IsValidDofRoot(string rootPath)
+    {
+        var normalizedRootPath = NormalizePath(rootPath);
+        if (IsNullOrWhiteSpace(normalizedRootPath))
+        {
+            return false;
+        }
+
+        var configPath = Path.Combine(normalizedRootPath, "Config");
+        var hasConfig = Directory.Exists(configPath);
+        var hasX64 = Directory.Exists(Path.Combine(normalizedRootPath, "x64"));
+        var hasX86 = Directory.Exists(Path.Combine(normalizedRootPath, "x86"));
+        return hasConfig && (hasX64 || hasX86);
+    }
+
+    private static string BuildDofMissingMessage(string leadIn)
+    {
+        return leadIn + " Virtual DOF Matrix requires DirectOutput Framework (DOF). DOF is usually installed at C:\\DirectOutput, " +
+            "but can be installed elsewhere. Install both the 32-bit and 64-bit DOF installers first: " + DofDownloadUrl;
     }
 }
