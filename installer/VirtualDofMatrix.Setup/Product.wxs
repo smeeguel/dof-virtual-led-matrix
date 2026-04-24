@@ -24,8 +24,9 @@
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
+    <!-- WixUI_InstallDir wires WIXUI_INSTALLDIR internally via InstallDirectory="INSTALLFOLDER"; do not redeclare it here. -->
 
-    <!-- Install root defaults to Program Files and is exposed through the WixUI_InstallDir dialog set. -->
+    <!-- Install root defaults to Program Files and remains user-selectable through the install-directory dialog. -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="VirtualDofMatrix" />
     </StandardDirectory>
@@ -109,7 +110,7 @@
       </Dialog>
 
       <!-- Insert custom configuration and summary pages into the stock WixUI_InstallDir flow. -->
-      <!-- Use a high order value so this navigation override wins over WixUI_InstallDir defaults. -->
+      <!-- Use a high order value so this navigation override wins over WixUI_InstallDir default Next behavior. -->
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="100" Condition="NOT Installed" />
       <!-- DofSummaryDlg Next is already authored on the button control; avoid duplicate ControlEvent primary keys. -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DofSummaryDlg" Order="100" Condition="NOT Installed" />
