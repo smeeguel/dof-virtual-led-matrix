@@ -85,6 +85,10 @@
         <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="1" Condition="LicenseAccepted = &quot;1&quot;" />
         <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED = 1" />
         <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofNotFoundDlg" Order="3" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED &lt;&gt; 1" />
+        <!-- BrowseDlg requires explicit OK/Cancel control events in custom UI chains to satisfy ICE17/WIX0204 validation. -->
+        <Publish Dialog="BrowseDlg" Control="OK" Event="SetTargetPath" Value="[_BrowseProperty]" Order="1" />
+        <Publish Dialog="BrowseDlg" Control="OK" Event="EndDialog" Value="Return" Order="2" />
+        <Publish Dialog="BrowseDlg" Control="Cancel" Event="EndDialog" Value="Return" Order="1" />
         <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" />
         <Publish Dialog="InstallDirDlg" Control="Next" Event="CheckTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" />
         <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1" />
