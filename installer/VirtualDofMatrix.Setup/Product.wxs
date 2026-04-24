@@ -19,7 +19,7 @@
     <Property Id="DOF_DETECTED" Value="0" Secure="yes" />
     <Property Id="BACKUP_ENABLED" Value="1" Secure="yes" />
     <Property Id="BACKUP_PATH" Secure="yes" />
-    <Property Id="DOFROOTPATH" Secure="yes" />
+    <Property Id="DOFROOTPATH" Value="C:\DirectOutput" Secure="yes" />
     <!-- BrowseDlg consumes _BrowseProperty as the *name* of the property to populate with the selected folder path. -->
     <Property Id="DOFROOTPATH_BROWSE_PROPERTY" Value="DOFROOTPATH" />
     <Property Id="TOY_TEMPLATE" Value="single_matrix" Secure="yes" />
