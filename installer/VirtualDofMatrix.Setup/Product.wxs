@@ -25,7 +25,7 @@
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
 
-    <!-- Install root defaults to Program Files and is exposed through the WixUI_InstallDir dialog set. -->
+    <!-- Install root defaults to Program Files; we keep it fixed to avoid legacy InstallDir dialog path-validation failures. -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="VirtualDofMatrix" />
     </StandardDirectory>
@@ -49,7 +49,7 @@
     <WixVariable Id="WixUILicenseRtf" Value="Eula.rtf" />
     <!-- WiX UI extension wiring lives in ui:WixUI, while button event publishing uses the core Publish element under UI. -->
     <UI>
-      <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+      <ui:WixUI Id="WixUI_Minimal" />
       <DialogRef Id="BrowseDlg" />
       <!-- Dialog Title expects plain text or a defined localization string id; do not use undefined WixUI font loc tokens. -->
       <Dialog Id="DofConfigDlg" Width="370" Height="270" Title="[ProductName] - DOF Setup Options">
@@ -77,7 +77,7 @@
         <Control Id="BackupPathEdit" Type="PathEdit" X="20" Y="186" Width="330" Height="18" Property="BACKUP_PATH" />
 
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
-          <Publish Event="NewDialog" Value="InstallDirDlg" Condition="1" />
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg" Condition="1" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
           <Publish Event="DoAction" Value="DetectDofDefaults" Condition="1" />
@@ -108,9 +108,9 @@
         </Control>
       </Dialog>
 
-      <!-- Insert custom configuration and summary pages into the stock WixUI_InstallDir flow. -->
-      <!-- Use a high order value so this navigation override wins over WixUI_InstallDir defaults. -->
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="100" Condition="NOT Installed" />
+      <!-- Insert custom configuration and summary pages into the stock WixUI_Minimal flow. -->
+      <!-- Use a high order value so this navigation override wins over WixUI_Minimal default Next behavior. -->
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="100" Condition="NOT Installed" />
       <!-- DofSummaryDlg Next is already authored on the button control; avoid duplicate ControlEvent primary keys. -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DofSummaryDlg" Order="100" Condition="NOT Installed" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
