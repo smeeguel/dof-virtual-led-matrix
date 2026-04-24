@@ -21,8 +21,6 @@
     <Property Id="BACKUP_PATH" Secure="yes" />
     <Property Id="DOFROOTPATH" Secure="yes" />
     <Property Id="TOY_TEMPLATE" Value="single_matrix" Secure="yes" />
-    <!-- Mirror TOY_TEMPLATE into SecureCustomProperties so deferred actions always receive template selections from UI sequence transitions. -->
-    <Property Id="SecureCustomProperties" Value="DOFCONFIGPATH;BACKUP_ENABLED;BACKUP_PATH;DOFROOTPATH;TOY_TEMPLATE" />
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
@@ -78,7 +76,7 @@
         </Control>
       </Dialog>
 
-      <!-- Preserve SetTargetPath behavior, then move to TemplateSelectDlg instead of VerifyReadyDlg. -->
+      <!-- Preserve SetTargetPath behavior, then route to TemplateSelectDlg after stock WixUI publishes. -->
       <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" Condition="1" />
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="5" Condition="1" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
@@ -92,7 +90,6 @@
 
     <!-- DTF custom actions must reference the generated *.CA.dll payload, not the plain project output DLL. -->
     <Binary Id="CustomActionBinary" SourceFile="$(var.CustomActions.TargetDir)VirtualDofMatrix.CustomActions.CA.dll" />
-    <CustomAction Id="DetectDofDefaults" BinaryRef="CustomActionBinary" DllEntry="DetectDofDefaults" Execute="immediate" Return="check" />
     <CustomAction Id="ValidateInstallerSelections" BinaryRef="CustomActionBinary" DllEntry="ValidateInstallerSelections" Execute="immediate" Return="check" />
     <CustomAction Id="ApplyDofTemplateAndBinaries" BinaryRef="CustomActionBinary" DllEntry="ApplyDofTemplateAndBinaries" Execute="deferred" Impersonate="no" Return="check" />
     <CustomAction
