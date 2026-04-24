@@ -24,8 +24,7 @@
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
-    <!-- Keep the install-directory target property explicit so SetTargetPath never evaluates an empty dialog property. -->
-    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <!-- WixUI_InstallDir wires WIXUI_INSTALLDIR internally via InstallDirectory="INSTALLFOLDER"; do not redeclare it here. -->
 
     <!-- Install root defaults to Program Files and remains user-selectable through the install-directory dialog. -->
     <StandardDirectory Id="ProgramFiles64Folder">
