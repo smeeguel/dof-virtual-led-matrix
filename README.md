@@ -111,6 +111,8 @@ What the script does:
 
 You do not need to copy files manually.
 
+If you run the MSI installer instead of the batch script, the installer now shows a DOF setup page where you can set the DOF config path, backup options, and template before continuing.
+
 Quick troubleshooting:
 
 - If `C:\DirectOutput\Config` is not found, continue in the script and select the correct folder manually
