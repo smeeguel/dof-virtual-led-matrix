@@ -110,9 +110,8 @@
 
       <!-- Keep stock WixUI_InstallDir SetTargetPath wiring intact and only override post-path navigation. -->
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="1" Condition="1" />
-      <!-- Override stock LicenseAgreement Next navigation so DOF detection is the only path to InstallDir. -->
-      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED = 1" />
-      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofNotFoundDlg" Order="3" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED &lt;&gt; 1" />
+      <!-- Keep stock LicenseAgreementDlg -> InstallDirDlg path for detected installs and only intercept missing-DOF cases. -->
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofNotFoundDlg" Order="2" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED &lt;&gt; 1" />
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="5" Condition="1" />
       <!-- Keep back-navigation symmetrical with the inserted template step: VerifyReady -> TemplateSelect -> InstallDir. -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TemplateSelectDlg" Order="5" Condition="1" />
