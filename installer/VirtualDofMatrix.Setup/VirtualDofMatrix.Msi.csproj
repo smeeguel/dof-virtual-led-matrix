@@ -7,7 +7,7 @@
     <OutputName>VirtualDOFMatrixSetup</OutputName>
     <Version>0.1.0</Version>
     <InstallerAppPublishDir Condition="'$(InstallerAppPublishDir)' == ''">..\..\src\VirtualDofMatrix.App\bin\Release\net8.0-windows\win-x64\publish\</InstallerAppPublishDir>
-    <DefineConstants>ProductVersion=$(Version);ProductName=Virtual DOF Matrix;Manufacturer=Virtual DOF Matrix;AppPublishDir=$(InstallerAppPublishDir)</DefineConstants>
+    <DefineConstants>ProductVersion=$(Version);ProductName=Virtual DOF Matrix;Manufacturer=Virtual DOF Matrix;AppPublishDir=$(InstallerAppPublishDir);DofPayloadDir=$(MSBuildProjectDirectory)\..\..\DOF\</DefineConstants>
     <EnableDefaultItems>false</EnableDefaultItems>
   </PropertyGroup>
 
