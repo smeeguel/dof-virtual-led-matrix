@@ -53,11 +53,7 @@
       BinaryRef="Wix4UtilCA_X64"
       DllEntry="WixShellExec"
       Impersonate="yes" />
-    <!-- Resolve the executable path at runtime so WixShellExecTarget does not contain a static [INSTALLFOLDER] reference. -->
-    <SetProperty
-      Id="WixShellExecTarget"
-      Value="[INSTALLFOLDER]VirtualDofMatrix.App.exe"
-      Before="LaunchInstalledApp"
-      Sequence="ui" />
+    <!-- Provide WixShellExecTarget directly as an MSI property so it is available when the ExitDialog publish action runs. -->
+    <Property Id="WixShellExecTarget" Value="[INSTALLFOLDER]VirtualDofMatrix.App.exe" />
   </Package>
 </Wix>
