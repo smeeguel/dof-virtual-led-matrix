@@ -17,6 +17,7 @@
     <Property Id="ARPCOMMENTS" Value="Virtual DOF Matrix emulator/viewer for DOF serial output." />
     <!-- UI properties are marked Secure so they can flow from client-side UI into deferred execute-sequence custom actions. -->
     <Property Id="DOFCONFIGPATH" Value="C:\DirectOutput\Config" Secure="yes" />
+    <Property Id="DOF_DETECTED" Value="0" Secure="yes" />
     <Property Id="BACKUP_ENABLED" Value="1" Secure="yes" />
     <Property Id="BACKUP_PATH" Secure="yes" />
     <Property Id="DOFROOTPATH" Secure="yes" />
@@ -76,7 +77,41 @@
         </Control>
       </Dialog>
 
+      <Dialog Id="DofNotFoundDlg" Width="370" Height="270" Title="[ProductName] - DirectOutput Framework required">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="DirectOutput Framework (DOF) required" />
+        <Control Id="Description1" Type="Text" X="20" Y="30" Width="330" Height="28"
+          Text="Virtual DOF Matrix requires DirectOutput Framework (DOF) before installation can continue." />
+        <Control Id="Description2" Type="Text" X="20" Y="64" Width="330" Height="24"
+          Text="DOF is usually installed at C:\DirectOutput, but it may be installed elsewhere." />
+        <Control Id="Description3" Type="Text" X="20" Y="94" Width="330" Height="34"
+          Text="Install both the 32-bit and 64-bit DOF installers from the mjrnet page, or browse to your existing DOF root folder." />
+        <Control Id="SelectedFolderLabel" Type="Text" X="20" Y="136" Width="330" Height="12" Text="Selected DOF root folder:" />
+        <Control Id="SelectedFolderPath" Type="Text" X="20" Y="150" Width="330" Height="28" Text="[DOFROOTPATH]" />
+
+        <!-- Keep the browse flow explicit: users pick DOF root, then click Continue to validate Config+x64/x86 layout. -->
+        <Control Id="DownloadButton" Type="PushButton" X="20" Y="197" Width="145" Height="17" Text="Open DOF download page">
+          <Publish Property="WixShellExecTarget" Value="http://mjrnet.org/pinscape/dll-updates.html#DOF" Order="1" />
+          <Publish Event="DoAction" Value="LaunchDofDownloadPage" Order="2" Condition="1" />
+        </Control>
+        <Control Id="BrowseButton" Type="PushButton" X="174" Y="197" Width="176" Height="17" Text="Browse for DOF folder...">
+          <Publish Property="_BrowseProperty" Value="DOFROOTPATH" Order="1" />
+          <Publish Event="SpawnDialog" Value="BrowseDlg" Order="2" Condition="1" />
+        </Control>
+
+        <Control Id="ContinueButton" Type="PushButton" X="168" Y="243" Width="56" Height="17" Default="yes" Text="Continue">
+          <Publish Event="DoAction" Value="DetectDofInstall" Order="1" Condition="1" />
+          <Publish Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="DOF_DETECTED = 1" />
+          <Publish Event="DoAction" Value="ShowInvalidDofSelectionMessage" Order="3" Condition="DOF_DETECTED &lt;&gt; 1" />
+        </Control>
+        <Control Id="Exit" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Exit">
+          <Publish Event="EndDialog" Value="Exit" Condition="1" />
+        </Control>
+      </Dialog>
+
       <!-- Keep stock WixUI_InstallDir SetTargetPath wiring intact and only override post-path navigation. -->
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="5" Condition="1" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="6" Condition="DOF_DETECTED = 1" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofNotFoundDlg" Order="7" Condition="DOF_DETECTED &lt;&gt; 1" />
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="5" Condition="1" />
       <!-- Keep back-navigation symmetrical with the inserted template step: VerifyReady -> TemplateSelect -> InstallDir. -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TemplateSelectDlg" Order="5" Condition="1" />
@@ -91,6 +126,8 @@
 
     <!-- DTF custom actions must reference the generated *.CA.dll payload, not the plain project output DLL. -->
     <Binary Id="CustomActionBinary" SourceFile="$(var.CustomActions.TargetDir)VirtualDofMatrix.CustomActions.CA.dll" />
+    <CustomAction Id="DetectDofInstall" BinaryRef="CustomActionBinary" DllEntry="DetectDofInstall" Execute="immediate" Return="check" />
+    <CustomAction Id="ShowInvalidDofSelectionMessage" BinaryRef="CustomActionBinary" DllEntry="ShowInvalidDofSelectionMessage" Execute="immediate" Return="check" />
     <CustomAction Id="ValidateInstallerSelections" BinaryRef="CustomActionBinary" DllEntry="ValidateInstallerSelections" Execute="immediate" Return="check" />
     <CustomAction Id="ApplyDofTemplateAndBinaries" BinaryRef="CustomActionBinary" DllEntry="ApplyDofTemplateAndBinaries" Execute="deferred" Impersonate="no" Return="check" />
     <CustomAction
@@ -101,6 +138,11 @@
 
     <CustomAction
       Id="LaunchInstalledApp"
+      BinaryRef="Wix4UtilCA_X64"
+      DllEntry="WixShellExec"
+      Impersonate="yes" />
+    <CustomAction
+      Id="LaunchDofDownloadPage"
       BinaryRef="Wix4UtilCA_X64"
       DllEntry="WixShellExec"
       Impersonate="yes" />
@@ -115,7 +157,7 @@
       <!-- Stage public UI properties into deferred CustomActionData so execute-sequence logic sees the final user selections. -->
       <Custom Action="SetApplyDofTemplateAndBinariesData" Before="ApplyDofTemplateAndBinaries" Condition="NOT Installed" />
       <Custom Action="ValidateInstallerSelections" Before="SetApplyDofTemplateAndBinariesData" Condition="NOT Installed" />
-      <Custom Action="ApplyDofTemplateAndBinaries" After="InstallFiles" Condition="NOT Installed" />
+      <Custom Action="ApplyDofTemplateAndBinaries" After="InstallFiles" Condition="NOT Installed AND DOF_DETECTED = 1" />
     </InstallExecuteSequence>
   </Package>
 </Wix>
