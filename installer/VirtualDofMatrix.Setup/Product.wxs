@@ -102,7 +102,7 @@
 
       <!-- Insert custom configuration and summary pages into the stock WixUI_InstallDir flow. -->
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Condition="1" />
-      <Publish Dialog="DofSummaryDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="1" />
+      <!-- DofSummaryDlg Next is already authored on the button control; avoid duplicate ControlEvent primary keys. -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DofSummaryDlg" Condition="1" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
       <Publish
