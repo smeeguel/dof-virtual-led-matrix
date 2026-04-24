@@ -1,5 +1,4 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
     Name="$(var.ProductName)"
     Manufacturer="$(var.Manufacturer)"
@@ -49,9 +48,58 @@
     <!-- Provide install-directory selection UI in MSI. -->
     <!-- Bind the MSI license dialog to the repository EULA content instead of the WiX placeholder lorem ipsum. -->
     <WixVariable Id="WixUILicenseRtf" Value="Eula.rtf" />
-    <!-- WiX UI extension wiring lives in ui:WixUI, while button event publishing uses the core Publish element under UI. -->
+    <!-- Use an explicit custom UI chain so dialog navigation is fully controlled without colliding with stock WixUI_InstallDir publish rows. -->
     <UI>
-      <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+      <UI Id="WixUI_InstallDir_Custom">
+        <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+        <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+        <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+        <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+        <Property Id="WixUI_Mode" Value="InstallDir" />
+        <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+        <!-- Reference stock dialogs individually; custom Publish rows below define the authoritative sequence. -->
+        <DialogRef Id="BrowseDlg" />
+        <DialogRef Id="DiskCostDlg" />
+        <DialogRef Id="ErrorDlg" />
+        <DialogRef Id="FatalError" />
+        <DialogRef Id="FilesInUse" />
+        <DialogRef Id="MsiRMFilesInUse" />
+        <DialogRef Id="PrepareDlg" />
+        <DialogRef Id="ProgressDlg" />
+        <DialogRef Id="ResumeDlg" />
+        <DialogRef Id="UserExit" />
+        <DialogRef Id="WelcomeDlg" />
+        <DialogRef Id="LicenseAgreementDlg" />
+        <DialogRef Id="InstallDirDlg" />
+        <DialogRef Id="VerifyReadyDlg" />
+        <DialogRef Id="MaintenanceWelcomeDlg" />
+        <DialogRef Id="MaintenanceTypeDlg" />
+        <DialogRef Id="ExitDialog" />
+
+        <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
+        <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
+        <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="Installed AND PATCH" />
+        <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" />
+        <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="1" Condition="LicenseAccepted = &quot;1&quot;" />
+        <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED = 1" />
+        <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofNotFoundDlg" Order="3" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED &lt;&gt; 1" />
+        <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" />
+        <Publish Dialog="InstallDirDlg" Control="Next" Event="CheckTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" />
+        <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1" />
+        <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2" />
+        <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="3" />
+        <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="4" Condition="WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID = &quot;1&quot;" />
+        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TemplateSelectDlg" Order="1" Condition="NOT Installed" />
+        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed AND NOT PATCH" />
+        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" Condition="Installed AND PATCH" />
+        <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg" />
+        <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg" />
+        <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" />
+        <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
+        <Property Id="ARPNOMODIFY" Value="1" />
+      </UI>
+      <UIRef Id="WixUI_Common" />
       <Dialog Id="TemplateSelectDlg" Width="370" Height="270" Title="[ProductName] - Choose LED template">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose LED template" />
         <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="24"
@@ -108,16 +156,6 @@
         </Control>
       </Dialog>
 
-      <!-- Keep stock WixUI_InstallDir SetTargetPath wiring intact and only override post-path navigation. -->
-      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="1" Condition="1" />
-      <!-- Override stock LicenseAgreementDlg -> InstallDirDlg behavior with a DOF-gated condition. -->
-      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED = 1" />
-      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofNotFoundDlg" Order="3" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED &lt;&gt; 1" />
-      <!-- Disable stock InstallDirDlg -> VerifyReadyDlg direct jump so TemplateSelectDlg remains mandatory. -->
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="4" Condition="0" />
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="5" Condition="1" />
-      <!-- Keep back-navigation symmetrical with the inserted template step: VerifyReady -> TemplateSelect -> InstallDir. -->
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TemplateSelectDlg" Order="5" Condition="1" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
       <Publish
         Dialog="ExitDialog"
