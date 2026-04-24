@@ -19,6 +19,7 @@
     <Property Id="DOFCONFIGPATH" Value="C:\DirectOutput\Config" Secure="yes" />
     <Property Id="BACKUP_ENABLED" Value="1" Secure="yes" />
     <Property Id="BACKUP_PATH" Secure="yes" />
+    <Property Id="DOFROOTPATH" Secure="yes" />
     <Property Id="TOY_TEMPLATE" Value="single_matrix" Secure="yes" />
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
@@ -31,11 +32,16 @@
 
     <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
       <ComponentGroupRef Id="AppFiles" />
+      <ComponentGroupRef Id="DofPayloadFiles" />
     </Feature>
 
     <!-- Harvest published app artifacts; CI passes InstallerAppPublishDir to package release-ready binaries. -->
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
       <Files Include="$(var.AppPublishDir)**" />
+    </ComponentGroup>
+    <!-- Ship DOF templates + DirectOutput architecture DLL payload so deferred custom actions can copy from [INSTALLFOLDER]\DOF\. -->
+    <ComponentGroup Id="DofPayloadFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.DofPayloadDir)**" />
     </ComponentGroup>
 
     <!-- Provide install-directory selection UI in MSI. -->
@@ -74,6 +80,7 @@
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
           <Publish Event="DoAction" Value="DetectDofDefaults" Condition="1" />
+          <Publish Event="DoAction" Value="ValidateInstallerSelections" Condition="1" />
           <Publish Event="NewDialog" Value="DofSummaryDlg" Condition="1" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
@@ -116,11 +123,12 @@
     <!-- DTF custom actions must reference the generated *.CA.dll payload, not the plain project output DLL. -->
     <Binary Id="CustomActionBinary" SourceFile="$(var.CustomActions.TargetDir)VirtualDofMatrix.CustomActions.CA.dll" />
     <CustomAction Id="DetectDofDefaults" BinaryRef="CustomActionBinary" DllEntry="DetectDofDefaults" Execute="immediate" Return="check" />
-    <CustomAction Id="PersistInstallerSelections" BinaryRef="CustomActionBinary" DllEntry="PersistInstallerSelections" Execute="deferred" Impersonate="no" Return="check" />
+    <CustomAction Id="ValidateInstallerSelections" BinaryRef="CustomActionBinary" DllEntry="ValidateInstallerSelections" Execute="immediate" Return="check" />
+    <CustomAction Id="ApplyDofTemplateAndBinaries" BinaryRef="CustomActionBinary" DllEntry="ApplyDofTemplateAndBinaries" Execute="deferred" Impersonate="no" Return="check" />
     <CustomAction
-      Id="SetPersistInstallerSelectionsData"
-      Property="PersistInstallerSelections"
-      Value="DOFCONFIGPATH=[DOFCONFIGPATH];BACKUP_ENABLED=[BACKUP_ENABLED];BACKUP_PATH=[BACKUP_PATH];TOY_TEMPLATE=[TOY_TEMPLATE]"
+      Id="SetApplyDofTemplateAndBinariesData"
+      Property="ApplyDofTemplateAndBinaries"
+      Value="DOFCONFIGPATH=[DOFCONFIGPATH];DOFROOTPATH=[DOFROOTPATH];BACKUP_ENABLED=[BACKUP_ENABLED];BACKUP_PATH=[BACKUP_PATH];TOY_TEMPLATE=[TOY_TEMPLATE];INSTALLFOLDER=[INSTALLFOLDER]"
       Execute="immediate" />
 
     <CustomAction
@@ -137,8 +145,9 @@
 
     <InstallExecuteSequence>
       <!-- Stage public UI properties into deferred CustomActionData so execute-sequence logic sees the final user selections. -->
-      <Custom Action="SetPersistInstallerSelectionsData" Before="PersistInstallerSelections" Condition="NOT Installed" />
-      <Custom Action="PersistInstallerSelections" After="InstallFiles" Condition="NOT Installed" />
+      <Custom Action="SetApplyDofTemplateAndBinariesData" Before="ApplyDofTemplateAndBinaries" Condition="NOT Installed" />
+      <Custom Action="ValidateInstallerSelections" Before="SetApplyDofTemplateAndBinariesData" Condition="NOT Installed" />
+      <Custom Action="ApplyDofTemplateAndBinaries" After="InstallFiles" Condition="NOT Installed" />
     </InstallExecuteSequence>
   </Package>
 </Wix>
