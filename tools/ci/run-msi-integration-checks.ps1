@@ -78,6 +78,25 @@ function Invoke-SilentInstallAndValidate {
   }
 }
 
+function Invoke-SilentUninstallIfPresent {
+  param([string]$InstallerPath)
+
+  $uninstallLog = Join-Path $logRoot 'msi-silent-uninstall.log'
+  # Run uninstall between silent and UI checks so the UI flow always starts in first-install mode
+  # (otherwise CI can land in maintenance dialogs and the scripted key sequence no longer matches).
+  $arguments = @(
+    '/x', "`"$InstallerPath`"",
+    '/qn',
+    '/norestart',
+    '/l*v', "`"$uninstallLog`""
+  )
+
+  $proc = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -PassThru -Wait
+  if ($proc.ExitCode -ne 0) {
+    throw "Silent uninstall run failed with exit code $($proc.ExitCode). See $uninstallLog."
+  }
+}
+
 function Wait-InstallerWindow {
   param(
     [System.Diagnostics.Process]$Process,
@@ -178,6 +197,7 @@ if (-not (Test-Path -LiteralPath $MsiPath -PathType Leaf)) {
 }
 
 Invoke-SilentInstallAndValidate -InstallerPath (Resolve-Path $MsiPath).Path
+Invoke-SilentUninstallIfPresent -InstallerPath (Resolve-Path $MsiPath).Path
 Invoke-UiSmokeRun -InstallerPath (Resolve-Path $MsiPath).Path
 
 Write-Host 'MSI integration checks completed successfully.'
