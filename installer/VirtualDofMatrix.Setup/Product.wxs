@@ -24,15 +24,7 @@
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
-    <!--
-      Stock WixUI_InstallDir path validation is misfiring in this installer and showing
-      "Installation directory must be on a local hard drive" even when INSTALLFOLDER resolves
-      to C:\Program Files\VirtualDofMatrix\. Leave the stock dialog and SetTargetPath
-      wiring intact, but bypass only that UI-side validation gate so Next can continue to
-      the app custom configuration page.
-    -->
-    <Property Id="WIXUI_DONTVALIDATEPATH" Value="1" />
-    <!-- WixUI_InstallDir wires WIXUI_INSTALLDIR internally via InstallDirectory="INSTALLFOLDER"; do not redeclare it here. -->
+    <!-- Install path is fixed to Program Files in this flow; do not inject custom path-validation overrides. -->
 
     <!-- Install root defaults to Program Files and remains user-selectable through the install-directory dialog. -->
     <StandardDirectory Id="ProgramFiles64Folder">
@@ -58,8 +50,7 @@
     <WixVariable Id="WixUILicenseRtf" Value="Eula.rtf" />
     <!-- WiX UI extension wiring lives in ui:WixUI, while button event publishing uses the core Publish element under UI. -->
     <UI>
-      <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
-      <DialogRef Id="BrowseDlg" />
+      <ui:WixUI Id="WixUI_Minimal" />
       <!-- Dialog Title expects plain text or a defined localization string id; do not use undefined WixUI font loc tokens. -->
       <Dialog Id="DofConfigDlg" Width="370" Height="270" Title="[ProductName] - DOF Setup Options">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="DOF setup options" />
@@ -86,7 +77,7 @@
         <Control Id="BackupPathEdit" Type="PathEdit" X="20" Y="186" Width="330" Height="18" Property="BACKUP_PATH" />
 
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
-          <Publish Event="NewDialog" Value="InstallDirDlg" Condition="1" />
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg" Condition="1" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
           <Publish Event="DoAction" Value="DetectDofDefaults" Condition="1" />
@@ -117,9 +108,8 @@
         </Control>
       </Dialog>
 
-      <!-- Keep InstallDirDlg Next on stock WixUI_InstallDir wiring (SetTargetPath + VerifyReadyDlg) to avoid path-selection regressions. -->
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="5" Condition="1" />
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DofSummaryDlg" Order="5" Condition="NOT Installed" />
+      <!-- Inject custom DOF dialogs between License and VerifyReady in the minimal WixUI flow. -->
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
       <Publish
         Dialog="ExitDialog"
