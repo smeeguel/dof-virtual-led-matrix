@@ -195,9 +195,11 @@ public static class CustomActionEntrypoints
 
             var templateDirectoryName = ResolveTemplateDirectoryName(toyTemplate);
             var sourceDofRoot = ResolveDofPayloadRoot(installFolder, session);
+            var baselineConfigSourceFolder = Path.Combine(sourceDofRoot, "Config");
             var templateSourceFolder = Path.Combine(sourceDofRoot, Path.Combine("Config\\templates", templateDirectoryName));
 
             session.Log("Resolved template source folder: '{0}'.", templateSourceFolder);
+            session.Log("Resolved baseline config source folder: '{0}'.", baselineConfigSourceFolder);
             session.Log("Resolved DOF payload source root: '{0}'.", sourceDofRoot);
 
             if (!Directory.Exists(templateSourceFolder))
@@ -206,24 +208,27 @@ public static class CustomActionEntrypoints
                     "Template files were not found in the installer payload. Re-run setup from a complete installer package.");
             }
 
-            var overwriteCandidates = ComputeOverwriteCandidates(templateSourceFolder, dofConfigPath);
-            session.Log("Computed overwrite candidates: {0} file(s).", overwriteCandidates.Count);
+            if (!Directory.Exists(baselineConfigSourceFolder))
+            {
+                return FailWithUserMessage(session, "Baseline DOF Config source folder not found.",
+                    "Baseline DOF Config files were not found in the installer payload. Re-run setup from a complete installer package.");
+            }
 
-            if (IsBackupEnabled(backupEnabled) && overwriteCandidates.Count > 0)
+            // Backup intentionally targets the existing DOF Config destination before any installer writes,
+            // so recovery includes the full pre-install state (not only files touched by one template).
+            if (IsBackupEnabled(backupEnabled))
             {
                 if (IsNullOrWhiteSpace(backupPath))
                 {
                     backupPath = Path.Combine(Path.Combine(dofRootPath, "Backups"), BuildTimestampedBackupFolderName());
                 }
 
-                CreateBackup(overwriteCandidates, dofConfigPath, backupPath, session);
+                BackupConfigFolderIfPresent(dofConfigPath, backupPath, session);
             }
             else
             {
-                session.Log("Skipping backup creation. Enabled='{0}', overwrite candidates='{1}'.", backupEnabled, overwriteCandidates.Count);
+                session.Log("Skipping backup creation. Enabled='{0}'.", backupEnabled);
             }
-
-            CopyTemplateFiles(templateSourceFolder, dofConfigPath, session);
 
             // Ensure architecture folders exist before copying DirectOutput DLLs expected by DOF tooling.
             var x64Destination = Path.Combine(dofRootPath, "x64");
@@ -238,6 +243,11 @@ public static class CustomActionEntrypoints
 
             CopyFileWithValidation(sourceX64Dll, destinationX64Dll, session, "DirectOutput x64 DLL");
             CopyFileWithValidation(sourceX86Dll, destinationX86Dll, session, "DirectOutput x86 DLL");
+
+            // Baseline copy lands first so template-specific files can deliberately win overwrite order afterward.
+            CopyBaselineConfigFiles(baselineConfigSourceFolder, dofConfigPath, session);
+            // Template copy must be last by design so selected template values are authoritative.
+            CopyTemplateFiles(templateSourceFolder, dofConfigPath, session);
 
             session.Log("ApplyDofTemplateAndBinaries completed successfully.");
             return ActionResult.Success;
@@ -262,68 +272,78 @@ public static class CustomActionEntrypoints
         }
     }
 
-    private static List<string> ComputeOverwriteCandidates(string templateSourceFolder, string dofConfigPath)
+    private static void BackupConfigFolderIfPresent(string dofConfigPath, string backupPath, Session session)
     {
-        var candidates = new List<string>();
-        var files = Directory.GetFiles(templateSourceFolder, "*", SearchOption.AllDirectories);
-
-        for (var i = 0; i < files.Length; i++)
+        if (!Directory.Exists(dofConfigPath))
         {
-            var sourceFile = files[i];
-            var relativePath = sourceFile.Substring(templateSourceFolder.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var destinationFile = Path.Combine(dofConfigPath, relativePath);
-
-            if (File.Exists(destinationFile))
-            {
-                candidates.Add(destinationFile);
-            }
+            session.Log("Skipping config backup because destination path does not exist yet: '{0}'.", dofConfigPath);
+            return;
         }
 
-        return candidates;
-    }
-
-    private static void CreateBackup(List<string> overwriteCandidates, string dofConfigPath, string backupPath, Session session)
-    {
-        session.Log("Creating backup at '{0}' for {1} file(s).", backupPath, overwriteCandidates.Count);
-        Directory.CreateDirectory(backupPath);
-
-        for (var i = 0; i < overwriteCandidates.Count; i++)
-        {
-            var existingFile = overwriteCandidates[i];
-            var relativePath = existingFile.Substring(dofConfigPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var backupFile = Path.Combine(backupPath, relativePath);
-            var backupFolder = Path.GetDirectoryName(backupFile);
-
-            if (!IsNullOrWhiteSpace(backupFolder))
-            {
-                Directory.CreateDirectory(backupFolder);
-            }
-
-            File.Copy(existingFile, backupFile, true);
-            session.Log("Backed up '{0}' to '{1}'.", existingFile, backupFile);
-        }
+        // Copy the complete pre-existing Config tree so users can fully restore their DOF state.
+        session.Log("Backing up existing DOF Config folder from '{0}' to '{1}'.", dofConfigPath, backupPath);
+        CopyDirectoryContents(dofConfigPath, backupPath, session, "DOF config backup", includePredicate: null);
     }
 
     private static void CopyTemplateFiles(string templateSourceFolder, string dofConfigPath, Session session)
     {
-        var files = Directory.GetFiles(templateSourceFolder, "*", SearchOption.AllDirectories);
-        session.Log("Copying {0} template file(s) from '{1}' to '{2}'.", files.Length, templateSourceFolder, dofConfigPath);
+        CopyDirectoryContents(templateSourceFolder, dofConfigPath, session, "template file",
+            includePredicate: delegate(string sourcePath)
+            {
+                // Template payload should always copy in full to intentionally override baseline files.
+                return true;
+            });
+    }
+
+    private static void CopyBaselineConfigFiles(string baselineConfigSourceFolder, string dofConfigPath, Session session)
+    {
+        CopyDirectoryContents(baselineConfigSourceFolder, dofConfigPath, session, "baseline config file",
+            includePredicate: delegate(string sourcePath)
+            {
+                // Baseline copy must not include template source payload folders.
+                var relativePath = sourcePath.Substring(baselineConfigSourceFolder.Length)
+                    .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var pathParts = relativePath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                return pathParts.Length == 0 || !pathParts[0].Equals("templates", StringComparison.OrdinalIgnoreCase);
+            });
+    }
+
+    private static void CopyDirectoryContents(
+        string sourceFolder,
+        string destinationFolder,
+        Session session,
+        string copyLabel,
+        Predicate<string> includePredicate)
+    {
+        var files = Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories);
+        var copiedCount = 0;
+        session.Log("Evaluating {0} file(s) from '{1}' to '{2}' for copy label '{3}'.",
+            files.Length, sourceFolder, destinationFolder, copyLabel);
 
         for (var i = 0; i < files.Length; i++)
         {
             var sourceFile = files[i];
-            var relativePath = sourceFile.Substring(templateSourceFolder.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var destinationFile = Path.Combine(dofConfigPath, relativePath);
-            var destinationFolder = Path.GetDirectoryName(destinationFile);
-
-            if (!IsNullOrWhiteSpace(destinationFolder))
+            if (includePredicate != null && !includePredicate(sourceFile))
             {
-                Directory.CreateDirectory(destinationFolder);
+                session.Log("Skipped {0} source '{1}' due to include filter.", copyLabel, sourceFile);
+                continue;
+            }
+
+            var relativePath = sourceFile.Substring(sourceFolder.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var destinationFile = Path.Combine(destinationFolder, relativePath);
+            var destinationFileFolder = Path.GetDirectoryName(destinationFile);
+
+            if (!IsNullOrWhiteSpace(destinationFileFolder))
+            {
+                EnsureDirectoryExists(destinationFileFolder, session, "destination folder for " + copyLabel);
             }
 
             File.Copy(sourceFile, destinationFile, true);
-            session.Log("Copied template file '{0}' to '{1}'.", sourceFile, destinationFile);
+            copiedCount++;
+            session.Log("Copied {0} from '{1}' to '{2}'.", copyLabel, sourceFile, destinationFile);
         }
+
+        session.Log("Completed copy label '{0}' with {1} copied file(s).", copyLabel, copiedCount);
     }
 
     private static void CopyFileWithValidation(string sourceFile, string destinationFile, Session session, string description)
