@@ -21,6 +21,8 @@
     <Property Id="BACKUP_PATH" Secure="yes" />
     <Property Id="DOFROOTPATH" Value="C:\DirectOutput" Secure="yes" />
     <Property Id="TOY_TEMPLATE" Value="single_matrix" Secure="yes" />
+    <!-- Keep the path-validation bypass that avoids false "local hard drive" blocks in InstallDirDlg. -->
+    <Property Id="WIXUI_DONTVALIDATEPATH" Value="1" />
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
@@ -97,33 +99,31 @@
           <Publish Event="NewDialog" Value="InstallDirDlg" Condition="NOT Installed" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
-          <Publish Event="NewDialog" Value="DofTemplateDlg" Condition="NOT Installed" />
+          <Publish Event="NewDialog" Value="TemplateSelectDlg" Condition="NOT Installed" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
         </Control>
       </Dialog>
 
-      <Dialog Id="DofTemplateDlg" Width="370" Height="270" Title="[ProductName] - DOF template selection">
-        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose a DOF template" />
-        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="26" Text="Select one of the supported template IDs. This value is saved in TOY_TEMPLATE." />
-        <Control Id="TemplateLabel" Type="Text" X="20" Y="60" Width="330" Height="12" Text="Template ID (TOY_TEMPLATE):" />
-        <!-- Dedicated template dialog keeps the selection constrained to a fixed allow-list of IDs. -->
-        <Control Id="TemplateSelect" Type="ComboBox" X="20" Y="74" Width="330" Height="18" Property="TOY_TEMPLATE" ComboList="yes">
-          <ComboBox Property="TOY_TEMPLATE">
-            <ListItem Text="single_matrix" Value="single_matrix" />
-            <ListItem Text="matrix_plus_3_strips" Value="matrix_plus_3_strips" />
-          </ComboBox>
+      <Dialog Id="TemplateSelectDlg" Width="370" Height="270" Title="[ProductName] - DOF template selection">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose your starter virtual toys." />
+        <!-- Use a RadioButtonGroup so the intended template value is explicit and easy to review. -->
+        <Control Id="TemplateGroup" Type="RadioButtonGroup" X="20" Y="76" Width="330" Height="54" Property="TOY_TEMPLATE">
+          <RadioButtonGroup Property="TOY_TEMPLATE">
+            <RadioButton Value="single_matrix" X="0" Y="0" Width="330" Height="16" Text="Single matrix only" />
+            <RadioButton Value="matrix_plus_3_strips" X="0" Y="22" Width="330" Height="16" Text="Matrix and 3 LED strips" />
+          </RadioButtonGroup>
         </Control>
-        <Control Id="TemplateHint" Type="Text" X="20" Y="103" Width="330" Height="70" NoPrefix="yes"
-          Text="single_matrix: 32x8 matrix only&#x0d;&#x0a;matrix_plus_3_strips: matrix plus flasher strips&#x0d;&#x0a;Unsupported values are blocked by installer validation." />
+        <Control Id="TemplateHint" Type="Text" X="20" Y="138" Width="330" Height="52" NoPrefix="yes"
+          Text="You can change the configuration and add/remove virtual toys in the app later." />
 
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
-          <Publish Event="NewDialog" Value="DofConfigDlg" Condition="NOT Installed" />
+          <Publish Event="NewDialog" Value="InstallDirDlg" Condition="NOT Installed" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
           <Publish Event="DoAction" Value="ValidateInstallerSelections" Condition="1" />
-          <Publish Event="NewDialog" Value="DofSummaryDlg" Condition="NOT Installed" />
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Condition="NOT Installed" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
@@ -139,7 +139,7 @@
           Text="Warning: existing DOF config files may be overwritten during setup. Keep a backup if needed." />
 
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
-          <Publish Event="NewDialog" Value="DofTemplateDlg" Condition="NOT Installed" />
+          <Publish Event="NewDialog" Value="TemplateSelectDlg" Condition="NOT Installed" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
           <Publish Event="NewDialog" Value="VerifyReadyDlg" Condition="NOT Installed" />
@@ -152,10 +152,10 @@
       <!-- Inject custom DOF dialogs between License and VerifyReady in the InstallDir WixUI flow. -->
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="98" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofCheckDlg" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
-      <!-- Keep stock InstallDir Next behavior (SetTargetPath + validation) and redirect only after destination succeeds. -->
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="999" Condition="NOT Installed AND WIXUI_INSTALLDIR_VALID = &quot;1&quot;" />
-      <!-- Route VerifyReady Back through the custom review flow for first-time installs only. -->
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DofSummaryDlg" Order="99" Condition="NOT Installed" />
+      <!-- Route InstallDir Next to template selection while preserving the stock SetTargetPath behavior from WixUI_InstallDir. -->
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="999" Condition="NOT Installed" />
+      <!-- Route VerifyReady Back to template selection for first-time installs only. -->
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TemplateSelectDlg" Order="99" Condition="NOT Installed" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
       <Publish
         Dialog="ExitDialog"
