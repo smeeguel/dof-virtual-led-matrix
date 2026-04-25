@@ -51,6 +51,8 @@ public static class CustomActionEntrypoints
             else
             {
                 // Keep detection state explicit so UI conditions remain deterministic.
+                session["DOFROOTPATH"] = string.Empty;
+                session["DOFCONFIGPATH"] = string.Empty;
                 session["DOF_DETECTED"] = "0";
             }
 
@@ -73,7 +75,8 @@ public static class CustomActionEntrypoints
     public static ActionResult ShowInvalidDofSelectionMessage(Session session)
     {
         const string userMessage = "This folder does not appear to be a valid DirectOutput Framework (DOF) install. " +
-            "Select the DOF root folder that contains Config plus x64 or x86, or install both 32-bit and 64-bit DOF installers from " +
+            "Install DOF first (default location: C:\\DirectOutput), then choose or type a DOF root folder that contains Config plus x64 or x86. " +
+            "You can edit the DOF root path on the DOF check screen. DOF installers: " +
             DofDownloadUrl + ".";
 
         try

@@ -52,18 +52,31 @@
       <!-- Dialog Title expects plain text or a defined localization string id; do not use undefined WixUI font loc tokens. -->
       <Dialog Id="DofCheckDlg" Width="370" Height="270" Title="[ProductName] - DOF detection">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="DOF environment check" />
-        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="20" Text="Review detected DOF defaults before choosing install options." />
-        <Control Id="DetectionSummary" Type="Text" X="20" Y="52" Width="330" Height="55" NoPrefix="yes"
-          Text="Detected DOF root: [DOFROOTPATH]&#x0d;&#x0a;Detected config path: [DOFCONFIGPATH]&#x0d;&#x0a;If these are missing/incorrect, continue and adjust values on the next dialogs." />
-        <Control Id="MissingGuidance" Type="Text" X="20" Y="112" Width="330" Height="58" NoPrefix="yes"
-          Text="Missing DOF? Install DOF R3++, then verify Cabinet.xml/directoutputconfig30.ini are available in your DOF Config folder before running this installer again." />
+        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="20" Text="Confirm the DirectOutput Framework installation before continuing." />
+        <Control Id="DetectedLabel" Type="Text" X="20" Y="50" Width="330" Height="14" Text="Detected DOF installation:" />
+        <Control Id="DetectedFound" Type="Text" X="20" Y="65" Width="330" Height="33" NoPrefix="yes"
+          Text="Found DOF root: [DOFROOTPATH]&#x0d;&#x0a;Found config path: [DOFCONFIGPATH]">
+          <Condition Action="show">DOF_DETECTED = "1"</Condition>
+          <Condition Action="hide">DOF_DETECTED &lt;&gt; "1"</Condition>
+        </Control>
+        <Control Id="DetectedMissing" Type="Text" X="20" Y="65" Width="330" Height="43" NoPrefix="yes"
+          Text="No DOF installation was detected automatically.&#x0d;&#x0a;Install DOF first or enter your DOF root folder below.">
+          <Condition Action="show">DOF_DETECTED &lt;&gt; "1"</Condition>
+          <Condition Action="hide">DOF_DETECTED = "1"</Condition>
+        </Control>
+
+        <Control Id="RootPathLabel" Type="Text" X="20" Y="116" Width="330" Height="12" Text="DOF root folder (contains Config + x64 or x86):" />
+        <Control Id="RootPathEdit" Type="PathEdit" X="20" Y="130" Width="330" Height="18" Property="DOFROOTPATH" />
+        <Control Id="MissingGuidance" Type="Text" X="20" Y="154" Width="330" Height="56" NoPrefix="yes"
+          Text="Expected default path: C:\DirectOutput&#x0d;&#x0a;If DOF is missing, install both DOF packages first, then return and click Next to re-check." />
 
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
           <Publish Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
-          <Publish Event="DoAction" Value="DetectDofDefaults" Condition="1" />
-          <Publish Event="NewDialog" Value="InstallDirDlg" Condition="NOT Installed" />
+          <Publish Event="DoAction" Value="DetectDofInstall" Condition="1" Order="1" />
+          <Publish Event="NewDialog" Value="InstallDirDlg" Condition="NOT Installed AND DOF_DETECTED = &quot;1&quot;" Order="2" />
+          <Publish Event="DoAction" Value="ShowInvalidDofSelectionMessage" Condition="DOF_DETECTED &lt;&gt; &quot;1&quot;" Order="3" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
@@ -122,6 +135,7 @@
       </Dialog>
 
       <!-- Inject custom DOF dialogs between License and VerifyReady in the InstallDir WixUI flow. -->
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="98" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofCheckDlg" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
       <!-- Keep stock InstallDir Next behavior (SetTargetPath + validation) and redirect only after destination succeeds. -->
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofTemplateDlg" Order="999" Condition="NOT Installed" />
@@ -138,7 +152,8 @@
 
     <!-- DTF custom actions must reference the generated *.CA.dll payload, not the plain project output DLL. -->
     <Binary Id="CustomActionBinary" SourceFile="$(var.CustomActions.TargetDir)VirtualDofMatrix.CustomActions.CA.dll" />
-    <CustomAction Id="DetectDofDefaults" BinaryRef="CustomActionBinary" DllEntry="DetectDofDefaults" Execute="immediate" Return="check" />
+    <CustomAction Id="DetectDofInstall" BinaryRef="CustomActionBinary" DllEntry="DetectDofInstall" Execute="immediate" Return="check" />
+    <CustomAction Id="ShowInvalidDofSelectionMessage" BinaryRef="CustomActionBinary" DllEntry="ShowInvalidDofSelectionMessage" Execute="immediate" Return="ignore" />
     <CustomAction Id="ValidateInstallerSelections" BinaryRef="CustomActionBinary" DllEntry="ValidateInstallerSelections" Execute="immediate" Return="check" />
     <CustomAction Id="ApplyDofTemplateAndBinaries" BinaryRef="CustomActionBinary" DllEntry="ApplyDofTemplateAndBinaries" Execute="deferred" Impersonate="no" Return="check" />
     <CustomAction
