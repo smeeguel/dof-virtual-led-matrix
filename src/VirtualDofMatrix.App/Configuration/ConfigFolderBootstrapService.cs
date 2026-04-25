@@ -13,7 +13,7 @@ public sealed class ConfigFolderBootstrapService
 {
     public const string DefaultConfigFolderPath = @"C:\DirectOutput\Config";
     private readonly GlobalConfigBootstrapService _globalConfigBootstrapService = new();
-    private readonly InstallerSelectionHintService _installerSelectionHintService = new();
+    private readonly InstallerSelectionRegistryHintService _installerSelectionRegistryHintService = new();
 
     public StartupConfigStatus ResolveAndPersist(AppConfig config)
     {
@@ -28,7 +28,7 @@ public sealed class ConfigFolderBootstrapService
         var settingsStillOnDefaultPath = string.IsNullOrWhiteSpace(config.Settings.DofConfigFolderPath)
             || configuredPath.Equals(DefaultConfigFolderPath, StringComparison.OrdinalIgnoreCase);
         var installHintPath = settingsStillOnDefaultPath
-            ? _installerSelectionHintService.TryResolveDofConfigFolder(AppContext.BaseDirectory)
+            ? _installerSelectionRegistryHintService.TryResolveDofConfigFolder()
             : null;
 
         var activePath = IsReadableDirectory(DefaultConfigFolderPath)

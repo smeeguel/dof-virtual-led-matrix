@@ -14,7 +14,9 @@ public static class CustomActionEntrypoints
     private const string DefaultDofRootPath = @"C:\DirectOutput";
     private const string DefaultDofConfigPath = @"C:\DirectOutput\Config";
     private const string DefaultTemplate = "single_matrix";
-    private const string InstallerSelectionHintFileName = "installer-selections.json";
+    private const string InstallerSelectionRegistryPath = @"Software\VirtualDofMatrix";
+    private const string InstallerSelectionRegistryValueDofRootPath = "DofRootPath";
+    private const string InstallerSelectionRegistryValueDofConfigPath = "DofConfigPath";
     // Keep supported installer template IDs centralized so UI, validation, and deferred apply logic remain consistent.
     private static readonly IDictionary<string, string> TemplateToFolderMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -306,7 +308,7 @@ public static class CustomActionEntrypoints
             CopyBaselineConfigFiles(baselineConfigSourceFolder, dofConfigPath, session);
             // Template copy must be last by design so selected template values are authoritative.
             CopyTemplateFiles(templateSourceFolder, dofConfigPath, session);
-            WriteInstallerSelectionHint(installFolder, dofRootPath, dofConfigPath, session);
+            PersistInstallerSelectionsToRegistry(dofRootPath, dofConfigPath, session);
 
             session.Log("ApplyDofTemplateAndBinaries completed successfully.");
             return ActionResult.Success;
@@ -560,38 +562,30 @@ public static class CustomActionEntrypoints
             || string.Equals(backupEnabledValue, "yes", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void WriteInstallerSelectionHint(string installFolder, string dofRootPath, string dofConfigPath, Session session)
+    private static void PersistInstallerSelectionsToRegistry(string dofRootPath, string dofConfigPath, Session session)
     {
-        if (IsNullOrWhiteSpace(installFolder))
+        if (IsNullOrWhiteSpace(dofConfigPath))
         {
-            session.Log("Skipping installer selection hint write because INSTALLFOLDER is empty.");
+            session.Log("Skipping installer selection registry write because DOFCONFIGPATH is empty.");
             return;
         }
 
-        var hintPath = Path.Combine(installFolder, InstallerSelectionHintFileName);
-        var hintPayload = new
+        // Persist validated DOF selections into HKLM so first app launch can bootstrap without an extra file artifact.
+        using var key = Registry.LocalMachine.CreateSubKey(InstallerSelectionRegistryPath);
+        if (key is null)
         {
-            Root = EscapeJsonString(dofRootPath),
-            Config = EscapeJsonString(dofConfigPath),
-            GeneratedUtc = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
-        };
+            session.Log("Skipping installer selection registry write because key '{0}' could not be created.", InstallerSelectionRegistryPath);
+            return;
+        }
 
-        // Keep serialization dependency-free for net472 custom actions by writing a tiny JSON payload directly.
-        var json = "{\r\n" +
-            "  \"dofRootPath\": \"" + hintPayload.Root + "\",\r\n" +
-            "  \"dofConfigPath\": \"" + hintPayload.Config + "\",\r\n" +
-            "  \"generatedUtc\": \"" + hintPayload.GeneratedUtc + "\"\r\n" +
-            "}";
-
-        File.WriteAllText(hintPath, json);
-        session.Log("Wrote installer selection hint at '{0}' with DOFCONFIGPATH='{1}'.", hintPath, dofConfigPath);
-    }
-
-    private static string EscapeJsonString(string value)
-    {
-        return IsNullOrWhiteSpace(value)
-            ? string.Empty
-            : value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        key.SetValue(InstallerSelectionRegistryValueDofConfigPath, dofConfigPath, RegistryValueKind.String);
+        key.SetValue(InstallerSelectionRegistryValueDofRootPath, IsNullOrWhiteSpace(dofRootPath) ? string.Empty : dofRootPath, RegistryValueKind.String);
+        key.SetValue("GeneratedUtc", DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture), RegistryValueKind.String);
+        session.Log(
+            "Persisted installer selection registry hint at 'HKLM\\{0}' with {1}='{2}'.",
+            InstallerSelectionRegistryPath,
+            InstallerSelectionRegistryValueDofConfigPath,
+            dofConfigPath);
     }
 
     private static string BuildTimestampedBackupFolderName()
