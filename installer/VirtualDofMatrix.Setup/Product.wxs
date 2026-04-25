@@ -58,7 +58,7 @@
         <Control Id="Description" Type="Text" X="20" Y="26" Width="330" Height="40" NoPrefix="yes"
           Text="Virtual DOF Matrix could not detect an existing DirectOutput Framework installation on this machine." />
         <Control Id="Guidance" Type="Text" X="20" Y="70" Width="330" Height="46" NoPrefix="yes"
-          Text="Install DirectOutput first, then click Retry to run detection again. The installer will continue automatically when detection succeeds." />
+          Text="Install both the 32-bit and 64-bit DirectOutput packages first, then click Retry to run detection again." />
         <Control Id="DownloadLabel" Type="Text" X="20" Y="122" Width="330" Height="12" Text="DOF download:" />
         <!-- Use an explicit button action so the URL is keyboard-focusable/selectable and opens in the default browser. -->
         <Control Id="DownloadUrl" Type="PushButton" X="20" Y="136" Width="330" Height="17"
@@ -66,17 +66,13 @@
           <Publish Event="DoAction" Value="SetDofDownloadUrlTarget" Condition="1" Order="1" />
           <Publish Event="DoAction" Value="LaunchDofDownloadPage" Condition="1" Order="2" />
         </Control>
-        <Control Id="DetectedPathHint" Type="Text" X="20" Y="166" Width="330" Height="28" NoPrefix="yes"
-          Text="Current detected root: [DOFROOTPATH]&#x0d;&#x0a;Current detected config: [DOFCONFIGPATH]" />
-
         <Control Id="Back" Type="PushButton" X="124" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
           <Publish Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
         </Control>
         <Control Id="Retry" Type="PushButton" X="184" Y="243" Width="56" Height="17" Default="yes" Text="Retry">
-          <!-- Retry always reruns detection, then explicit routing ensures exactly one navigation event fires for this click path. -->
+          <!-- Retry reruns detection in-place; only navigate when detection succeeds to avoid reopening the same dialog and triggering MSI UI errors. -->
           <Publish Event="DoAction" Value="DetectDofInstall" Condition="NOT Installed" Order="1" />
           <Publish Event="NewDialog" Value="InstallDirDlg" Condition="NOT Installed AND DOF_DETECTED = &quot;1&quot;" Order="2" />
-          <Publish Event="NewDialog" Value="DofNotFoundDlg" Condition="NOT Installed AND DOF_DETECTED &lt;&gt; &quot;1&quot;" Order="3" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
