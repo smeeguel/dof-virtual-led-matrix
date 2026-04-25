@@ -70,10 +70,16 @@ public static class CustomActionEntrypoints
             }
             else
             {
-                // Keep detection state explicit so UI conditions remain deterministic.
-                session["DOFROOTPATH"] = string.Empty;
-                session["DOFCONFIGPATH"] = string.Empty;
+                // Keep installer-bound path properties populated so PathEdit controls never receive empty values.
+                var fallbackRootPath = NormalizePath(session["DOFROOTPATH"]);
+                var fallbackConfigPath = NormalizePath(session["DOFCONFIGPATH"]);
+                EnsureDetectPropertiesHaveSafeDefaults(session, ref fallbackRootPath, ref fallbackConfigPath);
+
+                session["DOFROOTPATH"] = fallbackRootPath;
+                session["DOFCONFIGPATH"] = fallbackConfigPath;
                 session["DOF_DETECTED"] = "0";
+                session.Log("DetectDofInstall miss path: DOFROOTPATH='{0}', DOFCONFIGPATH='{1}', DOF_DETECTED='{2}'.",
+                    session["DOFROOTPATH"], session["DOFCONFIGPATH"], session["DOF_DETECTED"]);
             }
 
             session["BACKUP_ENABLED"] = IsNullOrWhiteSpace(session["BACKUP_ENABLED"]) ? "1" : session["BACKUP_ENABLED"];
@@ -848,6 +854,59 @@ public static class CustomActionEntrypoints
         // architecture folders do not exist yet; ApplyDofTemplateAndBinaries creates those folders.
         var configPath = Path.Combine(normalizedRootPath, "Config");
         return Directory.Exists(configPath);
+    }
+
+    private static void EnsureDetectPropertiesHaveSafeDefaults(Session session, ref string dofRootPath, ref string dofConfigPath)
+    {
+        // Normalize miss-path values and repopulate with defaults so installer UI path controls always have valid text.
+        dofRootPath = NormalizePath(dofRootPath);
+        dofConfigPath = NormalizePath(dofConfigPath);
+
+        if (IsNullOrWhiteSpace(dofRootPath))
+        {
+            dofRootPath = DefaultDofRootPath;
+        }
+
+        if (IsNullOrWhiteSpace(dofConfigPath))
+        {
+            dofConfigPath = Path.Combine(dofRootPath, "Config");
+        }
+
+        dofConfigPath = EnsureConfigPathEndsWithConfig(dofConfigPath);
+        dofRootPath = ResolveRootFromPathPair(dofRootPath, dofConfigPath);
+        dofConfigPath = EnsureConfigPathEndsWithConfig(dofConfigPath);
+
+        session.Log("DetectDofInstall guard applied: DOFROOTPATH='{0}', DOFCONFIGPATH='{1}'.", dofRootPath, dofConfigPath);
+    }
+
+    private static string EnsureConfigPathEndsWithConfig(string configPath)
+    {
+        var normalizedPath = NormalizePath(configPath);
+        if (IsNullOrWhiteSpace(normalizedPath))
+        {
+            return Path.Combine(DefaultDofRootPath, "Config");
+        }
+
+        if (HasConfigSuffix(normalizedPath))
+        {
+            return normalizedPath;
+        }
+
+        return Path.Combine(normalizedPath, "Config");
+    }
+
+    private static string ResolveRootFromPathPair(string dofRootPath, string dofConfigPath)
+    {
+        var normalizedRootPath = NormalizePath(dofRootPath);
+        var normalizedConfigPath = NormalizePath(dofConfigPath);
+        var resolvedRootFromConfig = ResolveDofRootFromConfigPath(normalizedConfigPath);
+
+        if (!IsNullOrWhiteSpace(resolvedRootFromConfig))
+        {
+            return resolvedRootFromConfig;
+        }
+
+        return IsNullOrWhiteSpace(normalizedRootPath) ? DefaultDofRootPath : normalizedRootPath;
     }
 
     private static string BuildDofMissingMessage(string leadIn)
