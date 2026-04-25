@@ -649,19 +649,8 @@ public static class CustomActionEntrypoints
 
     private static bool IsValidDofRootForDetection(string rootPath)
     {
-        var normalizedRootPath = NormalizePath(rootPath);
-        if (IsNullOrWhiteSpace(normalizedRootPath) || !Path.IsPathRooted(normalizedRootPath))
-        {
-            return false;
-        }
-
-        // Detection is stricter than install-time validation so we avoid selecting half-installed roots:
-        // Config plus both architecture folders is treated as the preferred/required detection signature.
-        var configPath = Path.Combine(normalizedRootPath, "Config");
-        var hasConfig = Directory.Exists(configPath);
-        var hasX64 = Directory.Exists(Path.Combine(normalizedRootPath, "x64"));
-        var hasX86 = Directory.Exists(Path.Combine(normalizedRootPath, "x86"));
-        return hasConfig && hasX64 && hasX86;
+        // Keep detection criteria aligned with installer UX text: a valid root contains Config plus x64 OR x86.
+        return IsValidDofRoot(rootPath);
     }
 
     private static string DetectDofRootFromRegistryAndFilesystem(Session session)
@@ -779,6 +768,28 @@ public static class CustomActionEntrypoints
         var candidates = new List<string>();
         var seen = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
+        // Probe fixed-drive roots first so non-default installs like D:\DirectOutput are discoverable
+        // even when uninstall metadata omits InstallLocation/DisplayIcon paths.
+        var logicalDrives = Environment.GetLogicalDrives();
+        for (var i = 0; i < logicalDrives.Length; i++)
+        {
+            var driveRoot = logicalDrives[i];
+            try
+            {
+                var driveInfo = new DriveInfo(driveRoot);
+                if (driveInfo.DriveType != DriveType.Fixed || !driveInfo.IsReady)
+                {
+                    continue;
+                }
+
+                AddCandidatePath(candidates, seen, Path.Combine(driveInfo.RootDirectory.FullName, "DirectOutput"));
+            }
+            catch
+            {
+                // Ignore inaccessible/transitioning drives; candidate discovery should stay best-effort.
+            }
+        }
+
         var programFiles = NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
         if (!IsNullOrWhiteSpace(programFiles))
         {
@@ -806,8 +817,7 @@ public static class CustomActionEntrypoints
             return false;
         }
 
-        return displayName.IndexOf("DirectOutput32", StringComparison.OrdinalIgnoreCase) >= 0
-            || displayName.IndexOf("DirectOutput64", StringComparison.OrdinalIgnoreCase) >= 0;
+        return displayName.IndexOf("DirectOutput", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static string DeriveRootFromDisplayIcon(string displayIcon)
@@ -867,6 +877,20 @@ public static class CustomActionEntrypoints
         {
             seen[normalizedPath] = true;
             candidates.Add(normalizedPath);
+        }
+
+        var leafName = Path.GetFileName(normalizedPath);
+        if (leafName.Equals("x64", StringComparison.OrdinalIgnoreCase)
+            || leafName.Equals("x86", StringComparison.OrdinalIgnoreCase)
+            || leafName.Equals("Config", StringComparison.OrdinalIgnoreCase))
+        {
+            // Some uninstall entries point to architecture/config subfolders; include parent as likely DOF root.
+            var parentPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
+            if (!IsNullOrWhiteSpace(parentPath) && Path.IsPathRooted(parentPath) && !seen.ContainsKey(parentPath))
+            {
+                seen[parentPath] = true;
+                candidates.Add(parentPath);
+            }
         }
     }
 
