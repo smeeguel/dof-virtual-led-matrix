@@ -14,6 +14,9 @@ public static class CustomActionEntrypoints
     private const string DefaultDofRootPath = @"C:\DirectOutput";
     private const string DefaultDofConfigPath = @"C:\DirectOutput\Config";
     private const string DefaultTemplate = "single_matrix";
+    private const string InstallerSelectionRegistryPath = @"Software\VirtualDofMatrix";
+    private const string InstallerSelectionRegistryValueDofRootPath = "DofRootPath";
+    private const string InstallerSelectionRegistryValueDofConfigPath = "DofConfigPath";
     // Keep supported installer template IDs centralized so UI, validation, and deferred apply logic remain consistent.
     private static readonly IDictionary<string, string> TemplateToFolderMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -305,6 +308,7 @@ public static class CustomActionEntrypoints
             CopyBaselineConfigFiles(baselineConfigSourceFolder, dofConfigPath, session);
             // Template copy must be last by design so selected template values are authoritative.
             CopyTemplateFiles(templateSourceFolder, dofConfigPath, session);
+            PersistInstallerSelectionsToRegistry(dofRootPath, dofConfigPath, session);
 
             session.Log("ApplyDofTemplateAndBinaries completed successfully.");
             return ActionResult.Success;
@@ -556,6 +560,32 @@ public static class CustomActionEntrypoints
         return string.Equals(backupEnabledValue, "1", StringComparison.OrdinalIgnoreCase)
             || string.Equals(backupEnabledValue, "true", StringComparison.OrdinalIgnoreCase)
             || string.Equals(backupEnabledValue, "yes", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void PersistInstallerSelectionsToRegistry(string dofRootPath, string dofConfigPath, Session session)
+    {
+        if (IsNullOrWhiteSpace(dofConfigPath))
+        {
+            session.Log("Skipping installer selection registry write because DOFCONFIGPATH is empty.");
+            return;
+        }
+
+        // Persist validated DOF selections into HKLM so first app launch can bootstrap without an extra file artifact.
+        using var key = Registry.LocalMachine.CreateSubKey(InstallerSelectionRegistryPath);
+        if (key is null)
+        {
+            session.Log("Skipping installer selection registry write because key '{0}' could not be created.", InstallerSelectionRegistryPath);
+            return;
+        }
+
+        key.SetValue(InstallerSelectionRegistryValueDofConfigPath, dofConfigPath, RegistryValueKind.String);
+        key.SetValue(InstallerSelectionRegistryValueDofRootPath, IsNullOrWhiteSpace(dofRootPath) ? string.Empty : dofRootPath, RegistryValueKind.String);
+        key.SetValue("GeneratedUtc", DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture), RegistryValueKind.String);
+        session.Log(
+            "Persisted installer selection registry hint at 'HKLM\\{0}' with {1}='{2}'.",
+            InstallerSelectionRegistryPath,
+            InstallerSelectionRegistryValueDofConfigPath,
+            dofConfigPath);
     }
 
     private static string BuildTimestampedBackupFolderName()
