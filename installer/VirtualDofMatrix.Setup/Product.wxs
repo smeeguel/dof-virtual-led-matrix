@@ -33,11 +33,9 @@
     -->
     <Property Id="WIXUI_DONTVALIDATEPATH" Value="1" />
     <!--
-      Explicitly set WIXUI_INSTALLDIR for robustness: some MSI hosts still evaluate InstallDirDlg path
-      validation against ROOTDRIVE/TARGETDIR when this property is unset, which can trigger the
-      "local hard drive" blocker before our custom setup pages appear.
+      Do not redeclare WIXUI_INSTALLDIR here: ui:WixUI InstallDirectory wiring already authors it,
+      and a second declaration causes a duplicate symbol error in WiX v4 (WIX0091/WIX0092).
     -->
-    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
 
     <!-- Install root defaults to Program Files and remains user-selectable through the install-directory dialog. -->
     <StandardDirectory Id="ProgramFiles64Folder">
