@@ -14,6 +14,7 @@ public static class CustomActionEntrypoints
     private const string DefaultDofRootPath = @"C:\DirectOutput";
     private const string DefaultDofConfigPath = @"C:\DirectOutput\Config";
     private const string DefaultTemplate = "single_matrix";
+    private const string InstallerSelectionHintFileName = "installer-selections.json";
     // Keep supported installer template IDs centralized so UI, validation, and deferred apply logic remain consistent.
     private static readonly IDictionary<string, string> TemplateToFolderMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -305,6 +306,7 @@ public static class CustomActionEntrypoints
             CopyBaselineConfigFiles(baselineConfigSourceFolder, dofConfigPath, session);
             // Template copy must be last by design so selected template values are authoritative.
             CopyTemplateFiles(templateSourceFolder, dofConfigPath, session);
+            WriteInstallerSelectionHint(installFolder, dofRootPath, dofConfigPath, session);
 
             session.Log("ApplyDofTemplateAndBinaries completed successfully.");
             return ActionResult.Success;
@@ -556,6 +558,40 @@ public static class CustomActionEntrypoints
         return string.Equals(backupEnabledValue, "1", StringComparison.OrdinalIgnoreCase)
             || string.Equals(backupEnabledValue, "true", StringComparison.OrdinalIgnoreCase)
             || string.Equals(backupEnabledValue, "yes", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void WriteInstallerSelectionHint(string installFolder, string dofRootPath, string dofConfigPath, Session session)
+    {
+        if (IsNullOrWhiteSpace(installFolder))
+        {
+            session.Log("Skipping installer selection hint write because INSTALLFOLDER is empty.");
+            return;
+        }
+
+        var hintPath = Path.Combine(installFolder, InstallerSelectionHintFileName);
+        var hintPayload = new
+        {
+            Root = EscapeJsonString(dofRootPath),
+            Config = EscapeJsonString(dofConfigPath),
+            GeneratedUtc = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+        };
+
+        // Keep serialization dependency-free for net472 custom actions by writing a tiny JSON payload directly.
+        var json = "{\r\n" +
+            "  \"dofRootPath\": \"" + hintPayload.Root + "\",\r\n" +
+            "  \"dofConfigPath\": \"" + hintPayload.Config + "\",\r\n" +
+            "  \"generatedUtc\": \"" + hintPayload.GeneratedUtc + "\"\r\n" +
+            "}";
+
+        File.WriteAllText(hintPath, json);
+        session.Log("Wrote installer selection hint at '{0}' with DOFCONFIGPATH='{1}'.", hintPath, dofConfigPath);
+    }
+
+    private static string EscapeJsonString(string value)
+    {
+        return IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 
     private static string BuildTimestampedBackupFolderName()

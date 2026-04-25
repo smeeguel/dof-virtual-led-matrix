@@ -13,6 +13,7 @@ public sealed class ConfigFolderBootstrapService
 {
     public const string DefaultConfigFolderPath = @"C:\DirectOutput\Config";
     private readonly GlobalConfigBootstrapService _globalConfigBootstrapService = new();
+    private readonly InstallerSelectionHintService _installerSelectionHintService = new();
 
     public StartupConfigStatus ResolveAndPersist(AppConfig config)
     {
@@ -22,9 +23,17 @@ public sealed class ConfigFolderBootstrapService
             ? DefaultConfigFolderPath
             : config.Settings.DofConfigFolderPath.Trim();
 
+        // Keep installer-discovered custom DOF locations first-launch friendly by honoring
+        // the setup hint when settings are still at the built-in default value.
+        var settingsStillOnDefaultPath = string.IsNullOrWhiteSpace(config.Settings.DofConfigFolderPath)
+            || configuredPath.Equals(DefaultConfigFolderPath, StringComparison.OrdinalIgnoreCase);
+        var installHintPath = settingsStillOnDefaultPath
+            ? _installerSelectionHintService.TryResolveDofConfigFolder(AppContext.BaseDirectory)
+            : null;
+
         var activePath = IsReadableDirectory(DefaultConfigFolderPath)
             ? DefaultConfigFolderPath
-            : configuredPath;
+            : (IsReadableDirectory(installHintPath) ? installHintPath! : configuredPath);
 
         if (!IsReadableDirectory(activePath))
         {
