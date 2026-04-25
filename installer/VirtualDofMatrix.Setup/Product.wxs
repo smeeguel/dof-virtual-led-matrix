@@ -83,28 +83,44 @@
         </Control>
       </Dialog>
 
-      <Dialog Id="DofTemplateDlg" Width="370" Height="270" Title="[ProductName] - DOF setup options">
+      <Dialog Id="DofConfigDlg" Width="370" Height="270" Title="[ProductName] - DOF setup options">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="DOF setup options" />
-        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="30" Text="Choose your DOF Config folder and installer behavior. Enter the path directly." />
+        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="30" Text="Choose your DOF Config folder and backup behavior. Enter the path directly." />
 
         <Control Id="DofPathLabel" Type="Text" X="20" Y="60" Width="330" Height="12" Text="DOF config folder (DOFCONFIGPATH):" />
         <Control Id="DofPathEdit" Type="PathEdit" X="20" Y="74" Width="330" Height="18" Property="DOFCONFIGPATH" />
 
-        <Control Id="TemplateLabel" Type="Text" X="20" Y="101" Width="330" Height="12" Text="Toy template (TOY_TEMPLATE):" />
-        <!-- Use a ComboBox for template selection to avoid runtime dialog-instantiation issues seen with RadioButtonGroup markup. -->
-        <Control Id="TemplateSelect" Type="ComboBox" X="20" Y="115" Width="330" Height="18" Property="TOY_TEMPLATE" ComboList="yes">
-          <ComboBox Property="TOY_TEMPLATE">
-            <ListItem Text="Single matrix" Value="single_matrix" />
-            <ListItem Text="Matrix + 3 strips" Value="matrix_plus_3_strips" />
-          </ComboBox>
-        </Control>
-
-        <Control Id="BackupCheck" Type="CheckBox" X="20" Y="152" Width="330" Height="16" Property="BACKUP_ENABLED" CheckBoxValue="1" Text="Enable backup before overwriting files (BACKUP_ENABLED)" />
-        <Control Id="BackupPathLabel" Type="Text" X="20" Y="172" Width="330" Height="12" Text="Backup path (BACKUP_PATH):" />
-        <Control Id="BackupPathEdit" Type="PathEdit" X="20" Y="186" Width="330" Height="18" Property="BACKUP_PATH" />
+        <Control Id="BackupCheck" Type="CheckBox" X="20" Y="112" Width="330" Height="16" Property="BACKUP_ENABLED" CheckBoxValue="1" Text="Enable backup before overwriting files (BACKUP_ENABLED)" />
+        <Control Id="BackupPathLabel" Type="Text" X="20" Y="132" Width="330" Height="12" Text="Backup path (BACKUP_PATH):" />
+        <Control Id="BackupPathEdit" Type="PathEdit" X="20" Y="146" Width="330" Height="18" Property="BACKUP_PATH" />
 
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
           <Publish Event="NewDialog" Value="InstallDirDlg" Condition="NOT Installed" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="NewDialog" Value="DofTemplateDlg" Condition="NOT Installed" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
+      </Dialog>
+
+      <Dialog Id="DofTemplateDlg" Width="370" Height="270" Title="[ProductName] - DOF template selection">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose a DOF template" />
+        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="26" Text="Select one of the supported template IDs. This value is saved in TOY_TEMPLATE." />
+        <Control Id="TemplateLabel" Type="Text" X="20" Y="60" Width="330" Height="12" Text="Template ID (TOY_TEMPLATE):" />
+        <!-- Dedicated template dialog keeps the selection constrained to a fixed allow-list of IDs. -->
+        <Control Id="TemplateSelect" Type="ComboBox" X="20" Y="74" Width="330" Height="18" Property="TOY_TEMPLATE" ComboList="yes">
+          <ComboBox Property="TOY_TEMPLATE">
+            <ListItem Text="single_matrix" Value="single_matrix" />
+            <ListItem Text="matrix_plus_3_strips" Value="matrix_plus_3_strips" />
+          </ComboBox>
+        </Control>
+        <Control Id="TemplateHint" Type="Text" X="20" Y="103" Width="330" Height="70" NoPrefix="yes"
+          Text="single_matrix: 32x8 matrix only&#x0d;&#x0a;matrix_plus_3_strips: matrix plus flasher strips&#x0d;&#x0a;Unsupported values are blocked by installer validation." />
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="DofConfigDlg" Condition="NOT Installed" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
           <Publish Event="DoAction" Value="ValidateInstallerSelections" Condition="1" />
@@ -138,7 +154,7 @@
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="98" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofCheckDlg" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
       <!-- Keep stock InstallDir Next behavior (SetTargetPath + validation) and redirect only after destination succeeds. -->
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofTemplateDlg" Order="999" Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="999" Condition="NOT Installed" />
       <!-- Route VerifyReady Back through the custom review flow for first-time installs only. -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DofSummaryDlg" Order="99" Condition="NOT Installed" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->

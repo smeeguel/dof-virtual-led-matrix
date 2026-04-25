@@ -13,6 +13,12 @@ public static class CustomActionEntrypoints
     private const string DefaultDofRootPath = @"C:\DirectOutput";
     private const string DefaultDofConfigPath = @"C:\DirectOutput\Config";
     private const string DefaultTemplate = "single_matrix";
+    // Keep supported installer template IDs centralized so UI, validation, and deferred apply logic remain consistent.
+    private static readonly IDictionary<string, string> TemplateToFolderMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        { "single_matrix", "01-single-matrix" },
+        { "matrix_plus_3_strips", "02-matrix-and-flasher-strips" },
+    };
 
     [CustomAction]
     public static ActionResult DetectDofInstall(Session session)
@@ -144,6 +150,22 @@ public static class CustomActionEntrypoints
             {
                 session["TOY_TEMPLATE"] = DefaultTemplate;
             }
+            else
+            {
+                session["TOY_TEMPLATE"] = NormalizeTemplate(session["TOY_TEMPLATE"]);
+            }
+
+            if (!TryResolveTemplateDirectoryName(session["TOY_TEMPLATE"], out _))
+            {
+                var supportedIds = BuildSupportedTemplateListForMessage();
+                return FailWithUserMessage(
+                    session,
+                    string.Format(CultureInfo.InvariantCulture, "Unsupported TOY_TEMPLATE value '{0}'.", session["TOY_TEMPLATE"]),
+                    string.Format(CultureInfo.InvariantCulture,
+                        "Template ID '{0}' is not supported. Choose one of: {1}.",
+                        session["TOY_TEMPLATE"],
+                        supportedIds));
+            }
 
             if (IsNullOrWhiteSpace(session["BACKUP_PATH"]))
             {
@@ -193,7 +215,17 @@ public static class CustomActionEntrypoints
             EnsureDirectoryExists(dofConfigPath, session, "DOF config destination");
             EnsureDirectoryExists(dofRootPath, session, "DOF root destination");
 
-            var templateDirectoryName = ResolveTemplateDirectoryName(toyTemplate);
+            if (!TryResolveTemplateDirectoryName(toyTemplate, out var templateDirectoryName))
+            {
+                return FailWithUserMessage(
+                    session,
+                    string.Format(CultureInfo.InvariantCulture, "Unsupported TOY_TEMPLATE value '{0}'.", toyTemplate),
+                    string.Format(CultureInfo.InvariantCulture,
+                        "Template ID '{0}' is not supported. Choose one of: {1}.",
+                        toyTemplate,
+                        BuildSupportedTemplateListForMessage()));
+            }
+
             var sourceDofRoot = ResolveDofPayloadRoot(installFolder, session);
             var baselineConfigSourceFolder = Path.Combine(sourceDofRoot, "Config");
             var templateSourceFolder = Path.Combine(sourceDofRoot, Path.Combine("Config\\templates", templateDirectoryName));
@@ -205,7 +237,10 @@ public static class CustomActionEntrypoints
             if (!Directory.Exists(templateSourceFolder))
             {
                 return FailWithUserMessage(session, "Template source folder not found.",
-                    "Template files were not found in the installer payload. Re-run setup from a complete installer package.");
+                    string.Format(CultureInfo.InvariantCulture,
+                        "Template '{0}' expects installer payload folder Config\\templates\\{1}, but it was not found. Re-run setup from a complete installer package.",
+                        toyTemplate,
+                        templateDirectoryName));
             }
 
             if (!Directory.Exists(baselineConfigSourceFolder))
@@ -456,25 +491,42 @@ public static class CustomActionEntrypoints
         return win32ErrorCode == 32 || win32ErrorCode == 33;
     }
 
-    private static string ResolveTemplateDirectoryName(string templateValue)
+    private static bool TryResolveTemplateDirectoryName(string templateValue, out string templateDirectoryName)
     {
-        if (templateValue.Equals("matrix_plus_3_strips", StringComparison.OrdinalIgnoreCase))
+        if (IsNullOrWhiteSpace(templateValue))
         {
-            return "02-matrix-and-flasher-strips";
+            templateDirectoryName = string.Empty;
+            return false;
         }
 
-        if (templateValue.Equals("single_matrix", StringComparison.OrdinalIgnoreCase))
-        {
-            return "01-single-matrix";
-        }
+        return TemplateToFolderMap.TryGetValue(templateValue, out templateDirectoryName);
+    }
 
-        throw new ArgumentException(string.Format(CultureInfo.InvariantCulture,
-            "Unsupported TOY_TEMPLATE value '{0}'.", templateValue));
+    private static string BuildSupportedTemplateListForMessage()
+    {
+        var supportedTemplates = new List<string>(TemplateToFolderMap.Keys);
+        supportedTemplates.Sort(StringComparer.OrdinalIgnoreCase);
+        return string.Join(", ", supportedTemplates.ToArray());
     }
 
     private static string NormalizeTemplate(string templateValue)
     {
-        return IsNullOrWhiteSpace(templateValue) ? DefaultTemplate : templateValue.Trim();
+        var normalizedTemplate = IsNullOrWhiteSpace(templateValue) ? DefaultTemplate : templateValue.Trim();
+        // Normalize to canonical ID casing so persisted values are deterministic across UI/deferred flows.
+        if (TryResolveTemplateDirectoryName(normalizedTemplate, out _))
+        {
+            if (normalizedTemplate.Equals("matrix_plus_3_strips", StringComparison.OrdinalIgnoreCase))
+            {
+                return "matrix_plus_3_strips";
+            }
+
+            if (normalizedTemplate.Equals("single_matrix", StringComparison.OrdinalIgnoreCase))
+            {
+                return "single_matrix";
+            }
+        }
+
+        return normalizedTemplate;
     }
 
     private static bool IsBackupEnabled(string backupEnabledValue)
