@@ -54,16 +54,15 @@
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="DOF environment check" />
         <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="20" Text="Confirm the DirectOutput Framework installation before continuing." />
         <Control Id="DetectedLabel" Type="Text" X="20" Y="50" Width="330" Height="14" Text="Detected DOF installation:" />
+        <!-- WiX v4 models control visibility with attributes instead of nested Condition elements. -->
         <Control Id="DetectedFound" Type="Text" X="20" Y="65" Width="330" Height="33" NoPrefix="yes"
-          Text="Found DOF root: [DOFROOTPATH]&#x0d;&#x0a;Found config path: [DOFCONFIGPATH]">
-          <Condition Action="show">DOF_DETECTED = "1"</Condition>
-          <Condition Action="hide">DOF_DETECTED &lt;&gt; "1"</Condition>
-        </Control>
+          Text="Found DOF root: [DOFROOTPATH]&#x0d;&#x0a;Found config path: [DOFCONFIGPATH]"
+          ShowCondition='DOF_DETECTED = "1"'
+          HideCondition='DOF_DETECTED &lt;&gt; "1"' />
         <Control Id="DetectedMissing" Type="Text" X="20" Y="65" Width="330" Height="43" NoPrefix="yes"
-          Text="No DOF installation was detected automatically.&#x0d;&#x0a;Install DOF first or enter your DOF root folder below.">
-          <Condition Action="show">DOF_DETECTED &lt;&gt; "1"</Condition>
-          <Condition Action="hide">DOF_DETECTED = "1"</Condition>
-        </Control>
+          Text="No DOF installation was detected automatically.&#x0d;&#x0a;Install DOF first or enter your DOF root folder below."
+          ShowCondition='DOF_DETECTED &lt;&gt; "1"'
+          HideCondition='DOF_DETECTED = "1"' />
 
         <Control Id="RootPathLabel" Type="Text" X="20" Y="116" Width="330" Height="12" Text="DOF root folder (contains Config + x64 or x86):" />
         <Control Id="RootPathEdit" Type="PathEdit" X="20" Y="130" Width="330" Height="18" Property="DOFROOTPATH" />
