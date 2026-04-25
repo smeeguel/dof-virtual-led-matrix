@@ -19,9 +19,7 @@
     <Property Id="DOF_DETECTED" Value="0" Secure="yes" />
     <Property Id="BACKUP_ENABLED" Value="1" Secure="yes" />
     <Property Id="BACKUP_PATH" Secure="yes" />
-    <Property Id="DOFROOTPATH" Value="C:\DirectOutput" Secure="yes" />
-    <!-- BrowseDlg consumes _BrowseProperty as the *name* of the property to populate with the selected folder path. -->
-    <Property Id="DOFROOTPATH_BROWSE_PROPERTY" Value="DOFROOTPATH" />
+    <Property Id="DOFROOTPATH" Secure="yes" />
     <Property Id="TOY_TEMPLATE" Value="single_matrix" Secure="yes" />
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
@@ -51,7 +49,8 @@
     <!-- Bind the MSI license dialog to the repository EULA content instead of the WiX placeholder lorem ipsum. -->
     <WixVariable Id="WixUILicenseRtf" Value="Eula.rtf" />
     <!-- Use an explicit custom UI chain so dialog navigation is fully controlled without colliding with stock WixUI_InstallDir publish rows. -->
-    <UI Id="WixUI_InstallDir_Custom">
+    <UI>
+      <UI Id="WixUI_InstallDir_Custom">
         <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
         <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
         <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
@@ -65,7 +64,6 @@
         <DialogRef Id="ErrorDlg" />
         <DialogRef Id="FatalError" />
         <DialogRef Id="FilesInUse" />
-        <DialogRef Id="InvalidDirDlg" />
         <DialogRef Id="MsiRMFilesInUse" />
         <DialogRef Id="PrepareDlg" />
         <DialogRef Id="ProgressDlg" />
@@ -86,15 +84,12 @@
         <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="1" Condition="LicenseAccepted = &quot;1&quot;" />
         <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED = 1" />
         <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofNotFoundDlg" Order="3" Condition="LicenseAccepted = &quot;1&quot; AND DOF_DETECTED &lt;&gt; 1" />
-        <!-- BrowseDlg requires explicit OK/Cancel control events in custom UI chains to satisfy ICE17/WIX0204 validation. -->
-        <Publish Dialog="BrowseDlg" Control="OK" Event="SetTargetPath" Value="[_BrowseProperty]" Order="1" />
-        <Publish Dialog="BrowseDlg" Control="OK" Event="EndDialog" Value="Return" Order="2" />
         <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" />
-        <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="WIXUI_INSTALLDIR" Order="1" />
+        <Publish Dialog="InstallDirDlg" Control="Next" Event="CheckTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" />
+        <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1" />
         <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2" />
-        <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="INSTALLFOLDER" Order="1" />
-        <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="2" Condition="NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID &lt;&gt; &quot;1&quot;" />
-        <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="3" Condition="WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID = &quot;1&quot;" />
+        <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="3" />
+        <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="4" Condition="WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID = &quot;1&quot;" />
         <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TemplateSelectDlg" Order="1" Condition="NOT Installed" />
         <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed AND NOT PATCH" />
         <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" Condition="Installed AND PATCH" />
@@ -103,6 +98,7 @@
         <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" />
         <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
         <Property Id="ARPNOMODIFY" Value="1" />
+      </UI>
       <UIRef Id="WixUI_Common" />
       <Dialog Id="TemplateSelectDlg" Width="370" Height="270" Title="[ProductName] - Choose LED template">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose LED template" />
@@ -146,7 +142,7 @@
           <Publish Event="DoAction" Value="LaunchDofDownloadPage" Order="2" Condition="1" />
         </Control>
         <Control Id="BrowseButton" Type="PushButton" X="174" Y="197" Width="176" Height="17" Text="Browse for DOF folder...">
-          <Publish Property="_BrowseProperty" Value="[DOFROOTPATH_BROWSE_PROPERTY]" Order="1" />
+          <Publish Property="_BrowseProperty" Value="DOFROOTPATH" Order="1" />
           <Publish Event="SpawnDialog" Value="BrowseDlg" Order="2" Condition="1" />
         </Control>
 
