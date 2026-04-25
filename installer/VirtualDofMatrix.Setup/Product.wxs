@@ -21,6 +21,8 @@
     <Property Id="BACKUP_PATH" Secure="yes" />
     <Property Id="DOFROOTPATH" Value="C:\DirectOutput" Secure="yes" />
     <Property Id="TOY_TEMPLATE" Value="single_matrix" Secure="yes" />
+    <!-- WixUI_InstallDir expects WIXUI_INSTALLDIR to contain a directory Id, so Next validates [INSTALLFOLDER] as a concrete path. -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
