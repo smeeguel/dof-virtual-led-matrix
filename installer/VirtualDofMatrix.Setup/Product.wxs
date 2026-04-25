@@ -32,7 +32,10 @@
       the app custom configuration page.
     -->
     <Property Id="WIXUI_DONTVALIDATEPATH" Value="1" />
-    <!-- WixUI_InstallDir wires WIXUI_INSTALLDIR internally via InstallDirectory="INSTALLFOLDER"; do not redeclare it here. -->
+    <!--
+      Do not redeclare WIXUI_INSTALLDIR here: ui:WixUI InstallDirectory wiring already authors it,
+      and a second declaration causes a duplicate symbol error in WiX v4 (WIX0091/WIX0092).
+    -->
 
     <!-- Install root defaults to Program Files and remains user-selectable through the install-directory dialog. -->
     <StandardDirectory Id="ProgramFiles64Folder">
