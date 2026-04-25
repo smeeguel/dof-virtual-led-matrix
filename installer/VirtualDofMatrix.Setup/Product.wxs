@@ -60,8 +60,12 @@
         <Control Id="Guidance" Type="Text" X="20" Y="70" Width="330" Height="46" NoPrefix="yes"
           Text="Install DirectOutput first, then click Retry to run detection again. The installer will continue automatically when detection succeeds." />
         <Control Id="DownloadLabel" Type="Text" X="20" Y="122" Width="330" Height="12" Text="DOF download:" />
-        <Control Id="DownloadUrl" Type="Text" X="20" Y="136" Width="330" Height="24" NoPrefix="yes"
-          Text="http://mjrnet.org/pinscape/dll-updates.html#DOF" />
+        <!-- Use an explicit button action so the URL is keyboard-focusable/selectable and opens in the default browser. -->
+        <Control Id="DownloadUrl" Type="PushButton" X="20" Y="136" Width="330" Height="17" NoPrefix="yes"
+          Text="http://mjrnet.org/pinscape/dll-updates.html#DOF">
+          <Publish Event="DoAction" Value="SetDofDownloadUrlTarget" Condition="1" Order="1" />
+          <Publish Event="DoAction" Value="LaunchDofDownloadPage" Condition="1" Order="2" />
+        </Control>
         <Control Id="DetectedPathHint" Type="Text" X="20" Y="166" Width="330" Height="28" NoPrefix="yes"
           Text="Current detected root: [DOFROOTPATH]&#x0d;&#x0a;Current detected config: [DOFCONFIGPATH]" />
 
@@ -177,6 +181,15 @@
       Id="LaunchInstalledApp"
       BinaryRef="Wix4UtilCA_X64"
       DllEntry="WixShellExec"
+      Impersonate="yes" />
+    <!-- Keep download launch wiring isolated so the DOF-not-found UI can open mjrnet without leaving MSI flow. -->
+    <CustomAction Id="SetDofDownloadUrlTarget" Property="WixShellExecTarget" Value="http://mjrnet.org/pinscape/dll-updates.html#DOF" Execute="immediate" />
+    <CustomAction
+      Id="LaunchDofDownloadPage"
+      BinaryRef="Wix4UtilCA_X64"
+      DllEntry="WixShellExec"
+      Execute="immediate"
+      Return="ignore"
       Impersonate="yes" />
     <!-- Populate WixShellExecTarget in the UI sequence after directory resolution so INSTALLFOLDER expansion is legal. -->
     <SetProperty
