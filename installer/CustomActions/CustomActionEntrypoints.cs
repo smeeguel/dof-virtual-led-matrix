@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using Microsoft.Win32;
 using System.Runtime.InteropServices;
 using WixToolset.Dtf.WindowsInstaller;
 
@@ -25,11 +26,14 @@ public static class CustomActionEntrypoints
     {
         try
         {
+            session.Log("DetectDofInstall stage: starting detection.");
+
             // Check default location first so common installs advance without extra prompts.
             var selectedRootPath = string.Empty;
             if (IsValidDofRoot(DefaultDofRootPath))
             {
                 selectedRootPath = DefaultDofRootPath;
+                session.Log("DetectDofInstall stage: default hit at '{0}'.", selectedRootPath);
             }
             else
             {
@@ -38,6 +42,16 @@ public static class CustomActionEntrypoints
                 if (IsValidDofRoot(explicitRootPath))
                 {
                     selectedRootPath = explicitRootPath;
+                    session.Log("DetectDofInstall stage: explicit hit at '{0}'.", selectedRootPath);
+                }
+                else
+                {
+                    // Last resort: derive likely roots from uninstall metadata before optional filesystem probing.
+                    selectedRootPath = DetectDofRootFromRegistryAndFilesystem(session);
+                    if (!IsNullOrWhiteSpace(selectedRootPath))
+                    {
+                        session.Log("DetectDofInstall stage: selected root '{0}'.", selectedRootPath);
+                    }
                 }
             }
 
@@ -625,6 +639,201 @@ public static class CustomActionEntrypoints
         var hasX64 = Directory.Exists(Path.Combine(normalizedRootPath, "x64"));
         var hasX86 = Directory.Exists(Path.Combine(normalizedRootPath, "x86"));
         return hasConfig && (hasX64 || hasX86);
+    }
+
+    private static bool IsValidDofRootForDetection(string rootPath)
+    {
+        var normalizedRootPath = NormalizePath(rootPath);
+        if (IsNullOrWhiteSpace(normalizedRootPath) || !Path.IsPathRooted(normalizedRootPath))
+        {
+            return false;
+        }
+
+        // Detection is stricter than install-time validation so we avoid selecting half-installed roots:
+        // Config plus both architecture folders is treated as the preferred/required detection signature.
+        var configPath = Path.Combine(normalizedRootPath, "Config");
+        var hasConfig = Directory.Exists(configPath);
+        var hasX64 = Directory.Exists(Path.Combine(normalizedRootPath, "x64"));
+        var hasX86 = Directory.Exists(Path.Combine(normalizedRootPath, "x86"));
+        return hasConfig && hasX64 && hasX86;
+    }
+
+    private static string DetectDofRootFromRegistryAndFilesystem(Session session)
+    {
+        var registryCandidates = EnumerateRegistryDofRootCandidates();
+        for (var i = 0; i < registryCandidates.Count; i++)
+        {
+            var candidate = registryCandidates[i];
+            session.Log("DetectDofInstall stage: registry candidate '{0}'.", candidate);
+            if (IsValidDofRootForDetection(candidate))
+            {
+                session.Log("DetectDofInstall stage: registry candidate accepted '{0}'.", candidate);
+                return candidate;
+            }
+        }
+
+        // Final fallback is intentionally narrow (Program Files roots) to stay deterministic and inexpensive.
+        var filesystemCandidates = BuildFilesystemDofCandidates();
+        for (var i = 0; i < filesystemCandidates.Count; i++)
+        {
+            var candidate = filesystemCandidates[i];
+            session.Log("DetectDofInstall stage: filesystem candidate '{0}'.", candidate);
+            if (IsValidDofRootForDetection(candidate))
+            {
+                session.Log("DetectDofInstall stage: filesystem candidate accepted '{0}'.", candidate);
+                return candidate;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static IList<string> EnumerateRegistryDofRootCandidates()
+    {
+        var uninstallBasePaths = new[]
+        {
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+        };
+
+        var candidates = new List<string>();
+        var seen = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < uninstallBasePaths.Length; i++)
+        {
+            var uninstallBasePath = uninstallBasePaths[i];
+            using (var uninstallRoot = Registry.LocalMachine.OpenSubKey(uninstallBasePath))
+            {
+                if (uninstallRoot == null)
+                {
+                    continue;
+                }
+
+                var subKeyNames = uninstallRoot.GetSubKeyNames();
+                for (var subKeyIndex = 0; subKeyIndex < subKeyNames.Length; subKeyIndex++)
+                {
+                    var subKeyName = subKeyNames[subKeyIndex];
+                    using (var appKey = uninstallRoot.OpenSubKey(subKeyName))
+                    {
+                        if (appKey == null)
+                        {
+                            continue;
+                        }
+
+                        var displayName = Convert.ToString(appKey.GetValue("DisplayName"), CultureInfo.InvariantCulture) ?? string.Empty;
+                        if (!LooksLikeDirectOutputDisplayName(displayName))
+                        {
+                            continue;
+                        }
+
+                        var installLocation = Convert.ToString(appKey.GetValue("InstallLocation"), CultureInfo.InvariantCulture);
+                        AddCandidatePath(candidates, seen, installLocation);
+
+                        var displayIcon = Convert.ToString(appKey.GetValue("DisplayIcon"), CultureInfo.InvariantCulture);
+                        var iconDerivedRoot = DeriveRootFromDisplayIcon(displayIcon);
+                        AddCandidatePath(candidates, seen, iconDerivedRoot);
+                    }
+                }
+            }
+        }
+
+        return candidates;
+    }
+
+    private static IList<string> BuildFilesystemDofCandidates()
+    {
+        var candidates = new List<string>();
+        var seen = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        var programFiles = NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+        if (!IsNullOrWhiteSpace(programFiles))
+        {
+            AddCandidatePath(candidates, seen, Path.Combine(programFiles, "DirectOutput"));
+        }
+
+        var programFilesX86 = NormalizePath(Environment.GetEnvironmentVariable("ProgramFiles(x86)"));
+        if (IsNullOrWhiteSpace(programFilesX86))
+        {
+            // 32-bit operating systems do not expose ProgramFiles(x86); fallback keeps candidate list stable.
+            programFilesX86 = NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+        }
+        if (!IsNullOrWhiteSpace(programFilesX86))
+        {
+            AddCandidatePath(candidates, seen, Path.Combine(programFilesX86, "DirectOutput"));
+        }
+
+        return candidates;
+    }
+
+    private static bool LooksLikeDirectOutputDisplayName(string displayName)
+    {
+        if (IsNullOrWhiteSpace(displayName))
+        {
+            return false;
+        }
+
+        return displayName.IndexOf("DirectOutput32", StringComparison.OrdinalIgnoreCase) >= 0
+            || displayName.IndexOf("DirectOutput64", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static string DeriveRootFromDisplayIcon(string displayIcon)
+    {
+        var normalizedDisplayIcon = NormalizePath(displayIcon);
+        if (IsNullOrWhiteSpace(normalizedDisplayIcon))
+        {
+            return string.Empty;
+        }
+
+        // Registry values often append ",0" for icon index; remove it before evaluating filesystem paths.
+        var commaIndex = normalizedDisplayIcon.IndexOf(',');
+        if (commaIndex >= 0)
+        {
+            normalizedDisplayIcon = normalizedDisplayIcon.Substring(0, commaIndex);
+        }
+
+        var quotedValue = normalizedDisplayIcon.Trim();
+        if (quotedValue.Length >= 2 && quotedValue[0] == '"' && quotedValue[quotedValue.Length - 1] == '"')
+        {
+            quotedValue = quotedValue.Substring(1, quotedValue.Length - 2);
+        }
+
+        var normalizedValue = NormalizePath(quotedValue);
+        if (IsNullOrWhiteSpace(normalizedValue))
+        {
+            return string.Empty;
+        }
+
+        if (Directory.Exists(normalizedValue))
+        {
+            return normalizedValue;
+        }
+
+        if (File.Exists(normalizedValue))
+        {
+            return NormalizePath(Path.GetDirectoryName(normalizedValue));
+        }
+
+        return NormalizePath(Path.GetDirectoryName(normalizedValue));
+    }
+
+    private static void AddCandidatePath(ICollection<string> candidates, IDictionary<string, bool> seen, string path)
+    {
+        var normalizedPath = NormalizePath(path);
+        if (IsNullOrWhiteSpace(normalizedPath))
+        {
+            return;
+        }
+
+        if (!Path.IsPathRooted(normalizedPath))
+        {
+            return;
+        }
+
+        if (!seen.ContainsKey(normalizedPath))
+        {
+            seen[normalizedPath] = true;
+            candidates.Add(normalizedPath);
+        }
     }
 
     private static bool IsValidDofRootForInstall(string rootPath)
