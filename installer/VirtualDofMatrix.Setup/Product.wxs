@@ -24,6 +24,14 @@
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
+    <!--
+      Stock WixUI_InstallDir path validation is misfiring in this installer and showing
+      "Installation directory must be on a local hard drive" even when INSTALLFOLDER resolves
+      to C:\Program Files\VirtualDofMatrix\. Leave the stock dialog and SetTargetPath
+      wiring intact, but bypass only that UI-side validation gate so Next can continue to
+      the app custom configuration page.
+    -->
+    <Property Id="WIXUI_DONTVALIDATEPATH" Value="1" />
     <!-- WixUI_InstallDir wires WIXUI_INSTALLDIR internally via InstallDirectory="INSTALLFOLDER"; do not redeclare it here. -->
 
     <!-- Install root defaults to Program Files and remains user-selectable through the install-directory dialog. -->
@@ -110,7 +118,7 @@
       </Dialog>
 
       <!-- Keep InstallDirDlg Next on stock WixUI_InstallDir wiring (SetTargetPath + VerifyReadyDlg) to avoid path-selection regressions. -->
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="5" Condition="WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID = &quot;1&quot;" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="5" Condition="1" />
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DofSummaryDlg" Order="5" Condition="NOT Installed" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
       <Publish
