@@ -175,7 +175,9 @@ function Invoke-UiSmokeRun {
     "DOFROOTPATH=$($paths.Root)",
     "DOFCONFIGPATH=$($paths.Config)",
     'BACKUP_ENABLED=0',
-    'TOY_TEMPLATE=single_matrix'
+    'TOY_TEMPLATE=single_matrix',
+    # Keep CI deterministic: do not launch the app from ExitDialog because it can keep msiexec alive.
+    'WIXUI_EXITDIALOGOPTIONALCHECKBOX=0'
   )
 
   $proc = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -PassThru
