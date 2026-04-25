@@ -107,18 +107,16 @@
       </Dialog>
 
       <Dialog Id="TemplateSelectDlg" Width="370" Height="270" Title="[ProductName] - DOF template selection">
-        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose a DOF template" />
-        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="26" Text="Select one of the supported template IDs. This value is saved in TOY_TEMPLATE." />
-        <Control Id="TemplateLabel" Type="Text" X="20" Y="60" Width="330" Height="12" Text="Template layout (TOY_TEMPLATE):" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose your starter virtual toys." />
         <!-- Use a RadioButtonGroup so the intended template value is explicit and easy to review. -->
         <Control Id="TemplateGroup" Type="RadioButtonGroup" X="20" Y="76" Width="330" Height="54" Property="TOY_TEMPLATE">
           <RadioButtonGroup Property="TOY_TEMPLATE">
-            <RadioButton Value="single_matrix" X="0" Y="0" Width="330" Height="16" Text="Single matrix" />
-            <RadioButton Value="matrix_plus_3_strips" X="0" Y="22" Width="330" Height="16" Text="Matrix and flasher strips" />
+            <RadioButton Value="single_matrix" X="0" Y="0" Width="330" Height="16" Text="Single matrix only" />
+            <RadioButton Value="matrix_plus_3_strips" X="0" Y="22" Width="330" Height="16" Text="Matrix and 3 LED strips" />
           </RadioButtonGroup>
         </Control>
         <Control Id="TemplateHint" Type="Text" X="20" Y="138" Width="330" Height="52" NoPrefix="yes"
-          Text="single_matrix: 32x8 matrix only&#x0d;&#x0a;matrix_plus_3_strips: matrix plus flasher strips&#x0d;&#x0a;Unsupported values are blocked by installer validation." />
+          Text="You can change the configuration and add/remove virtual toys in the app later." />
 
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
           <Publish Event="NewDialog" Value="InstallDirDlg" Condition="NOT Installed" />
