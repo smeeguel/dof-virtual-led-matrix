@@ -163,7 +163,7 @@
         Control="Finish"
         Event="DoAction"
         Value="LaunchInstalledApp"
-        Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+        Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
     </UI>
 
     <!-- DTF custom actions must reference the generated *.CA.dll payload, not the plain project output DLL. -->
