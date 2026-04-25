@@ -52,32 +52,27 @@
     <UI>
       <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
       <!-- Dialog Title expects plain text or a defined localization string id; do not use undefined WixUI font loc tokens. -->
-      <Dialog Id="DofCheckDlg" Width="370" Height="270" Title="[ProductName] - DOF detection">
-        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="DOF environment check" />
-        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="20" Text="Confirm the DirectOutput Framework installation before continuing." />
-        <Control Id="DetectedLabel" Type="Text" X="20" Y="50" Width="330" Height="14" Text="Detected DOF installation:" />
-        <!-- WiX v4 models control visibility with attributes instead of nested Condition elements. -->
-        <Control Id="DetectedFound" Type="Text" X="20" Y="65" Width="330" Height="33" NoPrefix="yes"
-          Text="Found DOF root: [DOFROOTPATH]&#x0d;&#x0a;Found config path: [DOFCONFIGPATH]"
-          ShowCondition='DOF_DETECTED = "1"'
-          HideCondition='DOF_DETECTED &lt;&gt; "1"' />
-        <Control Id="DetectedMissing" Type="Text" X="20" Y="65" Width="330" Height="43" NoPrefix="yes"
-          Text="No DOF installation was detected automatically.&#x0d;&#x0a;Install DOF first or enter your DOF root folder below."
-          ShowCondition='DOF_DETECTED &lt;&gt; "1"'
-          HideCondition='DOF_DETECTED = "1"' />
+      <!-- Dedicated "not detected" page keeps the happy path clean: DOF found goes straight to InstallDir, missing stays here with retry help. -->
+      <Dialog Id="DofNotFoundDlg" Width="370" Height="270" Title="[ProductName] - DOF not detected">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="DirectOutput Framework not detected" />
+        <Control Id="Description" Type="Text" X="20" Y="26" Width="330" Height="40" NoPrefix="yes"
+          Text="Virtual DOF Matrix could not detect an existing DirectOutput Framework installation on this machine." />
+        <Control Id="Guidance" Type="Text" X="20" Y="70" Width="330" Height="46" NoPrefix="yes"
+          Text="Install DirectOutput first, then click Retry to run detection again. The installer will continue automatically when detection succeeds." />
+        <Control Id="DownloadLabel" Type="Text" X="20" Y="122" Width="330" Height="12" Text="DOF download:" />
+        <Control Id="DownloadUrl" Type="Text" X="20" Y="136" Width="330" Height="24" NoPrefix="yes"
+          Text="http://mjrnet.org/pinscape/dll-updates.html#DOF" />
+        <Control Id="DetectedPathHint" Type="Text" X="20" Y="166" Width="330" Height="28" NoPrefix="yes"
+          Text="Current detected root: [DOFROOTPATH]&#x0d;&#x0a;Current detected config: [DOFCONFIGPATH]" />
 
-        <Control Id="RootPathLabel" Type="Text" X="20" Y="116" Width="330" Height="12" Text="DOF root folder (contains Config + x64 or x86):" />
-        <Control Id="RootPathEdit" Type="PathEdit" X="20" Y="130" Width="330" Height="18" Property="DOFROOTPATH" />
-        <Control Id="MissingGuidance" Type="Text" X="20" Y="154" Width="330" Height="56" NoPrefix="yes"
-          Text="Expected default path: C:\DirectOutput&#x0d;&#x0a;If DOF is missing, install both DOF packages first, then return and click Next to re-check." />
-
-        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+        <Control Id="Back" Type="PushButton" X="124" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
           <Publish Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
         </Control>
-        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
-          <Publish Event="DoAction" Value="DetectDofInstall" Condition="1" Order="1" />
+        <Control Id="Retry" Type="PushButton" X="184" Y="243" Width="56" Height="17" Default="yes" Text="Retry">
+          <!-- Retry always reruns detection, then explicit routing ensures exactly one navigation event fires for this click path. -->
+          <Publish Event="DoAction" Value="DetectDofInstall" Condition="NOT Installed" Order="1" />
           <Publish Event="NewDialog" Value="InstallDirDlg" Condition="NOT Installed AND DOF_DETECTED = &quot;1&quot;" Order="2" />
-          <Publish Event="DoAction" Value="ShowInvalidDofSelectionMessage" Condition="DOF_DETECTED &lt;&gt; &quot;1&quot;" Order="3" />
+          <Publish Event="NewDialog" Value="DofNotFoundDlg" Condition="NOT Installed AND DOF_DETECTED &lt;&gt; &quot;1&quot;" Order="3" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
@@ -149,9 +144,10 @@
         </Control>
       </Dialog>
 
-      <!-- Inject custom DOF dialogs between License and VerifyReady in the InstallDir WixUI flow. -->
+      <!-- Inject detection routing directly after the license page: detected => InstallDir, missing => dedicated not-found page. -->
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="98" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
-      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofCheckDlg" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed AND DOF_DETECTED = &quot;1&quot;" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofNotFoundDlg" Order="100" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed AND DOF_DETECTED &lt;&gt; &quot;1&quot;" />
       <!-- Route InstallDir Next to template selection while preserving the stock SetTargetPath behavior from WixUI_InstallDir. -->
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="999" Condition="NOT Installed" />
       <!-- Route VerifyReady Back to template selection for first-time installs only. -->
