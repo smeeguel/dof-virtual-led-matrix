@@ -666,7 +666,7 @@ public static class CustomActionEntrypoints
 
     private static string DetectDofRootFromRegistryAndFilesystem(Session session)
     {
-        var registryCandidates = EnumerateRegistryDofRootCandidates();
+        var registryCandidates = EnumerateRegistryDofRootCandidates(session);
         for (var i = 0; i < registryCandidates.Count; i++)
         {
             var candidate = registryCandidates[i];
@@ -694,7 +694,7 @@ public static class CustomActionEntrypoints
         return string.Empty;
     }
 
-    private static IList<string> EnumerateRegistryDofRootCandidates()
+    private static IList<string> EnumerateRegistryDofRootCandidates(Session session)
     {
         var uninstallBasePaths = new[]
         {
@@ -705,13 +705,43 @@ public static class CustomActionEntrypoints
         var candidates = new List<string>();
         var seen = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
+        // Probe both machine-wide and per-user uninstall hives because DOF installers can register in either.
+        EnumerateRegistryDofRootCandidatesFromHive(
+            Registry.LocalMachine,
+            "HKLM",
+            uninstallBasePaths,
+            candidates,
+            seen,
+            session);
+
+        EnumerateRegistryDofRootCandidatesFromHive(
+            Registry.CurrentUser,
+            "HKCU",
+            uninstallBasePaths,
+            candidates,
+            seen,
+            session);
+
+        session.Log("DetectDofInstall stage: collected {0} unique registry candidate(s).", candidates.Count);
+        return candidates;
+    }
+
+    private static void EnumerateRegistryDofRootCandidatesFromHive(
+        RegistryKey hiveRoot,
+        string hiveLabel,
+        string[] uninstallBasePaths,
+        ICollection<string> candidates,
+        IDictionary<string, bool> seen,
+        Session session)
+    {
         for (var i = 0; i < uninstallBasePaths.Length; i++)
         {
             var uninstallBasePath = uninstallBasePaths[i];
-            using (var uninstallRoot = Registry.LocalMachine.OpenSubKey(uninstallBasePath))
+            using (var uninstallRoot = hiveRoot.OpenSubKey(uninstallBasePath))
             {
                 if (uninstallRoot == null)
                 {
+                    session.Log("DetectDofInstall stage: uninstall hive path missing '{0}\\{1}'.", hiveLabel, uninstallBasePath);
                     continue;
                 }
 
@@ -742,8 +772,6 @@ public static class CustomActionEntrypoints
                 }
             }
         }
-
-        return candidates;
     }
 
     private static IList<string> BuildFilesystemDofCandidates()
