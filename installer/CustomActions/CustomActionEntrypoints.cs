@@ -136,10 +136,12 @@ public static class CustomActionEntrypoints
                     BuildDofMissingMessage("The selected DirectOutput root and config folders do not match."));
             }
 
-            if (!IsValidDofRoot(dofRoot))
+            // Validation for install should accept a minimal root (Config exists) because the installer itself
+            // creates/updates x64 and x86 payload folders later in ApplyDofTemplateAndBinaries.
+            if (!IsValidDofRootForInstall(dofRoot))
             {
-                return FailWithUserMessage(session, "Detected DOF root is invalid or incomplete.",
-                    BuildDofMissingMessage("DirectOutput must include Config and at least one architecture folder (x64 or x86)."));
+                return FailWithUserMessage(session, "Detected DOF root is invalid or incomplete for installation.",
+                    BuildDofMissingMessage("DirectOutput must include a Config folder at the selected root path."));
             }
 
             session["DOFCONFIGPATH"] = requestedPath;
@@ -623,6 +625,20 @@ public static class CustomActionEntrypoints
         var hasX64 = Directory.Exists(Path.Combine(normalizedRootPath, "x64"));
         var hasX86 = Directory.Exists(Path.Combine(normalizedRootPath, "x86"));
         return hasConfig && (hasX64 || hasX86);
+    }
+
+    private static bool IsValidDofRootForInstall(string rootPath)
+    {
+        var normalizedRootPath = NormalizePath(rootPath);
+        if (IsNullOrWhiteSpace(normalizedRootPath) || !Path.IsPathRooted(normalizedRootPath))
+        {
+            return false;
+        }
+
+        // Keep install-time validation compatible with CI's fake DOF roots and first-time setups where
+        // architecture folders do not exist yet; ApplyDofTemplateAndBinaries creates those folders.
+        var configPath = Path.Combine(normalizedRootPath, "Config");
+        return Directory.Exists(configPath);
     }
 
     private static string BuildDofMissingMessage(string leadIn)
