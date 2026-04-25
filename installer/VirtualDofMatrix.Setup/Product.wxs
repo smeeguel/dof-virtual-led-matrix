@@ -54,14 +54,10 @@
       <!-- Dialog Title expects plain text or a defined localization string id; do not use undefined WixUI font loc tokens. -->
       <Dialog Id="DofConfigDlg" Width="370" Height="270" Title="[ProductName] - DOF Setup Options">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="DOF setup options" />
-        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="30" Text="Choose your DOF Config folder and installer behavior." />
+        <Control Id="Description" Type="Text" X="20" Y="23" Width="330" Height="30" Text="Choose your DOF Config folder and installer behavior. Enter the path directly." />
 
         <Control Id="DofPathLabel" Type="Text" X="20" Y="60" Width="330" Height="12" Text="DOF config folder (DOFCONFIGPATH):" />
-        <Control Id="DofPathEdit" Type="PathEdit" X="20" Y="74" Width="255" Height="18" Property="DOFCONFIGPATH" />
-        <Control Id="DofBrowse" Type="PushButton" X="282" Y="74" Width="68" Height="18" Text="Browse...">
-          <Publish Event="SetProperty" Value="_BrowseProperty=DOFCONFIGPATH" Condition="1" />
-          <Publish Event="SpawnDialog" Value="BrowseDlg" Condition="1" />
-        </Control>
+        <Control Id="DofPathEdit" Type="PathEdit" X="20" Y="74" Width="330" Height="18" Property="DOFCONFIGPATH" />
 
         <Control Id="TemplateLabel" Type="Text" X="20" Y="101" Width="330" Height="12" Text="Toy template (TOY_TEMPLATE):" />
         <!-- Use a ComboBox for template selection to avoid runtime dialog-instantiation issues seen with RadioButtonGroup markup. -->
@@ -109,7 +105,7 @@
       </Dialog>
 
       <!-- Inject custom DOF dialogs between License and VerifyReady in the minimal WixUI flow. -->
-      <Publish Dialog="WelcomeEulaDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
+      <Publish Dialog="WelcomeEulaDlg" Control="Install" Event="NewDialog" Value="DofConfigDlg" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
       <Publish
         Dialog="ExitDialog"
