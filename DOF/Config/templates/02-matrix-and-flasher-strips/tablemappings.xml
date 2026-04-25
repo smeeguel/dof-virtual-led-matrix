@@ -6280,10 +6280,6 @@
 		<RomName>afm_113b.zip</RomName>
 	</Mapping>
 	<Mapping>
-		<TableName>BTiLC</TableName>
-		<RomName>BTiLC</RomName>
-	</Mapping>
-	<Mapping>
 		<TableName>VIKING WAR</TableName>
 		<RomName>VIKING WAR</RomName>
 	</Mapping>
@@ -6314,5 +6310,33 @@
 	<Mapping>
 		<TableName>abba</TableName>
 		<RomName>seawitfp</RomName>
+	</Mapping>
+	<Mapping>
+		<TableName>The Machine Bride of Pinbot 2.0</TableName>
+		<RomName>proc_bop2</RomName>
+	</Mapping>
+	<Mapping>
+		<TableName>essai</TableName>
+		<RomName>essai</RomName>
+	</Mapping>
+	<Mapping>
+		<TableName>BTILC</TableName>
+		<RomName>BTILC</RomName>
+	</Mapping>
+	<Mapping>
+		<TableName>RuizGar</TableName>
+		<RomName>RuizGar</RomName>
+	</Mapping>
+	<Mapping>
+		<TableName>Steve Miller Band</TableName>
+		<RomName>SteveMiller</RomName>
+	</Mapping>
+	<Mapping>
+		<TableName>Papachus</TableName>
+		<RomName>chus</RomName>
+	</Mapping>
+	<Mapping>
+		<TableName>Wuthering Waves</TableName>
+		<RomName>Wuthering_Waves</RomName>
 	</Mapping>
 </TableNameMappings>
