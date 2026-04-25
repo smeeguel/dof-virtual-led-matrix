@@ -118,17 +118,46 @@ function Wait-InstallerWindow {
 
 function Send-InstallerKeys {
   param(
+    [System.Diagnostics.Process]$Process,
     [string]$WindowTitle,
     [string]$Keys,
-    [int]$DelayMs = 1200
+    [int]$DelayMs = 1200,
+    [int]$ActivateTimeoutSeconds = 20
   )
 
   $shell = New-Object -ComObject WScript.Shell
-  if (-not $shell.AppActivate($WindowTitle)) {
-    throw "Could not activate installer window '$WindowTitle' for key sequence '$Keys'."
+  $deadline = (Get-Date).AddSeconds($ActivateTimeoutSeconds)
+  $activated = $false
+  $attempt = 0
+  do {
+    $attempt++
+    $Process.Refresh()
+    $mainWindowTitle = $Process.MainWindowTitle
+    $mainWindowHandle = $Process.MainWindowHandle
+
+    # Prefer process-id activation so CI does not depend on localized or timing-sensitive window captions.
+    $activated = $shell.AppActivate($Process.Id)
+    if (-not $activated -and -not [string]::IsNullOrWhiteSpace($WindowTitle)) {
+      # Keep a title fallback for edge cases where msiexec surfaces a child dialog in another top-level window.
+      $activated = $shell.AppActivate($WindowTitle)
+    }
+
+    if ($activated) {
+      break
+    }
+
+    Write-Host ("AppActivate retry {0} for key '{1}' (PID={2}, Handle={3}, Title='{4}')." -f
+      $attempt, $Keys, $Process.Id, $mainWindowHandle, $mainWindowTitle)
+    Start-Sleep -Milliseconds 350
+  } while ((Get-Date) -lt $deadline -and -not $Process.HasExited)
+
+  if (-not $activated) {
+    throw ("Could not activate installer window for key sequence '{0}'. PID={1}, LastKnownTitle='{2}', LastKnownHandle={3}" -f
+      $Keys, $Process.Id, $Process.MainWindowTitle, $Process.MainWindowHandle)
   }
 
   Start-Sleep -Milliseconds 300
+  Write-Host ("Sending key sequence '{0}' to installer PID {1}." -f $Keys, $Process.Id)
   $shell.SendKeys($Keys)
   Start-Sleep -Milliseconds $DelayMs
 }
@@ -157,16 +186,16 @@ function Invoke-UiSmokeRun {
     }
 
     # Walk through: EULA -> DOF check -> InstallDir -> Template -> Summary -> Install -> Exit.
-    Send-InstallerKeys -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%a' -DelayMs 800
-    Send-InstallerKeys -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%n'
-    Send-InstallerKeys -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%n'
-    Send-InstallerKeys -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%n'
-    Send-InstallerKeys -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%n'
-    Send-InstallerKeys -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%i' -DelayMs 2000
+    Send-InstallerKeys -Process $proc -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%a' -DelayMs 800
+    Send-InstallerKeys -Process $proc -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%n'
+    Send-InstallerKeys -Process $proc -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%n'
+    Send-InstallerKeys -Process $proc -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%n'
+    Send-InstallerKeys -Process $proc -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%n'
+    Send-InstallerKeys -Process $proc -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%i' -DelayMs 2000
 
     # Allow install progress to complete before exiting final dialog.
     Start-Sleep -Seconds 8
-    Send-InstallerKeys -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%f' -DelayMs 1000
+    Send-InstallerKeys -Process $proc -WindowTitle 'Virtual DOF Matrix Setup' -Keys '%f' -DelayMs 1000
 
     $null = $proc.WaitForExit(120000)
     if (-not $proc.HasExited) {
