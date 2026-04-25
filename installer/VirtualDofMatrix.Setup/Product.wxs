@@ -21,8 +21,6 @@
     <Property Id="BACKUP_PATH" Secure="yes" />
     <Property Id="DOFROOTPATH" Value="C:\DirectOutput" Secure="yes" />
     <Property Id="TOY_TEMPLATE" Value="single_matrix" Secure="yes" />
-    <!-- WixUI_InstallDir expects WIXUI_INSTALLDIR to contain a directory Id, so Next validates [INSTALLFOLDER] as a concrete path. -->
-    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
@@ -155,7 +153,7 @@
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="98" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofCheckDlg" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
       <!-- Keep stock InstallDir Next behavior (SetTargetPath + validation) and redirect only after destination succeeds. -->
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="999" Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DofConfigDlg" Order="999" Condition="NOT Installed AND WIXUI_INSTALLDIR_VALID = &quot;1&quot;" />
       <!-- Route VerifyReady Back through the custom review flow for first-time installs only. -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DofSummaryDlg" Order="99" Condition="NOT Installed" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
