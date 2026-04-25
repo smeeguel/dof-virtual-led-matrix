@@ -113,6 +113,13 @@ You do not need to copy files manually.
 
 If you run the MSI installer instead of the batch script, the installer now performs a DOF detection check right after the EULA screen. If no valid DOF install is found, setup blocks and shows a dialog with the mjrnet download link and a **Browse for DOF folder...** option so you can select a custom DOF root.
 
+The MSI flow then shows a dedicated **DOF template selection** screen with a controlled list of supported template IDs:
+
+- `single_matrix`
+- `matrix_plus_3_strips`
+
+Choose one of those exact IDs and continue. The installer validates this choice before it starts copying files.
+
 Quick troubleshooting:
 
 - If `C:\DirectOutput\Config` is not found, continue in the script and select the correct folder manually
