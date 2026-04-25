@@ -1,0 +1,71 @@
+name: Windows Installer CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  installer-ci:
+    name: Build MSI and run installer integration checks
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build app publish output
+        shell: pwsh
+        run: |
+          dotnet restore VirtualDofMatrix.sln
+          dotnet publish src/VirtualDofMatrix.App/VirtualDofMatrix.App.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            /p:PublishSingleFile=true `
+            /p:EnableCompressionInSingleFile=true `
+            /p:IncludeNativeLibrariesForSelfExtract=true `
+            /p:PublishTrimmed=false `
+            /p:DebugType=None `
+            /p:DebugSymbols=false
+
+      - name: Build MSI (fail on WiX ICE/link warnings and errors)
+        id: build_msi
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $publishDir = (Resolve-Path 'src/VirtualDofMatrix.App/bin/Release/net8.0-windows/win-x64/publish').Path
+
+          dotnet build installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Msi.csproj `
+            -c Release `
+            /p:Version=0.1.0 `
+            /p:InstallerAppPublishDir="$publishDir\\"
+
+          $msiPath = Get-ChildItem -Path 'installer/VirtualDofMatrix.Setup/bin' -Filter 'VirtualDOFMatrixSetup.msi' -Recurse -File |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if ([string]::IsNullOrWhiteSpace($msiPath) -or -not (Test-Path -LiteralPath $msiPath -PathType Leaf)) {
+            throw 'MSI output not found after build.'
+          }
+
+          "msi_path=$msiPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Run scripted MSI integration checks (silent + UI smoke)
+        shell: pwsh
+        run: |
+          ./tools/ci/run-msi-integration-checks.ps1 -MsiPath "${{ steps.build_msi.outputs.msi_path }}"
+
+      - name: Upload MSI logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: msi-verbose-logs
+          path: artifacts/ci-logs/**/*.log
+          if-no-files-found: warn

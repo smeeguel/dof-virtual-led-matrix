@@ -9,6 +9,8 @@
     <InstallerAppPublishDir Condition="'$(InstallerAppPublishDir)' == ''">..\..\src\VirtualDofMatrix.App\bin\Release\net8.0-windows\win-x64\publish\</InstallerAppPublishDir>
     <DefineConstants>ProductVersion=$(Version);ProductName=Virtual DOF Matrix;Manufacturer=Virtual DOF Matrix;AppPublishDir=$(InstallerAppPublishDir);DofPayloadDir=$(MSBuildProjectDirectory)\..\..\DOF\</DefineConstants>
     <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- Fail CI for WiX ICE/link warnings so packaging regressions are caught before release. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
