@@ -61,7 +61,7 @@
           Text="Install DirectOutput first, then click Retry to run detection again. The installer will continue automatically when detection succeeds." />
         <Control Id="DownloadLabel" Type="Text" X="20" Y="122" Width="330" Height="12" Text="DOF download:" />
         <!-- Use an explicit button action so the URL is keyboard-focusable/selectable and opens in the default browser. -->
-        <Control Id="DownloadUrl" Type="PushButton" X="20" Y="136" Width="330" Height="17" NoPrefix="yes"
+        <Control Id="DownloadUrl" Type="PushButton" X="20" Y="136" Width="330" Height="17"
           Text="http://mjrnet.org/pinscape/dll-updates.html#DOF">
           <Publish Event="DoAction" Value="SetDofDownloadUrlTarget" Condition="1" Order="1" />
           <Publish Event="DoAction" Value="LaunchDofDownloadPage" Condition="1" Order="2" />
