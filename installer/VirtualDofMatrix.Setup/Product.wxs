@@ -26,6 +26,9 @@
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
+    <!-- Keep launch targets isolated so unrelated shell-launch actions cannot clobber each other. -->
+    <Property Id="AppLaunchTarget" Secure="yes" />
+    <Property Id="DofDownloadTarget" Value="http://mjrnet.org/pinscape/dll-updates.html#DOF" />
     <!-- Keep INSTALLFOLDER rooted in Program Files while still allowing the stock InstallDir picker to change the final path. -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="VirtualDofMatrix" />
@@ -63,7 +66,7 @@
         <!-- Use an explicit button action so the URL is keyboard-focusable/selectable and opens in the default browser. -->
         <Control Id="DownloadUrl" Type="PushButton" X="20" Y="136" Width="330" Height="17"
           Text="http://mjrnet.org/pinscape/dll-updates.html#DOF">
-          <Publish Event="DoAction" Value="SetDofDownloadUrlTarget" Condition="1" Order="1" />
+          <Publish Event="DoAction" Value="SetWixShellExecTargetForDofUrl" Condition="1" Order="1" />
           <Publish Event="DoAction" Value="LaunchDofDownloadPage" Condition="1" Order="2" />
         </Control>
         <Control Id="Back" Type="PushButton" X="124" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
@@ -157,7 +160,16 @@
         Dialog="ExitDialog"
         Control="Finish"
         Event="DoAction"
+        Value="SetWixShellExecTargetForApp"
+        Order="1"
+        Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <!-- Set shell target directly before launch so no earlier UI action can overwrite the final executable path. -->
+      <Publish
+        Dialog="ExitDialog"
+        Control="Finish"
+        Event="DoAction"
         Value="LaunchInstalledApp"
+        Order="2"
         Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
     </UI>
 
@@ -178,8 +190,15 @@
       BinaryRef="Wix4UtilCA_X64"
       DllEntry="WixShellExec"
       Impersonate="yes" />
+    <!-- Keep launch targets isolated by first setting AppLaunchTarget, then copying it into WixShellExecTarget right before launch. -->
+    <SetProperty
+      Id="AppLaunchTarget"
+      Value="[INSTALLFOLDER]VirtualDofMatrix.App.exe"
+      After="CostFinalize"
+      Sequence="ui" />
+    <CustomAction Id="SetWixShellExecTargetForApp" Property="WixShellExecTarget" Value="[AppLaunchTarget]" Execute="immediate" />
     <!-- Keep download launch wiring isolated so the DOF-not-found UI can open mjrnet without leaving MSI flow. -->
-    <CustomAction Id="SetDofDownloadUrlTarget" Property="WixShellExecTarget" Value="http://mjrnet.org/pinscape/dll-updates.html#DOF" Execute="immediate" />
+    <CustomAction Id="SetWixShellExecTargetForDofUrl" Property="WixShellExecTarget" Value="[DofDownloadTarget]" Execute="immediate" />
     <CustomAction
       Id="LaunchDofDownloadPage"
       BinaryRef="Wix4UtilCA_X64"
@@ -187,12 +206,6 @@
       Execute="immediate"
       Return="ignore"
       Impersonate="yes" />
-    <!-- Populate WixShellExecTarget in the UI sequence after directory resolution so INSTALLFOLDER expansion is legal. -->
-    <SetProperty
-      Id="WixShellExecTarget"
-      Value="[INSTALLFOLDER]VirtualDofMatrix.App.exe"
-      After="CostFinalize"
-      Sequence="ui" />
 
     <InstallExecuteSequence>
       <!-- Stage public UI properties into deferred CustomActionData so execute-sequence logic sees the final user selections. -->
