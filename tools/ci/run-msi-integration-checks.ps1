@@ -110,12 +110,12 @@ function Invoke-InstallerAuthoringGuardrails {
   $ns.AddNamespace('wix', 'http://wixtoolset.org/schemas/v4/wxs')
 
   # Verify app launch target resolves from INSTALLFOLDER into the installed EXE path.
-  $appLaunchProperty = $productXml.SelectSingleNode("//wix:SetProperty[@Id='AppLaunchTarget']", $ns)
+  $appLaunchProperty = $productXml.SelectSingleNode("//wix:SetProperty[@Id='APPLAUNCHTARGET']", $ns)
   if ($null -eq $appLaunchProperty) {
-    throw 'Missing SetProperty Id=AppLaunchTarget in Product.wxs.'
+    throw 'Missing SetProperty Id=APPLAUNCHTARGET in Product.wxs.'
   }
   if ($appLaunchProperty.GetAttribute('Value') -ne '[INSTALLFOLDER]VirtualDofMatrix.App.exe') {
-    throw "Unexpected AppLaunchTarget value: '$($appLaunchProperty.GetAttribute('Value'))'."
+    throw "Unexpected APPLAUNCHTARGET value: '$($appLaunchProperty.GetAttribute('Value'))'."
   }
 
   # Verify DOF URL click cannot clobber app launch target by requiring dedicated URL-target wiring.

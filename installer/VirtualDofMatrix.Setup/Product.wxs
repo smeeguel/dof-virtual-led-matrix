@@ -27,7 +27,7 @@
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
     <!-- Keep launch targets isolated so unrelated shell-launch actions cannot clobber each other. -->
-    <Property Id="AppLaunchTarget" Secure="yes" />
+    <Property Id="APPLAUNCHTARGET" Secure="yes" />
     <Property Id="DofDownloadTarget" Value="http://mjrnet.org/pinscape/dll-updates.html#DOF" />
     <!-- Keep INSTALLFOLDER rooted in Program Files while still allowing the stock InstallDir picker to change the final path. -->
     <StandardDirectory Id="ProgramFiles64Folder">
@@ -190,13 +190,13 @@
       BinaryRef="Wix4UtilCA_X64"
       DllEntry="WixShellExec"
       Impersonate="yes" />
-    <!-- Keep launch targets isolated by first setting AppLaunchTarget, then copying it into WixShellExecTarget right before launch. -->
+    <!-- Keep launch targets isolated by first setting APPLAUNCHTARGET, then copying it into WixShellExecTarget right before launch. -->
     <SetProperty
-      Id="AppLaunchTarget"
+      Id="APPLAUNCHTARGET"
       Value="[INSTALLFOLDER]VirtualDofMatrix.App.exe"
       After="CostFinalize"
       Sequence="ui" />
-    <CustomAction Id="SetWixShellExecTargetForApp" Property="WixShellExecTarget" Value="[AppLaunchTarget]" Execute="immediate" />
+    <CustomAction Id="SetWixShellExecTargetForApp" Property="WixShellExecTarget" Value="[APPLAUNCHTARGET]" Execute="immediate" />
     <!-- Keep download launch wiring isolated so the DOF-not-found UI can open mjrnet without leaving MSI flow. -->
     <CustomAction Id="SetWixShellExecTargetForDofUrl" Property="WixShellExecTarget" Value="[DofDownloadTarget]" Execute="immediate" />
     <CustomAction
