@@ -33,10 +33,15 @@
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="VirtualDofMatrix" />
     </StandardDirectory>
+    <!-- Add a dedicated Start menu folder so users can discover the app through Windows search/start results. -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="VIRTUALDOFMATRIXPROGRAMMENUFOLDER" Name="Virtual DOF Matrix" />
+    </StandardDirectory>
 
     <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentGroupRef Id="DofPayloadFiles" />
+      <ComponentGroupRef Id="StartMenuShortcutComponents" />
     </Feature>
 
     <!-- Harvest published app artifacts; CI passes InstallerAppPublishDir to package release-ready binaries. -->
@@ -47,6 +52,28 @@
     <ComponentGroup Id="DofPayloadFiles" Directory="INSTALLFOLDER">
       <Files Include="$(var.DofPayloadDir)**" />
     </ComponentGroup>
+    <!-- Shortcut uses the installed EXE as target and keeps a stable key path via registry for reliable repair/uninstall behavior. -->
+    <ComponentGroup Id="StartMenuShortcutComponents" Directory="VIRTUALDOFMATRIXPROGRAMMENUFOLDER">
+      <Component Id="VirtualDofMatrixStartMenuShortcutComponent" Guid="6A7FC598-A80B-4D0B-BFC7-750C91E52EC8">
+        <Shortcut
+          Id="VirtualDofMatrixStartMenuShortcut"
+          Name="Virtual DOF Matrix"
+          Description="Launch Virtual DOF Matrix emulator and viewer."
+          Target="[INSTALLFOLDER]VirtualDofMatrix.App.exe"
+          WorkingDirectory="INSTALLFOLDER"
+          Icon="VirtualDofMatrixAppIcon" />
+        <RemoveFolder Id="RemoveVirtualDofMatrixProgramMenuFolder" Directory="VIRTUALDOFMATRIXPROGRAMMENUFOLDER" On="uninstall" />
+        <RegistryValue
+          Root="HKLM"
+          Key="Software\$(var.Manufacturer)\$(var.ProductName)"
+          Name="StartMenuShortcutInstalled"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+    <!-- Reuse the app executable icon so the shortcut is recognizable in Windows Start/Search surfaces. -->
+    <Icon Id="VirtualDofMatrixAppIcon" SourceFile="$(var.AppPublishDir)VirtualDofMatrix.App.exe" />
 
     <!-- Provide MSI UI flow and inject DOF configuration pages after the EULA step. -->
     <!-- Bind the MSI license dialog to the repository EULA content instead of the WiX placeholder lorem ipsum. -->
