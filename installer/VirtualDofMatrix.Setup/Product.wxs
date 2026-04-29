@@ -33,9 +33,9 @@
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="VirtualDofMatrix" />
     </StandardDirectory>
-    <!-- Add a dedicated Start menu folder so users can discover the app through Windows search/start results. -->
-    <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="VIRTUALDOFMATRIXPROGRAMMENUFOLDER" Name="Virtual DOF Matrix" />
+    <!-- Use the all-users Start menu location so this per-machine MSI avoids per-user ICE validation failures. -->
+    <StandardDirectory Id="CommonProgramsFolder">
+      <Directory Id="VirtualDofMatrixProgramMenuFolder" Name="Virtual DOF Matrix" />
     </StandardDirectory>
 
     <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
@@ -53,7 +53,7 @@
       <Files Include="$(var.DofPayloadDir)**" />
     </ComponentGroup>
     <!-- Shortcut uses the installed EXE as target and keeps a stable key path via registry for reliable repair/uninstall behavior. -->
-    <ComponentGroup Id="StartMenuShortcutComponents" Directory="VIRTUALDOFMATRIXPROGRAMMENUFOLDER">
+    <ComponentGroup Id="StartMenuShortcutComponents" Directory="VirtualDofMatrixProgramMenuFolder">
       <Component Id="VirtualDofMatrixStartMenuShortcutComponent" Guid="6A7FC598-A80B-4D0B-BFC7-750C91E52EC8">
         <Shortcut
           Id="VirtualDofMatrixStartMenuShortcut"
@@ -62,7 +62,7 @@
           Target="[INSTALLFOLDER]VirtualDofMatrix.App.exe"
           WorkingDirectory="INSTALLFOLDER"
           Icon="VirtualDofMatrixAppIcon" />
-        <RemoveFolder Id="RemoveVirtualDofMatrixProgramMenuFolder" Directory="VIRTUALDOFMATRIXPROGRAMMENUFOLDER" On="uninstall" />
+        <RemoveFolder Id="RemoveVirtualDofMatrixProgramMenuFolder" Directory="VirtualDofMatrixProgramMenuFolder" On="uninstall" />
         <RegistryValue
           Root="HKLM"
           Key="Software\$(var.Manufacturer)\$(var.ProductName)"
