@@ -26,14 +26,21 @@
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Virtual DOF Matrix" />
+    <!-- Keep launch targets isolated so unrelated shell-launch actions cannot clobber each other. -->
+    <Property Id="DofDownloadTarget" Value="http://mjrnet.org/pinscape/dll-updates.html#DOF" />
     <!-- Keep INSTALLFOLDER rooted in Program Files while still allowing the stock InstallDir picker to change the final path. -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="VirtualDofMatrix" />
+    </StandardDirectory>
+    <!-- ProgramMenuFolder is the legal WiX standard root for Start menu shortcuts in this package schema. -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="VirtualDofMatrixProgramMenuFolder" Name="Virtual DOF Matrix" />
     </StandardDirectory>
 
     <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentGroupRef Id="DofPayloadFiles" />
+      <ComponentGroupRef Id="StartMenuShortcutComponents" />
     </Feature>
 
     <!-- Harvest published app artifacts; CI passes InstallerAppPublishDir to package release-ready binaries. -->
@@ -44,6 +51,30 @@
     <ComponentGroup Id="DofPayloadFiles" Directory="INSTALLFOLDER">
       <Files Include="$(var.DofPayloadDir)**" />
     </ComponentGroup>
+    <!-- Shortcut uses the installed EXE as target and keeps a stable key path via registry for reliable repair/uninstall behavior. -->
+    <ComponentGroup Id="StartMenuShortcutComponents" Directory="VirtualDofMatrixProgramMenuFolder">
+      <Component Id="VirtualDofMatrixStartMenuShortcutComponent" Guid="6A7FC598-A80B-4D0B-BFC7-750C91E52EC8">
+        <Shortcut
+          Id="VirtualDofMatrixStartMenuShortcut"
+          Name="Virtual DOF Matrix"
+          Description="Launch Virtual DOF Matrix emulator and viewer."
+          Target="[INSTALLFOLDER]VirtualDofMatrix.App.exe"
+          WorkingDirectory="INSTALLFOLDER"
+          Icon="VirtualDofMatrixAppIcon" />
+        <RemoveFolder Id="RemoveVirtualDofMatrixProgramMenuFolder" Directory="VirtualDofMatrixProgramMenuFolder" On="uninstall" />
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\$(var.Manufacturer)\$(var.ProductName)"
+          Name="StartMenuShortcutInstalled"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+        <!-- Ensure uninstall also removes the registry container associated with the Start menu shortcut component. -->
+        <RemoveRegistryKey Id="RemoveVirtualDofMatrixRegistryKey" Root="HKCU" Key="Software\$(var.Manufacturer)\$(var.ProductName)" Action="removeOnUninstall" />
+      </Component>
+    </ComponentGroup>
+    <!-- Reuse the app executable icon so the shortcut is recognizable in Windows Start/Search surfaces. -->
+    <Icon Id="VirtualDofMatrixAppIcon" SourceFile="$(var.AppPublishDir)VirtualDofMatrix.App.exe" />
 
     <!-- Provide MSI UI flow and inject DOF configuration pages after the EULA step. -->
     <!-- Bind the MSI license dialog to the repository EULA content instead of the WiX placeholder lorem ipsum. -->
@@ -63,7 +94,7 @@
         <!-- Use an explicit button action so the URL is keyboard-focusable/selectable and opens in the default browser. -->
         <Control Id="DownloadUrl" Type="PushButton" X="20" Y="136" Width="330" Height="17"
           Text="http://mjrnet.org/pinscape/dll-updates.html#DOF">
-          <Publish Event="DoAction" Value="SetDofDownloadUrlTarget" Condition="1" Order="1" />
+          <Publish Event="DoAction" Value="SetWixShellExecTargetForDofUrl" Condition="1" Order="1" />
           <Publish Event="DoAction" Value="LaunchDofDownloadPage" Condition="1" Order="2" />
         </Control>
         <Control Id="Back" Type="PushButton" X="124" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
@@ -157,7 +188,16 @@
         Dialog="ExitDialog"
         Control="Finish"
         Event="DoAction"
+        Value="SetWixShellExecTargetForApp"
+        Order="1"
+        Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <!-- Set shell target directly before launch so no earlier UI action can overwrite the final executable path. -->
+      <Publish
+        Dialog="ExitDialog"
+        Control="Finish"
+        Event="DoAction"
         Value="LaunchInstalledApp"
+        Order="2"
         Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
     </UI>
 
@@ -178,8 +218,10 @@
       BinaryRef="Wix4UtilCA_X64"
       DllEntry="WixShellExec"
       Impersonate="yes" />
+    <!-- Resolve launch target from INSTALLFOLDER at click-time so late UI folder edits cannot leave a stale app path. -->
+    <CustomAction Id="SetWixShellExecTargetForApp" Property="WixShellExecTarget" Value="[INSTALLFOLDER]VirtualDofMatrix.App.exe" Execute="immediate" />
     <!-- Keep download launch wiring isolated so the DOF-not-found UI can open mjrnet without leaving MSI flow. -->
-    <CustomAction Id="SetDofDownloadUrlTarget" Property="WixShellExecTarget" Value="http://mjrnet.org/pinscape/dll-updates.html#DOF" Execute="immediate" />
+    <CustomAction Id="SetWixShellExecTargetForDofUrl" Property="WixShellExecTarget" Value="[DofDownloadTarget]" Execute="immediate" />
     <CustomAction
       Id="LaunchDofDownloadPage"
       BinaryRef="Wix4UtilCA_X64"
@@ -187,12 +229,6 @@
       Execute="immediate"
       Return="ignore"
       Impersonate="yes" />
-    <!-- Populate WixShellExecTarget in the UI sequence after directory resolution so INSTALLFOLDER expansion is legal. -->
-    <SetProperty
-      Id="WixShellExecTarget"
-      Value="[INSTALLFOLDER]VirtualDofMatrix.App.exe"
-      After="CostFinalize"
-      Sequence="ui" />
 
     <InstallExecuteSequence>
       <!-- Stage public UI properties into deferred CustomActionData so execute-sequence logic sees the final user selections. -->

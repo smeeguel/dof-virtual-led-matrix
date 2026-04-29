@@ -97,12 +97,73 @@ function Invoke-SilentUninstallIfPresent {
   }
 }
 
+function Invoke-InstallerAuthoringGuardrails {
+  # Guardrails validate launch wiring semantics that are difficult to exercise in headless CI UI automation.
+  $productWxsPath = Join-Path $repoRoot 'installer\VirtualDofMatrix.Setup\Product.wxs'
+  $bundleWxsPath = Join-Path $repoRoot 'installer\VirtualDofMatrix.Setup\Bundle.wxs'
+  Assert-FileExists -Path $productWxsPath -Reason 'installer authoring source'
+  Assert-FileExists -Path $bundleWxsPath -Reason 'bundle authoring source'
+
+  [xml]$productXml = Get-Content -LiteralPath $productWxsPath -Raw
+  [xml]$bundleXml = Get-Content -LiteralPath $bundleWxsPath -Raw
+  $ns = New-Object System.Xml.XmlNamespaceManager($productXml.NameTable)
+  $ns.AddNamespace('wix', 'http://wixtoolset.org/schemas/v4/wxs')
+
+  # Verify app launch target resolves directly from INSTALLFOLDER at launch time.
+  $appTargetCA = $productXml.SelectSingleNode("//wix:CustomAction[@Id='SetWixShellExecTargetForApp']", $ns)
+  if ($null -eq $appTargetCA) {
+    throw 'Missing CustomAction SetWixShellExecTargetForApp in Product.wxs.'
+  }
+  if ($appTargetCA.GetAttribute('Value') -ne '[INSTALLFOLDER]VirtualDofMatrix.App.exe') {
+    throw "Unexpected app shell target value: '$($appTargetCA.GetAttribute('Value'))'."
+  }
+
+  # Verify DOF URL click cannot clobber app launch target by requiring dedicated URL-target wiring.
+  $dofTargetCA = $productXml.SelectSingleNode("//wix:CustomAction[@Id='SetWixShellExecTargetForDofUrl']", $ns)
+  if ($null -eq $dofTargetCA) {
+    throw 'Missing CustomAction SetWixShellExecTargetForDofUrl in Product.wxs.'
+  }
+  if ($dofTargetCA.GetAttribute('Value') -ne '[DofDownloadTarget]') {
+    throw "Unexpected DOF URL shell target value: '$($dofTargetCA.GetAttribute('Value'))'."
+  }
+
+  # Verify first-install Finish launches exactly once via ExitDialog and sets target immediately before launch.
+  $setAppTargetPublish = $productXml.SelectSingleNode("//wix:Publish[@Dialog='ExitDialog' and @Control='Finish' and @Value='SetWixShellExecTargetForApp']", $ns)
+  $launchPublish = $productXml.SelectSingleNode("//wix:Publish[@Dialog='ExitDialog' and @Control='Finish' and @Value='LaunchInstalledApp']", $ns)
+  if ($null -eq $setAppTargetPublish -or $null -eq $launchPublish) {
+    throw 'ExitDialog Finish must publish SetWixShellExecTargetForApp and LaunchInstalledApp.'
+  }
+  if ([int]$setAppTargetPublish.GetAttribute('Order') -ge [int]$launchPublish.GetAttribute('Order')) {
+    throw 'SetWixShellExecTargetForApp must run before LaunchInstalledApp on ExitDialog Finish.'
+  }
+  if ($launchPublish.GetAttribute('Condition') -notmatch 'NOT Installed') {
+    throw 'LaunchInstalledApp publish condition must remain first-install only (NOT Installed).'
+  }
+  $launchPublishCount = $productXml.SelectNodes("//wix:Publish[@Value='LaunchInstalledApp']", $ns).Count
+  if ($launchPublishCount -ne 1) {
+    throw "Expected exactly one LaunchInstalledApp publish event, found $launchPublishCount."
+  }
+
+  # Ensure Burn no longer defines BA-level launch target that could duplicate app starts.
+  $bundleNs = New-Object System.Xml.XmlNamespaceManager($bundleXml.NameTable)
+  $bundleNs.AddNamespace('wix', 'http://wixtoolset.org/schemas/v4/wxs')
+  $bundleNs.AddNamespace('bal', 'http://wixtoolset.org/schemas/v4/wxs/bal')
+  $baNode = $bundleXml.SelectSingleNode('//wix:BootstrapperApplication/bal:WixStandardBootstrapperApplication', $bundleNs)
+  if ($null -eq $baNode) {
+    throw 'Missing WixStandardBootstrapperApplication node in Bundle.wxs.'
+  }
+  if ($baNode.Attributes['LaunchTarget']) {
+    throw 'Bundle.wxs must not define BA LaunchTarget when MSI ExitDialog launch is authoritative.'
+  }
+}
+
 if (-not (Test-Path -LiteralPath $MsiPath -PathType Leaf)) {
   throw "MSI path not found: $MsiPath"
 }
 
 Invoke-SilentInstallAndValidate -InstallerPath (Resolve-Path $MsiPath).Path
 Invoke-SilentUninstallIfPresent -InstallerPath (Resolve-Path $MsiPath).Path
+Invoke-InstallerAuthoringGuardrails
 Write-Host 'Skipping interactive MSI UI smoke checks in cloud CI; running deterministic silent checks only.'
 
 Write-Host 'MSI integration checks completed successfully.'
