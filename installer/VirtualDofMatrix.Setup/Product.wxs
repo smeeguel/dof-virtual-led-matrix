@@ -33,8 +33,8 @@
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="VirtualDofMatrix" />
     </StandardDirectory>
-    <!-- Use the all-users Start menu location so this per-machine MSI avoids per-user ICE validation failures. -->
-    <StandardDirectory Id="CommonProgramsFolder">
+    <!-- ProgramMenuFolder is the legal WiX standard root for Start menu shortcuts in this package schema. -->
+    <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="VirtualDofMatrixProgramMenuFolder" Name="Virtual DOF Matrix" />
     </StandardDirectory>
 
@@ -64,7 +64,7 @@
           Icon="VirtualDofMatrixAppIcon" />
         <RemoveFolder Id="RemoveVirtualDofMatrixProgramMenuFolder" Directory="VirtualDofMatrixProgramMenuFolder" On="uninstall" />
         <RegistryValue
-          Root="HKLM"
+          Root="HKCU"
           Key="Software\$(var.Manufacturer)\$(var.ProductName)"
           Name="StartMenuShortcutInstalled"
           Type="integer"
