@@ -41,7 +41,10 @@ public static class CustomActionEntrypoints
             var selectedPath = TryShowModernFolderPicker(currentInstallFolder);
             if (!IsNullOrWhiteSpace(selectedPath))
             {
-                session["INSTALLFOLDER"] = EnsureTrailingBackslash(selectedPath);
+                var normalizedSelection = EnsureTrailingBackslash(selectedPath);
+                session["INSTALLFOLDER"] = normalizedSelection;
+                // Keep WiX UI's helper property in sync so any controls/themes that mirror it stay consistent.
+                session["WIXUI_INSTALLDIR"] = normalizedSelection;
             }
 
             session.Log("SelectInstallFolder result INSTALLFOLDER='{0}'.", session["INSTALLFOLDER"]);

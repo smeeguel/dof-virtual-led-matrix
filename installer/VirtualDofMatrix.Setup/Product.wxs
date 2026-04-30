@@ -88,7 +88,9 @@
         <Control Id="FolderLabel" Type="Text" X="20" Y="66" Width="330" Height="12" Text="Install Virtual DOF Matrix to:" />
         <Control Id="FolderEdit" Type="PathEdit" X="20" Y="80" Width="260" Height="18" Property="INSTALLFOLDER" Indirect="no" />
         <Control Id="ModernBrowse" Type="PushButton" X="290" Y="80" Width="60" Height="18" Text="Change...">
-          <Publish Event="DoAction" Value="SelectInstallFolder" Condition="1" />
+          <Publish Event="DoAction" Value="SelectInstallFolder" Condition="1" Order="1" />
+          <!-- Refresh control bindings after the custom action updates INSTALLFOLDER so the PathEdit text reflects the new value immediately. -->
+          <Publish Event="Reset" Value="1" Condition="1" Order="2" />
         </Control>
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
           <Publish Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
