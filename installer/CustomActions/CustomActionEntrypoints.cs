@@ -24,6 +24,36 @@ public static class CustomActionEntrypoints
         { "matrix_plus_3_strips", "02-matrix-and-flasher-strips" },
     };
 
+    private const uint FOS_PICKFOLDERS = 0x00000020;
+    private const uint FOS_FORCEFILESYSTEM = 0x00000040;
+    private const uint FOS_PATHMUSTEXIST = 0x00000800;
+    private const uint SIGDN_FILESYSPATH = 0x80058000;
+
+    [ComImport, Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")]
+    private class FileOpenDialogCom { }
+
+    [CustomAction]
+    public static ActionResult SelectInstallFolder(Session session)
+    {
+        try
+        {
+            var currentInstallFolder = NormalizePath(session["INSTALLFOLDER"]);
+            var selectedPath = TryShowModernFolderPicker(currentInstallFolder);
+            if (!IsNullOrWhiteSpace(selectedPath))
+            {
+                session["INSTALLFOLDER"] = EnsureTrailingBackslash(selectedPath);
+            }
+
+            session.Log("SelectInstallFolder result INSTALLFOLDER='{0}'.", session["INSTALLFOLDER"]);
+            return ActionResult.Success;
+        }
+        catch (Exception ex)
+        {
+            session.Log("SelectInstallFolder failed: {0}", ex);
+            return ActionResult.Success;
+        }
+    }
+
     [CustomAction]
     public static ActionResult DetectDofInstall(Session session)
     {
@@ -990,6 +1020,113 @@ public static class CustomActionEntrypoints
 
         return IsNullOrWhiteSpace(normalizedRootPath) ? DefaultDofRootPath : normalizedRootPath;
     }
+
+    private static string EnsureTrailingBackslash(string path)
+    {
+        if (IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        return path.EndsWith("\\", StringComparison.Ordinal) ? path : path + "\\";
+    }
+
+    private static string TryShowModernFolderPicker(string initialPath)
+    {
+        IFileOpenDialog dialog = null;
+        try
+        {
+            // Use the Vista-style common dialog in folder-pick mode so installer browsing shows folder contents.
+            dialog = (IFileOpenDialog)new FileOpenDialogCom();
+            dialog.GetOptions(out var options);
+            dialog.SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
+
+            if (!IsNullOrWhiteSpace(initialPath))
+            {
+                var normalizedInitialPath = initialPath.TrimEnd('\\');
+                if (Directory.Exists(normalizedInitialPath) &&
+                    SHCreateItemFromParsingName(normalizedInitialPath, IntPtr.Zero, typeof(IShellItem).GUID, out var initialFolderShellItem) == 0 &&
+                    initialFolderShellItem != null)
+                {
+                    dialog.SetFolder(initialFolderShellItem);
+                }
+            }
+
+            const int ErrorCancelled = unchecked((int)0x800704C7);
+            var showResult = dialog.Show(IntPtr.Zero);
+            if (showResult == ErrorCancelled)
+            {
+                return null;
+            }
+
+            if (showResult != 0)
+            {
+                Marshal.ThrowExceptionForHR(showResult);
+            }
+
+            dialog.GetResult(out var selectedItem);
+            selectedItem.GetDisplayName(SIGDN_FILESYSPATH, out var selectedPath);
+            return selectedPath;
+        }
+        finally
+        {
+            if (dialog != null)
+            {
+                Marshal.ReleaseComObject(dialog);
+            }
+        }
+    }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("42F85136-DB7E-439C-85F1-E4075D135FC8")]
+    private interface IFileDialog
+    {
+        [PreserveSig] int Show(IntPtr parent);
+        void SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
+        void SetFileTypeIndex(uint iFileType);
+        void GetFileTypeIndex(out uint piFileType);
+        void Advise(IntPtr pfde, out uint pdwCookie);
+        void Unadvise(uint dwCookie);
+        void SetOptions(uint fos);
+        void GetOptions(out uint pfos);
+        void SetDefaultFolder(IShellItem psi);
+        void SetFolder(IShellItem psi);
+        void GetFolder(out IShellItem ppsi);
+        void GetCurrentSelection(out IShellItem ppsi);
+        void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+        void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
+        void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
+        void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
+        void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+        void GetResult(out IShellItem ppsi);
+        void AddPlace(IShellItem psi, uint fdap);
+        void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
+        void Close(int hr);
+        void SetClientGuid(ref Guid guid);
+        void ClearClientData();
+        void SetFilter(IntPtr pFilter);
+    }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("D57C7288-D4AD-4768-BE02-9D969532D960")]
+    private interface IFileOpenDialog : IFileDialog
+    {
+    }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE")]
+    private interface IShellItem
+    {
+        void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
+        void GetParent(out IShellItem ppsi);
+        void GetDisplayName(uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
+        void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
+        void Compare(IShellItem psi, uint hint, out int piOrder);
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
+    private static extern int SHCreateItemFromParsingName(
+        [MarshalAs(UnmanagedType.LPWStr)] string pszPath,
+        IntPtr pbc,
+        [MarshalAs(UnmanagedType.LPStruct)] Guid riid,
+        [MarshalAs(UnmanagedType.Interface)] out IShellItem ppv);
 
     private static string BuildDofMissingMessage(string leadIn)
     {
