@@ -198,8 +198,7 @@
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="98" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="ModernInstallDirDlg" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed AND DOF_DETECTED = &quot;1&quot;" />
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofNotFoundDlg" Order="100" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed AND DOF_DETECTED &lt;&gt; &quot;1&quot;" />
-      <!-- Route InstallDir Next to template selection while preserving the stock SetTargetPath behavior from WixUI_InstallDir. -->
-      <Publish Dialog="ModernInstallDirDlg" Control="Next" Event="NewDialog" Value="TemplateSelectDlg" Order="999" Condition="NOT Installed" />
+      <!-- ModernInstallDirDlg already routes Next directly inside the dialog control wiring above; avoid duplicate ControlEvent keys. -->
       <!-- Route VerifyReady Back to template selection for first-time installs only. -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TemplateSelectDlg" Order="99" Condition="NOT Installed" />
       <!-- Trigger launch from the Exit dialog Finish button only when the optional checkbox remains enabled. -->
