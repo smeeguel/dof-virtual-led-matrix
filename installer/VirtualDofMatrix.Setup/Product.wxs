@@ -21,6 +21,8 @@
     <Property Id="BACKUP_PATH" Secure="yes" />
     <Property Id="DOFROOTPATH" Value="C:\DirectOutput" Secure="yes" />
     <Property Id="TOY_TEMPLATE" Value="single_matrix" Secure="yes" />
+    <!-- Keep a UI-only install path property so the text box can be updated immediately without depending on directory property refresh behavior. -->
+    <Property Id="INSTALLFOLDER_UI" Value="[INSTALLFOLDER]" />
     <!-- Keep the path-validation bypass that avoids false "local hard drive" blocks in InstallDirDlg. -->
     <Property Id="WIXUI_DONTVALIDATEPATH" Value="1" />
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
@@ -86,7 +88,7 @@
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose install location" />
         <Control Id="Description" Type="Text" X="20" Y="25" Width="330" Height="24" NoPrefix="yes" Text="Select where Virtual DOF Matrix will be installed." />
         <Control Id="FolderLabel" Type="Text" X="20" Y="66" Width="330" Height="12" Text="Install Virtual DOF Matrix to:" />
-        <Control Id="FolderEdit" Type="PathEdit" X="20" Y="80" Width="260" Height="18" Property="INSTALLFOLDER" Indirect="no" />
+        <Control Id="FolderEdit" Type="PathEdit" X="20" Y="80" Width="260" Height="18" Property="INSTALLFOLDER_UI" Indirect="no" />
         <Control Id="ModernBrowse" Type="PushButton" X="290" Y="80" Width="60" Height="18" Text="Change...">
           <Publish Event="DoAction" Value="SelectInstallFolder" Condition="1" Order="1" />
           <!-- Refresh control bindings after the custom action updates INSTALLFOLDER so the PathEdit text reflects the new value immediately. -->
@@ -96,8 +98,9 @@
           <Publish Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
-          <Publish Event="SetTargetPath" Value="INSTALLFOLDER" Condition="1" Order="1" />
-          <Publish Event="NewDialog" Value="TemplateSelectDlg" Condition="NOT Installed" Order="2" />
+          <Publish Event="SetProperty" Value="INSTALLFOLDER=[INSTALLFOLDER_UI]" Condition="1" Order="1" />
+          <Publish Event="SetTargetPath" Value="INSTALLFOLDER" Condition="1" Order="2" />
+          <Publish Event="NewDialog" Value="TemplateSelectDlg" Condition="NOT Installed" Order="3" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />

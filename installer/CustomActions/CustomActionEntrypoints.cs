@@ -37,12 +37,18 @@ public static class CustomActionEntrypoints
     {
         try
         {
-            var currentInstallFolder = NormalizePath(session["INSTALLFOLDER"]);
+            // Read from the UI-facing property first so repeat picks within the same dialog session keep the visible value.
+            var currentInstallFolder = NormalizePath(session["INSTALLFOLDER_UI"]);
+            if (IsNullOrWhiteSpace(currentInstallFolder))
+            {
+                currentInstallFolder = NormalizePath(session["INSTALLFOLDER"]);
+            }
             var selectedPath = TryShowModernFolderPicker(currentInstallFolder);
             if (!IsNullOrWhiteSpace(selectedPath))
             {
                 var normalizedSelection = EnsureTrailingBackslash(selectedPath);
                 session["INSTALLFOLDER"] = normalizedSelection;
+                session["INSTALLFOLDER_UI"] = normalizedSelection;
                 // Keep WiX UI's helper property in sync so any controls/themes that mirror it stay consistent.
                 session["WIXUI_INSTALLDIR"] = normalizedSelection;
             }
