@@ -1,0 +1,60 @@
+<UserControl x:Class="VirtualDofMatrix.Installer.Pages.SummaryPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <StackPanel Margin="24,20,24,16">
+
+    <TextBlock Style="{StaticResource SectionHeader}" Text="Ready to Install" />
+    <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,14"
+               Text="Review your choices below. Click Next to begin the installation." />
+
+    <!-- Summary grid -->
+    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+            Padding="14,12" Background="#FAFAFA" Margin="0,0,0,12">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="160" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="8" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="8" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="8" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="8" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource HintText}" Text="Install folder:" />
+        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="SummaryInstallFolder"
+                   Style="{StaticResource BodyText}" TextTrimming="CharacterEllipsis" />
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource HintText}" Text="DOF Config folder:" />
+        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="SummaryDofConfig"
+                   Style="{StaticResource BodyText}" TextTrimming="CharacterEllipsis" />
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource HintText}" Text="Template:" />
+        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="SummaryTemplate"
+                   Style="{StaticResource BodyText}" />
+
+        <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource HintText}" Text="Backup:" />
+        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="SummaryBackup"
+                   Style="{StaticResource BodyText}" />
+
+        <TextBlock Grid.Row="8" Grid.Column="0" Style="{StaticResource HintText}" Text="Backup path:" />
+        <TextBlock Grid.Row="8" Grid.Column="1" x:Name="SummaryBackupPath"
+                   Style="{StaticResource BodyText}" TextTrimming="CharacterEllipsis" />
+      </Grid>
+    </Border>
+
+    <!-- Warning -->
+    <Border Background="#FFF8E1" BorderBrush="#FFD54F" BorderThickness="1"
+            CornerRadius="4" Padding="12,8">
+      <TextBlock Style="{StaticResource HintText}" Foreground="#E65100"
+                 Text="⚠  Existing DOF Config files in the selected folder may be overwritten by the template. The backup above will preserve your current state." />
+    </Border>
+
+  </StackPanel>
+</UserControl>

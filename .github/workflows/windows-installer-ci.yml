@@ -8,7 +8,7 @@ on:
 
 jobs:
   installer-ci:
-    name: Build MSI and run installer integration checks
+    name: Build installer and run integration checks
     runs-on: windows-latest
 
     steps:
@@ -35,37 +35,38 @@ jobs:
             /p:DebugType=None `
             /p:DebugSymbols=false
 
-      - name: Build MSI (fail on WiX ICE/link warnings and errors)
-        id: build_msi
+      - name: Build installer
+        id: build_installer
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $publishDir = (Resolve-Path 'src/VirtualDofMatrix.App/bin/Release/net8.0-windows/win-x64/publish').Path
 
-          dotnet build installer/VirtualDofMatrix.Setup/VirtualDofMatrix.Msi.csproj `
+          dotnet build installer/VirtualDofMatrix.Installer/VirtualDofMatrix.Installer.csproj `
             -c Release `
             /p:Version=0.1.0 `
             /p:InstallerAppPublishDir="$publishDir\\"
 
-          $msiPath = Get-ChildItem -Path 'installer/VirtualDofMatrix.Setup/bin' -Filter 'VirtualDOFMatrixSetup.msi' -Recurse -File |
+          $installerPath = Get-ChildItem -Path 'installer/VirtualDofMatrix.Installer/bin' `
+            -Filter 'VirtualDofMatrix.Installer.exe' -Recurse -File |
             Sort-Object LastWriteTimeUtc -Descending |
             Select-Object -First 1 -ExpandProperty FullName
 
-          if ([string]::IsNullOrWhiteSpace($msiPath) -or -not (Test-Path -LiteralPath $msiPath -PathType Leaf)) {
-            throw 'MSI output not found after build.'
+          if ([string]::IsNullOrWhiteSpace($installerPath) -or -not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
+            throw 'Installer exe not found after build.'
           }
 
-          "msi_path=$msiPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "installer_path=$installerPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Run scripted MSI integration checks (silent + UI smoke)
+      - name: Run installer integration checks
         shell: pwsh
         run: |
-          ./tools/ci/run-msi-integration-checks.ps1 -MsiPath "${{ steps.build_msi.outputs.msi_path }}"
+          ./tools/ci/run-installer-integration-checks.ps1 -InstallerPath "${{ steps.build_installer.outputs.installer_path }}"
 
-      - name: Upload MSI logs on failure
+      - name: Upload installer logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: msi-verbose-logs
+          name: installer-verbose-logs
           path: artifacts/ci-logs/**/*.log
           if-no-files-found: warn

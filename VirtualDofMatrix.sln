@@ -1,4 +1,5 @@
-﻿Microsoft Visual Studio Solution File, Format Version 12.00
+
+Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -10,11 +11,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Tests", "s
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "installer", "installer", "{6E13A93E-402E-4A4C-BB78-D528750527D8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomActions", "installer\CustomActions\CustomActions.csproj", "{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Msi", "installer\VirtualDofMatrix.Setup\VirtualDofMatrix.Msi.csproj", "{FADC8198-208E-40EE-8753-A7E7153BC791}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Bundle", "installer\VirtualDofMatrix.Setup\VirtualDofMatrix.Bundle.csproj", "{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDofMatrix.Installer", "installer\VirtualDofMatrix.Installer\VirtualDofMatrix.Installer.csproj", "{D8E2F3A1-B4C5-4D6E-8F7A-9B0C1D2E3F45}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -34,22 +31,12 @@ Global
 		{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D5C951E4-D8B7-429F-B86E-6B659FDF2C08}.Release|Any CPU.Build.0 = Release|Any CPU
-		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7}.Release|Any CPU.Build.0 = Release|Any CPU
-		{FADC8198-208E-40EE-8753-A7E7153BC791}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FADC8198-208E-40EE-8753-A7E7153BC791}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FADC8198-208E-40EE-8753-A7E7153BC791}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FADC8198-208E-40EE-8753-A7E7153BC791}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D8E2F3A1-B4C5-4D6E-8F7A-9B0C1D2E3F45}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D8E2F3A1-B4C5-4D6E-8F7A-9B0C1D2E3F45}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D8E2F3A1-B4C5-4D6E-8F7A-9B0C1D2E3F45}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D8E2F3A1-B4C5-4D6E-8F7A-9B0C1D2E3F45}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{2B0E8A70-9E27-4822-AFD3-A734D8477CE7} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
-		{FADC8198-208E-40EE-8753-A7E7153BC791} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
-		{8C396DCD-6E9A-466E-91D5-67CBD63EFB1C} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
+		{D8E2F3A1-B4C5-4D6E-8F7A-9B0C1D2E3F45} = {6E13A93E-402E-4A4C-BB78-D528750527D8}
 	EndGlobalSection
 EndGlobal

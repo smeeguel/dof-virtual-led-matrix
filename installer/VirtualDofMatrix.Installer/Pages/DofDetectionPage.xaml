@@ -1,0 +1,62 @@
+<UserControl x:Class="VirtualDofMatrix.Installer.Pages.DofDetectionPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <StackPanel Margin="24,20,24,16">
+
+    <TextBlock Style="{StaticResource SectionHeader}"
+               Text="DirectOutput Framework Detection" />
+    <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,16"
+               Text="Virtual DOF Matrix requires the DirectOutput Framework (DOF). The installer checks for an existing DOF installation below." />
+
+    <!-- Detection status -->
+    <Border x:Name="StatusBorder" CornerRadius="4" Padding="12,10"
+            Background="#F0F8FF" BorderThickness="1" BorderBrush="#90C8F0"
+            Margin="0,0,0,16">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock x:Name="StatusIcon" Text="⏳" FontSize="18" VerticalAlignment="Center"
+                   Margin="0,0,10,0" />
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock x:Name="StatusTitle" Text="Checking…" FontWeight="SemiBold" FontSize="13" />
+          <TextBlock x:Name="StatusDetail" Text="" Style="{StaticResource HintText}"
+                     Margin="0,2,0,0" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- Manual path override -->
+    <TextBlock Style="{StaticResource FieldLabel}" Text="DOF root folder:" />
+    <Grid Margin="0,0,0,6">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBox Grid.Column="0" x:Name="DofRootPathBox"
+               Style="{StaticResource FormTextBox}"
+               TextChanged="DofRootPathBox_TextChanged" />
+      <Button Grid.Column="1" Content="Browse…"
+              Style="{StaticResource SecondaryButton}"
+              Margin="6,0,0,0" Height="30" Padding="10,0"
+              Click="BrowseButton_Click" />
+      <Button Grid.Column="2" Content="Detect Again"
+              Style="{StaticResource SecondaryButton}"
+              Margin="6,0,0,0" Height="30" Padding="10,0"
+              Click="DetectAgainButton_Click" />
+    </Grid>
+    <TextBlock Style="{StaticResource HintText}"
+               Text="Edit the path above if DOF is installed in a non-standard location, then click Detect Again." />
+
+    <!-- Download link when DOF not found -->
+    <StackPanel x:Name="DownloadPanel" Visibility="Collapsed" Margin="0,12,0,0">
+      <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,6"
+                 Text="DOF was not detected. Install both the 32-bit and 64-bit DirectOutput packages, then click Detect Again." />
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Text="Download DOF: " Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+        <Button Content="http://mjrnet.org/pinscape/dll-updates.html#DOF"
+                Style="{StaticResource LinkButton}"
+                Click="DownloadLink_Click" />
+      </StackPanel>
+    </StackPanel>
+
+  </StackPanel>
+</UserControl>

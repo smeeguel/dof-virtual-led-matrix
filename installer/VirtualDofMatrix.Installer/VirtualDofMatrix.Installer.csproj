@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platform>x64</Platform>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>VirtualDofMatrix.Installer</AssemblyName>
+    <RootNamespace>VirtualDofMatrix.Installer</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <!-- Same MSBuild property convention as the old WiX project so CI scripts need minimal changes. -->
+    <InstallerAppPublishDir Condition="'$(InstallerAppPublishDir)' == ''">..\..\src\VirtualDofMatrix.App\bin\Release\net8.0-windows\win-x64\publish\</InstallerAppPublishDir>
+    <DofPayloadDir Condition="'$(DofPayloadDir)' == ''">$(MSBuildProjectDirectory)\..\..\DOF\</DofPayloadDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Embed EULA as WPF resource so it survives single-file publish. -->
+    <Resource Include="Assets\Eula.rtf" />
+  </ItemGroup>
+
+  <!-- Copy the app publish output and DOF payload into the installer bin folder at build time,
+       so the built exe is self-contained for testing without needing full publish. -->
+  <Target Name="CopyInstallerPayload" AfterTargets="Build"
+          Condition="'$(InstallerAppPublishDir)' != '' AND Exists('$(InstallerAppPublishDir)')">
+    <ItemGroup>
+      <AppPublishFiles Include="$(InstallerAppPublishDir)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(AppPublishFiles)"
+          DestinationFiles="@(AppPublishFiles->'$(OutputPath)payload\app\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyDofPayload" AfterTargets="Build" Condition="Exists('$(DofPayloadDir)')">
+    <ItemGroup>
+      <DofPayloadFiles Include="$(DofPayloadDir)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DofPayloadFiles)"
+          DestinationFiles="@(DofPayloadFiles->'$(OutputPath)payload\DOF\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

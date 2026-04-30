@@ -36,6 +36,7 @@
     <Compile Remove="FrameTransportStreamParserTests.cs" />
     <Compile Remove="GlobalConfigBootstrapServiceTests.cs" />
     <Compile Remove="GpuRendererBoundaryTests.cs" />
+    <Compile Remove="InstallerSelectionHintServiceTests.cs" />
     <Compile Remove="InstallerSelectionRegistryHintServiceTests.cs" />
     <Compile Remove="TableToyOverrideIniConfigurationTests.cs" />
     <Compile Remove="TableToyVisibilityResolverTests.cs" />
