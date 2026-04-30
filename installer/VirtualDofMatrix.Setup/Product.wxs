@@ -99,7 +99,7 @@
           <Publish Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
-          <Publish Event="SetProperty" Value="INSTALLFOLDER=[INSTALLFOLDER_UI]" Condition="1" Order="1" />
+          <Publish Property="INSTALLFOLDER" Value="[INSTALLFOLDER_UI]" Condition="1" Order="1" />
           <Publish Event="SetTargetPath" Value="INSTALLFOLDER" Condition="1" Order="2" />
           <Publish Event="NewDialog" Value="TemplateSelectDlg" Condition="NOT Installed" Order="3" />
         </Control>
@@ -128,7 +128,7 @@
         <Control Id="Retry" Type="PushButton" X="184" Y="243" Width="56" Height="17" Default="yes" Text="Retry">
           <!-- Retry reruns detection in-place; only navigate when detection succeeds to avoid reopening the same dialog and triggering MSI UI errors. -->
           <Publish Event="DoAction" Value="DetectDofInstall" Condition="NOT Installed" Order="1" />
-          <Publish Event="SetProperty" Value="INSTALLFOLDER_UI=[INSTALLFOLDER]" Condition="NOT Installed AND DOF_DETECTED = &quot;1&quot;" Order="2" />
+          <Publish Property="INSTALLFOLDER_UI" Value="[INSTALLFOLDER]" Condition="NOT Installed AND DOF_DETECTED = &quot;1&quot;" Order="2" />
           <Publish Event="NewDialog" Value="ModernInstallDirDlg" Condition="NOT Installed AND DOF_DETECTED = &quot;1&quot;" Order="3" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
@@ -203,7 +203,7 @@
 
       <!-- Inject detection routing directly after the license page: detected => InstallDir, missing => dedicated not-found page. -->
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="DoAction" Value="DetectDofInstall" Order="98" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed" />
-      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="SetProperty" Value="INSTALLFOLDER_UI=[INSTALLFOLDER]" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed AND DOF_DETECTED = &quot;1&quot;" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Property="INSTALLFOLDER_UI" Value="[INSTALLFOLDER]" Order="99" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed AND DOF_DETECTED = &quot;1&quot;" />
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="ModernInstallDirDlg" Order="100" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed AND DOF_DETECTED = &quot;1&quot;" />
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="DofNotFoundDlg" Order="101" Condition="LicenseAccepted = &quot;1&quot; AND NOT Installed AND DOF_DETECTED &lt;&gt; &quot;1&quot;" />
       <!-- ModernInstallDirDlg already routes Next directly inside the dialog control wiring above; avoid duplicate ControlEvent keys. -->
