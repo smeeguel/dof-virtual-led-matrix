@@ -22,7 +22,8 @@
     <Property Id="DOFROOTPATH" Value="C:\DirectOutput" Secure="yes" />
     <Property Id="TOY_TEMPLATE" Value="single_matrix" Secure="yes" />
     <!-- Keep a UI-only install path property so the text box can be updated immediately without depending on directory property refresh behavior. -->
-    <Property Id="INSTALLFOLDER_UI" />
+    <!-- UI-only property used by ModernInstallDirDlg; keep Secure so WiX does not drop the declaration when initialized later via Publish events. -->
+    <Property Id="INSTALLFOLDER_UI" Secure="yes" />
     <!-- Keep the path-validation bypass that avoids false "local hard drive" blocks in InstallDirDlg. -->
     <Property Id="WIXUI_DONTVALIDATEPATH" Value="1" />
     <!-- Keep the Finish dialog launch checkbox visible and enabled by default for fresh installs. -->
