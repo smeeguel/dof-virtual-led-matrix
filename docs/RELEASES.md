@@ -1,6 +1,6 @@
 # Release workflow and package manifest
 
-This repository ships test builds through a manually triggered GitHub Actions workflow.
+This repository ships stable releases and internal test builds through a manually triggered GitHub Actions workflow.
 
 ## Manual release workflow
 
@@ -11,7 +11,8 @@ Workflow file: `.github/workflows/manual-release.yml`.
 - Trigger type: `workflow_dispatch` (manual only).
 - Allowed branch: `main` only.
 - Stable tag format: `vX.Y.Z`.
-- Test-build tag format: `vX.Y.Z-test.<suffix>`.
+- Test-build tag format: `test/vX.Y.Z-<suffix>`.
+- Only stable builds create GitHub Release entries.
 
 ### Inputs
 
@@ -22,9 +23,6 @@ Workflow file: `.github/workflows/manual-release.yml`.
 - `version_override`: optional explicit app version in `N.N.N` format (example: `0.2.0`).
 - `test_build_suffix`: optional identifier used when `release_kind=test` (example: `qa.3`).
   - If omitted, the workflow uses `build.<run_number>.<run_attempt>`.
-- `is_prerelease`: boolean toggle.
-  - `true`: publish as a pre-release.
-  - `false`: publish as a stable release.
 
 ### Version behavior
 
@@ -34,20 +32,39 @@ Two release modes are now supported:
    - If `version_override` is set, that explicit version is used.
    - Otherwise, the workflow finds the latest stable `vX.Y.Z` tag and increments it using `bump`.
    - The first stable run with no existing stable tags and default `patch` will produce `v0.0.1`.
-   - Use this mode when you want to advance the app version.
+   - The workflow creates a `vX.Y.Z` tag and publishes a normal GitHub Release entry with the ZIP and installer assets.
+   - Use this mode only when the build should appear on the repository Releases page.
 
 2. **Test build mode (`release_kind=test`)**
    - The app version stays on the selected base version:
      - `version_override` if provided, otherwise latest stable version (or `0.0.0` if none exist).
-   - The workflow appends a pre-release style test suffix to make the tag unique:
+   - The workflow appends a test suffix to make the tag unique:
+     - `test/vX.Y.Z-<suffix>`
+   - The app window displays a pre-release style informational version:
      - `vX.Y.Z-test.<suffix>`
+   - The workflow uploads the ZIP and installer as workflow run artifacts instead of creating a GitHub Release entry.
    - This supports multiple packaged test builds between stable versions (for example, several builds between `v0.0.9` and `v0.0.10`).
+
+### Downloading internal test builds
+
+Test builds do not appear on the GitHub Releases page.
+
+To download a test build:
+
+1. Open the completed **Manual Release** workflow run.
+2. Download the `virtual-dof-matrix-test-vX.Y.Z-<suffix>` artifact from the run summary.
+3. Extract the artifact locally; it contains:
+   - `virtual-dof-matrix-test-vX.Y.Z-<suffix>-win-x64.zip`
+   - `VirtualDofMatrix.Installer.exe`
+
+Test build artifacts are retained for 30 days.
 
 ### Common failure: `tag already exists`
 
 - The workflow intentionally fails if the computed tag already exists in the repository.
 - Check existing tags with:
   - `git tag --list "v*"`
+  - `git tag --list "test/*"`
 - If you want to publish again, choose a new version:
   - for stable releases, set `version_override` to an unused `N.N.N` (or choose a bump that advances), or
   - for test builds, keep the same `version_override` and provide a new `test_build_suffix`.
@@ -59,8 +76,10 @@ Two release modes are now supported:
 3. The staging folder is initialized empty.
 4. The effective manifest is treated as authoritative; only mapped files/directories are copied.
 5. The final zip is created as:
-   - `virtual-dof-matrix-<resolved-tag>-win-x64.zip`
-6. The workflow creates and pushes the release tag, then publishes a GitHub Release with auto-generated notes.
+   - stable: `virtual-dof-matrix-vX.Y.Z-win-x64.zip`
+   - test: `virtual-dof-matrix-test-vX.Y.Z-<suffix>-win-x64.zip`
+6. The workflow creates and pushes the resolved tag.
+7. Stable builds publish a GitHub Release with auto-generated notes; test builds upload workflow artifacts only.
 
 ## Release manifest
 
@@ -116,8 +135,7 @@ Any missing source path or empty required match fails the release with a specifi
 Current `release-manifest.json` includes:
 
 - `DOF` -> `DOF`
-- `examples/settings.sample.json` -> `examples/settings.sample.json`
-- `docs/instructions.html` -> `docs/instructions.html`
+- `docs/instructions.html` -> `./instructions.html`
 
 At release time, the workflow generates `artifacts/release-manifest.effective.json` that prepends:
 

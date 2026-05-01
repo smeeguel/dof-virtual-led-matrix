@@ -28,11 +28,6 @@ on:
         description: "Optional test build suffix used when release_kind=test (e.g. qa.3)"
         required: false
         type: string
-      is_prerelease:
-        description: "Publish as pre-release"
-        required: true
-        default: true
-        type: boolean
 
 permissions:
   contents: write
@@ -177,13 +172,17 @@ jobs:
               throw "version_override must match N.N.N format, got '$override'"
             }
 
+            # Keep the Git tag, display version, and artifact label separate so internal
+            # test tags can live under test/... without leaking slashes into filenames.
+            $isRelease = 'false'
+
             # For stable releases we keep the current behavior: resolve the next unused vN.N.N tag.
             if ($releaseKind -eq 'stable') {
               if ($override) {
                 $nextVersion = $override
-                $tag = "v$nextVersion"
-                if (Test-TagExists $tag) {
-                  throw "Tag '$tag' already exists. Provide a new version_override."
+                $gitTag = "v$nextVersion"
+                if (Test-TagExists $gitTag) {
+                  throw "Tag '$gitTag' already exists. Provide a new version_override."
                 }
               }
               else {
@@ -193,15 +192,19 @@ jobs:
                 $candidateBase = $baseVersion
                 do {
                   $nextVersion = Get-NextVersionCandidate $candidateBase "$env:INPUT_BUMP"
-                  $tag = "v$nextVersion"
-                  if (Test-TagExists $tag) {
-                    Write-Host "Tag '$tag' already exists, trying next $env:INPUT_BUMP version..."
+                  $gitTag = "v$nextVersion"
+                  if (Test-TagExists $gitTag) {
+                    Write-Host "Tag '$gitTag' already exists, trying next $env:INPUT_BUMP version..."
                     $candidateBase = [Version]$nextVersion
                   }
-                } while (Test-TagExists $tag)
+                } while (Test-TagExists $gitTag)
 
                 Write-Host "Resolved next stable version: $nextVersion"
               }
+
+              $displayVersion = "v$nextVersion"
+              $artifactTag = $displayVersion
+              $isRelease = 'true'
             }
             else {
               # For test builds we intentionally keep app version stable and only vary a pre-release suffix.
@@ -214,29 +217,34 @@ jobs:
 
               $buildSuffix = Get-NormalizedBuildSuffix "$env:INPUT_TEST_BUILD_SUFFIX"
               $nextVersion = $baseVersionText
-              $tag = "v$baseVersionText-test.$buildSuffix"
+              $gitTag = "test/v$baseVersionText-$buildSuffix"
+              $displayVersion = "v$baseVersionText-test.$buildSuffix"
+              $artifactTag = "test-v$baseVersionText-$buildSuffix"
 
-              if (Test-TagExists $tag) {
-                throw "Computed test tag '$tag' already exists. Provide a different test_build_suffix."
+              if (Test-TagExists $gitTag) {
+                throw "Computed test tag '$gitTag' already exists. Provide a different test_build_suffix."
               }
 
-              Write-Host "Resolved test build tag without bumping app version: $tag"
+              Write-Host "Resolved test build tag without bumping app version: $gitTag"
             }
 
-            if (-not $tag) {
-              $tag = "v$nextVersion"
+            if (-not $gitTag) {
+              $gitTag = "v$nextVersion"
             }
 
-            if (Test-TagExists $tag) {
+            if (Test-TagExists $gitTag) {
               if ($override) {
-                throw "Tag '$tag' already exists. Provide a new version_override."
+                throw "Tag '$gitTag' already exists. Provide a new version_override."
               }
-              throw "Unable to resolve a unique tag for '$tag'."
+              throw "Unable to resolve a unique tag for '$gitTag'."
             }
 
             "version=$nextVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host "Resolved release outputs: version='$nextVersion' tag='$tag' release_kind='$releaseKind'"
+            "git_tag=$gitTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "display_version=$displayVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "artifact_tag=$artifactTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "is_release=$isRelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "Resolved release outputs: version='$nextVersion' git_tag='$gitTag' display_version='$displayVersion' artifact_tag='$artifactTag' is_release='$isRelease'"
           }
           catch {
             Write-Host "::error::Release version resolution failed."
@@ -262,7 +270,7 @@ jobs:
             /p:DebugType=None `
             /p:DebugSymbols=false `
             /p:Version=${{ steps.version.outputs.version }} `
-            /p:InformationalVersion=${{ steps.version.outputs.tag }}
+            /p:InformationalVersion=${{ steps.version.outputs.display_version }}
 
       - name: Build installer package
         id: installer
@@ -298,7 +306,7 @@ jobs:
         run: |
           $publishDir = "src/VirtualDofMatrix.App/bin/Release/net8.0-windows/win-x64/publish"
           $stagingDir = "artifacts/staging"
-          $assetName = "virtual-dof-matrix-${{ steps.version.outputs.tag }}-win-x64.zip"
+          $assetName = "virtual-dof-matrix-${{ steps.version.outputs.artifact_tag }}-win-x64.zip"
           $manifestPath = "artifacts/release-manifest.effective.json"
           $exeName = "VirtualDofMatrix.App.exe"
           $exePath = Join-Path $publishDir $exeName
@@ -356,18 +364,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git tag -a ${{ steps.version.outputs.tag }} -m "Release ${{ steps.version.outputs.tag }}"
-          git push origin ${{ steps.version.outputs.tag }}
+          git tag -a "${{ steps.version.outputs.git_tag }}" -m "Build ${{ steps.version.outputs.git_tag }}"
+          git push origin "${{ steps.version.outputs.git_tag }}"
 
       - name: Create GitHub release
+        if: steps.version.outputs.is_release == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_TAG: ${{ steps.version.outputs.git_tag }}
           RELEASE_TARGET: ${{ steps.sync_readme.outputs.release_target }}
           RELEASE_FILE: ${{ steps.package.outputs.artifact_path }}
           RELEASE_INSTALLER: ${{ steps.installer.outputs.installer_path }}
-          RELEASE_IS_PRERELEASE: ${{ inputs.is_prerelease }}
         run: |
           # Use the built-in GitHub CLI here so we avoid JavaScript action runtime deprecations (Node 20 -> 24 migration).
           $args = @(
@@ -380,8 +388,15 @@ jobs:
           if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_INSTALLER) -and (Test-Path -LiteralPath $env:RELEASE_INSTALLER -PathType Leaf)) {
             $args += $env:RELEASE_INSTALLER
           }
-          if ("$env:RELEASE_IS_PRERELEASE" -eq "true") {
-            $args += "--prerelease"
-          }
 
           gh @args
+
+      - name: Upload internal test build artifacts
+        if: steps.version.outputs.is_release != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: virtual-dof-matrix-${{ steps.version.outputs.artifact_tag }}
+          retention-days: 30
+          path: |
+            ${{ steps.package.outputs.artifact_path }}
+            ${{ steps.installer.outputs.installer_path }}
