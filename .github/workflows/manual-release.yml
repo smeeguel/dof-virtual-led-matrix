@@ -277,30 +277,20 @@ jobs:
             -c Release -r win-x64 --self-contained `
             /p:PublishSingleFile=true `
             /p:EnableCompressionInSingleFile=true `
+            /p:IncludeNativeLibrariesForSelfExtract=true `
             /p:Version=${{ steps.version.outputs.version }} `
             /p:InstallerAppPublishDir="$publishDir\\"
           if ($LASTEXITCODE -ne 0) {
             throw "Installer package build failed."
           }
 
-          # Stage the installer exe + payload into a zip so the release artifact is self-contained.
           $installerPublishDir = "installer/VirtualDofMatrix.Installer/bin/x64/Release/net8.0-windows/win-x64/publish"
-          $bundleDir = "artifacts/installer-bundle"
-          New-Item -ItemType Directory -Path "$bundleDir/payload/app" -Force | Out-Null
-
           $installerExe = Join-Path $installerPublishDir "VirtualDofMatrix.Installer.exe"
           if (-not (Test-Path -LiteralPath $installerExe -PathType Leaf)) {
             throw "Published installer exe not found at $installerExe."
           }
 
-          Copy-Item $installerExe "$bundleDir/VirtualDofMatrix.Installer.exe"
-          Copy-Item "$publishDir/VirtualDofMatrix.App.exe" "$bundleDir/payload/app/VirtualDofMatrix.App.exe"
-          Copy-Item -Path "DOF" -Destination "$bundleDir/payload/DOF" -Recurse -Force
-
-          $zipPath = "artifacts/VirtualDofMatrix.Installer.${{ steps.version.outputs.tag }}.win-x64.zip"
-          Compress-Archive -Path "$bundleDir/*" -DestinationPath $zipPath -Force
-
-          "installer_path=$zipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "installer_path=$installerExe" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Stage release package
         id: package

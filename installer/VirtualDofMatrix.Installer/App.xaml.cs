@@ -10,46 +10,53 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
-
-        var args = e.Args;
-
-        if (ContainsFlag(args, "--uninstall"))
+        try
         {
+            base.OnStartup(e);
+
+            var args = e.Args;
+
+            if (ContainsFlag(args, "--uninstall"))
+            {
+                if (ContainsFlag(args, "--silent"))
+                    RunSilentUninstall();
+                else
+                    ShowUninstallConfirmation();
+                return;
+            }
+
+            ParseInstallArgs(args);
+
             if (ContainsFlag(args, "--silent"))
-                RunSilentUninstall();
-            else
-                ShowUninstallConfirmation();
-            return;
+            {
+                RunSilentInstall();
+                return;
+            }
+
+            // Check for existing install and pre-populate state.
+            var existing = UninstallService.GetInstalledVersion();
+            if (existing is not null)
+            {
+                State.IsUpgrade = true;
+                State.InstallFolder = existing.InstallFolder.TrimEnd('\\', '/');
+            }
+
+            // Pre-run DOF detection so wizard pages start with valid default values.
+            var detection = DofDetectionService.Detect(
+                string.IsNullOrWhiteSpace(State.DofRootPath) ? null : State.DofRootPath);
+            State.DofDetected = detection.Detected;
+            State.DofRootPath = detection.RootPath;
+            State.DofConfigPath = detection.ConfigPath;
+            if (string.IsNullOrWhiteSpace(State.BackupPath))
+                State.BackupPath = detection.SuggestedBackupPath;
+
+            var window = new MainWindow();
+            window.Show();
         }
-
-        ParseInstallArgs(args);
-
-        if (ContainsFlag(args, "--silent"))
+        catch (Exception ex)
         {
-            RunSilentInstall();
-            return;
+            ShowFatalStartupError(ex);
         }
-
-        // Check for existing install and pre-populate state.
-        var existing = UninstallService.GetInstalledVersion();
-        if (existing is not null)
-        {
-            State.IsUpgrade = true;
-            State.InstallFolder = existing.InstallFolder.TrimEnd('\\', '/');
-        }
-
-        // Pre-run DOF detection so wizard pages start with valid default values.
-        var detection = DofDetectionService.Detect(
-            string.IsNullOrWhiteSpace(State.DofRootPath) ? null : State.DofRootPath);
-        State.DofDetected = detection.Detected;
-        State.DofRootPath = detection.RootPath;
-        State.DofConfigPath = detection.ConfigPath;
-        if (string.IsNullOrWhiteSpace(State.BackupPath))
-            State.BackupPath = detection.SuggestedBackupPath;
-
-        var window = new MainWindow();
-        window.Show();
     }
 
     private static void ParseInstallArgs(string[] args)
@@ -81,7 +88,7 @@ public partial class App : Application
     {
         try
         {
-            Console.WriteLine($"VirtualDofMatrix.Installer v{State.ProductVersion} — silent install");
+            Console.WriteLine($"VirtualDofMatrix.Installer v{State.ProductVersion} - silent install");
 
             if (string.IsNullOrWhiteSpace(State.DofConfigPath) || State.DofConfigPath == @"C:\DirectOutput\Config")
             {
@@ -117,7 +124,7 @@ public partial class App : Application
     {
         try
         {
-            Console.WriteLine("VirtualDofMatrix.Installer — silent uninstall");
+            Console.WriteLine("VirtualDofMatrix.Installer - silent uninstall");
             UninstallService.Uninstall(new Progress<string>(msg => Console.WriteLine(msg)));
             Console.WriteLine("Uninstall completed.");
             Environment.Exit(0);
@@ -160,4 +167,20 @@ public partial class App : Application
 
     private static bool ContainsFlag(string[] args, string flag) =>
         Array.Exists(args, a => a.Equals(flag, StringComparison.OrdinalIgnoreCase));
+
+    private static void ShowFatalStartupError(Exception ex)
+    {
+        try
+        {
+            MessageBox.Show(
+                "Virtual DOF Matrix Setup could not start.\n\n" + ex,
+                "Virtual DOF Matrix Setup",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            Environment.Exit(1);
+        }
+    }
 }

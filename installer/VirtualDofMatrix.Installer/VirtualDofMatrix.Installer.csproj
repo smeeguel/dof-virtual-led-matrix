@@ -23,45 +23,18 @@
     <Resource Include="Assets\Eula.rtf" />
   </ItemGroup>
 
-  <!-- Copy the app publish output and DOF payload into the installer bin folder at build time,
-       so the built exe is self-contained for testing without needing full publish. -->
-  <Target Name="CopyInstallerPayload" AfterTargets="Build"
-          Condition="'$(InstallerAppPublishDir)' != '' AND Exists('$(InstallerAppPublishDir)')">
-    <ItemGroup>
-      <AppPublishFiles Include="$(InstallerAppPublishDir)**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(AppPublishFiles)"
-          DestinationFiles="@(AppPublishFiles->'$(OutputPath)payload\app\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
-  </Target>
+  <ItemGroup Condition="'$(InstallerAppPublishDir)' != '' AND Exists('$(InstallerAppPublishDir)')">
+    <!-- Embed the app payload into the installer assembly. The .NET single-file bundle then
+         carries these resources inside VirtualDofMatrix.Installer.exe instead of beside it. -->
+    <EmbeddedResource Include="$(InstallerAppPublishDir)**\*">
+      <LogicalName>payload/app/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 
-  <Target Name="CopyDofPayload" AfterTargets="Build" Condition="Exists('$(DofPayloadDir)')">
-    <ItemGroup>
-      <DofPayloadFiles Include="$(DofPayloadDir)**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(DofPayloadFiles)"
-          DestinationFiles="@(DofPayloadFiles->'$(OutputPath)payload\DOF\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
-  </Target>
-
-  <!-- Single-file publish writes the runnable installer to PublishDir. Stage payloads there too
-       so silent install can discover payload/app and payload/DOF next to the published exe. -->
-  <Target Name="CopyInstallerPayloadOnPublish" AfterTargets="Publish"
-          Condition="'$(InstallerAppPublishDir)' != '' AND Exists('$(InstallerAppPublishDir)')">
-    <ItemGroup>
-      <PublishedAppPayloadFiles Include="$(InstallerAppPublishDir)**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(PublishedAppPayloadFiles)"
-          DestinationFiles="@(PublishedAppPayloadFiles->'$(PublishDir)payload\app\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
-  </Target>
-
-  <Target Name="CopyDofPayloadOnPublish" AfterTargets="Publish" Condition="Exists('$(DofPayloadDir)')">
-    <ItemGroup>
-      <PublishedDofPayloadFiles Include="$(DofPayloadDir)**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(PublishedDofPayloadFiles)"
-          DestinationFiles="@(PublishedDofPayloadFiles->'$(PublishDir)payload\DOF\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
-  </Target>
+  <ItemGroup Condition="Exists('$(DofPayloadDir)')">
+    <!-- Keep the DOF bootstrap/config payload in the same embedded resource namespace. -->
+    <EmbeddedResource Include="$(DofPayloadDir)**\*">
+      <LogicalName>payload/DOF/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

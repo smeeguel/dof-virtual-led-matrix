@@ -228,7 +228,8 @@ public static class InstallService
         var exeDir = ExeDirectory();
         var devLayout = Path.Combine(exeDir, "payload", "app");
         if (Directory.Exists(devLayout)) return devLayout;
-        return exeDir;
+        if (File.Exists(Path.Combine(exeDir, "VirtualDofMatrix.App.exe"))) return exeDir;
+        return EmbeddedPayloadService.AppPayloadDirectory;
     }
 
     private static string FindDofPayloadDir()
@@ -238,8 +239,10 @@ public static class InstallService
         if (Directory.Exists(devLayout)) return devLayout;
         var releaseLayout = Path.Combine(exeDir, "DOF");
         if (Directory.Exists(releaseLayout)) return releaseLayout;
+        if (Directory.Exists(EmbeddedPayloadService.DofPayloadDirectory))
+            return EmbeddedPayloadService.DofPayloadDirectory;
         throw new DirectoryNotFoundException(
-            $"DOF payload directory not found. Expected 'payload/DOF/' or 'DOF/' next to the installer at '{exeDir}'.");
+            $"DOF payload directory not found. Expected embedded payload resources, 'payload/DOF/', or 'DOF/' next to the installer at '{exeDir}'.");
     }
 
     private static string ExeDirectory() =>
