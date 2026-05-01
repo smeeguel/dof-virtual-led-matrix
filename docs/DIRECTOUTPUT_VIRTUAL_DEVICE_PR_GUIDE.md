@@ -215,7 +215,7 @@ Then route `LedStrip` toys to this controller by `OutputControllerName`.
 
 - No changes to DOF config tool schema/workflow required.
 - No table-script changes required.
-- No replacement of existing serial/hardware controller paths.
-- No dependency on VSPE/COM emulation for this transport.
+- No replacement of existing hardware controller paths.
+- No dependency on external virtual-port tooling for this transport.
 
 This is an additive virtual transport path.

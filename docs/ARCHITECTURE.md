@@ -18,7 +18,7 @@ Primary constraints:
 - No custom DOF fork is required.
 - Runtime is Windows-focused (VPX + DOF ecosystem).
 - Current transport path is **named pipe** via a bundled `DirectOutput.dll` virtual controller.
-- Internal limits are aligned to Teensy-style compatibility ceilings: `8 strips * 1100 LEDs * 3 bytes RGB` max payload.
+- Internal payload limits are aligned to the current DOF-compatible ceiling: `8 strips * 1100 LEDs * 3 bytes RGB` max payload.
 
 At runtime, the app can:
 - receive frame payloads,

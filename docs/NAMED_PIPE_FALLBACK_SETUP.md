@@ -13,7 +13,7 @@ Back up existing DLLs first.
 
 ## 2) Use `VirtualLEDStripController` in `Cabinet.xml`
 
-Your cabinet configuration must target the virtual controller type (not `TeensyStripController` for this build path):
+Your cabinet configuration must target the virtual controller type for this build path:
 
 - controller element: `<VirtualLEDStripController>`
 - pipe name field: `<PipeName>VirtualDofMatrix</PipeName>` (or match your custom setting)
