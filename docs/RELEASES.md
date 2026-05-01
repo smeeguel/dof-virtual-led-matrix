@@ -42,7 +42,7 @@ Two release modes are now supported:
      - `test/vX.Y.Z-<suffix>`
    - The app window displays a pre-release style informational version:
      - `vX.Y.Z-test.<suffix>`
-   - The workflow uploads the ZIP and installer as workflow run artifacts instead of creating a GitHub Release entry.
+   - The workflow uploads the app ZIP and installer EXE as separate workflow run artifacts instead of creating a GitHub Release entry.
    - This supports multiple packaged test builds between stable versions (for example, several builds between `v0.0.9` and `v0.0.10`).
 
 ### Downloading internal test builds
@@ -52,10 +52,10 @@ Test builds do not appear on the GitHub Releases page.
 To download a test build:
 
 1. Open the completed **Manual Release** workflow run.
-2. Download the `virtual-dof-matrix-test-vX.Y.Z-<suffix>` artifact from the run summary.
-3. Extract the artifact locally; it contains:
-   - `virtual-dof-matrix-test-vX.Y.Z-<suffix>-win-x64.zip`
-   - `VirtualDofMatrix.Installer.exe`
+2. Download either or both artifacts from the run summary:
+   - `virtual-dof-matrix-test-vX.Y.Z-<suffix>-win-x64-zip`
+   - `virtual-dof-matrix-test-vX.Y.Z-<suffix>-installer`
+3. Extract the downloaded artifact locally; each artifact contains its file at the top level.
 
 Test build artifacts are retained for 30 days.
 
@@ -79,7 +79,7 @@ Test build artifacts are retained for 30 days.
    - stable: `virtual-dof-matrix-vX.Y.Z-win-x64.zip`
    - test: `virtual-dof-matrix-test-vX.Y.Z-<suffix>-win-x64.zip`
 6. The workflow creates and pushes the resolved tag.
-7. Stable builds publish a GitHub Release with auto-generated notes; test builds upload workflow artifacts only.
+7. Stable builds publish a GitHub Release with auto-generated notes; test builds upload separate app ZIP and installer artifacts only.
 
 ## Release manifest
 

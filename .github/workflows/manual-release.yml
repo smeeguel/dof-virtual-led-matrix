@@ -298,7 +298,15 @@ jobs:
             throw "Published installer exe not found at $installerExe."
           }
 
+          # Stage a top-level installer copy for workflow artifacts so internal
+          # test builds do not preserve the deep publish directory structure.
+          $artifactDir = "artifacts"
+          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+          $installerArtifact = Join-Path $artifactDir "VirtualDofMatrix.Installer.exe"
+          Copy-Item -LiteralPath $installerExe -Destination $installerArtifact -Force
+
           "installer_path=$installerExe" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "installer_artifact_path=$installerArtifact" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Stage release package
         id: package
@@ -391,12 +399,18 @@ jobs:
 
           gh @args
 
-      - name: Upload internal test build artifacts
+      - name: Upload internal test app package artifact
         if: steps.version.outputs.is_release != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: virtual-dof-matrix-${{ steps.version.outputs.artifact_tag }}
+          name: virtual-dof-matrix-${{ steps.version.outputs.artifact_tag }}-win-x64-zip
           retention-days: 30
-          path: |
-            ${{ steps.package.outputs.artifact_path }}
-            ${{ steps.installer.outputs.installer_path }}
+          path: ${{ steps.package.outputs.artifact_path }}
+
+      - name: Upload internal test installer artifact
+        if: steps.version.outputs.is_release != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: virtual-dof-matrix-${{ steps.version.outputs.artifact_tag }}-installer
+          retention-days: 30
+          path: ${{ steps.installer.outputs.installer_artifact_path }}
