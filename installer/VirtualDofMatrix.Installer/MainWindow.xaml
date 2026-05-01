@@ -35,7 +35,9 @@
 
     <!-- Page content -->
     <Border Grid.Row="1" Background="White">
-      <ContentPresenter x:Name="PageContent" />
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ContentPresenter x:Name="PageContent" />
+      </ScrollViewer>
     </Border>
 
     <!-- Footer with navigation buttons -->
