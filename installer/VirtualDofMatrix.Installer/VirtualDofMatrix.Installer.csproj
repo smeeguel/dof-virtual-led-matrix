@@ -37,4 +37,11 @@
       <LogicalName>payload/DOF/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Extra files that release-manifest.json places beside the app in release packages. -->
+    <EmbeddedResource Include="$(MSBuildProjectDirectory)\..\..\docs\instructions.html">
+      <LogicalName>payload/release/instructions.html</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

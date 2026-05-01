@@ -13,6 +13,7 @@ public static class InstallService
     private const string DofDownloadUrl = "http://mjrnet.org/pinscape/dll-updates.html#DOF";
     private const string ArpKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VirtualDofMatrix";
     private const string HklmHintsKeyPath = @"Software\VirtualDofMatrix";
+    private const string UninstallerFileName = "VirtualDofMatrix.Installer.exe";
 
     private static readonly IReadOnlyDictionary<string, string> TemplateToFolder =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -76,10 +77,12 @@ public static class InstallService
         progress?.Report($"Copying application files to {installFolder}...");
         Directory.CreateDirectory(installFolder);
         CopyDirectory(appPayloadDir, installFolder, _ => true, progress);
+        CopyReleaseManifestPayload(dofPayloadDir, installFolder, progress);
 
-        // 2. Copy installer exe so uninstall works from Programs & Features.
+        // 2. Copy uninstall support outside the app folder so the install root mirrors the release package.
         progress?.Report("Registering uninstaller...");
-        CopyInstallerExe(installFolder);
+        CopyUninstallerSupportExe();
+        RemoveLegacyInstallerCopiesFromInstallFolder(installFolder, progress);
 
         // 3. Create Start Menu shortcut.
         progress?.Report("Creating Start Menu shortcut...");
@@ -192,12 +195,66 @@ public static class InstallService
         progress?.Report($"  Copied {files.Length} file(s) from {Path.GetFileName(src)}");
     }
 
-    private static void CopyInstallerExe(string installFolder)
+    private static void CopyReleaseManifestPayload(string dofPayloadDir, string installFolder, IProgress<string>? progress)
+    {
+        // Keep the installer output aligned with release-manifest.json: app exe plus DOF folder
+        // and instructions.html in the install root.
+        var installedDofDir = Path.Combine(installFolder, "DOF");
+        CopyDirectory(dofPayloadDir, installedDofDir,
+            src =>
+            {
+                var rel = src[(dofPayloadDir.Length)..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return !rel.Replace(Path.DirectorySeparatorChar, '/')
+                    .Equals("Config/GlobalConfig_B2SServer.xml", StringComparison.OrdinalIgnoreCase);
+            },
+            progress);
+
+        var releasePayloadDir = EmbeddedPayloadService.ReleasePayloadDirectory;
+        if (Directory.Exists(releasePayloadDir))
+            CopyDirectory(releasePayloadDir, installFolder, _ => true, progress);
+    }
+
+    private static void CopyUninstallerSupportExe()
     {
         var exePath = Process.GetCurrentProcess().MainModule?.FileName;
         if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath)) return;
-        var dest = Path.Combine(installFolder, "VirtualDofMatrix.Installer.exe");
+        var dest = GetUninstallerSupportExePath();
+        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
         try { File.Copy(exePath, dest, overwrite: true); }
+        catch { }
+    }
+
+    private static void RemoveLegacyInstallerCopiesFromInstallFolder(string installFolder, IProgress<string>? progress)
+    {
+        var currentExePath = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+        var candidates = new[]
+        {
+            Path.Combine(installFolder, UninstallerFileName),
+            Path.Combine(installFolder, "uninstall", UninstallerFileName),
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (!File.Exists(candidate)) continue;
+            if (candidate.Equals(currentExePath, StringComparison.OrdinalIgnoreCase)) continue;
+
+            try
+            {
+                File.Delete(candidate);
+                progress?.Report($"  Removed legacy installer copy from {candidate}");
+            }
+            catch (Exception ex)
+            {
+                progress?.Report($"  Warning: could not remove legacy installer copy '{candidate}': {ex.Message}");
+            }
+        }
+
+        var legacyUninstallDir = Path.Combine(installFolder, "uninstall");
+        try
+        {
+            if (Directory.Exists(legacyUninstallDir) && !Directory.EnumerateFileSystemEntries(legacyUninstallDir).Any())
+                Directory.Delete(legacyUninstallDir);
+        }
         catch { }
     }
 
@@ -216,7 +273,7 @@ public static class InstallService
     {
         using var key = Registry.LocalMachine.CreateSubKey(ArpKeyPath);
         if (key is null) return;
-        var uninstaller = Path.Combine(installFolder, "VirtualDofMatrix.Installer.exe");
+        var uninstaller = GetUninstallerSupportExePath();
         key.SetValue("DisplayName", "Virtual DOF Matrix", RegistryValueKind.String);
         key.SetValue("Publisher", "Virtual DOF Matrix", RegistryValueKind.String);
         key.SetValue("DisplayVersion", version, RegistryValueKind.String);
@@ -262,6 +319,15 @@ public static class InstallService
 
     private static string ExeDirectory() =>
         Path.GetDirectoryName(Process.GetCurrentProcess().MainModule?.FileName) ?? Directory.GetCurrentDirectory();
+
+    private static string GetUninstallerSupportExePath()
+    {
+        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        if (string.IsNullOrWhiteSpace(programData))
+            programData = Path.GetTempPath();
+
+        return Path.Combine(programData, "VirtualDofMatrix", "Uninstall", UninstallerFileName);
+    }
 }
 
 internal static class ShortcutHelper

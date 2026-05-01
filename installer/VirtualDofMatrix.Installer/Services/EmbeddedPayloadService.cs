@@ -7,12 +7,15 @@ internal static class EmbeddedPayloadService
 {
     private const string AppPayloadPrefix = "payload/app/";
     private const string DofPayloadPrefix = "payload/DOF/";
+    private const string ReleasePayloadPrefix = "payload/release/";
 
     private static readonly Lazy<string> ExtractionRoot = new(ExtractPayloads);
 
     public static string AppPayloadDirectory => Path.Combine(ExtractionRoot.Value, "app");
 
     public static string DofPayloadDirectory => Path.Combine(ExtractionRoot.Value, "DOF");
+
+    public static string ReleasePayloadDirectory => Path.Combine(ExtractionRoot.Value, "release");
 
     private static string ExtractPayloads()
     {
@@ -49,5 +52,6 @@ internal static class EmbeddedPayloadService
 
     private static bool IsPayloadResource(string resourceName) =>
         resourceName.StartsWith(AppPayloadPrefix, StringComparison.Ordinal) ||
-        resourceName.StartsWith(DofPayloadPrefix, StringComparison.Ordinal);
+        resourceName.StartsWith(DofPayloadPrefix, StringComparison.Ordinal) ||
+        resourceName.StartsWith(ReleasePayloadPrefix, StringComparison.Ordinal);
 }

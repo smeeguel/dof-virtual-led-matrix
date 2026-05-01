@@ -10,11 +10,6 @@
     },
     {
       "type": "file",
-      "from": "./DOFConfigSetup.bat",
-      "to": "./DOFConfigSetup.bat"
-    },
-    {
-      "type": "file",
       "from": "docs/instructions.html",
       "to": "./instructions.html"
     }

@@ -88,8 +88,20 @@ function Invoke-SilentInstallAndValidate {
   # Verify app was installed.
   Assert-FileExists -Path (Join-Path $installDir 'VirtualDofMatrix.App.exe') -Reason 'app exe installed'
 
-  # Verify uninstaller was copied.
-  Assert-FileExists -Path (Join-Path $installDir 'VirtualDofMatrix.Installer.exe') -Reason 'uninstaller copied'
+  # Verify release-manifest payload was installed.
+  Assert-FileExists -Path (Join-Path $installDir 'instructions.html') -Reason 'release instructions installed'
+  Assert-FileExists -Path (Join-Path $installDir 'DOF\x64\DirectOutput.dll') -Reason 'installed release DOF payload'
+
+  # Verify no installer/uninstaller exe was copied into the app install folder or any subfolder.
+  $installerCopiesInAppFolder = @(Get-ChildItem -LiteralPath $installDir -Filter 'VirtualDofMatrix.Installer.exe' -Recurse -File -ErrorAction SilentlyContinue)
+  if ($installerCopiesInAppFolder.Count -gt 0) {
+    $paths = ($installerCopiesInAppFolder | ForEach-Object { $_.FullName }) -join ', '
+    throw "Installer exe should not be copied into the app install folder or subfolders. Found: $paths"
+  }
+
+  # Verify ARP support copy exists outside the app install folder.
+  $programDataUninstaller = Join-Path $env:ProgramData 'VirtualDofMatrix\Uninstall\VirtualDofMatrix.Installer.exe'
+  Assert-FileExists -Path $programDataUninstaller -Reason 'ARP uninstall support exe'
 
   # Verify ARP registry entry.
   $arpKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VirtualDofMatrix'
@@ -106,8 +118,8 @@ function Invoke-SilentUninstallAndValidate {
   $uninstallLog = Join-Path $logRoot 'installer-silent-uninstall.log'
   Write-Host "Running silent uninstall from: $InstallerExePath"
 
-  # Uninstall via the uninstaller that was copied to the install folder.
-  $uninstallerExe = Join-Path $InstallDir 'VirtualDofMatrix.Installer.exe'
+  # Uninstall via the ARP support copy outside the app install folder.
+  $uninstallerExe = Join-Path $env:ProgramData 'VirtualDofMatrix\Uninstall\VirtualDofMatrix.Installer.exe'
   if (-not (Test-Path -LiteralPath $uninstallerExe -PathType Leaf)) {
     # Fallback to original installer exe.
     $uninstallerExe = $InstallerExePath

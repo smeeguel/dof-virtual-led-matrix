@@ -34,3 +34,15 @@ installer/VirtualDofMatrix.Installer/bin/x64/Release/net8.0-windows/win-x64/publ
 ```
 
 The app payload and DOF payload are embedded as installer resources. They should not be packaged as a sibling `payload` directory or wrapped in an installer ZIP.
+
+## Installed folder shape
+
+The installer should leave the app folder shaped like the release package:
+
+```text
+VirtualDofMatrix.App.exe
+DOF/
+instructions.html
+```
+
+The installer exe should not be copied into the app install folder or any subfolder. Add/Remove Programs uses a support copy stored outside the app folder under common application data.
