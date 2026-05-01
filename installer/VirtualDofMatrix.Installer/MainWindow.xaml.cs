@@ -16,17 +16,23 @@ public partial class MainWindow : Window
         InitializeComponent();
         _pages = new IWizardPage[]
         {
-            new WelcomePage(),
-            new DofDetectionPage(),
-            new InstallLocationPage(),
-            new DofConfigPage(),
-            new TemplateSelectPage(),
-            new SummaryPage(),
-            new ProgressPage(),
-            new FinishPage(),
+            new MaintenancePage(),     // [0] same-version: Modify / Repair / Remove
+            new WelcomePage(),         // [1]
+            new DofDetectionPage(),    // [2]
+            new InstallLocationPage(), // [3]
+            new DofConfigPage(),       // [4]
+            new TemplateSelectPage(),  // [5]
+            new SummaryPage(),         // [6]
+            new ProgressPage(),        // [7]
+            new FinishPage(),          // [8]
         };
 
-        NavigateTo(App.State.IsUpgrade ? 1 : 0);
+        if (App.State.IsMaintenanceMode)
+            NavigateTo(0);
+        else if (App.State.IsUpgrade)
+            NavigateTo(2);
+        else
+            NavigateTo(1);
     }
 
     public void UpdateButtons() => RefreshNavigation();
@@ -65,9 +71,11 @@ public partial class MainWindow : Window
     {
         var page = _pages[_pageIndex];
         PageSubtitleText.Text = page.PageTitle;
-        const int namedSteps = 6; // Welcome…Summary
-        if (_pageIndex < namedSteps)
-            StepIndicatorText.Text = $"Step {_pageIndex + 1} of {namedSteps}";
+        // Pages 1-6 (Welcome … Summary) are numbered steps; page 0 is MaintenancePage.
+        const int firstStep = 1;
+        const int lastStep  = 6;
+        if (_pageIndex >= firstStep && _pageIndex <= lastStep)
+            StepIndicatorText.Text = $"Step {_pageIndex} of {lastStep}";
         else
             StepIndicatorText.Text = string.Empty;
     }
@@ -120,13 +128,17 @@ public partial class MainWindow : Window
         var error = _pages[_pageIndex].Validate(App.State);
         if (error is not null)
         {
-            MessageBox.Show(error, "Virtual DOF Matrix Setup",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (error.Length > 0) // empty string = block navigation silently (e.g. Remove cancel)
+                MessageBox.Show(error, "Virtual DOF Matrix Setup",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         if (_pageIndex < _pages.Length - 1)
-            NavigateTo(_pageIndex + 1);
+        {
+            var next = _pages[_pageIndex].GetNextPageIndex(_pageIndex) ?? (_pageIndex + 1);
+            NavigateTo(next);
+        }
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)

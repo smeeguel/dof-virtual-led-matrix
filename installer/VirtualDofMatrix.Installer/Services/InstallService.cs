@@ -44,7 +44,8 @@ public static class InstallService
         return null;
     }
 
-    public static void Apply(InstallerState state, IProgress<string>? progress = null)
+    public static void Apply(InstallerState state, IProgress<string>? progress = null,
+        Func<string, IReadOnlyList<string>, bool>? lockPrompt = null)
     {
         var configPath = DofDetectionService.Normalize(state.DofConfigPath);
         var rootPath = DofDetectionService.Normalize(
@@ -102,8 +103,8 @@ public static class InstallService
         }
 
         progress?.Report("Copying DirectOutput DLLs...");
-        CopyDofDll(dofPayloadDir, rootPath, "x64", progress);
-        CopyDofDll(dofPayloadDir, rootPath, "x86", progress);
+        CopyDofDll(dofPayloadDir, rootPath, "x64", progress, lockPrompt);
+        CopyDofDll(dofPayloadDir, rootPath, "x86", progress, lockPrompt);
 
         progress?.Report("Copying baseline DOF config files...");
         CopyDirectory(baselineConfigSrc, configPath,
@@ -129,32 +130,46 @@ public static class InstallService
         progress?.Report("Installation complete.");
     }
 
-    private static void CopyDofDll(string dofPayloadDir, string dofRoot, string arch, IProgress<string>? progress)
+    private static void CopyDofDll(string dofPayloadDir, string dofRoot, string arch, IProgress<string>? progress,
+        Func<string, IReadOnlyList<string>, bool>? lockPrompt = null)
     {
         var src = Path.Combine(dofPayloadDir, arch, "DirectOutput.dll");
         if (!File.Exists(src)) return;
         var destDir = Path.Combine(dofRoot, arch);
         Directory.CreateDirectory(destDir);
         var dest = Path.Combine(destDir, "DirectOutput.dll");
-        RetryFileCopy(src, dest, arch + " DirectOutput.dll", progress);
+        RetryFileCopy(src, dest, progress, lockPrompt);
     }
 
-    private static void RetryFileCopy(string src, string dest, string description, IProgress<string>? progress)
+    private static void RetryFileCopy(string src, string dest, IProgress<string>? progress,
+        Func<string, IReadOnlyList<string>, bool>? lockPrompt = null)
     {
-        for (var attempt = 1; attempt <= 3; attempt++)
+        const int maxSilentRetries = 3;
+        for (var attempt = 1; ; attempt++)
         {
             try
             {
                 File.Copy(src, dest, overwrite: true);
                 return;
             }
-            catch (IOException ex) when (IsSharingViolation(ex) && attempt < 3)
+            catch (IOException ex) when (IsSharingViolation(ex))
             {
-                progress?.Report($"File locked: {dest}. Close apps using DirectOutput and retry ({attempt}/3)...");
-                System.Threading.Thread.Sleep(3000);
+                if (lockPrompt is not null)
+                {
+                    var lockers = FileLockService.GetLockingProcessNames(dest);
+                    if (!lockPrompt(dest, lockers))
+                        throw; // user declined — propagate the IOException
+                    // User agreed to close the locking app; retry immediately.
+                }
+                else
+                {
+                    if (attempt >= maxSilentRetries)
+                        throw;
+                    progress?.Report($"File locked: {dest}. Close apps using DirectOutput and retry ({attempt}/{maxSilentRetries})...");
+                    System.Threading.Thread.Sleep(3000);
+                }
             }
         }
-        File.Copy(src, dest, overwrite: true);
     }
 
     private static bool IsSharingViolation(IOException ex)

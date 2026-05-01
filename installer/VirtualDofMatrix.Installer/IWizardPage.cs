@@ -14,4 +14,7 @@ public interface IWizardPage
 
     // Whether the Next button should be enabled on this page.
     bool NextEnabled { get; }
+
+    // Return an explicit target page index to override default (currentIndex + 1), or null for default.
+    int? GetNextPageIndex(int currentIndex) => null;
 }

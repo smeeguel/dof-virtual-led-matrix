@@ -20,6 +20,7 @@ public sealed class InstallerState : INotifyPropertyChanged
     private string _toyTemplate = "single_matrix";
     private bool _launchAfterInstall = true;
     private bool _isUpgrade;
+    private bool _isMaintenanceMode;
 
     public string InstallFolder   { get => _installFolder;   set => Set(ref _installFolder, value); }
     public string DofRootPath     { get => _dofRootPath;     set => Set(ref _dofRootPath, value); }
@@ -30,6 +31,7 @@ public sealed class InstallerState : INotifyPropertyChanged
     public string ToyTemplate     { get => _toyTemplate;     set => Set(ref _toyTemplate, value); }
     public bool   LaunchAfterInstall { get => _launchAfterInstall; set => Set(ref _launchAfterInstall, value); }
     public bool   IsUpgrade       { get => _isUpgrade;       set => Set(ref _isUpgrade, value); }
+    public bool   IsMaintenanceMode { get => _isMaintenanceMode; set => Set(ref _isMaintenanceMode, value); }
 
     public string ProductVersion { get; } =
         System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.0";

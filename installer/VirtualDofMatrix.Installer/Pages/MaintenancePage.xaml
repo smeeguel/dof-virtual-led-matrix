@@ -1,0 +1,43 @@
+<UserControl x:Class="VirtualDofMatrix.Installer.Pages.MaintenancePage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <StackPanel Margin="24,20,24,16">
+
+    <TextBlock x:Name="TitleText" Style="{StaticResource SectionHeader}"
+               Text="Virtual DOF Matrix is already installed" />
+    <TextBlock x:Name="SubtitleText" Style="{StaticResource BodyText}" Margin="0,0,0,20"
+               Text="Choose what you would like to do:" />
+
+    <RadioButton x:Name="ModifyRadio" GroupName="MaintenanceChoice"
+                 IsChecked="True"
+                 Margin="0,0,0,12"
+                 Checked="Choice_Checked">
+      <StackPanel Margin="8,0,0,0">
+        <TextBlock FontWeight="SemiBold" FontSize="13" Text="Modify" />
+        <TextBlock Style="{StaticResource BodyText}" Margin="0,2,0,0"
+                   Text="Change DOF configuration, template, or backup settings." />
+      </StackPanel>
+    </RadioButton>
+
+    <RadioButton x:Name="RepairRadio" GroupName="MaintenanceChoice"
+                 Margin="0,0,0,12"
+                 Checked="Choice_Checked">
+      <StackPanel Margin="8,0,0,0">
+        <TextBlock FontWeight="SemiBold" FontSize="13" Text="Repair" />
+        <TextBlock Style="{StaticResource BodyText}" Margin="0,2,0,0"
+                   Text="Reinstall application files and DOF DLLs using the existing configuration." />
+      </StackPanel>
+    </RadioButton>
+
+    <RadioButton x:Name="RemoveRadio" GroupName="MaintenanceChoice"
+                 Margin="0,0,0,0"
+                 Checked="Choice_Checked">
+      <StackPanel Margin="8,0,0,0">
+        <TextBlock FontWeight="SemiBold" FontSize="13" Text="Remove" />
+        <TextBlock Style="{StaticResource BodyText}" Margin="0,2,0,0"
+                   Text="Uninstall Virtual DOF Matrix. Your DOF configuration files will not be removed." />
+      </StackPanel>
+    </RadioButton>
+
+  </StackPanel>
+</UserControl>

@@ -48,10 +48,24 @@ public partial class ProgressPage : UserControl, IWizardPage
             });
         });
 
+        bool LockPrompt(string filePath, IReadOnlyList<string> lockers)
+        {
+            bool retry = false;
+            Dispatcher.Invoke(() =>
+            {
+                var names = string.Join(", ", lockers.DefaultIfEmpty("another application"));
+                var msg = $"{System.IO.Path.GetFileName(filePath)} is in use by {names}.\n\nClose {names} and retry?";
+                retry = System.Windows.MessageBox.Show(msg, "File In Use",
+                    System.Windows.MessageBoxButton.YesNo,
+                    System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes;
+            });
+            return retry;
+        }
+
         Exception? failure = null;
         try
         {
-            await System.Threading.Tasks.Task.Run(() => InstallService.Apply(state, progress));
+            await System.Threading.Tasks.Task.Run(() => InstallService.Apply(state, progress, LockPrompt));
         }
         catch (Exception ex)
         {

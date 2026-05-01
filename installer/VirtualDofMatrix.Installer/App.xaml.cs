@@ -37,8 +37,11 @@ public partial class App : Application
             var existing = UninstallService.GetInstalledVersion();
             if (existing is not null)
             {
-                State.IsUpgrade = true;
                 State.InstallFolder = existing.InstallFolder.TrimEnd('\\', '/');
+                if (existing.DisplayVersion == State.ProductVersion)
+                    State.IsMaintenanceMode = true;
+                else
+                    State.IsUpgrade = true;
             }
 
             // Pre-run DOF detection so wizard pages start with valid default values.
