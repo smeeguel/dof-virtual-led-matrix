@@ -22,12 +22,21 @@ public partial class DofConfigPage : UserControl, IWizardPage
         _suppress = true;
         DofConfigPathBox.Text = state.DofConfigPath;
         BackupCheckBox.IsChecked = state.BackupEnabled;
+
+        if (string.IsNullOrWhiteSpace(state.BackupPath))
+            state.BackupPath = DeriveDefaultBackupPath(state.DofRootPath);
+
         BackupPathBox.Text = state.BackupPath;
         _suppress = false;
         UpdateBackupPathEnabled();
     }
 
     public string? Validate(InstallerState state) => null;
+
+    private static string DeriveDefaultBackupPath(string dofRootPath) =>
+        string.IsNullOrWhiteSpace(dofRootPath)
+            ? string.Empty
+            : Path.Combine(dofRootPath, "Backups");
 
     private void UpdateBackupPathEnabled()
     {
@@ -48,13 +57,16 @@ public partial class DofConfigPage : UserControl, IWizardPage
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
 
         var path = dialog.FolderName;
+        var newRoot = DofDetectionService.Normalize(Path.GetDirectoryName(path) ?? string.Empty);
+
         _suppress = true;
         DofConfigPathBox.Text = path;
         _suppress = false;
 
         if (_state is null) return;
         _state.DofConfigPath = path;
-        _state.DofRootPath = DofDetectionService.Normalize(Path.GetDirectoryName(path) ?? string.Empty);
+        _state.DofRootPath = newRoot;
+        RefreshBackupDefault(newRoot);
     }
 
     private void BrowseBackupButton_Click(object sender, RoutedEventArgs e)
@@ -78,8 +90,26 @@ public partial class DofConfigPage : UserControl, IWizardPage
     {
         if (_suppress || _state is null) return;
         var path = DofConfigPathBox.Text.Trim();
+        var newRoot = DofDetectionService.Normalize(Path.GetDirectoryName(path) ?? string.Empty);
         _state.DofConfigPath = path;
-        _state.DofRootPath = DofDetectionService.Normalize(Path.GetDirectoryName(path) ?? string.Empty);
+        _state.DofRootPath = newRoot;
+        RefreshBackupDefault(newRoot);
+    }
+
+    private void RefreshBackupDefault(string newRoot)
+    {
+        if (_state is null) return;
+        var derived = DeriveDefaultBackupPath(newRoot);
+        // Only update the backup path if it still looks like a derived default (ends with \Backups)
+        var current = _state.BackupPath;
+        if (string.IsNullOrWhiteSpace(current) ||
+            current.EndsWith(Path.DirectorySeparatorChar + "Backups", StringComparison.OrdinalIgnoreCase))
+        {
+            _state.BackupPath = derived;
+            _suppress = true;
+            BackupPathBox.Text = derived;
+            _suppress = false;
+        }
     }
 
     private void BackupPathBox_TextChanged(object sender, TextChangedEventArgs e)

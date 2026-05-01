@@ -13,6 +13,7 @@ public partial class WelcomePage : UserControl, IWizardPage
 
     public string PageTitle => "License Agreement";
     public bool NextEnabled => AcceptCheckBox.IsChecked == true;
+    public bool NeedsOuterScroll => false;
 
     public void OnActivated(InstallerState state, MainWindow host)
     {

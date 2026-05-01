@@ -23,8 +23,6 @@
           <RowDefinition Height="Auto" />
           <RowDefinition Height="8" />
           <RowDefinition Height="Auto" />
-          <RowDefinition Height="8" />
-          <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource HintText}" Text="Install folder:" />
@@ -41,10 +39,6 @@
 
         <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource HintText}" Text="Backup:" />
         <TextBlock Grid.Row="6" Grid.Column="1" x:Name="SummaryBackup"
-                   Style="{StaticResource BodyText}" />
-
-        <TextBlock Grid.Row="8" Grid.Column="0" Style="{StaticResource HintText}" Text="Backup path:" />
-        <TextBlock Grid.Row="8" Grid.Column="1" x:Name="SummaryBackupPath"
                    Style="{StaticResource BodyText}" TextTrimming="CharacterEllipsis" />
       </Grid>
     </Border>
@@ -53,7 +47,7 @@
     <Border Background="#FFF8E1" BorderBrush="#FFD54F" BorderThickness="1"
             CornerRadius="4" Padding="12,8">
       <TextBlock Style="{StaticResource HintText}" Foreground="#E65100"
-                 Text="⚠  Existing DOF Config files in the selected folder may be overwritten by the template. The backup above will preserve your current state." />
+                 Text="⚠  Existing DOF Config files in the selected folder may be overwritten by the template." />
     </Border>
 
   </StackPanel>

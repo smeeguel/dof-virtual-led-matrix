@@ -35,7 +35,7 @@
 
     <!-- Page content -->
     <Border Grid.Row="1" Background="White">
-      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer x:Name="OuterScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <ContentPresenter x:Name="PageContent" />
       </ScrollViewer>
     </Border>

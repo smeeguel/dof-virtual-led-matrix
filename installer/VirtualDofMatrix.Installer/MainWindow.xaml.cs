@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using VirtualDofMatrix.Installer.Pages;
 using VirtualDofMatrix.Installer.ViewModels;
 
@@ -61,6 +62,8 @@ public partial class MainWindow : Window
     {
         _pageIndex = Math.Clamp(index, 0, _pages.Length - 1);
         var page = _pages[_pageIndex];
+        OuterScrollViewer.VerticalScrollBarVisibility =
+            page.NeedsOuterScroll ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
         PageContent.Content = page;
         page.OnActivated(App.State, this);
         RefreshHeader();

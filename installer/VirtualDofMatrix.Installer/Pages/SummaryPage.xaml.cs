@@ -20,10 +20,9 @@ public partial class SummaryPage : UserControl, IWizardPage
             "matrix_plus_3_strips" => "Matrix and 3 LED Strips",
             _ => "Single Matrix"
         };
-        SummaryBackup.Text = state.BackupEnabled ? "Enabled" : "Disabled";
-        SummaryBackupPath.Text = state.BackupEnabled
+        SummaryBackup.Text = state.BackupEnabled
             ? (string.IsNullOrWhiteSpace(state.BackupPath) ? "(auto-generated)" : state.BackupPath)
-            : "—";
+            : "Disabled";
     }
 
     public string? Validate(InstallerState state) => InstallService.ValidateSelections(state);

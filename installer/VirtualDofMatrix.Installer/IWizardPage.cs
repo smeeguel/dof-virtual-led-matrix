@@ -17,4 +17,7 @@ public interface IWizardPage
 
     // Return an explicit target page index to override default (currentIndex + 1), or null for default.
     int? GetNextPageIndex(int currentIndex) => null;
+
+    // False for pages that manage their own internal scroll (e.g. EULA); the outer ScrollViewer is disabled.
+    bool NeedsOuterScroll => true;
 }

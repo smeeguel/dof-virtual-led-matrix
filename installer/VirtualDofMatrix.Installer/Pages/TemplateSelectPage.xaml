@@ -4,12 +4,12 @@
   <StackPanel Margin="24,20,24,16">
 
     <TextBlock Style="{StaticResource SectionHeader}" Text="Choose Virtual Toys" />
-    <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,20"
-               Text="Select a starting configuration for your virtual toys. You can add, remove, or reconfigure toys in the app after installation." />
+    <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,14"
+               Text="Select a starting configuration for your virtual toys. You can reconfigure them in the app after installation." />
 
     <!-- Single matrix option -->
     <Border x:Name="SingleMatrixBorder" BorderThickness="1" CornerRadius="6"
-            Padding="14,12" Margin="0,0,0,10"
+            Padding="12,9" Margin="0,0,0,8"
             BorderBrush="{StaticResource BorderBrush}" Background="White"
             MouseLeftButtonDown="SingleMatrixBorder_Click" Cursor="Hand">
       <Grid>
@@ -18,20 +18,20 @@
           <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
         <RadioButton x:Name="SingleMatrixRadio" Grid.Column="0"
-                     VerticalAlignment="Top" Margin="0,2,12,0"
+                     VerticalAlignment="Center" Margin="0,0,12,0"
                      GroupName="Template" IsChecked="True"
                      Checked="Template_Checked" />
         <StackPanel Grid.Column="1">
           <TextBlock Text="Single Matrix" FontWeight="SemiBold" FontSize="13" />
-          <TextBlock Style="{StaticResource HintText}" Margin="0,3,0,0"
-                     Text="One LED matrix (e.g. a 32×8 DMD-style display). Good starting point for most setups." />
+          <TextBlock Style="{StaticResource HintText}" Margin="0,2,0,0"
+                     Text="One 128×32 LED matrix (DMD-style). Good starting point for most setups." />
         </StackPanel>
       </Grid>
     </Border>
 
     <!-- Matrix + strips option -->
     <Border x:Name="MatrixStripsBorder" BorderThickness="1" CornerRadius="6"
-            Padding="14,12" Margin="0,0,0,10"
+            Padding="12,9" Margin="0,0,0,8"
             BorderBrush="{StaticResource BorderBrush}" Background="White"
             MouseLeftButtonDown="MatrixStripsBorder_Click" Cursor="Hand">
       <Grid>
@@ -40,19 +40,19 @@
           <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
         <RadioButton x:Name="MatrixStripsRadio" Grid.Column="0"
-                     VerticalAlignment="Top" Margin="0,2,12,0"
+                     VerticalAlignment="Center" Margin="0,0,12,0"
                      GroupName="Template"
                      Checked="Template_Checked" />
         <StackPanel Grid.Column="1">
           <TextBlock Text="Matrix and 3 LED Strips" FontWeight="SemiBold" FontSize="13" />
-          <TextBlock Style="{StaticResource HintText}" Margin="0,3,0,0"
-                     Text="One LED matrix plus three LED strip toys (e.g. flasher strips, undercab lighting). Requires the matching hardware." />
+          <TextBlock Style="{StaticResource HintText}" Margin="0,2,0,0"
+                     Text="One LED matrix plus three LED strip toys (e.g. flasher strips, undercab). Requires matching hardware." />
         </StackPanel>
       </Grid>
     </Border>
 
     <TextBlock Style="{StaticResource HintText}"
-               Text="⚙  The selected template sets up your DOF Config files. You can change the configuration or add virtual toys in the app at any time." />
+               Text="The selected template configures your DOF Config files. You can add or change virtual toys in the app at any time." />
 
   </StackPanel>
 </UserControl>
