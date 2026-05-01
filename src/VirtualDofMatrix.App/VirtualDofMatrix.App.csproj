@@ -16,8 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Use Windows API Code Pack for a modern folder picker that displays folder contents. -->
-    <PackageReference Include="Microsoft.WindowsAPICodePack-Shell" Version="1.1.0" />
     <PackageReference Include="Vortice.Direct3D11" Version="3.6.2" />
     <PackageReference Include="Vortice.Direct3D9" Version="3.6.2" />
     <PackageReference Include="Vortice.D3DCompiler" Version="3.6.2" />

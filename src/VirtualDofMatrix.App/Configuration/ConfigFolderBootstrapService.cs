@@ -1,8 +1,9 @@
 using System.IO;
 using System.Windows;
-using Microsoft.WindowsAPICodePack.Dialogs;
 using VirtualDofMatrix.App.Logging;
 using VirtualDofMatrix.Core;
+using FormsDialogResult = System.Windows.Forms.DialogResult;
+using FormsFolderBrowserDialog = System.Windows.Forms.FolderBrowserDialog;
 using WpfMessageBox = System.Windows.MessageBox;
 
 namespace VirtualDofMatrix.App.Configuration;
@@ -98,19 +99,17 @@ public sealed class ConfigFolderBootstrapService
             MessageBoxImage.Information);
 
         var initialDirectory = Directory.Exists(fallbackPath) ? fallbackPath : DefaultConfigFolderPath;
-        using var picker = new CommonOpenFileDialog
+        using var picker = new FormsFolderBrowserDialog
         {
-            Title = "Select your DirectOutput Config folder (must contain Cabinet.xml).",
-            InitialDirectory = initialDirectory,
-            IsFolderPicker = true,
-            EnsurePathExists = true,
-            Multiselect = false,
-            AllowNonFileSystemItems = false,
+            Description = "Select your DirectOutput Config folder (must contain Cabinet.xml).",
+            SelectedPath = initialDirectory,
+            ShowNewFolderButton = false,
+            UseDescriptionForTitle = true,
         };
 
-        if (picker.ShowDialog() == CommonFileDialogResult.Ok && IsReadableDirectory(picker.FileName))
+        if (picker.ShowDialog() == FormsDialogResult.OK && IsReadableDirectory(picker.SelectedPath))
         {
-            return picker.FileName;
+            return picker.SelectedPath;
         }
 
         return fallbackPath;

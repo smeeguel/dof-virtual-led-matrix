@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload installer logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: installer-verbose-logs
           path: artifacts/ci-logs/**/*.log

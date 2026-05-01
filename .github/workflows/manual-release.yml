@@ -408,7 +408,7 @@ jobs:
 
       - name: Upload internal test app package artifact
         if: steps.version.outputs.is_release != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: virtual-dof-matrix-${{ steps.version.outputs.artifact_tag }}-win-x64-zip
           retention-days: 30
@@ -416,7 +416,7 @@ jobs:
 
       - name: Upload internal test installer artifact
         if: steps.version.outputs.is_release != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: virtual-dof-matrix-${{ steps.version.outputs.artifact_tag }}-installer
           retention-days: 30
