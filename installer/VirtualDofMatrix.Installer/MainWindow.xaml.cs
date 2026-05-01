@@ -164,9 +164,36 @@ public partial class MainWindow : Window
         if (!File.Exists(appExe)) return;
         try
         {
-            System.Diagnostics.Process.Start(
-                new System.Diagnostics.ProcessStartInfo(appExe) { UseShellExecute = true });
+            LaunchInstalledAppUnelevated(appExe);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Virtual DOF Matrix was installed, but automatic launch failed:\n\n{ex.Message}\n\nLaunch it from the Start Menu or install folder.",
+                "Virtual DOF Matrix Setup",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
     }
+
+    private static void LaunchInstalledAppUnelevated(string appExe)
+    {
+        // The installer runs elevated. Starting the app directly would inherit that elevated token,
+        // which can prevent normal-user DOF/VPX processes from talking to the first-run app instance.
+        var explorerExe = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "explorer.exe");
+        if (!File.Exists(explorerExe))
+            throw new FileNotFoundException("Windows Explorer could not be found.", explorerExe);
+
+        System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo(explorerExe)
+            {
+                UseShellExecute = false,
+                Arguments = QuoteArgument(appExe),
+            });
+    }
+
+    private static string QuoteArgument(string value) =>
+        "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 }
