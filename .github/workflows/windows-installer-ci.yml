@@ -42,18 +42,23 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $publishDir = (Resolve-Path 'src/VirtualDofMatrix.App/bin/Release/net8.0-windows/win-x64/publish').Path
 
-          dotnet build installer/VirtualDofMatrix.Installer/VirtualDofMatrix.Installer.csproj `
+          dotnet publish installer/VirtualDofMatrix.Installer/VirtualDofMatrix.Installer.csproj `
             -c Release `
+            -r win-x64 `
+            --self-contained true `
+            /p:PublishSingleFile=true `
+            /p:EnableCompressionInSingleFile=true `
+            /p:IncludeNativeLibrariesForSelfExtract=true `
+            /p:PublishTrimmed=false `
+            /p:DebugType=None `
+            /p:DebugSymbols=false `
             /p:Version=0.1.0 `
             /p:InstallerAppPublishDir="$publishDir\\"
 
-          $installerPath = Get-ChildItem -Path 'installer/VirtualDofMatrix.Installer/bin' `
-            -Filter 'VirtualDofMatrix.Installer.exe' -Recurse -File |
-            Sort-Object LastWriteTimeUtc -Descending |
-            Select-Object -First 1 -ExpandProperty FullName
+          $installerPath = 'installer/VirtualDofMatrix.Installer/bin/x64/Release/net8.0-windows/win-x64/publish/VirtualDofMatrix.Installer.exe'
 
           if ([string]::IsNullOrWhiteSpace($installerPath) -or -not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
-            throw 'Installer exe not found after build.'
+            throw 'Installer exe not found after publish.'
           }
 
           "installer_path=$installerPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append

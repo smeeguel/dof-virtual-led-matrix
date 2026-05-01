@@ -43,4 +43,25 @@
           DestinationFiles="@(DofPayloadFiles->'$(OutputPath)payload\DOF\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
+
+  <!-- Single-file publish writes the runnable installer to PublishDir. Stage payloads there too
+       so silent install can discover payload/app and payload/DOF next to the published exe. -->
+  <Target Name="CopyInstallerPayloadOnPublish" AfterTargets="Publish"
+          Condition="'$(InstallerAppPublishDir)' != '' AND Exists('$(InstallerAppPublishDir)')">
+    <ItemGroup>
+      <PublishedAppPayloadFiles Include="$(InstallerAppPublishDir)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PublishedAppPayloadFiles)"
+          DestinationFiles="@(PublishedAppPayloadFiles->'$(PublishDir)payload\app\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyDofPayloadOnPublish" AfterTargets="Publish" Condition="Exists('$(DofPayloadDir)')">
+    <ItemGroup>
+      <PublishedDofPayloadFiles Include="$(DofPayloadDir)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PublishedDofPayloadFiles)"
+          DestinationFiles="@(PublishedDofPayloadFiles->'$(PublishDir)payload\DOF\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

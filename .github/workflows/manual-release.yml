@@ -284,7 +284,7 @@ jobs:
           }
 
           # Stage the installer exe + payload into a zip so the release artifact is self-contained.
-          $installerPublishDir = "installer/VirtualDofMatrix.Installer/bin/Release/net8.0-windows/win-x64/publish"
+          $installerPublishDir = "installer/VirtualDofMatrix.Installer/bin/x64/Release/net8.0-windows/win-x64/publish"
           $bundleDir = "artifacts/installer-bundle"
           New-Item -ItemType Directory -Path "$bundleDir/payload/app" -Force | Out-Null
 
