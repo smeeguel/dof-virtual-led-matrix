@@ -36,13 +36,13 @@ jobs:
   release:
     name: Build and publish release
     runs-on: windows-latest
-    if: github.ref_name == 'main'
 
     steps:
       - name: Validate workflow branch
-        if: github.ref_name != 'main'
+        if: inputs.release_kind == 'stable' && github.ref_name != 'main'
+        shell: pwsh
         run: |
-          Write-Error "This workflow only runs from main. Current ref: $env:GITHUB_REF_NAME"
+          throw "Stable releases only run from main. Current ref: $env:GITHUB_REF_NAME"
 
       - name: Checkout
         uses: actions/checkout@v5
@@ -347,6 +347,13 @@ jobs:
         id: sync_readme
         shell: pwsh
         run: |
+          if ("${{ steps.version.outputs.is_release }}" -ne "true") {
+            $currentSha = (git rev-parse HEAD).Trim()
+            "release_target=$currentSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "Internal test build; skipping README mirror commit and main push."
+            return
+          }
+
           # Packaging rewrites README mirrors from docs/instructions.html when needed.
           # Auto-commit that sync so main always reflects the canonical instructions source.
           git config user.name "github-actions[bot]"

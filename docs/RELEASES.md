@@ -9,7 +9,8 @@ Workflow file: `.github/workflows/manual-release.yml`.
 ### Trigger and branch rules
 
 - Trigger type: `workflow_dispatch` (manual only).
-- Allowed branch: `main` only.
+- Stable releases are allowed from `main` only.
+- Internal test builds can run from any branch selected in the workflow dispatch UI.
 - Stable tag format: `vX.Y.Z`.
 - Test-build tag format: `test/vX.Y.Z-<suffix>`.
 - Only stable builds create GitHub Release entries.
@@ -36,6 +37,7 @@ Two release modes are now supported:
    - Use this mode only when the build should appear on the repository Releases page.
 
 2. **Test build mode (`release_kind=test`)**
+   - Test builds can be run from feature branches before the branch is merged to `main`.
    - The app version stays on the selected base version:
      - `version_override` if provided, otherwise latest stable version (or `0.0.0` if none exist).
    - The workflow appends a test suffix to make the tag unique:
@@ -43,6 +45,7 @@ Two release modes are now supported:
    - The app window displays a pre-release style informational version:
      - `vX.Y.Z-test.<suffix>`
    - The workflow uploads the app ZIP and installer EXE as separate workflow run artifacts instead of creating a GitHub Release entry.
+   - The workflow creates the `test/...` tag at the branch commit that was built.
    - This supports multiple packaged test builds between stable versions (for example, several builds between `v0.0.9` and `v0.0.10`).
 
 ### Downloading internal test builds
