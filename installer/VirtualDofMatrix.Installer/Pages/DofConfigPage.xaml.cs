@@ -31,6 +31,8 @@ public partial class DofConfigPage : UserControl, IWizardPage
 
     private void UpdateBackupPathEnabled()
     {
+        if (BackupPathBox is null || BackupPathLabel is null) return;
+
         var enabled = BackupCheckBox.IsChecked == true;
         BackupPathBox.IsEnabled = enabled;
         BackupPathLabel.Opacity = enabled ? 1.0 : 0.4;
