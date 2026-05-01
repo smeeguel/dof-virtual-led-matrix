@@ -5,7 +5,8 @@
       "Bash(dotnet build *)",
       "Bash(xargs grep *)",
       "Bash(xargs wc *)",
-      "Bash(Get-ChildItem -Path \"d:\\\\proj\\\\dof-virtual-led-matrix\\\\installer\\\\VirtualDofMatrix.Installer\\\\\" -Recurse -Filter \"*.cs\" | Select-Object -ExpandProperty FullName | Sort-Object)"
+      "Bash(Get-ChildItem -Path \"d:\\\\proj\\\\dof-virtual-led-matrix\\\\installer\\\\VirtualDofMatrix.Installer\\\\\" -Recurse -Filter \"*.cs\" | Select-Object -ExpandProperty FullName | Sort-Object)",
+      "Bash(dir /s \"d:\\\\proj\\\\dof-virtual-led-matrix\\\\installer\")"
     ]
   }
 }
