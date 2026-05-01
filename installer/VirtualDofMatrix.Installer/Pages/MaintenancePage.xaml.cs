@@ -36,6 +36,26 @@ public partial class MaintenancePage : UserControl, IWizardPage
             if (confirm != MessageBoxResult.Yes)
                 return string.Empty; // block navigation silently — user cancelled
 
+            // Close the app if it is running so its EXE is not locked during removal.
+            var installed = UninstallService.GetInstalledVersion();
+            if (installed is not null)
+            {
+                var running = UninstallService.FindRunningAppProcesses(installed.InstallFolder);
+                if (running.Count > 0)
+                {
+                    var closeConfirm = MessageBox.Show(
+                        "Virtual DOF Matrix is currently running and must be closed before uninstalling.\n\nClick OK to close the app and continue.",
+                        "Close Virtual DOF Matrix",
+                        MessageBoxButton.OKCancel,
+                        MessageBoxImage.Information);
+
+                    if (closeConfirm != MessageBoxResult.OK)
+                        return string.Empty; // user cancelled
+
+                    UninstallService.CloseAppProcesses(running);
+                }
+            }
+
             try
             {
                 UninstallService.Uninstall();

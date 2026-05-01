@@ -46,7 +46,7 @@
         <StackPanel Grid.Column="1">
           <TextBlock Text="Matrix and 3 LED Strips" FontWeight="SemiBold" FontSize="13" />
           <TextBlock Style="{StaticResource HintText}" Margin="0,2,0,0"
-                     Text="One LED matrix plus three LED strip toys (e.g. flasher strips, undercab). Requires matching hardware." />
+                     Text="One LED matrix plus three LED strip toys (e.g. flasher strips, undercab lighting)." />
         </StackPanel>
       </Grid>
     </Border>

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using Microsoft.Win32;
 
@@ -67,6 +69,49 @@ public static class UninstallService
         RemoveRegistryKey(Registry.CurrentUser, HkcuShortcutKeyPath, progress);
 
         progress?.Report("Uninstall complete.");
+    }
+
+    private const string AppExeName = "VirtualDofMatrix.App";
+
+    /// <summary>
+    /// Returns any running instances of the app whose executable lives inside <paramref name="installFolder"/>.
+    /// </summary>
+    public static IReadOnlyList<Process> FindRunningAppProcesses(string installFolder)
+    {
+        var normalizedFolder = DofDetectionService.Normalize(installFolder);
+        var result = new List<Process>();
+        foreach (var proc in Process.GetProcessesByName(AppExeName))
+        {
+            try
+            {
+                var exePath = DofDetectionService.Normalize(proc.MainModule?.FileName ?? string.Empty);
+                if (exePath.StartsWith(normalizedFolder, StringComparison.OrdinalIgnoreCase))
+                    result.Add(proc);
+            }
+            catch { proc.Dispose(); }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Asks each process to close gracefully, then force-kills any that don't exit within the timeout.
+    /// </summary>
+    public static void CloseAppProcesses(IReadOnlyList<Process> processes, int gracefulTimeoutMs = 3000)
+    {
+        foreach (var proc in processes)
+        {
+            try { proc.CloseMainWindow(); } catch { }
+        }
+
+        foreach (var proc in processes)
+        {
+            try
+            {
+                if (!proc.WaitForExit(gracefulTimeoutMs))
+                    proc.Kill();
+            }
+            catch { }
+        }
     }
 
     private static void RemoveDirectory(string path, IProgress<string>? progress)
