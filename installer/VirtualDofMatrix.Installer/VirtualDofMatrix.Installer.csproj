@@ -10,6 +10,7 @@
     <AssemblyName>VirtualDofMatrix.Installer</AssemblyName>
     <RootNamespace>VirtualDofMatrix.Installer</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\src\VirtualDofMatrix.App\Assets\AppIcon.ico</ApplicationIcon>
     <Version>0.1.0</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
@@ -21,6 +22,9 @@
   <ItemGroup>
     <!-- Embed EULA as WPF resource so it survives single-file publish. -->
     <Resource Include="Assets\Eula.rtf" />
+    <Resource Include="..\..\src\VirtualDofMatrix.App\Assets\AppIcon.ico">
+      <Link>Assets\AppIcon.ico</Link>
+    </Resource>
   </ItemGroup>
 
   <ItemGroup Condition="'$(InstallerAppPublishDir)' != '' AND Exists('$(InstallerAppPublishDir)')">
