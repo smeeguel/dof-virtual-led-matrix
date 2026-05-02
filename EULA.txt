@@ -1,141 +1,170 @@
 Virtual DOF Matrix – End User License Agreement (EULA)
 
-Last updated: April 2026
-
----
+Last updated: May 2026
 
 1. Acceptance
 
-By installing or using Virtual DOF Matrix (“the Software”), you agree to this agreement.
-If you do not agree, do not install or use the Software.
+By installing, copying, or using Virtual DOF Matrix (“the Software”), you agree to be bound by this End User License Agreement (“Agreement”).
+
+If you do not agree to these terms, do not install or use the Software.
 
 ---
 
-2. License Grant
+2. Ownership
 
-You are granted a free, non-exclusive, non-transferable license to use the Software for personal or non-commercial purposes.
+The Software is owned and authored by Miguel F. Molinari (“the Author”) and is protected by applicable copyright and intellectual property laws.
+
+All rights not expressly granted are reserved.
+
+---
+
+3. License Grant
+
+The Author grants you a free, non-exclusive, non-transferable license to use the Software.
 
 You may:
 
 * Use the Software on your own systems
+* Use the Software in personal or commercial environments
 * Share the original, unmodified distribution package
 
 You may not:
 
-* Sell the Software
-* Redistribute modified versions under the same name without permission
-* Claim authorship of the Software
+* Sell, sublicense, or redistribute the Software for a fee
+* Distribute modified versions under the same name or branding without permission
+* Claim authorship or misrepresent the origin of the Software
 
 ---
 
-3. Open Source Components
+4. Open Source Components
 
-The Software may include components licensed under the MIT License.
-Those components remain governed by their respective licenses.
+The Software may include components licensed under open-source licenses, including the MIT License.
+
+Such components remain governed by their respective licenses.
 
 ---
 
-4. Third-Party Dependencies
+5. Third-Party Dependencies
 
-This Software interacts with third-party tools including:
+This Software interacts with third-party tools and ecosystems, including but not limited to:
 
 * DirectOutput Framework (DOF)
 * Visual Pinball X (VPX)
 * PinUP Popper
 
-These are not owned or controlled by the author.
+These tools are not owned, maintained, or controlled by the Author.
 
-The Software may also rely on user-provided or community-created content such as:
+The Software may also rely on user-provided or community-created content, including:
 
 * DOF configuration files
 * ROM mappings
-* Community GIF / MX animations
+* Community-created GIF or MX animations
 
-These assets are not distributed with the Software unless explicitly stated.
+Such content is not distributed with the Software unless explicitly stated.
 
 ---
 
-5. No Warranty
+6. System Modifications
 
-The Software is provided “AS IS”, without warranty of any kind.
+The Software may read, create, modify, or overwrite local configuration files, including but not limited to:
 
-The author does not guarantee:
+* Cabinet.xml
+* settings.json
+* DOF configuration files
 
-* Compatibility with all systems or cabinet setups
+The Software may also communicate via named pipes, COM ports, or similar local system interfaces.
+
+You are solely responsible for maintaining backups of your system and configuration files before use.
+
+---
+
+7. No Warranty
+
+The Software is provided “AS IS”, without warranty of any kind, express or implied, including but not limited to:
+
+* Fitness for a particular purpose
+* Merchantability
+* Non-infringement
+
+The Author does not guarantee:
+
+* Compatibility with all systems, cabinets, or configurations
 * Stability or uninterrupted operation
-* Correct behavior across all DOF configurations
+* Correct behavior in all DOF or VPX environments
 
 ---
 
-6. Limitation of Liability
+8. Limitation of Liability
 
-To the maximum extent permitted by law, the author is not liable for:
+To the maximum extent permitted by law, the Author shall not be liable for any damages arising from the use or inability to use the Software, including but not limited to:
 
-* System or hardware damage
-* Corruption of DOF, VPX, or configuration files
+* Hardware or system damage
+* Corruption of configuration files or software environments
 * Data loss
-* Any indirect or consequential damages
+* Indirect, incidental, or consequential damages
 
-Use the Software at your own risk.
-
----
-
-7. Configuration and System Changes
-
-The Software may:
-
-* Read or modify configuration files (e.g., Cabinet.xml, settings.json)
-* Communicate via named pipes or COM ports
-* Persist runtime settings
-
-You are responsible for maintaining backups of your system and configuration files.
+Use of the Software is at your own risk.
 
 ---
 
-8. Community Content Disclaimer
+9. Indemnification
 
-Some features depend on community-created content (e.g., MX GIF animations).
-
-These:
-
-* Are not owned by the author
-* Are not included in this distribution
-* Must be obtained separately via official tools
+You agree to indemnify and hold harmless the Author from any claims, damages, or liabilities arising from your use, misuse, or distribution of the Software.
 
 ---
 
-9. No Telemetry
+10. Community Content Disclaimer
+
+Some features depend on community-created content (such as MX animations).
+
+Such content:
+
+* Is not owned by the Author
+* Is not included unless explicitly stated
+* Must be obtained through official or community-approved sources
+
+---
+
+11. No Telemetry
 
 The Software does not collect, transmit, or store personal data externally.
-Any logs generated remain local to your machine.
+
+All logs and diagnostic data remain local to your system unless you choose to share them.
 
 ---
 
-10. Support and Updates
+12. Support and Updates
 
 The Software is provided without any obligation of support.
 
-The author may update or discontinue the Software at any time.
+The Author may update, modify, or discontinue the Software at any time without notice.
 
 ---
 
-11. Branding
+13. Branding
 
-You may not redistribute modified versions of this Software using the name
-“Virtual DOF Matrix” or similar branding without permission.
-
----
-
-12. Termination
-
-This license terminates automatically if you violate these terms.
+You may not redistribute modified versions of the Software using the name “Virtual DOF Matrix” or any confusingly similar name without prior written permission.
 
 ---
 
-13. Governing Law
+14. Termination
 
-This agreement is governed by the laws of the author’s jurisdiction.
+This license automatically terminates if you violate any terms of this Agreement.
+
+Upon termination, you must cease use of the Software and delete all copies.
 
 ---
 
-By installing or using this Software, you acknowledge that you have read and agree to this agreement.
+15. Governing Law
+
+This Agreement shall be governed by and construed in accordance with the laws of the State of Florida, United States, without regard to conflict of law principles.
+
+---
+
+16. Entire Agreement
+
+This Agreement constitutes the entire agreement between you and the Author regarding the Software and supersedes all prior or contemporaneous understandings.
+
+---
+
+By installing or using the Software, you acknowledge that you have read, understood, and agree to this Agreement.
