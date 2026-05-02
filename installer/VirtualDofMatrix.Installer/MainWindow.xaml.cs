@@ -128,6 +128,8 @@ public partial class MainWindow : Window
                 System.Diagnostics.Process.Start(
                     new System.Diagnostics.ProcessStartInfo("https://configtool.vpuniverse.com/")
                     { UseShellExecute = true });
+            if (App.State.OpenInstructionsAfterInstall)
+                TryOpenInstructions();
             Close();
             return;
         }
@@ -166,6 +168,19 @@ public partial class MainWindow : Window
     {
         if (_installStarted)
             e.Cancel = true;
+    }
+
+    private static void TryOpenInstructions()
+    {
+        // Destination path mirrors release-manifest.json: "to": "./instructions.html"
+        var htmlPath = Path.Combine(App.State.InstallFolder, "instructions.html");
+        if (!File.Exists(htmlPath)) return;
+        try
+        {
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(htmlPath) { UseShellExecute = true });
+        }
+        catch { }
     }
 
     private static void TryLaunchApp()

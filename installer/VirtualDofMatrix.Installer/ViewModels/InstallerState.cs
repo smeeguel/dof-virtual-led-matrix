@@ -20,6 +20,7 @@ public sealed class InstallerState : INotifyPropertyChanged
     private string _toyTemplate = "single_matrix";
     private bool _launchAfterInstall = true;
     private bool _openConfigToolAfterInstall;
+    private bool _openInstructionsAfterInstall;
     private bool _isUpgrade;
     private bool _isMaintenanceMode;
 
@@ -30,8 +31,9 @@ public sealed class InstallerState : INotifyPropertyChanged
     public bool   BackupEnabled   { get => _backupEnabled;   set => Set(ref _backupEnabled, value); }
     public string BackupPath      { get => _backupPath;      set => Set(ref _backupPath, value); }
     public string ToyTemplate     { get => _toyTemplate;     set => Set(ref _toyTemplate, value); }
-    public bool   LaunchAfterInstall        { get => _launchAfterInstall;        set => Set(ref _launchAfterInstall, value); }
-    public bool   OpenConfigToolAfterInstall { get => _openConfigToolAfterInstall; set => Set(ref _openConfigToolAfterInstall, value); }
+    public bool   LaunchAfterInstall            { get => _launchAfterInstall;            set => Set(ref _launchAfterInstall, value); }
+    public bool   OpenConfigToolAfterInstall   { get => _openConfigToolAfterInstall;   set => Set(ref _openConfigToolAfterInstall, value); }
+    public bool   OpenInstructionsAfterInstall { get => _openInstructionsAfterInstall; set => Set(ref _openInstructionsAfterInstall, value); }
     public bool   IsUpgrade       { get => _isUpgrade;       set => Set(ref _isUpgrade, value); }
     public bool   IsMaintenanceMode { get => _isMaintenanceMode; set => Set(ref _isMaintenanceMode, value); }
 

@@ -43,6 +43,13 @@
                 Margin="0,6,0,0"
                 Checked="OpenConfigToolCheckBox_Changed"
                 Unchecked="OpenConfigToolCheckBox_Changed" />
+
+      <CheckBox x:Name="OpenInstructionsCheckBox"
+                Content="Open Instructions in Browser"
+                IsChecked="False"
+                Margin="0,6,0,0"
+                Checked="OpenInstructionsCheckBox_Changed"
+                Unchecked="OpenInstructionsCheckBox_Changed" />
     </StackPanel>
 
   </StackPanel>

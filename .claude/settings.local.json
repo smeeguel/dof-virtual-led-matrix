@@ -8,7 +8,11 @@
       "Bash(Get-ChildItem -Path \"d:\\\\proj\\\\dof-virtual-led-matrix\\\\installer\\\\VirtualDofMatrix.Installer\\\\\" -Recurse -Filter \"*.cs\" | Select-Object -ExpandProperty FullName | Sort-Object)",
       "Bash(dir /s \"d:\\\\proj\\\\dof-virtual-led-matrix\\\\installer\")",
       "Bash(Get-ChildItem -Path \"d:\\\\proj\\\\dof-virtual-led-matrix\\\\installer\\\\VirtualDofMatrix.Installer\" -Recurse -File)",
-      "Bash(Select-Object -Property FullName)"
+      "Bash(Select-Object -Property FullName)",
+      "Bash(Get-ChildItem -Path \"d:\\\\proj\\\\dof-virtual-led-matrix\\\\installer\\\\VirtualDofMatrix.Installer\" -Recurse -Force)",
+      "Bash(Select-Object FullName)",
+      "Bash(grep -v \"\\\\\\\\\\\\\\\\obj\\\\\\\\\\\\\\\\\")",
+      "Bash(grep -v \"\\\\\\\\\\\\\\\\bin\\\\\\\\\\\\\\\\\")"
     ]
   }
 }
