@@ -23,20 +23,16 @@
       </StackPanel>
     </Border>
 
-    <!-- Download link and retry when DOF not found -->
+    <!-- Download link when DOF not found -->
     <StackPanel x:Name="DownloadPanel" Visibility="Collapsed">
       <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,8"
-                 Text="Install both the 32-bit and 64-bit DirectOutput packages, then click Retry Detection." />
+                 Text="Install both the 32-bit and 64-bit DirectOutput packages, then use the Retry Detection button to check again." />
       <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
         <TextBlock Text="Download DOF: " Style="{StaticResource BodyText}" VerticalAlignment="Center" />
         <Button Content="mjrnet.org/pinscape/dll-updates.html#DOF"
                 Style="{StaticResource LinkButton}"
                 Click="DownloadLink_Click" />
       </StackPanel>
-      <Button Content="Retry Detection"
-              Style="{StaticResource SecondaryButton}"
-              HorizontalAlignment="Left" Height="30" Padding="14,0"
-              Click="RetryButton_Click" />
     </StackPanel>
 
   </StackPanel>

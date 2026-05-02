@@ -107,7 +107,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            NextButton.Content = "Next →";
+            NextButton.Content = page.NextButtonLabel ?? "Next →";
             NextButton.IsEnabled = page.NextEnabled;
         }
     }
@@ -131,6 +131,9 @@ public partial class MainWindow : Window
             Close();
             return;
         }
+
+        if (!_pages[_pageIndex].HandleNextClick(App.State, this))
+            return;
 
         var error = _pages[_pageIndex].Validate(App.State);
         if (error is not null)

@@ -15,6 +15,12 @@ public interface IWizardPage
     // Whether the Next button should be enabled on this page.
     bool NextEnabled { get; }
 
+    // Override the Next button label. Null means use "Next →".
+    string? NextButtonLabel => null;
+
+    // Called when the Next button is clicked. Return true to proceed with normal navigation, false to stay.
+    bool HandleNextClick(InstallerState state, MainWindow host) => true;
+
     // Return an explicit target page index to override default (currentIndex + 1), or null for default.
     int? GetNextPageIndex(int currentIndex) => null;
 

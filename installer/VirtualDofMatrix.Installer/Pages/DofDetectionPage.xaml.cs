@@ -16,7 +16,8 @@ public partial class DofDetectionPage : UserControl, IWizardPage
     public DofDetectionPage() => InitializeComponent();
 
     public string PageTitle => "DOF Detection";
-    public bool NextEnabled => true; // always allow advancing; validation is at SummaryPage
+    public bool NextEnabled => true;
+    public string? NextButtonLabel => _state?.DofDetected == true ? null : "Retry Detection";
 
     public void OnActivated(InstallerState state, MainWindow host)
     {
@@ -25,6 +26,14 @@ public partial class DofDetectionPage : UserControl, IWizardPage
     }
 
     public string? Validate(InstallerState state) => null;
+
+    public bool HandleNextClick(InstallerState state, MainWindow host)
+    {
+        if (state.DofDetected) return true;
+        RunDetection(state);
+        host.UpdateButtons();
+        return state.DofDetected;
+    }
 
     private void UpdateStatusDisplay(bool detected, string rootPath)
     {
@@ -50,15 +59,14 @@ public partial class DofDetectionPage : UserControl, IWizardPage
         }
     }
 
-    private void RetryButton_Click(object sender, RoutedEventArgs e)
+    private void RunDetection(InstallerState state)
     {
-        if (_state is null) return;
         var result = DofDetectionService.Detect();
-        _state.DofDetected = result.Detected;
-        _state.DofRootPath = result.RootPath;
-        _state.DofConfigPath = result.ConfigPath;
-        if (string.IsNullOrWhiteSpace(_state.BackupPath))
-            _state.BackupPath = result.SuggestedBackupPath;
+        state.DofDetected = result.Detected;
+        state.DofRootPath = result.RootPath;
+        state.DofConfigPath = result.ConfigPath;
+        if (string.IsNullOrWhiteSpace(state.BackupPath))
+            state.BackupPath = result.SuggestedBackupPath;
         UpdateStatusDisplay(result.Detected, result.RootPath);
     }
 
