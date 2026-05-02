@@ -124,6 +124,10 @@ public partial class MainWindow : Window
         {
             if (App.State.LaunchAfterInstall)
                 TryLaunchApp();
+            if (App.State.OpenConfigToolAfterInstall)
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo("https://configtool.vpuniverse.com/")
+                    { UseShellExecute = true });
             Close();
             return;
         }

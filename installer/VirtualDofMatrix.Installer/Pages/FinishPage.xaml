@@ -36,6 +36,13 @@
                 FontSize="13"
                 Checked="LaunchCheckBox_Changed"
                 Unchecked="LaunchCheckBox_Changed" />
+
+      <CheckBox x:Name="OpenConfigToolCheckBox"
+                Content="Open DOF Config Tool website (get community matrix shows)"
+                IsChecked="False"
+                Margin="0,6,0,0"
+                Checked="OpenConfigToolCheckBox_Changed"
+                Unchecked="OpenConfigToolCheckBox_Changed" />
     </StackPanel>
 
   </StackPanel>

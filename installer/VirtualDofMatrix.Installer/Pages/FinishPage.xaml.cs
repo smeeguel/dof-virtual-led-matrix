@@ -13,6 +13,7 @@ public partial class FinishPage : UserControl, IWizardPage
     public void OnActivated(InstallerState state, MainWindow host)
     {
         LaunchCheckBox.IsChecked = state.LaunchAfterInstall;
+        OpenConfigToolCheckBox.IsChecked = state.OpenConfigToolAfterInstall;
     }
 
     public string? Validate(InstallerState state) => null;
@@ -20,5 +21,10 @@ public partial class FinishPage : UserControl, IWizardPage
     private void LaunchCheckBox_Changed(object sender, System.Windows.RoutedEventArgs e)
     {
         App.State.LaunchAfterInstall = LaunchCheckBox.IsChecked == true;
+    }
+
+    private void OpenConfigToolCheckBox_Changed(object sender, System.Windows.RoutedEventArgs e)
+    {
+        App.State.OpenConfigToolAfterInstall = OpenConfigToolCheckBox.IsChecked == true;
     }
 }
