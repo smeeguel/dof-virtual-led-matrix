@@ -1,0 +1,170 @@
+# Virtual DOF Matrix – End User License Agreement (EULA)
+
+**Last updated: May 2026**
+
+## 1. Acceptance
+
+By installing, copying, or using Virtual DOF Matrix ("the Software"), you agree to be bound by this End User License Agreement ("Agreement").
+
+If you do not agree to these terms, do not install or use the Software.
+
+---
+
+## 2. Ownership
+
+The Software is owned and authored by Miguel F. Molinari ("the Author") and is protected by applicable copyright and intellectual property laws.
+
+All rights not expressly granted are reserved.
+
+---
+
+## 3. License Grant
+
+The Author grants you a free, non-exclusive, non-transferable license to use the Software.
+
+**You may:**
+
+- Use the Software on your own systems
+- Use the Software in personal or commercial environments
+- Share the original, unmodified distribution package
+
+**You may not:**
+
+- Sell, sublicense, or redistribute the Software for a fee
+- Distribute modified versions under the same name or branding without permission
+- Claim authorship or misrepresent the origin of the Software
+
+---
+
+## 4. Open Source Components
+
+The Software may include components licensed under open-source licenses, including the MIT License.
+
+Such components remain governed by their respective licenses.
+
+---
+
+## 5. Third-Party Dependencies
+
+This Software interacts with third-party tools and ecosystems, including but not limited to:
+
+- DirectOutput Framework (DOF)
+- Visual Pinball X (VPX)
+- PinUP Popper
+
+These tools are not owned, maintained, or controlled by the Author.
+
+The Software may also rely on user-provided or community-created content, including:
+
+- DOF configuration files
+- ROM mappings
+- Community-created GIF or MX animations
+
+Such content is not distributed with the Software unless explicitly stated.
+
+---
+
+## 6. System Modifications
+
+The Software may read, create, modify, or overwrite local configuration files, including but not limited to:
+
+- Cabinet.xml
+- settings.json
+- DOF configuration files
+
+The Software may also communicate via named pipes, COM ports, or similar local system interfaces.
+
+You are solely responsible for maintaining backups of your system and configuration files before use.
+
+---
+
+## 7. No Warranty
+
+The Software is provided "AS IS", without warranty of any kind, express or implied, including but not limited to:
+
+- Fitness for a particular purpose
+- Merchantability
+- Non-infringement
+
+The Author does not guarantee:
+
+- Compatibility with all systems, cabinets, or configurations
+- Stability or uninterrupted operation
+- Correct behavior in all DOF or VPX environments
+
+---
+
+## 8. Limitation of Liability
+
+To the maximum extent permitted by law, the Author shall not be liable for any damages arising from the use or inability to use the Software, including but not limited to:
+
+- Hardware or system damage
+- Corruption of configuration files or software environments
+- Data loss
+- Indirect, incidental, or consequential damages
+
+Use of the Software is at your own risk.
+
+---
+
+## 9. Indemnification
+
+You agree to indemnify and hold harmless the Author from any claims, damages, or liabilities arising from your use, misuse, or distribution of the Software.
+
+---
+
+## 10. Community Content Disclaimer
+
+Some features depend on community-created content (such as MX animations).
+
+Such content:
+
+- Is not owned by the Author
+- Is not included unless explicitly stated
+- Must be obtained through official or community-approved sources
+
+---
+
+## 11. No Telemetry
+
+The Software does not collect, transmit, or store personal data externally.
+
+All logs and diagnostic data remain local to your system unless you choose to share them.
+
+---
+
+## 12. Support and Updates
+
+The Software is provided without any obligation of support.
+
+The Author may update, modify, or discontinue the Software at any time without notice.
+
+---
+
+## 13. Branding
+
+You may not redistribute modified versions of the Software using the name "Virtual DOF Matrix" or any confusingly similar name without prior written permission.
+
+---
+
+## 14. Termination
+
+This license automatically terminates if you violate any terms of this Agreement.
+
+Upon termination, you must cease use of the Software and delete all copies.
+
+---
+
+## 15. Governing Law
+
+This Agreement shall be governed by and construed in accordance with the laws of the State of Florida, United States, without regard to conflict of law principles.
+
+---
+
+## 16. Entire Agreement
+
+This Agreement constitutes the entire agreement between you and the Author regarding the Software and supersedes all prior or contemporaneous understandings.
+
+---
+
+*By installing or using the Software, you acknowledge that you have read, understood, and agree to this Agreement.*

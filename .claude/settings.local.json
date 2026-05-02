@@ -12,7 +12,9 @@
       "Bash(Get-ChildItem -Path \"d:\\\\proj\\\\dof-virtual-led-matrix\\\\installer\\\\VirtualDofMatrix.Installer\" -Recurse -Force)",
       "Bash(Select-Object FullName)",
       "Bash(grep -v \"\\\\\\\\\\\\\\\\obj\\\\\\\\\\\\\\\\\")",
-      "Bash(grep -v \"\\\\\\\\\\\\\\\\bin\\\\\\\\\\\\\\\\\")"
+      "Bash(grep -v \"\\\\\\\\\\\\\\\\bin\\\\\\\\\\\\\\\\\")",
+      "PowerShell(dotnet add \"d:\\\\proj\\\\dof-virtual-led-matrix\\\\installer\\\\VirtualDofMatrix.Installer\\\\VirtualDofMatrix.Installer.csproj\" package Markdig.Wpf)",
+      "PowerShell(Remove-Item \"d:\\\\proj\\\\dof-virtual-led-matrix\\\\installer\\\\VirtualDofMatrix.Installer\\\\Assets\\\\Eula.rtf\" -Confirm:$false)"
     ]
   }
 }

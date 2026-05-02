@@ -21,7 +21,7 @@
 
   <ItemGroup>
     <!-- Embed EULA as WPF resource so it survives single-file publish. -->
-    <Resource Include="Assets\Eula.rtf" />
+    <Resource Include="Assets\Eula.md" />
     <Resource Include="..\..\src\VirtualDofMatrix.App\Assets\AppIcon.ico">
       <Link>Assets\AppIcon.ico</Link>
     </Resource>
@@ -47,5 +47,9 @@
     <EmbeddedResource Include="$(MSBuildProjectDirectory)\..\..\docs\instructions.html">
       <LogicalName>payload/release/instructions.html</LogicalName>
     </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Markdig.Wpf" Version="0.5.0.1" />
   </ItemGroup>
 </Project>

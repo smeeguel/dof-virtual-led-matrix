@@ -1,6 +1,8 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
+using Markdig;
+using Markdig.Wpf;
 using VirtualDofMatrix.Installer.ViewModels;
 
 namespace VirtualDofMatrix.Installer.Pages;
@@ -35,10 +37,12 @@ public partial class WelcomePage : UserControl, IWizardPage
     {
         try
         {
-            var streamInfo = Application.GetResourceStream(new Uri("Assets/Eula.rtf", UriKind.Relative));
+            var streamInfo = Application.GetResourceStream(new Uri("Assets/Eula.md", UriKind.Relative));
             if (streamInfo is null) return;
-            var range = new TextRange(EulaBox.Document.ContentStart, EulaBox.Document.ContentEnd);
-            range.Load(streamInfo.Stream, DataFormats.Rtf);
+            using var reader = new StreamReader(streamInfo.Stream);
+            var markdown = reader.ReadToEnd();
+            var pipeline = new MarkdownPipelineBuilder().UseSupportedExtensions().Build();
+            EulaBox.Document = Markdig.Wpf.Markdown.ToFlowDocument(markdown, pipeline);
         }
         catch { }
     }
