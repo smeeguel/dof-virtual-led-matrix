@@ -3,6 +3,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Virtual DOF Matrix"
+        Icon="Assets/AppIcon.ico"
         Background="Black"
         WindowStyle="None"
         ResizeMode="CanResize"
