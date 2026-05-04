@@ -35,6 +35,10 @@ You do not need to understand DOF deeply to use this app. Just follow the steps 
 
 ## Quick Start (Installer)
 
+[![Virtual DOF Matrix by Migs – Part 1: Basic Setup (Download, Install, DOF Setup & First Layout)](https://img.youtube.com/vi/VcH9S6EUaFE/hqdefault.jpg)](https://youtu.be/VcH9S6EUaFE)
+
+[▶ Part 1: Basic Setup — Download, Install, DOF Setup & First Layout](https://youtu.be/VcH9S6EUaFE)
+
 1. Install DOF
 2. Run the Virtual DOF Matrix installer
 3. Launch Virtual DOF Matrix
@@ -169,6 +173,10 @@ When you toggle toy visibility or move/resize toy windows while a table is activ
 Tip: if you want to keep the current table layout but make it your global default, right-click that toy window and choose **Save &lt;toyname&gt; global position**.
 
 ### Custom GIF / community light shows (DOF Config Tool)
+
+[![Virtual DOF Matrix by Migs – Part 2: DOF Config Tool (Download Custom MX Effects)](https://img.youtube.com/vi/qLAx9HbVLm4/hqdefault.jpg)](https://youtu.be/qLAx9HbVLm4)
+
+[▶ Part 2: DOF Config Tool — Download Custom MX Effects](https://youtu.be/qLAx9HbVLm4)
 
 This step is optional, but recommended if you want enhanced light shows, including community-created GIF animations.
 
