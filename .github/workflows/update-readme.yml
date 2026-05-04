@@ -1,0 +1,30 @@
+name: Update README
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/instructions.html
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-readme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync README mirrors from instructions.html
+        shell: pwsh
+        run: pwsh tools/docs/sync-readme.ps1
+
+      - name: Commit updated README files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/README.md
+          git diff --cached --quiet || git commit -m "docs: sync README mirrors from instructions.html [skip ci]"
+          git push
